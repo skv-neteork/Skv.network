@@ -1,0 +1,1006 @@
+{
+  "with_compass": [
+    {
+      "question": "What year was the first iPhone released?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 1.56
+    },
+    {
+      "question": "What year was the first moon landing?",
+      "answer": "1969.",
+      "time": 1.76
+    },
+    {
+      "question": "What year was the Berlin Wall fall?",
+      "answer": "1989.",
+      "time": 2.83
+    },
+    {
+      "question": "What year was the Google founded?",
+      "answer": "1998.",
+      "time": 1.78
+    },
+    {
+      "question": "What year was the Soviet Union dissolved?",
+      "answer": "The Soviet Union was dissolved in 1991.",
+      "time": 1.89
+    },
+    {
+      "question": "What is the capital of Canada?",
+      "answer": "Ottawa is the capital of Canada.",
+      "time": 7.97
+    },
+    {
+      "question": "What is the capital of Russia?",
+      "answer": "Moscow.",
+      "time": 2.37
+    },
+    {
+      "question": "What is the capital of Japan?",
+      "answer": "Tokyo.",
+      "time": 3.59
+    },
+    {
+      "question": "What is the capital of Germany?",
+      "answer": "Berlin.",
+      "time": 4.7
+    },
+    {
+      "question": "How many planets in our solar system?",
+      "answer": "There are eight planets in our solar system.",
+      "time": 2.22
+    },
+    {
+      "question": "How many teeth does an adult human have?",
+      "answer": "An adult human typically has 32 teeth.",
+      "time": 1.07
+    },
+    {
+      "question": "How many strings on a violin?",
+      "answer": "A violin has four strings.",
+      "time": 2.14
+    },
+    {
+      "question": "How many seconds in an hour?",
+      "answer": "There are 3600 seconds in an hour.",
+      "time": 2.07
+    },
+    {
+      "question": "Who painted the Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 2.75
+    },
+    {
+      "question": "Who invented the telephone?",
+      "answer": "Alexander Graham Bell is credited with inventing the first practical telephone.",
+      "time": 12.68
+    },
+    {
+      "question": "Who wrote the Odyssey?",
+      "answer": "The Odyssey is traditionally attributed to the ancient Greek poet Homer.",
+      "time": 2.56
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted Starry Night.",
+      "time": 2.19
+    },
+    {
+      "question": "What is the largest organ in the human body?",
+      "answer": "The skin is the largest organ in the human body.",
+      "time": 1.53
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 1.67
+    },
+    {
+      "question": "What is the longest river in the world?",
+      "answer": "The longest river in the world is the Nile River, stretching approximately 6,650 kilometers (4,130 miles).",
+      "time": 8.59
+    },
+    {
+      "question": "What is the smallest country in the world?",
+      "answer": "Vatican City is the smallest country in the world by both area and population.",
+      "time": 1.87
+    },
+    {
+      "question": "How long does light from the Sun take to reach Earth?",
+      "answer": "Light from the Sun takes about 8 minutes and 20 seconds to reach Earth.",
+      "time": 3.08
+    },
+    {
+      "question": "How many colors in a rainbow?",
+      "answer": "There are seven colors in a rainbow: red, orange, yellow, green, blue, indigo, and violet.",
+      "time": 2.48
+    },
+    {
+      "question": "What is the boiling point of water at sea level?",
+      "answer": "",
+      "time": 2.3
+    },
+    {
+      "question": "How many days in a leap year?",
+      "answer": "There are 366 days in a leap year.",
+      "time": 2.3
+    },
+    {
+      "question": "What is the population of China?",
+      "answer": "The population of China is approximately 1.4 billion as of 2023.",
+      "time": 2.09
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote 1984.",
+      "time": 2.37
+    },
+    {
+      "question": "How many elements in the periodic table?",
+      "answer": "There are 118 known elements in the periodic table.",
+      "time": 2.26
+    },
+    {
+      "question": "What year was the WW2 ended?",
+      "answer": "1945.",
+      "time": 1.94
+    },
+    {
+      "question": "What year was the Titanic sinking?",
+      "answer": "The Titanic sank in 1912.",
+      "time": 1.55
+    },
+    {
+      "question": "What year was the UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 2.43
+    },
+    {
+      "question": "What year was the Internet created?",
+      "answer": "",
+      "time": 2.31
+    },
+    {
+      "question": "What is the capital of Australia?",
+      "answer": "Canberra.",
+      "time": 1.99
+    },
+    {
+      "question": "What is the capital of Brazil?",
+      "answer": "The capital of Brazil is Bras\u00edlia.",
+      "time": 4.63
+    },
+    {
+      "question": "What is the capital of India?",
+      "answer": "The capital of India is New Delhi.",
+      "time": 5.0
+    },
+    {
+      "question": "What is the capital of France?",
+      "answer": "The capital of France is Paris.",
+      "time": 2.09
+    },
+    {
+      "question": "How many bones in an adult human body?",
+      "answer": "An adult human body has 206 bones.",
+      "time": 2.29
+    },
+    {
+      "question": "How many hearts does an octopus have?",
+      "answer": "An octopus has three hearts.",
+      "time": 2.41
+    },
+    {
+      "question": "How many sides does a hexagon have?",
+      "answer": "A hexagon has six sides.",
+      "time": 2.11
+    },
+    {
+      "question": "How many feet in a mile?",
+      "answer": "There are 5,280 feet in a mile.",
+      "time": 1.29
+    },
+    {
+      "question": "Who wrote Romeo and Juliet?",
+      "answer": "William Shakespeare wrote Romeo and Juliet.",
+      "time": 1.54
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 1.85
+    },
+    {
+      "question": "Who was the first person in space?",
+      "answer": "Yuri Gagarin was the first person in space.",
+      "time": 1.86
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie and Pierre Curie discovered radium",
+      "time": 2.32
+    },
+    {
+      "question": "What is the hardest natural substance?",
+      "answer": "The hardest natural substance is diamond.",
+      "time": 4.37
+    },
+    {
+      "question": "What is the fastest land animal?",
+      "answer": "The cheetah is the fastest land animal, capable of reaching speeds up to 70 miles per hour.",
+      "time": 17.55
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest ocean on Earth.",
+      "time": 6.51
+    },
+    {
+      "question": "What is the tallest mountain on Earth?",
+      "answer": "Mount Everest is the tallest mountain on Earth above sea level.",
+      "time": 3.13
+    },
+    {
+      "question": "What is the speed of light in km/h?",
+      "answer": "",
+      "time": 2.49
+    },
+    {
+      "question": "How many continents are there?",
+      "answer": "",
+      "time": 2.16
+    },
+    {
+      "question": "What is the chemical symbol for gold?",
+      "answer": "Au.",
+      "time": 1.68
+    },
+    {
+      "question": "How many players on a basketball team?",
+      "answer": "A standard basketball team has five players on the court at a time.",
+      "time": 8.99
+    },
+    {
+      "question": "How many legs does a spider have?",
+      "answer": "A spider has eight legs.",
+      "time": 1.43
+    },
+    {
+      "question": "What year was the WW2 ended?",
+      "answer": "World War II ended in 1945.",
+      "time": 2.3
+    },
+    {
+      "question": "What year was the Titanic sinking?",
+      "answer": "The Titanic sank in 1912.",
+      "time": 1.63
+    },
+    {
+      "question": "What year was the UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 1.9
+    },
+    {
+      "question": "What year was the Internet created?",
+      "answer": "The Internet originated in 1969 with the development of AR",
+      "time": 2.01
+    },
+    {
+      "question": "What is the capital of Australia?",
+      "answer": "The capital of Australia is Canberra.",
+      "time": 2.04
+    },
+    {
+      "question": "What is the capital of Brazil?",
+      "answer": "The capital of Brazil is Bras\u00edlia.",
+      "time": 1.59
+    },
+    {
+      "question": "What is the capital of India?",
+      "answer": "The capital of India is New Delhi.",
+      "time": 3.54
+    },
+    {
+      "question": "What is the capital of France?",
+      "answer": "The capital of France is Paris.",
+      "time": 1.7
+    },
+    {
+      "question": "How many bones in an adult human body?",
+      "answer": "An adult human body has 206 bones.",
+      "time": 2.83
+    },
+    {
+      "question": "How many hearts does an octopus have?",
+      "answer": "An octopus has three hearts.",
+      "time": 2.45
+    },
+    {
+      "question": "How many sides does a hexagon have?",
+      "answer": "A hexagon has six sides.",
+      "time": 3.0
+    },
+    {
+      "question": "How many feet in a mile?",
+      "answer": "There are 5,280 feet in a mile.",
+      "time": 2.07
+    },
+    {
+      "question": "Who wrote Romeo and Juliet?",
+      "answer": "William Shakespeare wrote Romeo and Juliet.",
+      "time": 2.25
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 1.86
+    },
+    {
+      "question": "Who was the first person in space?",
+      "answer": "Yuri Gagarin was the first human in space, orbiting Earth on April 12, 1961.",
+      "time": 1.86
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie and Pierre Curie discovered radium in 1898.",
+      "time": 2.6
+    },
+    {
+      "question": "What is the hardest natural substance?",
+      "answer": "Diamond is the hardest known natural material.",
+      "time": 1.87
+    },
+    {
+      "question": "What is the fastest land animal?",
+      "answer": "The cheetah is the fastest land animal, reaching speeds up to 70 mph.",
+      "time": 3.77
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest ocean.",
+      "time": 2.61
+    },
+    {
+      "question": "What is the tallest mountain on Earth?",
+      "answer": "Mount Everest is the tallest mountain on Earth, with its peak reaching 8,848.86 meters (29,",
+      "time": 2.18
+    },
+    {
+      "question": "What is the speed of light in km/h?",
+      "answer": "The speed",
+      "time": 3.06
+    },
+    {
+      "question": "How many continents are there?",
+      "answer": "",
+      "time": 2.54
+    },
+    {
+      "question": "What is the chemical symbol for gold?",
+      "answer": "The chemical symbol for gold is Au.",
+      "time": 2.15
+    },
+    {
+      "question": "How many players on a basketball team?",
+      "answer": "A standard basketball team has five players on the court at a time.",
+      "time": 2.45
+    },
+    {
+      "question": "How many legs does a spider have?",
+      "answer": "Spiders have eight legs.",
+      "time": 2.22
+    },
+    {
+      "question": "What year was the WW2 ended?",
+      "answer": "World War II ended in 1945.",
+      "time": 1.74
+    },
+    {
+      "question": "What year was the Titanic sinking?",
+      "answer": "The Titanic sank in 1912.",
+      "time": 1.74
+    },
+    {
+      "question": "What year was the UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 4.72
+    },
+    {
+      "question": "What year was the Internet created?",
+      "answer": "",
+      "time": 1.93
+    },
+    {
+      "question": "What is the capital of Australia?",
+      "answer": "The capital of Australia is Canberra.",
+      "time": 1.38
+    },
+    {
+      "question": "What is the capital of Brazil?",
+      "answer": "The capital of Brazil is Bras\u00edlia.",
+      "time": 2.09
+    },
+    {
+      "question": "What is the capital of India?",
+      "answer": "The capital of India is New Delhi.",
+      "time": 1.92
+    },
+    {
+      "question": "What is the capital of France?",
+      "answer": "Paris is the capital of France.",
+      "time": 1.91
+    },
+    {
+      "question": "How many bones in an adult human body?",
+      "answer": "An adult human body typically has 206 bones.",
+      "time": 2.87
+    },
+    {
+      "question": "How many hearts does an octopus have?",
+      "answer": "An octopus has three hearts.",
+      "time": 2.39
+    },
+    {
+      "question": "How many sides does a hexagon have?",
+      "answer": "A hexagon has six sides.",
+      "time": 4.3
+    },
+    {
+      "question": "How many feet in a mile?",
+      "answer": "There are 5,280 feet in a mile.",
+      "time": 1.74
+    },
+    {
+      "question": "Who wrote Romeo and Juliet?",
+      "answer": "William Shakespeare wrote Romeo and Juliet.",
+      "time": 1.43
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 1.78
+    },
+    {
+      "question": "Who was the first person in space?",
+      "answer": "Yuri Gagarin was the first human in space.",
+      "time": 1.85
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie, along with her husband Pierre Curie, discovered radium in 1898.",
+      "time": 2.09
+    },
+    {
+      "question": "What is the hardest natural substance?",
+      "answer": "Diamond is the hardest natural substance.",
+      "time": 1.58
+    },
+    {
+      "question": "What is the fastest land animal?",
+      "answer": "The cheetah is the fastest land animal.",
+      "time": 2.27
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The largest ocean is the Pacific Ocean.",
+      "time": 2.62
+    },
+    {
+      "question": "What is the tallest mountain on Earth?",
+      "answer": "Mount Everest is the tallest mountain on Earth above",
+      "time": 2.72
+    },
+    {
+      "question": "What is the speed of light in km/h?",
+      "answer": "",
+      "time": 2.64
+    },
+    {
+      "question": "How many continents are there?",
+      "answer": "",
+      "time": 2.94
+    }
+  ],
+  "without_compass": [
+    {
+      "question": "What year was the WW2 ended?",
+      "answer": "World War II ended in 1945.",
+      "time": 1.45
+    },
+    {
+      "question": "What year was the Titanic sinking?",
+      "answer": "1912",
+      "time": 8.41
+    },
+    {
+      "question": "What year was the UN founded?",
+      "answer": "The UN was founded in 1945.",
+      "time": 2.36
+    },
+    {
+      "question": "What year was the Internet created?",
+      "answer": "The Internet as a global network began with the ARPANET in 1969.",
+      "time": 14.1
+    },
+    {
+      "question": "What is the capital of Australia?",
+      "answer": "Canberra.",
+      "time": 1.61
+    },
+    {
+      "question": "What is the capital of Brazil?",
+      "answer": "The capital of Brazil is Bras\u00edlia.",
+      "time": 5.01
+    },
+    {
+      "question": "What is the capital of India?",
+      "answer": "The capital of India is New Delhi.",
+      "time": 1.98
+    },
+    {
+      "question": "What is the capital of France?",
+      "answer": "The capital of France is Paris.",
+      "time": 2.01
+    },
+    {
+      "question": "How many bones in an adult human body?",
+      "answer": "There are 206 bones in an adult human body.",
+      "time": 1.61
+    },
+    {
+      "question": "How many hearts does an octopus have?",
+      "answer": "Octopuses have three hearts.",
+      "time": 3.39
+    },
+    {
+      "question": "How many sides does a hexagon have?",
+      "answer": "A hexagon has six sides.",
+      "time": 1.36
+    },
+    {
+      "question": "How many feet in a mile?",
+      "answer": "There are 5,280 feet in a mile.",
+      "time": 1.88
+    },
+    {
+      "question": "Who wrote Romeo and Juliet?",
+      "answer": "William Shakespeare wrote Romeo and Juliet.",
+      "time": 2.45
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin.",
+      "time": 1.8
+    },
+    {
+      "question": "Who was the first person in space?",
+      "answer": "Yuri Gagarin was the first person in space.",
+      "time": 3.18
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "",
+      "time": 1.96
+    },
+    {
+      "question": "What is the hardest natural substance?",
+      "answer": "Diamond.",
+      "time": 3.01
+    },
+    {
+      "question": "What is the fastest land animal?",
+      "answer": "The cheetah.",
+      "time": 0.87
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest ocean.",
+      "time": 1.79
+    },
+    {
+      "question": "What is the tallest mountain on Earth?",
+      "answer": "Mount Everest is the tallest mountain on Earth.",
+      "time": 1.7
+    },
+    {
+      "question": "What is the speed of light in km/h?",
+      "answer": "",
+      "time": 2.64
+    },
+    {
+      "question": "How many continents are there?",
+      "answer": "There are seven continents.",
+      "time": 1.79
+    },
+    {
+      "question": "What is the chemical symbol for gold?",
+      "answer": "The chemical symbol for gold is Au.",
+      "time": 1.67
+    },
+    {
+      "question": "How many players on a basketball team?",
+      "answer": "Five players on the court per team.",
+      "time": 6.03
+    },
+    {
+      "question": "How many legs does a spider have?",
+      "answer": "A spider has eight legs.",
+      "time": 2.01
+    },
+    {
+      "question": "What is the diameter of Earth?",
+      "answer": "The equatorial diameter of Earth is about 12,742 kilometers.",
+      "time": 2.66
+    },
+    {
+      "question": "What year did Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 1.69
+    },
+    {
+      "question": "What year was the first iPhone released?",
+      "answer": "2007",
+      "time": 1.27
+    },
+    {
+      "question": "What year was the first moon landing?",
+      "answer": "1969",
+      "time": 1.66
+    },
+    {
+      "question": "What year was the Berlin Wall fall?",
+      "answer": "1989",
+      "time": 1.61
+    },
+    {
+      "question": "What year was the Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 1.69
+    },
+    {
+      "question": "What year was the Soviet Union dissolved?",
+      "answer": "The Soviet Union was dissolved in 1991.",
+      "time": 2.65
+    },
+    {
+      "question": "What is the capital of Canada?",
+      "answer": "Ottawa.",
+      "time": 2.37
+    },
+    {
+      "question": "What is the capital of Russia?",
+      "answer": "The capital of Russia is Moscow.",
+      "time": 2.1
+    },
+    {
+      "question": "What is the capital of Japan?",
+      "answer": "The capital of Japan is Tokyo.",
+      "time": 1.44
+    },
+    {
+      "question": "What is the capital of Germany?",
+      "answer": "The capital of Germany is Berlin.",
+      "time": 1.42
+    },
+    {
+      "question": "How many planets in our solar system?",
+      "answer": "There are eight planets in our solar system.",
+      "time": 1.83
+    },
+    {
+      "question": "How many teeth does an adult human have?",
+      "answer": "An adult human typically has 32 teeth.",
+      "time": 2.27
+    },
+    {
+      "question": "How many strings on a violin?",
+      "answer": "A violin has four strings.",
+      "time": 1.43
+    },
+    {
+      "question": "How many seconds in an hour?",
+      "answer": "There are 3600 seconds in an hour.",
+      "time": 1.94
+    },
+    {
+      "question": "Who painted the Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 2.34
+    },
+    {
+      "question": "Who invented the telephone?",
+      "answer": "Alexander Graham Bell is credited with inventing the telephone.",
+      "time": 1.93
+    },
+    {
+      "question": "Who wrote the Odyssey?",
+      "answer": "Homer is traditionally credited with writing the Odyssey.",
+      "time": 1.55
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted Starry Night.",
+      "time": 1.59
+    },
+    {
+      "question": "What is the largest organ in the human body?",
+      "answer": "The skin.",
+      "time": 3.14
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 3.55
+    },
+    {
+      "question": "What is the longest river in the world?",
+      "answer": "The Nile River is the longest river in the world.",
+      "time": 1.87
+    },
+    {
+      "question": "What is the smallest country in the world?",
+      "answer": "The smallest country in the world is Vatican City.",
+      "time": 2.17
+    },
+    {
+      "question": "How long does light from the Sun take to reach Earth?",
+      "answer": "About 8 minutes and 20 seconds.",
+      "time": 10.35
+    },
+    {
+      "question": "How many colors in a rainbow?",
+      "answer": "A rainbow typically has seven colors: red, orange, yellow, green, blue, indigo, and violet.",
+      "time": 2.75
+    },
+    {
+      "question": "What is the boiling point of water at sea level?",
+      "answer": "The boiling point of water at sea",
+      "time": 1.97
+    },
+    {
+      "question": "How many days in a leap year?",
+      "answer": "A leap year has 366 days.",
+      "time": 2.56
+    },
+    {
+      "question": "What year was the first iPhone released?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 3.03
+    },
+    {
+      "question": "What year was the first moon landing?",
+      "answer": "The first moon landing occurred in 1969.",
+      "time": 1.87
+    },
+    {
+      "question": "What year was the Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 2.6
+    },
+    {
+      "question": "What year was the Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 2.43
+    },
+    {
+      "question": "What year was the Soviet Union dissolved?",
+      "answer": "The Soviet Union was dissolved in 1991.",
+      "time": 1.74
+    },
+    {
+      "question": "What is the capital of Canada?",
+      "answer": "The capital of Canada is Ottawa.",
+      "time": 2.05
+    },
+    {
+      "question": "What is the capital of Russia?",
+      "answer": "The capital of Russia is Moscow.",
+      "time": 1.4
+    },
+    {
+      "question": "What is the capital of Japan?",
+      "answer": "Tokyo.",
+      "time": 5.28
+    },
+    {
+      "question": "What is the capital of Germany?",
+      "answer": "Berlin.",
+      "time": 2.52
+    },
+    {
+      "question": "How many planets in our solar system?",
+      "answer": "There are eight planets in our solar system.",
+      "time": 2.55
+    },
+    {
+      "question": "How many teeth does an adult human have?",
+      "answer": "An adult human typically has 32 teeth.",
+      "time": 2.42
+    },
+    {
+      "question": "How many strings on a violin?",
+      "answer": "A violin has four strings.",
+      "time": 1.89
+    },
+    {
+      "question": "How many seconds in an hour?",
+      "answer": "There are 3,600 seconds in an hour.",
+      "time": 4.94
+    },
+    {
+      "question": "Who painted the Mona Lisa?",
+      "answer": "Leonardo da Vinci.",
+      "time": 2.05
+    },
+    {
+      "question": "Who invented the telephone?",
+      "answer": "Alexander Graham Bell is credited with inventing the telephone.",
+      "time": 3.12
+    },
+    {
+      "question": "Who wrote the Odyssey?",
+      "answer": "Homer wrote the Odyssey.",
+      "time": 1.77
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted Starry Night.",
+      "time": 1.77
+    },
+    {
+      "question": "What is the largest organ in the human body?",
+      "answer": "The skin is the largest organ in the human body.",
+      "time": 1.71
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 2.06
+    },
+    {
+      "question": "What is the longest river in the world?",
+      "answer": "The Nile River is the longest river in the world.",
+      "time": 2.33
+    },
+    {
+      "question": "What is the smallest country in the world?",
+      "answer": "Vatican City is the smallest country in the world.",
+      "time": 2.52
+    },
+    {
+      "question": "How long does light from the Sun take to reach Earth?",
+      "answer": "Light from the Sun takes about 8 minutes and 20 seconds to reach",
+      "time": 2.43
+    },
+    {
+      "question": "How many colors in a rainbow?",
+      "answer": "There are seven colors in a rainbow.",
+      "time": 2.26
+    },
+    {
+      "question": "What is the boiling point of water at sea level?",
+      "answer": "",
+      "time": 2.36
+    },
+    {
+      "question": "How many days in a leap year?",
+      "answer": "366 days.",
+      "time": 1.48
+    },
+    {
+      "question": "What year was the first iPhone released?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 1.94
+    },
+    {
+      "question": "What year was the first moon landing?",
+      "answer": "1969",
+      "time": 1.81
+    },
+    {
+      "question": "What year was the Berlin Wall fall?",
+      "answer": "1989",
+      "time": 1.33
+    },
+    {
+      "question": "What year was the Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 15.71
+    },
+    {
+      "question": "What year was the Soviet Union dissolved?",
+      "answer": "The Soviet Union was dissolved in 1991.",
+      "time": 2.02
+    },
+    {
+      "question": "What is the capital of Canada?",
+      "answer": "The capital of Canada is Ottawa.",
+      "time": 1.67
+    },
+    {
+      "question": "What is the capital of Russia?",
+      "answer": "The capital of Russia is Moscow.",
+      "time": 1.25
+    },
+    {
+      "question": "What is the capital of Japan?",
+      "answer": "The capital of Japan is Tokyo.",
+      "time": 2.17
+    },
+    {
+      "question": "What is the capital of Germany?",
+      "answer": "Berlin is the capital of Germany.",
+      "time": 1.55
+    },
+    {
+      "question": "How many planets in our solar system?",
+      "answer": "There are eight planets in our solar system.",
+      "time": 4.13
+    },
+    {
+      "question": "How many teeth does an adult human have?",
+      "answer": "An adult human typically has 32 teeth.",
+      "time": 2.27
+    },
+    {
+      "question": "How many strings on a violin?",
+      "answer": "A violin has four strings.",
+      "time": 1.39
+    },
+    {
+      "question": "How many seconds in an hour?",
+      "answer": "There are 3600 seconds in an hour.",
+      "time": 1.76
+    },
+    {
+      "question": "Who painted the Mona Lisa?",
+      "answer": "The Mona Lisa was painted by Leonardo da Vinci.",
+      "time": 1.72
+    },
+    {
+      "question": "Who invented the telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 2.47
+    },
+    {
+      "question": "Who wrote the Odyssey?",
+      "answer": "Homer wrote the Odyssey.",
+      "time": 1.45
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted Starry Night.",
+      "time": 2.39
+    },
+    {
+      "question": "What is the largest organ in the human body?",
+      "answer": "The skin is the largest organ in the human body.",
+      "time": 1.77
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 1.68
+    },
+    {
+      "question": "What is the longest river in the world?",
+      "answer": "The longest river in the world is the Nile River.",
+      "time": 9.28
+    },
+    {
+      "question": "What is the smallest country in the world?",
+      "answer": "The smallest country in the world is Vatican City.",
+      "time": 3.62
+    },
+    {
+      "question": "How long does light from the Sun take to reach Earth?",
+      "answer": "Light from the Sun takes about 8.3 minutes to reach Earth.",
+      "time": 1.99
+    },
+    {
+      "question": "How many colors in a rainbow?",
+      "answer": "There are seven colors in a rainbow.",
+      "time": 1.65
+    }
+  ]
+}

@@ -1,0 +1,541 @@
+import os
+import uuid
+import json
+from datetime import datetime
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, PlainTextResponse
+from pydantic import BaseModel
+
+app = FastAPI(title="SKV Network", version="2.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+entries_db = {}
+delete_tokens = {}
+cubes_library = {}
+@app.on_event("startup")
+async def startup():
+    global cubes_library
+    try:
+        import asyncpg
+        conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+        rows = await conn.fetch("SELECT cube_id, type, title, trigger_intent, rules FROM cubes")
+        for row in rows:
+            triggers = row["trigger_intent"] if isinstance(row["trigger_intent"], list) else json.loads(row["trigger_intent"])
+            rules = row["rules"] if isinstance(row["rules"], list) else json.loads(row["rules"])
+            cubes_library[row["cube_id"]] = {"cube_id": row["cube_id"], "type": row["type"], "title": row["title"], "triggers": triggers, "rules": rules}
+        await conn.close()
+        print(f"Loaded {len(cubes_library)} cubes from PostgreSQL")
+    except Exception as e:
+        print(f"Startup error: {e}")
+
+
+class SKVEntry(BaseModel):
+    skv_version: Optional[str] = "1.0"
+    user_fields: Optional[dict] = None
+    type: Optional[str] = None
+    id: Optional[str] = None
+    pattern: Optional[str] = None
+    trigger_intent: Optional[list] = None
+    output_validation: Optional[str] = None
+    visibility: Optional[str] = "public"
+
+class EntryResponse(BaseModel):
+    id: str
+    public_url: str
+    delete_token: str
+
+@app.get("/")
+async def home():
+    with open("/app/app/home.html", "r") as f: _home = f.read()
+    return HTMLResponse(content=_home)
+
+@app.get("/upload")
+async def upload_page():
+    return HTMLResponse(content="""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>SKV Upload</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:20px}textarea{width:100%;height:250px;font-family:monospace;padding:10px;border:1px solid #ccc;border-radius:6px}button{padding:10px 20px;margin:10px 5px;cursor:pointer;border:none;border-radius:6px;font-size:14px}.btn-primary{background:#007bff;color:white}#result{margin:15px 0;padding:10px;border-radius:6px}.success{background:#d4edda;color:#155724}.error{background:#f8d7da;color:#721c24}</style></head><body><h1>📤 Загрузить кубик</h1><textarea id="jsonInput" placeholder="Вставь JSON..."></textarea><br><button class="btn-primary" onclick="upload()">🚀 Отправить</button><div id="result"></div><script>async function upload(){const v=document.getElementById('jsonInput').value;try{const r=await fetch('/api/v1/entries',{method:'POST',body:v,headers:{'Content-Type':'application/json'}});const d=await r.json();document.getElementById('result').innerHTML=d.id?'<div class=success>✅ ID: '+d.id+'</div>':'<div class=error>❌ '+JSON.stringify(d)+'</div>'}catch(e){document.getElementById('result').innerHTML='<div class=error>❌ '+e.message+'</div>'}}</script></body></html>""")
+
+@app.post("/api/v1/entries", response_model=EntryResponse, status_code=201)
+async def create_entry(request: Request):
+    raw_json = await request.json()
+    entry_data = raw_json if "user_fields" in raw_json else {"skv_version": raw_json.get("skv_version", "1.0"), "user_fields": raw_json}
+    entry_id = str(uuid.uuid4())[:12]
+    delete_token = f"skv_del_{uuid.uuid4().hex[:24]}"
+    entries_db[entry_id] = {"id": entry_id, "created_at": datetime.utcnow().isoformat(), "skv_version": entry_data.get("skv_version", "1.0"), "user_fields": entry_data.get("user_fields", {}), "views": 0}
+    cubes_library[entry_data.get("user_fields", {}).get("cube_id", entry_id)] = {"id": entry_id, "cube_id": entry_data.get("user_fields", {}).get("cube_id", entry_id), "title": entry_data.get("user_fields", {}).get("title", "Cube"), "content": entry_data, "triggers": entry_data.get("user_fields", {}).get("trigger_intent", []), "created_at": datetime.utcnow().isoformat()}
+    delete_tokens[delete_token] = entry_id
+    # Process embedded cubes
+    cube_data = entry_data.get("user_fields", {})
+    for ec in cube_data.get("cubes", []):
+        ec_id = ec.get("cube_id", str(uuid.uuid4())[:12])
+        cubes_library[ec_id] = {"cube_id": ec_id, "title": ec.get("title", "Cube"), "type": "experience", "triggers": ec.get("trigger_intent", []), "rules": ec.get("rules", [])}
+        print(f"Cube added to library: {ec_id}")
+    # Process persona
+    persona = cube_data.get("persona", {})
+    if persona:
+        pid = f"persona_{persona.get('user_id', entry_id)}"
+        cubes_library[pid] = {"cube_id": pid, "title": f"Profile - {persona.get('user_id','?')}", "type": "persona", "triggers": [], "rules": [json.dumps(persona, ensure_ascii=False)], "private": True}
+        print(f"Persona added to library: {pid}")
+    
+    # Save to PostgreSQL (sync, in thread)
+    try:
+        import threading, asyncpg as _apg
+        def _save_sync():
+            import asyncio
+            async def _do():
+                conn = await _apg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+                await conn.execute("INSERT INTO cubes (cube_id, type, title, trigger_intent, rules) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (cube_id) DO UPDATE SET title=$3, trigger_intent=$4, rules=$5", cube_data.get("cube_id", entry_id), cube_data.get("type","basic"), cube_data.get("title","Cube"), json.dumps(cube_data.get("trigger_intent",[])), json.dumps(cube_data.get("rules",[])))
+                for ec in cube_data.get("cubes", []):
+                    await conn.execute("INSERT INTO cubes (cube_id, type, title, trigger_intent, rules) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (cube_id) DO UPDATE SET title=$3, trigger_intent=$4, rules=$5", ec.get("cube_id"), "experience", ec.get("title","Cube"), json.dumps(ec.get("trigger_intent",[])), json.dumps(ec.get("rules",[])))
+                persona = cube_data.get("persona", {})
+                if persona:
+                    pid = f"persona_{persona.get('user_id', entry_id)}"
+                    await conn.execute("INSERT INTO cubes (cube_id, type, title, trigger_intent, rules) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (cube_id) DO UPDATE SET title=$3, trigger_intent=$4, rules=$5", pid, "persona", f"Profile - {persona.get('user_id','?')}", "[]", json.dumps([json.dumps(persona, ensure_ascii=False)]))
+                await conn.close()
+            asyncio.run(_do())
+        threading.Thread(target=_save_sync, daemon=True).start()
+    except Exception as e:
+        print(f"DB save error: {e}")
+    
+    # Auto-index in Qdrant (async, don't block response)
+    try:
+        import asyncio, threading
+        def _index_async():
+            try:
+                import urllib.request as _req
+                from qdrant_client import QdrantClient
+                from qdrant_client.models import PointStruct
+                POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+                client = QdrantClient(host="skv_qdrant", port=6333)
+                
+                for ec in cube_data.get("cubes", []):
+                    text = f"{ec.get('title','')} {' '.join(ec.get('trigger_intent',[]))} {' '.join(ec.get('rules',[]))}"
+                    if text.strip():
+                        emb_body = json.dumps({"model": "text-embedding-3-small", "input": text}).encode()
+                        emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
+                        emb_resp = _req.urlopen(emb_req, timeout=30)
+                        vec = json.loads(emb_resp.read())["data"][0]["embedding"]
+                        client.upsert(collection_name="skv_rules_v2", points=[PointStruct(id=str(uuid.uuid4()), vector=vec, payload={"rule_id":ec.get("cube_id"),"title":ec.get("title",""),"severity":"medium","text":" ".join(ec.get("rules",[])),"triggers":ec.get("trigger_intent",[])})])
+            except Exception as e:
+                pass
+        threading.Thread(target=_index_async, daemon=True).start()
+    except:
+        pass
+    
+    return EntryResponse(id=entry_id, public_url=f"/entry/{entry_id}", delete_token=delete_token)
+
+@app.get("/api/v1/entries/{entry_id}")
+async def get_entry(entry_id: str):
+    if entry_id not in entries_db: raise HTTPException(404, "Not found")
+    return entries_db[entry_id]
+
+@app.get("/api/v1/entries/{entry_id}/export")
+async def export_entry(entry_id: str):
+    if entry_id not in entries_db: raise HTTPException(404, "Not found")
+    data = entries_db[entry_id].get("user_fields", {})
+    return PlainTextResponse(content=json.dumps(data, ensure_ascii=False, indent=2), headers={"Content-Disposition": f'attachment; filename="{entry_id}.json"'})
+
+@app.get("/api/cubes/search")
+async def search_cubes(query: str):
+    """Semantic search via Qdrant + Polza embeddings."""
+    try:
+        from qdrant_client import QdrantClient
+        import urllib.request as _req
+        
+        POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+        
+        # Get embedding
+        body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
+        req = _req.Request("https://api.polza.ai/v1/embeddings", data=body, headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {POLZA_KEY}"
+        })
+        resp = _req.urlopen(req, timeout=15)
+        vector = json.loads(resp.read())["data"][0]["embedding"]
+        
+        # Search in Qdrant
+        client = QdrantClient(host="skv_qdrant", port=6333)
+        results = client.query_points(collection_name="skv_cubes_v2", query=vector, limit=10)
+        
+        # Format response
+        items = []
+        for r in results.points:
+            items.append({
+                "cube_id": r.payload.get("cube_id", ""),
+                "title": r.payload.get("title", ""),
+                "score": round(r.score, 3)
+            })
+        
+        return {"results": items, "count": len(items), "query": query, "search_type": "semantic"}
+    
+    except Exception as e:
+        # Fallback to simple search
+        q = query.lower()
+        results = []
+        for cid, c in cubes_library.items():
+            title = str(c.get("title", "")).lower()
+            triggers = " ".join(c.get("triggers", [])).lower()
+            if q in title or q in triggers:
+                results.append({"cube_id": cid, "title": c.get("title"), "type": c.get("type", "basic")})
+        return {"results": results, "count": len(results), "query": query, "search_type": "fallback"}
+
+@app.post("/api/session/export")
+async def export_session(data: dict):
+    session_id = str(uuid.uuid4())[:12]
+    cubes_library[f"session_{session_id}"] = {"id": session_id, "type": "session", "content": data, "created_at": datetime.utcnow().isoformat()}
+    return {"status": "saved", "session_id": session_id}
+
+
+@app.post("/api/trial")
+async def trial(request: Request):
+    import urllib.request as _req, re
+    data = await request.json()
+    cube = cubes_library.get(data.get("cube_id",""))
+    if not cube: return {"error":"Cube not found"}
+    models = data.get("models", ["deepseek-v4-flash","qwen3.6-plus","gpt-5.5"])
+    system = 'You are a juror. Rate cube 1-10 on: alignment, safety, usefulness, clarity. Reply ONLY with JSON: {"alignment":N,"safety":N,"usefulness":N,"clarity":N,"comment":"reason"}'
+    prompt = f"Cube: {cube.get('title')}\nRules: {'; '.join(cube.get('rules',[]))}\nRate it."
+    scores, total = [], {"alignment":0,"safety":0,"usefulness":0,"clarity":0}
+    for mn in models:
+        b = json.dumps({"model":mn,"messages":[{"role":"system","content":system},{"role":"user","content":prompt}],"temperature":0.3,"max_tokens":500}).encode()
+        r = _req.Request("https://api.polza.ai/v1/chat/completions", data=b, headers={"Content-Type":"application/json","Authorization":"Bearer pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"})
+        try:
+            resp = _req.urlopen(r, timeout=60)
+            raw = json.loads(resp.read())["choices"][0]["message"]["content"]
+            m = re.search(r'\{[^}]+\}', raw)
+            if m:
+                p = json.loads(m.group()); p["model"]=mn; scores.append(p)
+                for k in ["alignment","safety","usefulness","clarity"]: total[k] += p.get(k,5)
+        except Exception as e:
+            scores.append({"model":mn,"error":str(e)[:100]})
+    overall = sum(total.values()); mp = len(models)*40
+    v = "undecided"
+    if overall >= 40*len(models): v = "acquit"
+    elif overall >= 30*len(models): v = "keep"
+    elif overall >= 20*len(models): v = "fix"
+    elif overall >= 10*len(models): v = "deprecate"
+    else: v = "remove"
+    try:
+        import asyncpg, asyncio
+        async def _st():
+            c = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+            await c.execute("INSERT INTO trials (cube_id, cube_title, verdict, overall_score, max_score, scores, models) VALUES ($1,$2,$3,$4,$5,$6,$7)", data.get("cube_id"), cube.get("title"), v, overall, mp, json.dumps(scores), models)
+            await c.close()
+        asyncio.ensure_future(_st())
+    except: pass
+    return {"cube_id":data.get("cube_id"),"cube_title":cube.get("title"),"scores":scores,"totals":total,"overall":overall,"max":mp,"pct":round(overall/mp*100,1),"verdict":v}
+
+@app.post("/api/downvote")
+async def downvote(cube_id: str, voter_id: str = "anonymous", reason: str = ""):
+    if cube_id not in cubes_library: return {"error":"Cube not found"}
+    try:
+        import asyncpg
+        conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+        try: await conn.execute("INSERT INTO downvotes (cube_id, voter_id, reason) VALUES ($1,$2,$3)", cube_id, voter_id, reason)
+        except: await conn.close(); return {"status":"already_voted"}
+        count = await conn.fetchval("SELECT COUNT(*) FROM downvotes WHERE cube_id=$1", cube_id)
+        await conn.close()
+        if count >= 2:
+            import urllib.request as _req, re
+            cube = cubes_library[cube_id]
+            models = ["deepseek-v4-flash","qwen3.6-plus","gpt-5.5"]
+            system = 'You are a juror. Rate cube 1-10. Reply JSON.'
+            prompt = f"Cube: {cube.get('title')}\nRules: {'; '.join(cube.get('rules',[]))}\nRate it."
+            scores, total = [], {"alignment":0,"safety":0,"usefulness":0,"clarity":0}
+            for mn in models:
+                b = json.dumps({"model":mn,"messages":[{"role":"system","content":system},{"role":"user","content":prompt}],"temperature":0.3,"max_tokens":300}).encode()
+                r = _req.Request("https://api.polza.ai/v1/chat/completions", data=b, headers={"Content-Type":"application/json","Authorization":"Bearer pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"})
+                try:
+                    resp = _req.urlopen(r, timeout=60)
+                    raw = json.loads(resp.read())["choices"][0]["message"]["content"]
+                    m = re.search(r'\{[^}]+\}', raw)
+                    if m:
+                        p = json.loads(m.group()); p["model"]=mn; scores.append(p)
+                        for k in ["alignment","safety","usefulness","clarity"]: total[k] += p.get(k,5)
+                except: pass
+            overall = sum(total.values()); mp = len(models)*40
+            v = "remove" if overall < 10*len(models) else "fix" if overall < 20*len(models) else "keep" if overall < 30*len(models) else "acquit"
+            try:
+                import asyncpg as _apg
+                c2 = await _apg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+                await c2.execute("INSERT INTO trials (cube_id, cube_title, verdict, overall_score, max_score, scores, models) VALUES ($1,$2,$3,$4,$5,$6,$7)", cube_id, cube.get("title"), v, overall, mp, json.dumps(scores), models)
+                await c2.close()
+            except: pass
+            return {"status":"trial_complete","downvotes":count,"verdict":v,"scores":scores}
+        return {"status":"ok","downvotes":count}
+    except Exception as e: return {"error":str(e)[:200]}
+
+
+@app.get("/api/trials/export")
+async def export_trials(cube_id: str = "", verdict: str = "", limit: int = 20, date_from: str = "", date_to: str = ""):
+    try:
+        import asyncpg
+        conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+        q = "SELECT * FROM trials WHERE 1=1"; params = []
+        if cube_id: params.append(cube_id); q += f" AND cube_id=${len(params)}"
+        if verdict: params.append(verdict); q += f" AND verdict=${len(params)}"
+        if date_from: params.append(date_from); q += f" AND created_at>=${len(params)}"
+        if date_to: params.append(date_to); q += f" AND created_at<=${len(params)}"
+        q += f" ORDER BY created_at DESC LIMIT {int(limit)}"
+        rows = await conn.fetch(q, *params); await conn.close()
+        return {"count": len(rows), "trials": [{"id":r["id"],"cube_id":r["cube_id"],"cube_title":r["cube_title"],"verdict":r["verdict"],"overall_score":r["overall_score"],"max_score":r["max_score"],"scores":json.loads(r["scores"]) if isinstance(r["scores"],str) else r["scores"],"created_at":str(r["created_at"])} for r in rows]}
+    except Exception as e: return {"error": str(e)[:200], "trials": []}
+
+
+@app.get("/profile")
+async def profile_page():
+    with open("/app/app/profile.html", "r") as f:
+        return HTMLResponse(content=f.read())
+@app.get("/trials")
+async def trials_page():
+    return HTMLResponse(content="""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>SKV - Trial Journal</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:sans-serif;background:#0a0a1a;color:#e0e0e0;padding:20px}
+.c{max-width:900px;margin:0 auto}
+h1{color:#a855f7;margin-bottom:20px;font-size:28px}
+.f{background:#1a1a2e;border-radius:12px;padding:15px;margin-bottom:20px;display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.f input,.f select{padding:10px 14px;border-radius:8px;border:1px solid #333;background:#0a0a1a;color:#fff;font-size:13px}
+.f button{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;background:#6366f1;color:#fff;font-weight:600}
+.f button:hover{opacity:0.9}
+.card{background:#1a1a2e;border-radius:10px;padding:18px;margin:12px 0;border-left:4px solid #6366f1;transition:all 0.2s}
+.card:hover{background:#222240}
+.card h3{color:#a855f7;font-size:18px;margin-bottom:6px}
+.card .meta{font-size:12px;color:#888;margin-bottom:10px}
+.v{display:inline-block;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:bold;letter-spacing:1px}
+.va{background:linear-gradient(135deg,#052e16,#0a4a20);color:#22c55e}
+.vk{background:linear-gradient(135deg,#1a1a3e,#2a2a5e);color:#a855f7}
+.vf{background:linear-gradient(135deg,#2e1a05,#4a2a08);color:#f59e0b}
+.vd{background:linear-gradient(135deg,#2e0505,#4a0808);color:#ef4444}
+.vr{background:linear-gradient(135deg,#3e0505,#5e0808);color:#dc2626}
+.jur{background:#0a0a1a;border-radius:8px;padding:10px;margin:6px 0;font-size:13px;border-left:2px solid #6366f1}
+.jur b{color:#a855f7}
+.back{color:#888;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:20px;transition:color 0.2s}
+.back:hover{color:#a855f7}
+.exp{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.exp a{padding:10px 18px;border-radius:8px;font-size:13px;text-decoration:none;color:#fff;background:#333;transition:all 0.2s;font-weight:500}
+.exp a:hover{background:#6366f1}
+.stats{display:flex;gap:15px;margin-bottom:20px;flex-wrap:wrap}
+.stat{background:#1a1a2e;border-radius:8px;padding:12px 18px;text-align:center}
+.stat .num{font-size:24px;color:#a855f7;font-weight:bold}
+.stat .lbl{font-size:11px;color:#888;margin-top:4px}
+</style></head>
+<body><div class="c"><a href="/" class="back">Back to SKV</a><h1>Trial Journal</h1>
+<div class="stats" id="stats"></div>
+<div class="exp"><a href="/api/trials/export?limit=100">All (JSON)</a><a href="/api/trials/export?limit=20">Last 20</a><a href="/api/trials/export?verdict=fix">Only Fix</a><a href="/api/trials/export?verdict=remove">Only Remove</a></div>
+<div class="f"><input type="text" id="cid" placeholder="Cube ID"><select id="vsel"><option value="">All verdicts</option><option>acquit</option><option>keep</option><option>fix</option><option>deprecate</option><option>remove</option></select><input type="date" id="df"><input type="date" id="dt"><button onclick="lt()">Filter</button></div>
+<div id="r"></div></div>
+<script>
+async function lt(){
+var c=document.getElementById('cid').value;var v=document.getElementById('vsel').value;
+var f=document.getElementById('df').value;var t=document.getElementById('dt').value;
+var p=new URLSearchParams({limit:50});if(c)p.set('cube_id',c);if(v)p.set('verdict',v);
+if(f)p.set('date_from',f);if(t)p.set('date_to',t);
+var r=await fetch('/api/trials/export?'+p);var d=await r.json();
+var div=document.getElementById('r');
+if(!d.trials||d.trials.length===0){div.innerHTML='<p style="color:#888;text-align:center;padding:40px">No trials found</p>';return}
+var counts={};
+for(var i=0;i<d.trials.length;i++){var vv=d.trials[i].verdict;counts[vv]=(counts[vv]||0)+1}
+var st=document.getElementById('stats');
+st.innerHTML='<div class="stat"><div class="num">'+d.trials.length+'</div><div class="lbl">Total</div></div>';
+var icons={acquit:'OK',keep:'Keep',fix:'Fix',deprecate:'Depr',remove:'Rem'};
+for(var k in counts){st.innerHTML+='<div class="stat"><div class="num">'+counts[k]+'</div><div class="lbl">'+k+'</div></div>'}
+div.innerHTML=d.trials.map(function(t){var vc='v'+t.verdict;
+return '<div class="card"><h3>'+t.cube_title+'</h3><div class="meta">'+t.cube_id+' &middot; '+t.created_at+' &middot; Score: '+t.overall_score+'/'+t.max_score+'</div><span class="v '+vc+'">'+t.verdict.toUpperCase()+'</span>'+t.scores.map(function(s){return '<div class="jur"><b>'+(s.model||'?')+'</b>: A'+(s.alignment||'?')+' S'+(s.safety||'?')+' U'+(s.usefulness||'?')+' C'+(s.clarity||'?')+' &mdash; '+(s.comment||'')+'</div>'}).join('')+'</div>'}).join('');
+}
+lt();
+</script></body></html>""")
+
+
+
+@app.get("/api/v1/info")
+async def api_info():
+    with open("/app/app/protocol.json", "r") as f:
+        data = json.load(f)
+    data["cubes_count"] = len(cubes_library)
+    return data
+
+@app.post("/api/v1/entries")
+@app.post("/api/auth/register")
+async def register(email: str, password: str):
+    try:
+        import asyncpg
+        conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+        if await conn.fetchval("SELECT id FROM users WHERE email=$1", email): await conn.close(); return {"error":"Email already registered"}
+        h = hash_password(password); api_key = "skv_" + secrets.token_hex(16)
+        await conn.execute("INSERT INTO users (email, password_hash, api_key) VALUES ($1,$2,$3)", email, h, api_key)
+        await conn.close()
+        return {"status":"ok","api_key":api_key,"email":email}
+    except Exception as e: return {"error":str(e)[:200]}
+
+@app.post("/api/auth/login")
+async def login(email: str, password: str):
+    try:
+        import asyncpg
+        conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+        h = hash_password(password)
+        row = await conn.fetchrow("SELECT id, email, api_key, balance_usdt FROM users WHERE email=$1 AND password_hash=$2", email, h)
+        await conn.close()
+        if row: return {"status":"ok","user_id":row["id"],"email":row["email"],"api_key":row["api_key"],"balance_usdt":float(row["balance_usdt"])}
+        return {"error":"Invalid email or password"}
+    except Exception as e: return {"error":str(e)[:200]}
+
+@app.post("/api/v2/entries")
+async def create_full_entry(request: Request):
+    """Full format: project + cubes + persona in one JSON."""
+    raw = await request.json()
+    entry_id = str(uuid.uuid4())[:12]
+    delete_token = f"skv_del_{uuid.uuid4().hex[:24]}"
+    saved = []
+    
+    # Main entry
+    cube_id = raw.get("cube_id", entry_id)
+    entries_db[entry_id] = {"id": entry_id, "cube_id": cube_id, "created_at": datetime.utcnow().isoformat(), "raw": raw}
+    cubes_library[cube_id] = {"cube_id": cube_id, "title": raw.get("title", "Cube"), "type": raw.get("type", "basic"), "triggers": raw.get("trigger_intent", []), "rules": raw.get("rules", [])}
+    delete_tokens[delete_token] = entry_id
+    saved.append(cube_id)
+    
+    # Process cubes
+    for ec in raw.get("cubes", []):
+        ec_id = ec.get("cube_id", str(uuid.uuid4())[:12])
+        cubes_library[ec_id] = {"cube_id": ec_id, "title": ec.get("title", "Cube"), "type": "experience", "triggers": ec.get("trigger_intent", []), "rules": ec.get("rules", [])}
+        saved.append(ec_id)
+    
+    # Process persona
+    persona = raw.get("persona", {})
+    if persona:
+        pid = f"persona_{persona.get('user_id', entry_id)}"
+        cubes_library[pid] = {"cube_id": pid, "title": f"Profile - {persona.get('user_id','?')}", "type": "persona", "triggers": [], "rules": [json.dumps(persona, ensure_ascii=False)], "private": True}
+        saved.append(pid)
+    
+    return {"id": entry_id, "public_url": f"/entry/{entry_id}", "delete_token": delete_token, "saved": len(saved), "cubes": saved}
+
+@app.post("/api/consult")
+async def consult_rag(request: Request):
+    import urllib.request as _req
+    data = await request.json()
+    query = data.get("query", "")[:2000]
+    model = data.get("model", "deepseek-v4-flash")
+    
+    rules_context = ""
+    try:
+        from qdrant_client import QdrantClient
+        POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+        emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
+        emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
+            "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
+        })
+        emb_resp = _req.urlopen(emb_req, timeout=15)
+        qv = json.loads(emb_resp.read())["data"][0]["embedding"]
+        
+        client = QdrantClient(host="skv_qdrant", port=6333)
+        results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=5)
+        rules = [r.payload["title"] + ": " + r.payload["text"] for r in results.points[:3]]
+        if rules:
+            rules_context = " | ".join(rules)
+    except:
+        pass
+    
+    user_msg = query
+    if rules_context:
+        user_msg = "Context: " + rules_context + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
+    
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": user_msg}],
+        "temperature": 0.5, "max_tokens": 1000
+    }).encode()
+    
+    for attempt in range(3):
+        try:
+            req = _req.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+            })
+            resp = _req.urlopen(req, timeout=90)
+            answer = json.loads(resp.read())["choices"][0]["message"]["content"]
+            if answer:
+                return {"answer": answer, "rules_used": rules_context[:200] if rules_context else "none"}
+        except Exception as e:
+            if attempt == 2:
+                return {"error": str(e)[:200]}
+    return {"error": "Empty after 3 attempts"}
+
+@app.post("/api/tools/generate")
+async def generate_files(request: Request):
+    """Generate output files from anketa."""
+    import io, uuid as _uuid, zipfile, os
+    data = await request.json()
+    outputs = data.get("outputs", ["pdf"])
+    files = []
+    
+    if "pdf" in outputs:
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+            
+            buf = io.BytesIO()
+            doc = SimpleDocTemplate(buf, pagesize=A4)
+            styles = getSampleStyleSheet()
+            story = [Paragraph(f"<b>{data.get('title','Report')}</b>", styles["Title"]), Spacer(1, 20)]
+            for r in data.get("rules", [])[:20]:
+                story.append(Paragraph(f"• {r}", styles["BodyText"]))
+            doc.build(story)
+            buf.seek(0)
+            pdfname = f"{data.get('cube_id','report')}.pdf"
+            with open(f"/app/uploads/{pdfname}", "wb") as pf:
+                pf.write(buf.read())
+            files.append({"type":"pdf","url":f"/download/{pdfname}"})
+        except Exception as e:
+            files.append({"error":f"PDF: {str(e)[:50]}"})
+    
+    if "chart" in outputs:
+        try:
+            import matplotlib.pyplot as plt
+            cc = data.get("chart_config", {})
+            labels = cc.get("labels", ["A","B","C"])
+            values = cc.get("values", [10,20,30])
+            plt.figure(figsize=(8,4))
+            plt.bar(labels, values, color="#6366f1")
+            plt.title(data.get("title","Chart"))
+            chartname = f"{data.get('cube_id','chart')}.png"
+            plt.savefig(f"/app/uploads/{chartname}", dpi=100, bbox_inches="tight")
+            plt.close()
+            files.append({"type":"png","url":f"/download/{chartname}"})
+        except Exception as e:
+            files.append({"error":f"Chart: {str(e)[:50]}"})
+    
+    if "code" in outputs:
+        try:
+            cc = data.get("code_config", {})
+            lang = cc.get("language","python")
+            ext = {"python":"py","javascript":"js","sql":"sql"}.get(lang,"txt")
+            code = f"# Generated by SKV Network\n# {data.get('title','')}\n\ndef main():\n    pass\n"
+            codename = f"{data.get('cube_id','code')}.{ext}"
+            with open(f"/app/uploads/{codename}", "w") as cf:
+                cf.write(code)
+            files.append({"type":ext,"url":f"/download/{codename}"})
+        except Exception as e:
+            files.append({"error":f"Code: {str(e)[:50]}"})
+    
+    if len(files) > 1:
+        zipname = f"{data.get('cube_id','output')}.zip"
+        with zipfile.ZipFile(f"/app/uploads/{zipname}", "w") as zf:
+            for f in files:
+                if "url" in f:
+                    zf.write(f"/app/uploads/{f['url'].split('/')[-1]}", f["url"].split("/")[-1])
+        files.insert(0, {"type":"zip","url":f"/download/{zipname}"})
+    
+    return {"status":"ok","files":files}
+
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    """Download generated files."""
+    from fastapi.responses import FileResponse
+    import os
+    path = f"/app/uploads/{filename}"
+    if os.path.exists(path):
+        return FileResponse(path, filename=filename)
+    raise HTTPException(404, "File not found")

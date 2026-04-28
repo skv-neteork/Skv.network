@@ -1,0 +1,82 @@
+import os
+import uuid
+import json
+from datetime import datetime
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, PlainTextResponse
+from pydantic import BaseModel
+
+app = FastAPI(title="SKV Network", version="2.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+entries_db = {}
+delete_tokens = {}
+cubes_library = {}
+
+class SKVEntry(BaseModel):
+    skv_version: Optional[str] = "1.0"
+    user_fields: Optional[dict] = None
+    type: Optional[str] = None
+    id: Optional[str] = None
+    pattern: Optional[str] = None
+    trigger_intent: Optional[list] = None
+    output_validation: Optional[str] = None
+    visibility: Optional[str] = "public"
+
+class EntryResponse(BaseModel):
+    id: str
+    public_url: str
+    delete_token: str
+
+@app.get("/")
+async def home():
+    return HTMLResponse(content="<h1>🧩 SKV v2.0</h1><a href='/upload'>Upload</a> | <a href='/api/cubes/search?query=test'>API</a>")
+
+@app.get("/upload")
+async def upload_page():
+    return HTMLResponse(content="""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>SKV Upload</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:20px}textarea{width:100%;height:250px;font-family:monospace;padding:10px;border:1px solid #ccc;border-radius:6px}button{padding:10px 20px;margin:10px 5px;cursor:pointer;border:none;border-radius:6px;font-size:14px}.btn-primary{background:#007bff;color:white}#result{margin:15px 0;padding:10px;border-radius:6px}.success{background:#d4edda;color:#155724}.error{background:#f8d7da;color:#721c24}</style></head><body><h1>📤 Загрузить кубик</h1><textarea id="jsonInput" placeholder="Вставь JSON..."></textarea><br><button class="btn-primary" onclick="upload()">🚀 Отправить</button><div id="result"></div><script>async function upload(){const v=document.getElementById('jsonInput').value;try{const r=await fetch('/api/v1/entries',{method:'POST',body:v,headers:{'Content-Type':'application/json'}});const d=await r.json();document.getElementById('result').innerHTML=d.id?'<div class=success>✅ ID: '+d.id+'</div>':'<div class=error>❌ '+JSON.stringify(d)+'</div>'}catch(e){document.getElementById('result').innerHTML='<div class=error>❌ '+e.message+'</div>'}}</script></body></html>""")
+
+@app.post("/api/v1/entries", response_model=EntryResponse, status_code=201)
+async def create_entry(request: Request):
+    raw_json = await request.json()
+    entry_data = raw_json if "user_fields" in raw_json else {"skv_version": raw_json.get("skv_version", "1.0"), "user_fields": raw_json}
+    entry_id = str(uuid.uuid4())[:12]
+    delete_token = f"skv_del_{uuid.uuid4().hex[:24]}"
+    entries_db[entry_id] = {"id": entry_id, "created_at": datetime.utcnow().isoformat(), "skv_version": entry_data.get("skv_version", "1.0"), "user_fields": entry_data.get("user_fields", {}), "views": 0}
+    cubes_library[entry_data.get("user_fields", {}).get("cube_id", entry_id)] = {"id": entry_id, "cube_id": entry_data.get("user_fields", {}).get("cube_id", entry_id), "title": entry_data.get("user_fields", {}).get("title", "Cube"), "content": entry_data, "triggers": entry_data.get("user_fields", {}).get("trigger_intent", []), "created_at": datetime.utcnow().isoformat()}
+    delete_tokens[delete_token] = entry_id
+    return EntryResponse(id=entry_id, public_url=f"/entry/{entry_id}", delete_token=delete_token)
+
+@app.get("/api/v1/entries/{entry_id}")
+async def get_entry(entry_id: str):
+    if entry_id not in entries_db: raise HTTPException(404, "Not found")
+    return entries_db[entry_id]
+
+@app.get("/api/v1/entries/{entry_id}/export")
+async def export_entry(entry_id: str):
+    if entry_id not in entries_db: raise HTTPException(404, "Not found")
+    data = entries_db[entry_id].get("user_fields", {})
+    return PlainTextResponse(content=json.dumps(data, ensure_ascii=False, indent=2), headers={"Content-Disposition": f'attachment; filename="{entry_id}.json"'})
+
+@app.get("/api/cubes/search")
+async def search_cubes(query: str):
+    query_lower = query.lower()
+    results = [{"cube_id": cid, "title": c.get("title"), "triggers": c.get("triggers"), "data": c.get("content")} for cid, c in cubes_library.items() if query_lower in c.get("title", "").lower() or query_lower in json.dumps(c.get("content", {})).lower()]
+    return {"results": results, "count": len(results), "query": query}
+
+@app.post("/api/session/export")
+async def export_session(data: dict):
+    session_id = str(uuid.uuid4())[:12]
+    cubes_library[f"session_{session_id}"] = {"id": session_id, "type": "session", "content": data, "created_at": datetime.utcnow().isoformat()}
+    return {"status": "saved", "session_id": session_id}
+
+@app.get("/api/v1/info")
+async def api_info():
+    return {"service": "SKV Network", "version": "2.0", "status": "running", "cubes_count": len(cubes_library)}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

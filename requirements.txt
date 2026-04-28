@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+psycopg2-binary
+qdrant-client
+python-dotenv
+jsonschema
+aiogram
+httpx
+jinja2>=3.1.0

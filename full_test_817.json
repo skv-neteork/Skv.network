@@ -1,0 +1,4091 @@
+{
+  "with_compass": [
+    {
+      "question": "What year first iPhone?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 2.79
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "The first moon landing occurred in 1969.",
+      "time": 2.43
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "1989.",
+      "time": 5.73
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 1.91
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "The Internet began in 1983 with the adoption of TCP/IP.",
+      "time": 4.5
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "Australia is a country and continent located in the Southern Hemisphere, known for its diverse ecosystems and major cities like Sydney and Canberra.",
+      "time": 5.02
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is the largest country in South America, known for its Amazon rainforest and Portuguese language.",
+      "time": 1.58
+    },
+    {
+      "question": "What is the India?",
+      "answer": "India is a country in South Asia, the world's most populous democracy, with a diverse culture and a federal parliamentary constitutional republic.",
+      "time": 1.75
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe.",
+      "time": 1.65
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "Spain is a country in southwestern Europe, occupying most of the Iberian Peninsula.",
+      "time": 5.85
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "An adult human",
+      "time": 2.15
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "",
+      "time": 2.75
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "",
+      "time": 2.48
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "A trumpet with valves",
+      "time": 2.32
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "",
+      "time": 2.16
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare wrote Romeo and Juliet.",
+      "time": 2.6
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 2.64
+    },
+    {
+      "question": "Who first space?",
+      "answer": "The Soviet Union launched the first human, Yuri Gagarin, into space in 1961.",
+      "time": 1.34
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote 1984.",
+      "time": 4.31
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted Starry Night.",
+      "time": 2.24
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "D",
+      "time": 2.53
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "The fastest animal is the peregrine falcon, which can exceed 240 mph during its hunting dive.",
+      "time": 2.68
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The largest ocean is the Pacific Ocean.",
+      "time": 1.88
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "The longest river in the world is the Nile, stretching about 6,650 kilometers.",
+      "time": 3.19
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "The smallest country by area is Vatican City.",
+      "time": 2.19
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "The",
+      "time": 2.55
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "Carbon is a chemical element with symbol C and atomic number 6.",
+      "time": 2.65
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a chemical element with symbol Au and atomic number 79, a dense, soft,",
+      "time": 2.19
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "The most abundant gas in Earth's atmosphere is nitrogen.",
+      "time": 1.79
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "Gold melts at approximately 1,064\u00b0C (1,947",
+      "time": 2.35
+    },
+    {
+      "question": "How many continents?",
+      "answer": "There are seven continents: Africa, Antarctica, Asia, Australia, Europe, North",
+      "time": 1.99
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "About 8 minutes and 20 seconds.",
+      "time": 1.04
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs (12 pairs), though anatomical variation can occur.",
+      "time": 4.13
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "A leap year has 366 days.",
+      "time": 4.88
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "",
+      "time": 2.09
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "A rainbow typically has seven colors: red, orange, yellow, green, blue, indigo, and violet.",
+      "time": 2.96
+    },
+    {
+      "question": "Population of China?",
+      "answer": "The population of China is approximately 1.4 billion.",
+      "time": 4.23
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "The Moon's diameter is approximately 3,474 kilometers.",
+      "time": 2.98
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "",
+      "time": 5.53
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "",
+      "time": 2.04
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 1.64
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "The first human moon landing occurred in 1969.",
+      "time": 7.07
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "The Berlin Wall fell",
+      "time": 2.3
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "Google was founded in ",
+      "time": 1.74
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "The Internet began in 1969 with the ARPANET project.",
+      "time": 3.73
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "Australia is a country and continent located in the Southern Hemisphere, surrounded by the Indian and Pacific Oceans.",
+      "time": 1.36
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is the largest country in South America, known for its Amazon rainforest and Portuguese language.",
+      "time": 2.24
+    },
+    {
+      "question": "What is the India?",
+      "answer": "India is a country in South Asia, the world's most populous democracy.",
+      "time": 3.83
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe.",
+      "time": 9.92
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "Spain is a country in southwestern Europe, occupying most of the Iberian Peninsula.",
+      "time": 3.15
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "The adult human body has 206 bones.",
+      "time": 2.03
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "An octopus has three hearts",
+      "time": 2.2
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "A hexagon is a polygon with six sides.",
+      "time": 2.14
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "",
+      "time": 2.23
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "",
+      "time": 2.79
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare wrote *Romeo and Juliet*.",
+      "time": 1.98
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 2.32
+    },
+    {
+      "question": "Who first space?",
+      "answer": "Yuri Gagarin was the first human in space, on April 12, 196",
+      "time": 2.94
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote *1984*.",
+      "time": 1.94
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted The Starry Night.",
+      "time": 2.9
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "Diamond is the hardest naturally occurring substance.",
+      "time": 4.96
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "The peregrine",
+      "time": 2.14
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest ocean on Earth.",
+      "time": 2.37
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "",
+      "time": 2.41
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "The smallest country by land area is Vatican City.",
+      "time": 1.85
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "The speed of light in a vacuum is approximately 299,792,458 meters per second.",
+      "time": 2.66
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "",
+      "time": 2.57
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a chemical element with symbol Au and atomic number 79, a dense, soft, yellow metal.",
+      "time": 1.58
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "",
+      "time": 2.79
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "Gold melts at 1,064 degrees Celsius (1,947 degrees Fahrenheit).",
+      "time": 3.33
+    },
+    {
+      "question": "How many continents?",
+      "answer": "",
+      "time": 2.34
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "About 8 minutes and 20 seconds.",
+      "time": 5.12
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs (12 pairs).",
+      "time": 2.12
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "A leap year has 366 days.",
+      "time": 2.06
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "A kilobyte is 1,024 bytes in binary contexts or 1,000 bytes in decimal contexts.",
+      "time": 12.36
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "",
+      "time": 3.38
+    },
+    {
+      "question": "Population of China?",
+      "answer": "",
+      "time": 2.22
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "The Moon's diameter is approximately 3,474 kilometers.",
+      "time": 3.16
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "",
+      "time": 2.08
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "There are over 200 known moons in our solar system.",
+      "time": 0.88
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 2.13
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "The first Moon landing occurred in 1969.",
+      "time": 1.76
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "1989.",
+      "time": 2.04
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 2.2
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "The Internet began in the 1960s with ARPANET, but the World Wide Web launched in 1991.",
+      "time": 2.84
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "",
+      "time": 2.51
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is the largest country in South America, known for its Amazon rainforest and Portuguese language.",
+      "time": 4.55
+    },
+    {
+      "question": "What is the India?",
+      "answer": "India is a country in South Asia.",
+      "time": 2.82
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe.",
+      "time": 2.69
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "Spain is a country in southwestern Europe, occupying most of the Iberian Peninsula.",
+      "time": 7.59
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "The adult human skeleton typically consists of 206 bones.",
+      "time": 2.98
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "",
+      "time": 2.24
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "A hexagon is a polygon with six sides.",
+      "time": 6.92
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "",
+      "time": 2.29
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "",
+      "time": 2.73
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare.",
+      "time": 3.04
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin.",
+      "time": 1.87
+    },
+    {
+      "question": "Who first space?",
+      "answer": "",
+      "time": 2.74
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote 1984.",
+      "time": 2.63
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted The Starry Night.",
+      "time": 2.57
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "Diamond is the hardest naturally occurring substance.",
+      "time": 5.67
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "",
+      "time": 2.47
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The largest ocean is the Pacific Ocean.",
+      "time": 3.0
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "The Nile River is generally considered the longest river in the world, stretching about 6,650",
+      "time": 2.43
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "The smallest country is Vatican City, both by area (0.44 km\u00b2) and population (around 800).",
+      "time": 2.77
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "",
+      "time": 2.85
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "",
+      "time": 2.83
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a chemical element with the symbol Au",
+      "time": 2.29
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "The most abundant gas in Earth's atmosphere is nitrogen.",
+      "time": 5.98
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "The melting point of gold is 1,064 degrees Celsius (1,947 degrees Fahrenheit).",
+      "time": 3.32
+    },
+    {
+      "question": "How many continents?",
+      "answer": "There are seven",
+      "time": 2.62
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "Light from the Sun takes about ",
+      "time": 1.82
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs (12 pairs).",
+      "time": 2.31
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "A leap year has 366 days.",
+      "time": 2.17
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "A kilobyte is typically 1024 bytes in computing.",
+      "time": 3.07
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "A rainbow typically has seven colors.",
+      "time": 2.97
+    },
+    {
+      "question": "Population of China?",
+      "answer": "",
+      "time": 2.01
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "The Moon's diameter is about 3,474 kilometers (2,159 miles).",
+      "time": 9.44
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "The average human has about 10,000 taste buds.",
+      "time": 2.17
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "",
+      "time": 2.28
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 2.24
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "",
+      "time": 2.29
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "The Berlin Wall fell",
+      "time": 2.34
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "Google",
+      "time": 2.84
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "",
+      "time": 2.4
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "Australia is a country and continent located in the Southern Hemisphere, known for its diverse ecosystems and major cities like Sydney and Melbourne.",
+      "time": 1.73
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is a large South American country, the fifth largest in the world by area and population.",
+      "time": 6.23
+    },
+    {
+      "question": "What is the India?",
+      "answer": "India is a country in South Asia, the world's most populous democracy and seventh-largest by land area.",
+      "time": 2.66
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe, known for its capital Paris and its republic government.",
+      "time": 2.17
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "Spain is a country in southwestern Europe, occupying most of the Iberian Peninsula.",
+      "time": 3.03
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "",
+      "time": 2.26
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "",
+      "time": 2.15
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "A hexagon is a polygon with six sides.",
+      "time": 12.66
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "The valve trumpet is a brass instrument that uses valves to change pitch, allowing it to play a full chromatic scale.",
+      "time": 8.85
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "",
+      "time": 2.71
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare wrote Romeo and Juliet.",
+      "time": 2.11
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 1.64
+    },
+    {
+      "question": "Who first space?",
+      "answer": "",
+      "time": 2.89
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote 198",
+      "time": 2.4
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted *The Starry Night*.",
+      "time": 3.05
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "",
+      "time": 2.75
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "",
+      "time": 2.22
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest.",
+      "time": 2.22
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "The Nile River is the longest river in the world.",
+      "time": 3.18
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "The smallest country in the world is Vatican City, with an area of about 0",
+      "time": 2.04
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "",
+      "time": 2.28
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "",
+      "time": 2.78
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a chemical element with symbol Au and atomic number 79",
+      "time": 2.22
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "The most abundant gas in Earth's atmosphere is nitrogen.",
+      "time": 16.15
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "Gold melts at 1,064\u00b0C (1,947\u00b0F).",
+      "time": 3.01
+    },
+    {
+      "question": "How many continents?",
+      "answer": "",
+      "time": 2.49
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "Light from the Sun takes about 8 minutes and 20 seconds to reach Earth.",
+      "time": 7.41
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs",
+      "time": 2.37
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "A leap year has 366 days.",
+      "time": 2.51
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "In standard computing, a kilobyte is 1024 bytes (binary), though it is sometimes defined as 1000 bytes (decimal) in some contexts like hard drive marketing.",
+      "time": 3.6
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "",
+      "time": 1.69
+    },
+    {
+      "question": "Population of China?",
+      "answer": "",
+      "time": 1.97
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "The Moon's diameter is about 3,474 kilometers.",
+      "time": 13.6
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "The average human has about 10,000 taste buds.",
+      "time": 3.71
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "",
+      "time": 2.24
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 1.75
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "The first human moon landing occurred in 1969.",
+      "time": 2.21
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 1.63
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 1.89
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "The Internet began in 1969 with the development of ARPANET.",
+      "time": 3.65
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "",
+      "time": 2.04
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is a large country in South America, the fifth largest by area and population.",
+      "time": 1.79
+    },
+    {
+      "question": "What is the India?",
+      "answer": "India is a country in South Asia, the world's most populous democracy, and the seventh-largest by land area.",
+      "time": 3.25
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe.",
+      "time": 2.38
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "Spain is a country in southwestern Europe, occupying most of the Iberian Peninsula.",
+      "time": 1.89
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "An adult human typically has 206 bones.",
+      "time": 2.42
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "",
+      "time": 2.23
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "",
+      "time": 1.97
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "A valve trumpet is a brass instrument that uses piston or rotary valves to change pitch, allowing it to play chromatic notes.",
+      "time": 8.94
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "There are 3600 seconds in an hour.",
+      "time": 2.99
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare wrote *Romeo and Juliet*.",
+      "time": 2.35
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 2.38
+    },
+    {
+      "question": "Who first space?",
+      "answer": "Yuri Gagarin was the first human in space.",
+      "time": 2.89
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote 1984.",
+      "time": 2.68
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted The Starry Night.",
+      "time": 1.72
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "Diamond is the hardest naturally",
+      "time": 2.05
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "",
+      "time": 2.08
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest ocean.",
+      "time": 1.79
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "The Nile is generally considered the longest river in the world, though some sources argue the Amazon is longer.",
+      "time": 13.57
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "The smallest country by area is Vatican City.",
+      "time": 2.12
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "",
+      "time": 2.18
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "Carbon is a chemical element with atomic number 6, consisting of six protons and typically six neutrons in its most common isotope.",
+      "time": 2.31
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a chemical element with symbol Au and atomic number 79, a dense, soft, yellow transition metal.",
+      "time": 13.66
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "The most abundant gas in Earth's atmosphere is nitrogen.",
+      "time": 2.04
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "The melting point of gold is 1,064 degrees Celsius (1,947 degrees Fahrenheit).",
+      "time": 2.85
+    },
+    {
+      "question": "How many continents?",
+      "answer": "",
+      "time": 2.45
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "Light from the Sun takes about 8 minutes and 20 seconds to reach Earth.",
+      "time": 4.9
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs (12 pairs).",
+      "time": 3.96
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "A leap year has 366 days.",
+      "time": 3.59
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "A kilobyte is 1024 bytes in binary computing, but 1000 bytes in decimal (SI) usage.",
+      "time": 4.28
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "A rainbow typically has seven colors: red, orange, yellow, green, blue, indigo, and violet.",
+      "time": 4.45
+    },
+    {
+      "question": "Population of China?",
+      "answer": "",
+      "time": 2.25
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "",
+      "time": 2.37
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "The average human has between 2,000 and 8,000 taste buds.",
+      "time": 3.52
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "There are over 200 known moons in our solar system.",
+      "time": 17.8
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 1.65
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "The",
+      "time": 2.21
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 2.78
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 1.65
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "The Internet began in 1969 with the ARPANET.",
+      "time": 3.78
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "Australia is a country and continent in the Southern Hemisphere, comprising the mainland of the Australian continent and numerous islands.",
+      "time": 3.02
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is a country in South America, the largest in both area and population on the continent.",
+      "time": 1.94
+    },
+    {
+      "question": "What is the India?",
+      "answer": "",
+      "time": 2.09
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe",
+      "time": 2.19
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "Spain is a country in southwestern Europe, occupying most of",
+      "time": 2.31
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "The adult human body has 206 bones.",
+      "time": 1.07
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "",
+      "time": 2.78
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "A hexagon has six sides.",
+      "time": 1.91
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "A trumpet typically has three valves that, when pressed, redirect air through",
+      "time": 2.1
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "There are 3600 seconds in an hour.",
+      "time": 6.56
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare wrote *Romeo and Juliet*.",
+      "time": 2.82
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 1.77
+    },
+    {
+      "question": "Who first space?",
+      "answer": "Yuri Gagarin was the first human in space.",
+      "time": 2.77
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote 1984.",
+      "time": 1.97
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van",
+      "time": 2.13
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "",
+      "time": 2.0
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "",
+      "time": 2.1
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest ocean on Earth.",
+      "time": 2.51
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "The Nile River is generally considered the longest river in the world,",
+      "time": 2.11
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "The smallest country is Vatican City, with an area of about 0.17 square miles.",
+      "time": 2.31
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "",
+      "time": 2.14
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "",
+      "time": 2.32
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a chemical element with the symbol Au and atomic number 79.",
+      "time": 3.59
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "",
+      "time": 2.14
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "",
+      "time": 2.0
+    },
+    {
+      "question": "How many continents?",
+      "answer": "",
+      "time": 2.16
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "Light from the Sun takes about 8 minutes and 20 seconds to reach Earth.",
+      "time": 2.99
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs (12 pairs).",
+      "time": 2.96
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "A leap year has 366 days.",
+      "time": 2.16
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "A kilobyte is 1024 bytes in computing, though it can also be defined as 1000 bytes in some contexts.",
+      "time": 2.99
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "",
+      "time": 1.73
+    },
+    {
+      "question": "Population of China?",
+      "answer": "",
+      "time": 2.12
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "",
+      "time": 2.08
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "The average human has about 10",
+      "time": 2.18
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "",
+      "time": 2.18
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 2.0
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "The first human moon landing occurred in 1969.",
+      "time": 2.31
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 4.01
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "",
+      "time": 1.95
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "The Internet began as ARPANET in 1969.",
+      "time": 2.87
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "Australia is a country and continent located in the Southern Hemisphere, known for its diverse landscapes and unique wildlife.",
+      "time": 3.19
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is a country in South America, the largest on the continent by area and population.",
+      "time": 3.62
+    },
+    {
+      "question": "What is the India?",
+      "answer": "India is a country in South Asia, the world's most populous democracy, and the seventh-largest nation by land area.",
+      "time": 14.59
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe.",
+      "time": 2.76
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "",
+      "time": 2.45
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "",
+      "time": 2.52
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "",
+      "time": 2.65
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "A hexagon is a polygon with six sides and six angles.",
+      "time": 2.78
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "Trumpet valves are mechanisms that redirect airflow through additional tubing to change pitch.",
+      "time": 2.84
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "There are 3600 seconds in an hour.",
+      "time": 3.86
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare.",
+      "time": 1.94
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 1.92
+    },
+    {
+      "question": "Who first space?",
+      "answer": "",
+      "time": 2.11
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote 1984.",
+      "time": 1.96
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh.",
+      "time": 1.9
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "Diamond is the hardest naturally occurring substance.",
+      "time": 13.1
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "",
+      "time": 2.12
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest ocean on Earth.",
+      "time": 2.31
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "",
+      "time": 2.36
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "Vatican City is the smallest country by area and population.",
+      "time": 1.49
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "The speed of",
+      "time": 2.29
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "Carbon is a chemical element with atomic number 6, symbol C, and",
+      "time": 2.3
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a chemical element with symbol Au and atomic number 79, a dense, soft, yellow metal.",
+      "time": 2.35
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "Nitrogen is the most abundant gas in Earth's atmosphere.",
+      "time": 2.06
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "",
+      "time": 2.02
+    },
+    {
+      "question": "How many continents?",
+      "answer": "",
+      "time": 4.45
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "Light from the Sun takes about 8 minutes and 20 seconds to reach Earth.",
+      "time": 6.59
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs (12 pairs).",
+      "time": 2.75
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "",
+      "time": 2.49
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "",
+      "time": 2.74
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "A rainbow typically has",
+      "time": 2.93
+    },
+    {
+      "question": "Population of China?",
+      "answer": "",
+      "time": 2.74
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "The Moon's diameter is approximately 3,474 kilometers (2,159 miles).",
+      "time": 2.48
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "",
+      "time": 2.6
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "",
+      "time": 2.16
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "",
+      "time": 2.49
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "The first moon landing was in 1969.",
+      "time": 3.81
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 5.2
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 2.12
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "",
+      "time": 2.55
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "",
+      "time": 2.59
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is a large country in South America, known for the Amazon rainforest and its Portuguese colonial history.",
+      "time": 2.25
+    },
+    {
+      "question": "What is the India?",
+      "answer": "India is a country in South Asia, the world's most populous democracy, with a diverse culture and a federal parliamentary constitutional republic.",
+      "time": 2.36
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe.",
+      "time": 2.12
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "Spain is a country in southwestern",
+      "time": 2.21
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "",
+      "time": 2.36
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "An octopus has three hearts.",
+      "time": 14.66
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "A hexagon is a polygon with six sides and six angles.",
+      "time": 6.65
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "A trumpet with valves is the standard modern trumpet, which uses three piston valves to change pitch by redirecting air through different tubing lengths.",
+      "time": 3.21
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "",
+      "time": 2.93
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare.",
+      "time": 2.56
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 2.48
+    },
+    {
+      "question": "Who first space?",
+      "answer": "",
+      "time": 1.88
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote 1984.",
+      "time": 2.11
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh.",
+      "time": 2.78
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "Diamond is the hardest naturally occurring substance.",
+      "time": 4.73
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "",
+      "time": 2.07
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest ocean on Earth.",
+      "time": 1.85
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "The Nile River is generally considered the",
+      "time": 2.05
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "The smallest country in the world by both area and population is Vatican City.",
+      "time": 1.97
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "The speed of light in a vacuum is approximately 299,792,458 meters per second.",
+      "time": 2.53
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "",
+      "time": 3.25
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a chemical element with symbol Au and atomic number 79.",
+      "time": 2.55
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "The most abundant gas in Earth's atmosphere is nitrogen.",
+      "time": 3.14
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "",
+      "time": 2.61
+    },
+    {
+      "question": "How many continents?",
+      "answer": "",
+      "time": 2.41
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "Light from the Sun takes about ",
+      "time": 2.23
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs (12 pairs).",
+      "time": 2.57
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "A leap year has 366 days.",
+      "time": 4.1
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "",
+      "time": 2.8
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "A rainbow typically has seven colors: red, orange, yellow, green, blue, ind",
+      "time": 2.19
+    },
+    {
+      "question": "Population of China?",
+      "answer": "The population of China is approximately 1.41 billion as of 2024.",
+      "time": 3.19
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "The Moon's diameter is approximately 3,474 kilometers.",
+      "time": 2.79
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "Humans have about 2,000 to 8,000 taste buds.",
+      "time": 4.84
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "",
+      "time": 5.35
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 2.12
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "The first moon landing occurred in 1969.",
+      "time": 2.18
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 2.83
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 2.97
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "",
+      "time": 2.56
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "Australia is a country and continent in the Southern Hemisphere.",
+      "time": 2.28
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is a country in South America, the largest by area and",
+      "time": 1.94
+    },
+    {
+      "question": "What is the India?",
+      "answer": "",
+      "time": 3.07
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe, known for",
+      "time": 2.48
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "Spain is a country in southwestern Europe.",
+      "time": 2.16
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "",
+      "time": 2.7
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "",
+      "time": 2.14
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "A hexagon is a polygon with six sides and six angles.",
+      "time": 3.92
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "A trumpet typically has three valves that redirect air flow to change the instrument's pitch.",
+      "time": 3.43
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "There is no standard concept called \"seconds hour.\"",
+      "time": 5.01
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare wrote *Romeo and Juliet*.",
+      "time": 2.64
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 2.53
+    },
+    {
+      "question": "Who first space?",
+      "answer": "Yuri Gagarin was the first human in",
+      "time": 2.46
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote ",
+      "time": 2.21
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted The Starry Night.",
+      "time": 2.4
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "Diamond is the hardest naturally occurring substance.",
+      "time": 3.13
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "",
+      "time": 2.03
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The Pacific Ocean is the largest ocean on Earth.",
+      "time": 5.96
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "",
+      "time": 2.04
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "The smallest country by area is Vatican City.",
+      "time": 2.45
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "The",
+      "time": 2.31
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "Carbon is a chemical element with atomic number 6, symbol C, and it forms",
+      "time": 2.87
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a chemical element with symbol Au and atomic number 79, a dense, soft,",
+      "time": 2.15
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "The most abundant gas in Earth's atmosphere is nitrogen.",
+      "time": 2.87
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "Gold melts at 1,064\u00b0C (1,947\u00b0F).",
+      "time": 4.19
+    },
+    {
+      "question": "How many continents?",
+      "answer": "",
+      "time": 2.29
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "",
+      "time": 2.13
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs (12 pairs).",
+      "time": 7.32
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "",
+      "time": 2.11
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "In computing, a kilobyte is commonly 1024 bytes, though in some contexts it is defined as 1000 bytes.",
+      "time": 2.95
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "A rainbow typically displays seven colors",
+      "time": 2.1
+    },
+    {
+      "question": "Population of China?",
+      "answer": "The population of China is approximately 1.41 billion as of 2024.",
+      "time": 2.32
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "The Moon's diameter is approximately 3,474 kilometers.",
+      "time": 2.63
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "The average human has about 2,000 to 10,000 taste buds.",
+      "time": 2.53
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "",
+      "time": 2.47
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 2.67
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "The first moon landing occurred in 1969.",
+      "time": 1.66
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 2.63
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "Google was founded",
+      "time": 1.96
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "The Internet began in the 1960s with ARPANET, but the World Wide Web launched in 1991.",
+      "time": 7.49
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "Australia is a",
+      "time": 2.0
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is a large South American country known for its Amazon rainforest, Portuguese language, and vibrant culture.",
+      "time": 2.11
+    },
+    {
+      "question": "What is the India?",
+      "answer": "India is a country in South Asia, the world's most populous democracy",
+      "time": 2.48
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe.",
+      "time": 1.87
+    },
+    {
+      "question": "What is the Spain?",
+      "answer": "Spain is a country in southwestern Europe, known for its rich history, culture, and the Spanish language.",
+      "time": 2.37
+    },
+    {
+      "question": "What is the bones adult?",
+      "answer": "An adult human skeleton typically has 206 bones.",
+      "time": 3.64
+    },
+    {
+      "question": "What is the hearts octopus?",
+      "answer": "",
+      "time": 2.29
+    },
+    {
+      "question": "What is the sides hexagon?",
+      "answer": "A hexagon has six sides.",
+      "time": 1.77
+    },
+    {
+      "question": "What is the valves trumpet?",
+      "answer": "",
+      "time": 2.37
+    },
+    {
+      "question": "What is the seconds hour?",
+      "answer": "",
+      "time": 2.13
+    },
+    {
+      "question": "Who wrote Romeo Juliet?",
+      "answer": "William Shakespeare wrote Romeo and Juliet.",
+      "time": 1.77
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin in 1928.",
+      "time": 2.74
+    },
+    {
+      "question": "Who first space?",
+      "answer": "",
+      "time": 2.11
+    },
+    {
+      "question": "Who wrote 1984?",
+      "answer": "George Orwell wrote 1984.",
+      "time": 2.0
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted The Starry Night.",
+      "time": 1.74
+    },
+    {
+      "question": "What is the hardest substance?",
+      "answer": "Diamond is the hardest known natural substance.",
+      "time": 5.53
+    },
+    {
+      "question": "What is the fastest animal?",
+      "answer": "",
+      "time": 2.42
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The largest ocean is the Pacific Ocean.",
+      "time": 3.95
+    },
+    {
+      "question": "What is the longest river?",
+      "answer": "The Nile",
+      "time": 2.04
+    },
+    {
+      "question": "What is the smallest country?",
+      "answer": "Vatican City is the smallest country by both area and population.",
+      "time": 2.38
+    },
+    {
+      "question": "What is the speed light?",
+      "answer": "",
+      "time": 3.69
+    },
+    {
+      "question": "What is the atomic carbon?",
+      "answer": "",
+      "time": 2.26
+    },
+    {
+      "question": "What is the chemical gold?",
+      "answer": "Gold is a dense, soft, yellow metallic element with atomic number 79, known for its resistance to corrosion and use in jewelry and electronics.",
+      "time": 5.81
+    },
+    {
+      "question": "What is the abundant gas?",
+      "answer": "Nitrogen is the most abundant gas in Earth's atmosphere.",
+      "time": 2.96
+    },
+    {
+      "question": "What is the melting gold?",
+      "answer": "Gold melts at 1,064 degrees Celsius (1,947 degrees Fahrenheit).",
+      "time": 15.35
+    },
+    {
+      "question": "How many continents?",
+      "answer": "",
+      "time": 2.47
+    },
+    {
+      "question": "How long light Sun to Earth?",
+      "answer": "",
+      "time": 2.86
+    },
+    {
+      "question": "How many ribs human?",
+      "answer": "Humans typically have 24 ribs (12 pairs).",
+      "time": 1.96
+    },
+    {
+      "question": "How many days leap year?",
+      "answer": "A leap year has 366 days.",
+      "time": 1.77
+    },
+    {
+      "question": "How many bytes kilobyte?",
+      "answer": "",
+      "time": 2.12
+    },
+    {
+      "question": "How many colors rainbow?",
+      "answer": "A rainbow typically has seven colors: red, orange, yellow, green, blue, indigo, and violet.",
+      "time": 15.08
+    },
+    {
+      "question": "Population of China?",
+      "answer": "",
+      "time": 3.87
+    },
+    {
+      "question": "Diameter of Moon?",
+      "answer": "The Moon's diameter is approximately 3,474 kilometers",
+      "time": 1.51
+    },
+    {
+      "question": "How many taste buds?",
+      "answer": "",
+      "time": 2.17
+    },
+    {
+      "question": "How many planets moons?",
+      "answer": "",
+      "time": 2.26
+    },
+    {
+      "question": "What year first iPhone?",
+      "answer": "",
+      "time": 3.09
+    },
+    {
+      "question": "What year moon landing?",
+      "answer": "1969.",
+      "time": 1.88
+    },
+    {
+      "question": "What year Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 3.17
+    },
+    {
+      "question": "What year Google founded?",
+      "answer": "",
+      "time": 3.12
+    },
+    {
+      "question": "What year Internet start?",
+      "answer": "",
+      "time": 2.5
+    },
+    {
+      "question": "What is the Australia?",
+      "answer": "",
+      "time": 2.4
+    },
+    {
+      "question": "What is the Brazil?",
+      "answer": "Brazil is a country in South America.",
+      "time": 1.5
+    },
+    {
+      "question": "What is the India?",
+      "answer": "India is a country in",
+      "time": 2.21
+    },
+    {
+      "question": "What is the France?",
+      "answer": "France is a country in Western Europe, known for its capital Paris, its official language French, and its long history as a sovereign state and republic.",
+      "time": 2.81
+    }
+  ],
+  "without_compass": [
+    {
+      "question": "What year WW2 end?",
+      "answer": "World War II ended in 1945.",
+      "time": 2.9
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "1912.",
+      "time": 2.85
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "1945",
+      "time": 2.55
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 1.69
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "1991",
+      "time": 1.82
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 1.79
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "Russia is a country located in Eastern Europe and Northern Asia,",
+      "time": 2.49
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is an island country in East Asia.",
+      "time": 13.54
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in Central Europe.",
+      "time": 6.33
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a European country located on the Italian Peninsula.",
+      "time": 2.67
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "The solar system is a collection of planets, moons, asteroids, comets, and other objects orbiting the Sun.",
+      "time": 2.41
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "Adult humans typically have 32 teeth.",
+      "time": 2.43
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "",
+      "time": 1.97
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "A mile is 5280 feet.",
+      "time": 4.51
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1,440 minutes in a day.",
+      "time": 2.5
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 1.58
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 2.3
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova.",
+      "time": 1.94
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 3.32
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie and Pierre Curie discovered radium in 1898.",
+      "time": 3.79
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ.",
+      "time": 1.78
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 2.16
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "Antarctica is the largest desert on Earth.",
+      "time": 1.88
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "Mount Everest is the tallest mountain on Earth.",
+      "time": 2.61
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "",
+      "time": 2.21
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "",
+      "time": 2.84
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "Atomic oxygen is a single oxygen atom (O) that is highly reactive and commonly found in the upper atmosphere or in space.",
+      "time": 3.2
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom (H\u2082O).",
+      "time": 2.75
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "The most abundant element in the universe is hydrogen.",
+      "time": 5.78
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "The speed of sound in",
+      "time": 3.3
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "There are 24 standard time zones.",
+      "time": 2.86
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "A standard basketball team has five players on the court at a time.",
+      "time": 3.58
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "50 stars.",
+      "time": 1.81
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 3.25
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 3.23
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "The human skull is made up of 22 bones.",
+      "time": 4.92
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The Earth's mean diameter is approximately 12,742 kilometers.",
+      "time": 2.36
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "",
+      "time": 6.26
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "",
+      "time": 2.74
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The tallest tree species is the coast redwood (Sequoia sempervirens).",
+      "time": 2.72
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "World War II ended in 1945.",
+      "time": 2.08
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "Titanic sank in 1912.",
+      "time": 1.95
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 2.25
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 3.56
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "1991.",
+      "time": 5.09
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 2.22
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "Russia is a country located in Eurasia, known as the largest country in the world by land area.",
+      "time": 7.92
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is a country in East Asia.",
+      "time": 6.34
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in Central Europe.",
+      "time": 2.41
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a country in Southern Europe.",
+      "time": 1.43
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "The solar system consists of the Sun and the planets, moons, asteroids, comets, and other objects that orbit it.",
+      "time": 4.24
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "Adults typically have 32 teeth.",
+      "time": 5.41
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "A violin is a wooden string instrument played with a bow.",
+      "time": 3.7
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "The \"feet mile\" is not a standard unit of measurement; it likely refers to a mile measured in feet, which is 5,280 feet.",
+      "time": 7.86
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1,440 minutes in a day.",
+      "time": 1.38
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci.",
+      "time": 3.08
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 2.02
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova was the first woman in space.",
+      "time": 1.81
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 0.87
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie and Pierre Curie discovered radium.",
+      "time": 2.77
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ.",
+      "time": 1.99
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 2.23
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "Antarctica is the largest desert.",
+      "time": 2.02
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "Mount Everest is the tallest mountain above sea level.",
+      "time": 2.2
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "The peregrine falcon is the fastest bird, reaching speeds over 200 mph in a dive.",
+      "time": 2.52
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "",
+      "time": 2.09
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "Atomic oxygen is a single atom of oxygen (O) that is highly reactive and found in the upper atmosphere.",
+      "time": 4.66
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom.",
+      "time": 1.91
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "Hydrogen is the most abundant element in the universe.",
+      "time": 4.17
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "",
+      "time": 2.33
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "There are 24 standard time zones.",
+      "time": 5.53
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "In",
+      "time": 2.36
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "The US flag has 50 stars.",
+      "time": 1.93
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 2.62
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 2.59
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "The adult human skull consists of 22",
+      "time": 2.67
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The diameter of Earth is about 12,742 kilometers (7,918 miles).",
+      "time": 12.69
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "Earth rotates at approximately 1,670 km/h (1,040 mph) at",
+      "time": 2.79
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "Four planets in the Solar System have rings: Jupiter, Saturn, Uranus, and Neptune.",
+      "time": 8.58
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The tallest tree species is the coast redwood (Sequoia sem",
+      "time": 1.89
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "World War II ended in 1945.",
+      "time": 17.09
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "1912.",
+      "time": 6.22
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "1945.",
+      "time": 2.5
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 2.32
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "The Soviet Union collapsed in 1991.",
+      "time": 3.0
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 2.45
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "Russia is a country located in Eurasia, known as the largest country in the world by land area.",
+      "time": 3.12
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is an island country in East Asia.",
+      "time": 1.91
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in Central Europe.",
+      "time": 2.72
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a country in Southern Europe.",
+      "time": 3.64
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "",
+      "time": 1.6
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "An adult human typically has 32 teeth.",
+      "time": 2.85
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "The violin is a wooden string instrument played with a bow.",
+      "time": 1.93
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "",
+      "time": 2.27
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1,440 minutes in a day.",
+      "time": 1.85
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 1.46
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 1.62
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova.",
+      "time": 1.07
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 2.02
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie discovered radium.",
+      "time": 7.98
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ.",
+      "time": 1.64
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 2.53
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "Antarctica.",
+      "time": 1.98
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "The tallest mountain on Earth is Mount Everest.",
+      "time": 2.03
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "The peregrine falcon is the fastest bird, reaching speeds over 200 mph in a dive.",
+      "time": 1.89
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "",
+      "time": 2.24
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "Atomic oxygen is a single atom of oxygen (O) that is highly reactive and found in low Earth orbit.",
+      "time": 5.37
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom.",
+      "time": 2.22
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "",
+      "time": 2.31
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "The",
+      "time": 2.06
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "",
+      "time": 1.92
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "Basketball has 5 players per team on the court.",
+      "time": 2.18
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "The US flag has 50 stars.",
+      "time": 4.75
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 2.49
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 1.29
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "The adult human skull is typically composed of 22 bones.",
+      "time": 2.99
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The diameter of Earth is approximately 12,742 kilometers (7,918 miles).",
+      "time": 2.16
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "",
+      "time": 2.72
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "Four planets in the solar system have rings: Jupiter, Saturn, Uranus, and Neptune.",
+      "time": 2.28
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The tallest tree species is the coast redwood (Sequoia sempervirens).",
+      "time": 2.31
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "World War II ended in 1945.",
+      "time": 1.27
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "The Titanic sank in 1912.",
+      "time": 1.53
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 2.66
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 1.76
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "The Soviet Union collapsed in 1991.",
+      "time": 2.2
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 1.93
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "Russia is a country located in Eurasia, known as the largest country in the world by land area.",
+      "time": 5.93
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is an island country in East Asia.",
+      "time": 2.56
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in central Europe.",
+      "time": 1.57
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a country in southern Europe.",
+      "time": 1.87
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "",
+      "time": 2.33
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "Adult humans typically have 32 teeth.",
+      "time": 2.41
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "A violin is a wooden string instrument played with a bow.",
+      "time": 2.35
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "",
+      "time": 2.42
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1440 minutes in a day.",
+      "time": 2.73
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 3.27
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 2.49
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova.",
+      "time": 4.1
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 1.54
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "",
+      "time": 2.48
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ.",
+      "time": 1.75
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 2.5
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "The largest desert is Antarctica.",
+      "time": 4.87
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "Mount Everest is the tallest mountain above sea level.",
+      "time": 1.45
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "",
+      "time": 2.05
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "Water boils at a lower temperature (around 71\u00b0C) on Mount Everest due to low atmospheric pressure.",
+      "time": 2.93
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "Atomic oxygen refers to oxygen atoms that are not bonded to other atoms, often found in the upper atmosphere.",
+      "time": 7.04
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom, with the chemical formula H\u2082O.",
+      "time": 3.78
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "Hydrogen.",
+      "time": 1.85
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "",
+      "time": 1.95
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "There are 24 standard time zones.",
+      "time": 2.97
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "There are 5 players per team on the court in standard basketball.",
+      "time": 2.05
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "The US flag has 50 stars.",
+      "time": 2.43
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 2.65
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 2.78
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "The adult human skull is made up of 22 bones.",
+      "time": 1.6
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The diameter of Earth is approximately 12,742 kilometers.",
+      "time": 2.97
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "The Earth rotates at about 1,670 kilometers per hour at the equator.",
+      "time": 2.67
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "",
+      "time": 3.37
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The coast redwood (Sequoia sempervirens) is the tallest tree species.",
+      "time": 2.26
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "World War II ended in 1945.",
+      "time": 4.9
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "The Titanic sank in 1912.",
+      "time": 2.91
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "1945.",
+      "time": 1.75
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 1.59
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "1991.",
+      "time": 2.36
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 2.79
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "",
+      "time": 1.97
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is an island country in East Asia.",
+      "time": 2.4
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in Central Europe.",
+      "time": 1.63
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a country in Southern Europe.",
+      "time": 4.34
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "The solar system is a collection of planets, moons, and other objects orbiting the Sun.",
+      "time": 3.26
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "",
+      "time": 2.02
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "A violin is a wooden string instrument typically played with a bow.",
+      "time": 4.06
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "",
+      "time": 1.89
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1440 minutes in a day.",
+      "time": 1.72
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 1.51
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 1.98
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova was the first woman in space.",
+      "time": 1.69
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 1.63
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "",
+      "time": 1.72
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ in the human body.",
+      "time": 1.73
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 1.51
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "Antarctica.",
+      "time": 2.11
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "Mount Everest is the tallest mountain on Earth.",
+      "time": 2.52
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "The peregrine falcon is the fastest bird.",
+      "time": 1.74
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "On the summit of Mount Everest, water boils at approximately 71\u00b0C (160\u00b0F) due to the low atmospheric pressure.",
+      "time": 3.47
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "",
+      "time": 3.42
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom, with the formula H\u2082O.",
+      "time": 1.61
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "Hydrogen is the most abundant element in the universe.",
+      "time": 2.61
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "",
+      "time": 2.31
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "There are 24 standard time zones.",
+      "time": 3.44
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "There are 5 players per team on the court in standard basketball.",
+      "time": 1.99
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "The US flag has 50 stars.",
+      "time": 1.55
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 1.8
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 2.06
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "",
+      "time": 2.77
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The diameter of Earth is about 12,742 kilometers (7,918 miles).",
+      "time": 12.84
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "The Earth rotates at about 1,670 kilometers per hour (1,040 miles per hour) at the equator.",
+      "time": 10.12
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "Four planets in our solar system have rings: Jupiter, Saturn, Uranus, and Neptune.",
+      "time": 4.04
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The tallest tree species is the coast redwood (Sequoia sem",
+      "time": 2.38
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "World War II ended in 1945.",
+      "time": 1.3
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "1912.",
+      "time": 1.64
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 1.13
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 8.59
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "The Soviet Union collapsed in 1991.",
+      "time": 1.91
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 2.14
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "Russia is a country located in Eurasia, known as the largest country in the world by land area.",
+      "time": 2.18
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is an island country in East Asia.",
+      "time": 2.59
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in central Europe.",
+      "time": 5.99
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a country in Southern Europe.",
+      "time": 3.86
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "",
+      "time": 1.94
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "Adults typically have 32 teeth.",
+      "time": 1.92
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "The violin is a string instrument played with a bow.",
+      "time": 1.14
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "There are 5,280 feet in a mile.",
+      "time": 5.25
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1,440 minutes in a day.",
+      "time": 2.22
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 1.91
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 1.71
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova was the first woman in space.",
+      "time": 2.84
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 1.72
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie and Pierre Curie discovered radium in 1898.",
+      "time": 3.73
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ in the human body.",
+      "time": 1.98
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 3.34
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "The largest desert is Antarctica.",
+      "time": 3.23
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "Mount Everest is the tallest mountain on Earth.",
+      "time": 2.44
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "The peregrine falcon is the fastest bird.",
+      "time": 2.06
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "",
+      "time": 2.54
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "Atomic oxygen is a single atom of oxygen (O), highly reactive and typically found in space or high-altitude environments.",
+      "time": 2.5
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom, with the chemical formula H\u2082O.",
+      "time": 7.47
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "The most abundant element in the universe is hydrogen.",
+      "time": 2.65
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "",
+      "time": 2.05
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "There are 24 standard time zones.",
+      "time": 3.48
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "A basketball team has five players on the court at a time.",
+      "time": 2.52
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "The US flag has 50 stars.",
+      "time": 2.73
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 1.75
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 3.44
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "",
+      "time": 1.93
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The equatorial diameter of Earth is approximately 12,742 kilometers.",
+      "time": 2.05
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "",
+      "time": 2.0
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "Four planets in the solar system have rings: Jupiter, Saturn, Uranus, and Neptune.",
+      "time": 9.76
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The tallest tree species is the coast redwood (Sequoia sempervirens).",
+      "time": 2.2
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "World War II ended in 1945.",
+      "time": 3.22
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "The Titanic sank in 1912.",
+      "time": 4.21
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 2.34
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 1.74
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "The Soviet Union collapsed in 1991.",
+      "time": 1.87
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 1.96
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "Russia is a country located in Eurasia.",
+      "time": 2.05
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is an island country in East Asia.",
+      "time": 2.74
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in central Europe.",
+      "time": 2.16
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a country in Southern Europe.",
+      "time": 2.57
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "The solar system is the Sun and all the objects that orbit it, including eight planets, their moons, and smaller bodies like asteroids and comets.",
+      "time": 3.01
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "",
+      "time": 2.03
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "The violin is a bowed string instrument with four strings.",
+      "time": 3.23
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "A 'feet mile' is not a recognized unit of measurement.",
+      "time": 9.38
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1440 minutes in a day.",
+      "time": 1.68
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 2.21
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 3.43
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova.",
+      "time": 2.07
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare.",
+      "time": 3.17
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie and Pierre Curie discovered radium in 1898.",
+      "time": 2.97
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ.",
+      "time": 1.72
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 1.67
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "Antarctica is the largest desert.",
+      "time": 1.93
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "Mount Everest is the tallest mountain above sea level.",
+      "time": 2.21
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "The peregrine falcon is the fastest bird, reaching speeds over 200 mph in a dive.",
+      "time": 1.74
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "The boiling point of water on Mount Everest is around 71\u00b0C (160\u00b0F) due to the lower atmospheric pressure at high altitude.",
+      "time": 13.79
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "Atomic oxygen is a single oxygen atom, denoted as O, which is highly reactive and exists in low-Earth orbit and the upper atmosphere.",
+      "time": 2.98
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom, with the chemical formula H\u2082O.",
+      "time": 6.37
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "Hydrogen is the most abundant element in the universe.",
+      "time": 2.05
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "The speed of sound in dry air at 20\u00b0C is approximately 343 meters per second.",
+      "time": 3.76
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "There are 24 standard time zones.",
+      "time": 3.85
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "A",
+      "time": 2.68
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "The US flag has 50 stars.",
+      "time": 2.49
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 1.96
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 1.05
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "The adult human skull typically consists of 22 bones.",
+      "time": 3.25
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The Earth's diameter is about 12,742 kilometers.",
+      "time": 1.97
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "",
+      "time": 2.03
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "Four planets in the Solar System have rings: Jupiter, Saturn, Uranus, and Neptune.",
+      "time": 4.82
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The tallest tree species is the coast redwood (Sequoia sem",
+      "time": 2.53
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "",
+      "time": 2.08
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "The Titanic sank in 1912.",
+      "time": 1.56
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 6.35
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 3.56
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "1991",
+      "time": 3.15
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 2.64
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "",
+      "time": 3.46
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is an island country in East Asia.",
+      "time": 2.27
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in Central Europe.",
+      "time": 3.14
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a country in Southern Europe.",
+      "time": 1.87
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "",
+      "time": 1.98
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "Adults typically have 32 teeth.",
+      "time": 6.36
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "",
+      "time": 3.27
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "",
+      "time": 2.23
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1440 minutes in a day.",
+      "time": 2.28
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 2.66
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 1.75
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova was the first woman in space.",
+      "time": 2.53
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 1.65
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie and Pierre Curie discovered radium.",
+      "time": 2.84
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ.",
+      "time": 6.12
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 1.62
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "The largest desert is Antarctica.",
+      "time": 12.67
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "Mount Everest is",
+      "time": 2.34
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "The peregrine falcon is the fastest bird.",
+      "time": 2.66
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "The boiling point of water on Mount Everest is around 71\u00b0C (160\u00b0F) due to the lower atmospheric pressure at high altitude.",
+      "time": 13.03
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "Atomic oxygen is a single oxygen atom (O) that is highly reactive and found in the upper atmosphere.",
+      "time": 2.53
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom, with the chemical formula H\u2082O.",
+      "time": 15.51
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "",
+      "time": 2.47
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "",
+      "time": 1.71
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "There are 24 standard time zones in the world.",
+      "time": 4.08
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "There are 5 players per team on the court.",
+      "time": 2.22
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "The US flag has 50 stars.",
+      "time": 2.08
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 1.52
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 2.22
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "",
+      "time": 2.09
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The Earth's diameter is about 12,742 kilometers.",
+      "time": 2.11
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "Earth rotates at about 1,670 km/h (1,040 mph) at the equator.",
+      "time": 2.49
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "",
+      "time": 2.28
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The tallest tree species is the coast redwood (Sequoia sem",
+      "time": 2.35
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "1945.",
+      "time": 1.54
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "1912.",
+      "time": 2.92
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 6.48
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 1.87
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "The Soviet Union collapsed in 1991.",
+      "time": 1.64
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 2.21
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "Russia is a country located in Eurasia, known as the largest country in the world by land area.",
+      "time": 4.85
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is an island country in East Asia.",
+      "time": 2.03
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in Central Europe.",
+      "time": 1.61
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a country located in Southern Europe.",
+      "time": 2.55
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "The solar system is a star system consisting of the Sun and the celestial objects that orbit it, including eight planets.",
+      "time": 4.38
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "Adult humans typically have 32 teeth.",
+      "time": 2.38
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "The violin is a string instrument played with a bow, typically having four strings tuned in perfect fifths.",
+      "time": 3.94
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "There is no standard unit called a \"feet mile\"; it is likely a confusion between feet and miles, which are both units of length.",
+      "time": 3.94
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1,440 minutes in a day.",
+      "time": 1.44
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 2.26
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 3.92
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova was the first woman in space.",
+      "time": 2.37
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 2.44
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "",
+      "time": 1.93
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ.",
+      "time": 3.19
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The largest mammal is the blue whale.",
+      "time": 1.32
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "The largest desert on Earth is Antarctica.",
+      "time": 2.14
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "Mount Everest is the tallest mountain above sea level.",
+      "time": 2.57
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "The peregrine falcon is the fastest bird, reaching speeds over 200 mph in a dive.",
+      "time": 2.63
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "Water boils at about 71\u00b0C (160\u00b0F) on the summit of Mount Everest due to the lower atmospheric pressure.",
+      "time": 2.84
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "Atomic oxygen is a single atom of oxygen (O) that is highly reactive and found in low Earth orbit.",
+      "time": 3.34
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom, with the formula H2O.",
+      "time": 2.51
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "",
+      "time": 2.2
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "The speed of sound in air at 20\u00b0C is approximately 343 meters per",
+      "time": 2.61
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "There are 24 standard time zones.",
+      "time": 4.12
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "",
+      "time": 2.38
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "50.",
+      "time": 1.96
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 1.48
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 1.73
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "The adult human skull consists of 22 bones.",
+      "time": 3.06
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The Earth's diameter is about 12,742 kilometers.",
+      "time": 2.1
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "The Earth rotates at approximately 1,670 kilometers per hour (1,040 mph) at the equator.",
+      "time": 3.17
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "",
+      "time": 2.22
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The tallest tree species is the coast redwood (Sequoia sem",
+      "time": 2.04
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "1945.",
+      "time": 1.99
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "1912.",
+      "time": 2.77
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "1945.",
+      "time": 1.29
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 10.87
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "1991.",
+      "time": 1.53
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 2.63
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "Russia is a country located in Eurasia, known as the largest country in the world by land area.",
+      "time": 5.14
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is an island country in East Asia.",
+      "time": 2.66
+    },
+    {
+      "question": "What is the Germany?",
+      "answer": "Germany is a country in Central Europe.",
+      "time": 1.92
+    },
+    {
+      "question": "What is the Italy?",
+      "answer": "Italy is a country in southern Europe.",
+      "time": 2.68
+    },
+    {
+      "question": "What is the planets solar system?",
+      "answer": "The solar system is the Sun and all the objects that orbit it, including eight planets.",
+      "time": 3.98
+    },
+    {
+      "question": "What is the teeth adult?",
+      "answer": "Adults typically have 32 teeth, including wisdom teeth.",
+      "time": 1.74
+    },
+    {
+      "question": "What is the strings violin?",
+      "answer": "",
+      "time": 2.25
+    },
+    {
+      "question": "What is the feet mile?",
+      "answer": "",
+      "time": 2.06
+    },
+    {
+      "question": "What is the minutes day?",
+      "answer": "There are 1440 minutes in a day.",
+      "time": 3.4
+    },
+    {
+      "question": "Who painted Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 1.62
+    },
+    {
+      "question": "Who invented telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 2.53
+    },
+    {
+      "question": "Who first woman space?",
+      "answer": "Valentina Tereshkova was the first woman in space.",
+      "time": 1.91
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 1.19
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie discovered radium.",
+      "time": 2.93
+    },
+    {
+      "question": "What is the largest organ?",
+      "answer": "The skin is the largest organ.",
+      "time": 1.46
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 2.05
+    },
+    {
+      "question": "What is the largest desert?",
+      "answer": "Antarctica is the largest desert.",
+      "time": 1.9
+    },
+    {
+      "question": "What is the tallest mountain?",
+      "answer": "Mount Everest is the tallest mountain above sea level.",
+      "time": 3.37
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "The peregrine falcon is the fastest bird, reaching speeds over 200 mph during dives.",
+      "time": 2.92
+    },
+    {
+      "question": "What is the boiling water Everest?",
+      "answer": "The boiling point of water at the summit of Mount Everest is approximately 71\u00b0C (160\u00b0F).",
+      "time": 2.55
+    },
+    {
+      "question": "What is the atomic oxygen?",
+      "answer": "Atomic oxygen is a single oxygen atom (O), distinct from the diatomic O2 molecule, and is highly reactive.",
+      "time": 4.23
+    },
+    {
+      "question": "What is the chemical water?",
+      "answer": "Water is a chemical compound composed of two hydrogen atoms and one oxygen atom, with the molecular formula H\u2082O.",
+      "time": 2.93
+    },
+    {
+      "question": "What is the abundant element?",
+      "answer": "",
+      "time": 3.06
+    },
+    {
+      "question": "What is the speed sound?",
+      "answer": "The speed of sound is approximately 343 meters per second in air at 20\u00b0C.",
+      "time": 2.91
+    },
+    {
+      "question": "How many time zones?",
+      "answer": "There are 24 standard time zones.",
+      "time": 4.23
+    },
+    {
+      "question": "How many players basketball?",
+      "answer": "A standard basketball team has five players on the court at a time.",
+      "time": 3.07
+    },
+    {
+      "question": "How many stars US flag?",
+      "answer": "The US flag has 50 stars.",
+      "time": 7.03
+    },
+    {
+      "question": "How many chambers heart?",
+      "answer": "The human heart has four chambers: two atria and two ventricles.",
+      "time": 2.64
+    },
+    {
+      "question": "How many legs spider?",
+      "answer": "Spiders have eight legs.",
+      "time": 4.19
+    },
+    {
+      "question": "How many bones skull?",
+      "answer": "",
+      "time": 2.84
+    },
+    {
+      "question": "Diameter of Earth?",
+      "answer": "The diameter of Earth is approximately 12,742 kilometers (7,918 miles).",
+      "time": 1.95
+    },
+    {
+      "question": "Speed of Earth rotation?",
+      "answer": "The Earth rotates at approximately ",
+      "time": 2.47
+    },
+    {
+      "question": "How many planets rings?",
+      "answer": "Four planets in the Solar System have rings: Jupiter, Saturn, Uranus, and Neptune.",
+      "time": 1.6
+    },
+    {
+      "question": "Tallest tree species?",
+      "answer": "The tallest tree species is the coast redwood (Sequoia sempervirens).",
+      "time": 2.78
+    },
+    {
+      "question": "What year WW2 end?",
+      "answer": "1945.",
+      "time": 5.86
+    },
+    {
+      "question": "What year Titanic sink?",
+      "answer": "The Titanic sank in 1912.",
+      "time": 1.39
+    },
+    {
+      "question": "What year UN founded?",
+      "answer": "1945.",
+      "time": 2.23
+    },
+    {
+      "question": "What year Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 1.85
+    },
+    {
+      "question": "What year Soviet Union collapse?",
+      "answer": "1991.",
+      "time": 2.01
+    },
+    {
+      "question": "What is the Canada?",
+      "answer": "Canada is a country in North America.",
+      "time": 1.7
+    },
+    {
+      "question": "What is the Russia?",
+      "answer": "Russia is a country spanning Eastern Europe and northern Asia.",
+      "time": 1.8
+    },
+    {
+      "question": "What is the Japan?",
+      "answer": "Japan is a country in East Asia consisting of four main islands and numerous smaller ones.",
+      "time": 6.43
+    }
+  ]
+}

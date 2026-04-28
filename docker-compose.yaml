@@ -1,0 +1,85 @@
+services:
+  api:
+    build: .
+    container_name: skv_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    expose:
+      - "8000"
+    volumes:
+      - ./app:/app/app
+    environment:
+      - VIRTUAL_HOST=skv.network
+      - VIRTUAL_PORT=8000
+      - LETSENCRYPT_HOST=skv.network
+      - LETSENCRYPT_EMAIL=deniz@skv.network
+      - DATABASE_URL=postgresql://skv_user:skv_secret_2026@postgres:5432/skv_db
+      - QDRANT_URL=http://qdrant:6333
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - qdrant
+      - redis
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: skv_postgres
+    environment:
+      - POSTGRES_USER=skv_user
+      - POSTGRES_PASSWORD=skv_secret_2026
+      - POSTGRES_DB=skv_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: skv_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: skv_redis
+    restart: unless-stopped
+
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - certs:/etc/nginx/certs
+      - html:/usr/share/nginx/html
+      - vhost:/etc/nginx/vhost.d
+    restart: unless-stopped
+    labels:
+      - "com.github.nginx-proxy.nginx"
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: acme-companion
+    environment:
+      - DEFAULT_EMAIL=deniz@skv.network
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+    volumes:
+      - certs:/etc/nginx/certs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+    depends_on:
+      - nginx-proxy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  qdrant_data:
+  certs:
+  html:
+  vhost:

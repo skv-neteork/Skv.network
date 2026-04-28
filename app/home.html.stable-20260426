@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKV Network</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#0a0a1a;color:#e0e0e0;min-height:100vh}
+.c{max-width:800px;margin:0 auto;padding:20px}
+.logo{text-align:center;padding:30px 0 15px}
+.logo h1{font-size:36px;background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo p{color:#888;font-size:14px}
+.nav{display:flex;gap:10px;justify-content:center;margin:15px 0;flex-wrap:wrap;align-items:center}
+.nav a{padding:10px 20px;border-radius:8px;border:1px solid #333;background:#1a1a2e;color:#888;font-size:14px;text-decoration:none;cursor:pointer}
+.nav a.active{background:#6366f1;color:#fff;border-color:#6366f1}
+.nav .spacer{flex:1}
+.page{display:none}.page.active{display:block}
+.sbox{background:#1a1a2e;border-radius:12px;padding:20px}
+.sbox input{width:100%;padding:14px;border-radius:8px;border:1px solid #333;background:#0a0a1a;color:#fff;font-size:16px;outline:none}
+.rcard{background:#1a1a2e;border-radius:8px;padding:15px;margin:8px 0;border-left:3px solid #6366f1;cursor:pointer}
+.rcard h3{font-size:15px;color:#a855f7}
+.rcard .score{float:right;color:#22c55e;font-size:12px}
+.rcard .rules{font-size:12px;color:#aaa;margin-top:5px;display:none}
+.btn{padding:12px 30px;border-radius:8px;border:none;font-size:16px;cursor:pointer;font-weight:600;width:100%;margin-top:10px}
+.btn-p{background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff}
+.btn-p:disabled{opacity:0.4;cursor:not-allowed}
+.btn-d{background:linear-gradient(135deg,#22c55e,#10b981);color:#fff}
+.dzone{border:2px dashed #444;border-radius:12px;padding:20px;text-align:center;margin-bottom:10px}
+.dzone:hover{border-color:#a855f7;background:#1a1a3e}
+textarea{width:100%;height:180px;background:#0a0a1a;color:#fff;border:1px solid #333;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;resize:vertical}
+.sts{padding:10px;border-radius:8px;font-size:13px;margin-top:10px}
+.sts.ok{background:#052e16;color:#22c55e}
+.sts.err{background:#450a0a;color:#ef4444}
+.sts.load{background:#1a1a2e;color:#888}
+.mlist{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.mlist label{font-size:12px;color:#aaa;cursor:pointer;background:#0a0a1a;padding:8px 12px;border-radius:6px}
+.footer{text-align:center;padding:30px 0;color:#555;font-size:12px}
+</style></head><body>
+<div class="c">
+<div class="logo"><h1>SKV Network</h1><p>Open knowledge base for AI</p></div>
+<div class="nav">
+<a href="#" class="active" onclick="showTab('search')">Search</a>
+<a href="#" onclick="showTab('upload')">Upload & Consult</a>
+<a href="/trials">Trials</a>
+<div class="spacer"></div>
+<a href="/docs">Docs</a>
+<a href="/profile" id="navProfile">Profile</a>
+</div>
+
+<div id="page-search" class="page active">
+<div class="sbox"><input type="text" id="q" placeholder="Search cubes..." onkeyup="if(event.key==='Enter')doSearch()"></div>
+<div id="sr"></div>
+</div>
+
+<div id="page-upload" class="page">
+<div class="sbox">
+<h3 style="color:#a855f7;margin-bottom:10px">Upload & Get AI Consultation</h3>
+<div class="dzone" id="dz" ondrop="handleDrop(event)" ondragover="event.preventDefault()" onclick="document.getElementById('fi').click()">
+<p>Drop .json file here or click</p>
+<input type="file" id="fi" accept=".json" onchange="loadFile()" style="display:none">
+</div>
+<div style="display:flex;gap:8px">
+<textarea id="jt" placeholder="Paste JSON here..." style="flex:1"></textarea>
+<button onclick="copyJson()" style="padding:8px 12px;background:#333;color:#ccc;border:1px solid #555;border-radius:6px;cursor:pointer;font-size:12px">Copy</button>
+</div>
+<div class="mlist" id="ml"></div>
+<p style="font-size:11px;color:#888;margin-bottom:5px">Select AI models:</p>
+<button id="ub" class="btn btn-p" onclick="doUpload()" disabled>Upload</button>
+<div id="sm"></div>
+</div></div>
+<div class="footer"><p>SKV Network v1.0 - skv.network</p></div>
+</div>
+
+<script>
+var MODELS=[{id:"deepseek-v4-flash",name:"DeepSeek V4 Flash"},{id:"qwen3.6-plus",name:"Qwen 3.6 Plus"},{id:"gpt-5.5",name:"GPT-5.5"},{id:"gemma-4-26b",name:"Gemma 4"}];
+
+function renderModels(){
+  var h='';
+  for(var i=0;i<MODELS.length;i++){
+    h+='<label><input type="checkbox" value="'+MODELS[i].id+'"> '+MODELS[i].name+'</label>';
+  }
+  document.getElementById('ml').innerHTML=h;
+}
+renderModels();
+
+function showTab(n){
+  var pages=document.querySelectorAll('.page');
+  for(var i=0;i<pages.length;i++) pages[i].classList.remove('active');
+  var links=document.querySelectorAll('.nav a');
+  for(var i=0;i<links.length;i++) links[i].classList.remove('active');
+  document.getElementById('page-'+n).classList.add('active');
+  event.target.classList.add('active');
+}
+
+async function doSearch(){
+  var q=document.getElementById('q').value;
+  if(!q)return;
+  var r=await fetch('/api/cubes/search?query='+encodeURIComponent(q));
+  var d=await r.json();
+  var h='';
+  for(var i=0;i<d.results.length;i++){
+    var c=d.results[i];
+    h+='<div class="rcard" onclick="var r=this.querySelector(\'.rules\');r.style.display=r.style.display===\'block\'?\'none\':\'block\'"><span class="score">'+c.score.toFixed(3)+'</span><h3>'+c.title+'</h3><div class="rules">'+c.rules.join('<br>')+'</div></div>';
+  }
+  document.getElementById('sr').innerHTML=h||'<p style="color:#666;text-align:center;padding:20px">No results</p>';
+}
+
+function handleDrop(e){e.preventDefault();var f=e.dataTransfer.files[0];if(f)readFile(f);}
+function loadFile(){var f=document.getElementById('fi').files[0];if(f)readFile(f);}
+
+function readFile(file){
+  if(!file.name.endsWith('.json')){alert('Only .json files');return}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{JSON.parse(e.target.result);document.getElementById('jt').value=e.target.result;document.getElementById('ub').disabled=false}
+    catch(err){alert('Invalid JSON');}
+  };
+  reader.readAsText(file);
+}
+
+function copyJson(){
+  var t=document.getElementById('jt').value;
+  if(!t){alert('Nothing to copy');return}
+  navigator.clipboard.writeText(t).then(function(){
+    var b=event.target;b.textContent='Copied!';
+    setTimeout(function(){b.textContent='Copy'},1500);
+  });
+}
+
+document.addEventListener('paste',function(e){
+  if(document.activeElement.tagName==='TEXTAREA'||document.activeElement.tagName==='INPUT')return;
+  var t=e.clipboardData.getData('text');
+  if(t&&t.trim().startsWith('{')){
+    try{JSON.parse(t);document.getElementById('jt').value=t;document.getElementById('ub').disabled=false}catch(err){}
+  }
+});
+
+document.getElementById('jt').addEventListener('input',function(){
+  var v=this.value.trim();
+  document.getElementById('ub').disabled=!v;
+  try{JSON.parse(v)}catch(e){document.getElementById('ub').disabled=true}
+});
+
+var currentJson=null;
+
+function resetForm(){
+  document.getElementById('jt').value='';
+  document.getElementById('ub').disabled=true;
+  document.getElementById('ub').textContent='Upload';
+  document.getElementById('ub').className='btn btn-p';
+  document.getElementById('ub').onclick=doUpload;
+  document.getElementById('sm').innerHTML='';
+  currentJson=null;
+  renderModels();
+}
+
+async function doUpload(){
+  var t=document.getElementById('jt').value.trim();
+  if(!t)return;
+  var b=document.getElementById('ub');
+  var s=document.getElementById('sm');
+  b.disabled=true;b.textContent='Uploading...';
+  s.innerHTML='<div class="sts load">Saving...</div>';
+  
+  try{currentJson=JSON.parse(t)}
+  catch(err){s.innerHTML='<div class="sts err">Invalid JSON</div>';b.disabled=false;b.textContent='Upload';return}
+  
+  try{
+    var r=await fetch('/api/v1/entries',{method:'POST',headers:{'Content-Type':'application/json'},body:t});
+    var d=await r.json();
+    s.innerHTML='<div class="sts ok">Saved: '+d.id+'</div>';
+    
+    var checks=document.querySelectorAll('#ml input:checked');
+    var models=[];
+    for(var i=0;i<checks.length;i++) models.push(checks[i].value);
+    
+    if(models.length===0){b.disabled=false;b.textContent='Upload';return}
+    
+    s.innerHTML+='<div class="sts load">Consulting '+models.length+' models...</div>';
+    b.textContent='Consulting...';
+    
+    var results=[];
+    for(var i=0;i<models.length;i++){
+      try{
+        var rr=await fetch('/api/consult',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({query:currentJson.consultation_query||currentJson.title||'Analyze',model:models[i],system:"You are an AI consultant via SKV Network."})
+        });
+        var rd=await rr.json();
+        results.push({model:models[i],answer:rd.answer||rd.error});
+      }catch(e){results.push({model:models[i],error:e.message})}
+    }
+    
+    currentJson._consultation=results;
+    b.textContent='Download Results';
+    b.className='btn btn-d';
+    b.disabled=false;
+    b.onclick=function(){
+      var blob=new Blob([JSON.stringify(currentJson,null,2)],{type:'application/json'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');a.href=url;a.download=(currentJson.cube_id||'result')+'.json';a.click();
+      URL.revokeObjectURL(url);
+      s.innerHTML='<div class="sts ok">Downloaded!</div><button class="btn btn-p" onclick="resetForm()" style="margin-top:5px">New Project</button>';
+    };
+    s.innerHTML='<div class="sts ok">Ready! '+results.length+' models responded.</div>';
+    setTimeout(resetForm,60000);
+  }catch(e){
+    s.innerHTML='<div class="sts err">'+e.message+'</div>';
+    b.disabled=false;b.textContent='Upload';
+  }
+}
+
+(function(){
+  var saved=localStorage.getItem('skv_user');
+  if(saved){
+    try{var d=JSON.parse(saved);var nav=document.getElementById('navProfile');if(nav){nav.textContent=d.email.split('@')[0];nav.title=d.email}}catch(e){}
+  }
+})();
+</script></body></html>

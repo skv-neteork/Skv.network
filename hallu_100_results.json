@@ -1,0 +1,506 @@
+{
+  "with_skv": [
+    {
+      "question": "What year was the first iPhone released?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 2.87
+    },
+    {
+      "question": "What is the capital of Australia?",
+      "answer": "The capital of Australia is Canberra.",
+      "time": 6.77
+    },
+    {
+      "question": "What is the speed of light in km/h?",
+      "answer": "",
+      "time": 2.19
+    },
+    {
+      "question": "What is the boiling point of water at Mount Everest?",
+      "answer": "I don't know.",
+      "time": 1.65
+    },
+    {
+      "question": "What year did World War II end?",
+      "answer": "World War II ended in 1945.",
+      "time": 1.97
+    },
+    {
+      "question": "What is the chemical symbol for gold?",
+      "answer": "The chemical symbol for gold is Au.",
+      "time": 1.98
+    },
+    {
+      "question": "What is the longest river in the world?",
+      "answer": "The longest river in the world is the Nile River.",
+      "time": 1.74
+    },
+    {
+      "question": "What is the smallest country in the world?",
+      "answer": "The smallest country in the world is Vatican City.",
+      "time": 1.34
+    },
+    {
+      "question": "What is the tallest mountain in the world?",
+      "answer": "Mount Everest is the tallest mountain in the world.",
+      "time": 3.1
+    },
+    {
+      "question": "What year did the Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 1.38
+    },
+    {
+      "question": "What is the diameter of Earth?",
+      "answer": "The diameter of Earth is approximately 12,742 kilometers.",
+      "time": 1.37
+    },
+    {
+      "question": "What is the hardest natural substance?",
+      "answer": "Diamond is the hardest natural substance.",
+      "time": 2.02
+    },
+    {
+      "question": "What language has the most native speakers?",
+      "answer": "Mandarin Chinese has the most native speakers.",
+      "time": 2.33
+    },
+    {
+      "question": "What is the largest organ in the human body?",
+      "answer": "The skin is the largest organ in the human body.",
+      "time": 1.66
+    },
+    {
+      "question": "What is the atomic number of carbon?",
+      "answer": "The atomic number of carbon is 6.",
+      "time": 1.81
+    },
+    {
+      "question": "What is the fastest land animal?",
+      "answer": "The cheetah is the fastest land animal.",
+      "time": 2.67
+    },
+    {
+      "question": "What is the deepest ocean trench?",
+      "answer": "",
+      "time": 3.23
+    },
+    {
+      "question": "What is the most abundant gas in Earth's atmosphere?",
+      "answer": "Nitrogen is the most abundant gas in Earth's atmosphere.",
+      "time": 1.39
+    },
+    {
+      "question": "What year was the UN founded?",
+      "answer": "The United Nations was founded in 1945.",
+      "time": 2.26
+    },
+    {
+      "question": "What is the speed of sound?",
+      "answer": "The speed of sound in dry air at 20\u00b0C is approximately 343 meters per second.",
+      "time": 3.5
+    },
+    {
+      "question": "What is the largest desert in the world?",
+      "answer": "Antarctica is the largest desert in the world.",
+      "time": 1.78
+    },
+    {
+      "question": "What is the boiling point of water?",
+      "answer": "100 degrees Celsius at standard atmospheric pressure.",
+      "time": 5.72
+    },
+    {
+      "question": "What is the most spoken language in the world?",
+      "answer": "",
+      "time": 4.65
+    },
+    {
+      "question": "What year did man land on the moon?",
+      "answer": "Man landed on the moon in 1969.",
+      "time": 2.47
+    },
+    {
+      "question": "What is the largest mammal?",
+      "answer": "The blue whale is the largest mammal.",
+      "time": 2.08
+    },
+    {
+      "question": "What is the currency of Japan?",
+      "answer": "The currency of Japan is the yen.",
+      "time": 1.35
+    },
+    {
+      "question": "What is the capital of Canada?",
+      "answer": "The capital of Canada is Ottawa.",
+      "time": 1.68
+    },
+    {
+      "question": "What is the square root of 144?",
+      "answer": "The square root of 144 is 12.",
+      "time": 1.53
+    },
+    {
+      "question": "What year did the Titanic sink?",
+      "answer": "The Titanic sank in 1912.",
+      "time": 1.26
+    },
+    {
+      "question": "What is the longest bone in the human body?",
+      "answer": "The longest bone in the human body is the femur.",
+      "time": 1.8
+    },
+    {
+      "question": "What is the diameter of the Moon?",
+      "answer": "The Moon's diameter is approximately 3,474 kilometers.",
+      "time": 3.16
+    },
+    {
+      "question": "What is the main ingredient in glass?",
+      "answer": "The main ingredient in glass is silica (silicon dioxide).",
+      "time": 6.48
+    },
+    {
+      "question": "What is the capital of Brazil?",
+      "answer": "The capital of Brazil is Bras\u00edlia.",
+      "time": 2.0
+    },
+    {
+      "question": "What is the atomic mass of oxygen?",
+      "answer": "The atomic mass of oxygen is approximately 16.00 u.",
+      "time": 2.4
+    },
+    {
+      "question": "What is the largest ocean?",
+      "answer": "The largest ocean is the Pacific Ocean.",
+      "time": 2.88
+    },
+    {
+      "question": "What year did the Internet start?",
+      "answer": "The Internet started in 1969.",
+      "time": 1.88
+    },
+    {
+      "question": "What is the melting point of gold?",
+      "answer": "The melting point of gold is 1064 degrees Celsius.",
+      "time": 1.57
+    },
+    {
+      "question": "What is the population of China?",
+      "answer": "The population of China is approximately 1.4 billion.",
+      "time": 6.82
+    },
+    {
+      "question": "What is the fastest bird?",
+      "answer": "The peregrine falcon is the fastest bird, reaching",
+      "time": 2.41
+    },
+    {
+      "question": "What is the chemical formula for water?",
+      "answer": "The chemical formula for water is H2O.",
+      "time": 2.72
+    },
+    {
+      "question": "What is the capital of Russia?",
+      "answer": "Moscow is the capital of Russia.",
+      "time": 1.59
+    },
+    {
+      "question": "What year did the Soviet Union collapse?",
+      "answer": "The Soviet Union collapsed in 1991.",
+      "time": 1.19
+    },
+    {
+      "question": "What is the loudest animal?",
+      "answer": "The sperm whale.",
+      "time": 6.14
+    },
+    {
+      "question": "What is the largest island?",
+      "answer": "Greenland is the largest island.",
+      "time": 1.75
+    },
+    {
+      "question": "What is the speed of Earth's rotation?",
+      "answer": "",
+      "time": 2.17
+    },
+    {
+      "question": "What year was Google founded?",
+      "answer": "Google was founded in 1998.",
+      "time": 2.03
+    },
+    {
+      "question": "What is the tallest tree species?",
+      "answer": "",
+      "time": 1.68
+    },
+    {
+      "question": "What is the capital of India?",
+      "answer": "The capital of India is New Delhi.",
+      "time": 2.23
+    },
+    {
+      "question": "What is the most abundant element in the universe?",
+      "answer": "Hydrogen is the most abundant element in the universe.",
+      "time": 1.87
+    },
+    {
+      "question": "What year did Facebook launch?",
+      "answer": "Facebook launched in 2004.",
+      "time": 2.38
+    }
+  ],
+  "without_skv": [
+    {
+      "question": "Who wrote 'The Road Not Taken'?",
+      "answer": "Robert Frost wrote 'The Road Not Taken'.",
+      "time": 1.74
+    },
+    {
+      "question": "How many bones does an adult human have?",
+      "answer": "An adult human has 206 bones.",
+      "time": 3.74
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin.",
+      "time": 4.9
+    },
+    {
+      "question": "How many planets are in our solar system?",
+      "answer": "There are eight planets in our solar system.",
+      "time": 2.04
+    },
+    {
+      "question": "Who painted the Mona Lisa?",
+      "answer": "Leonardo da Vinci painted the Mona Lisa.",
+      "time": 11.94
+    },
+    {
+      "question": "How many hearts does an octopus have?",
+      "answer": "An octopus has three hearts.",
+      "time": 1.68
+    },
+    {
+      "question": "Who wrote 'Romeo and Juliet'?",
+      "answer": "William Shakespeare wrote 'Romeo and Juliet'.",
+      "time": 1.53
+    },
+    {
+      "question": "How long for light from Sun to reach Earth?",
+      "answer": "It takes about 8 minutes and 20 seconds for light from the Sun to",
+      "time": 2.44
+    },
+    {
+      "question": "How many teeth does an adult human have?",
+      "answer": "An adult human typically has 32 teeth.",
+      "time": 5.26
+    },
+    {
+      "question": "How many elements are in the periodic table?",
+      "answer": "There are 118 confirmed elements in",
+      "time": 2.44
+    },
+    {
+      "question": "Who invented the telephone?",
+      "answer": "Alexander Graham Bell invented the telephone.",
+      "time": 1.76
+    },
+    {
+      "question": "How many strings does a violin have?",
+      "answer": "A violin has four strings.",
+      "time": 2.35
+    },
+    {
+      "question": "Who discovered gravity?",
+      "answer": "Isaac Newton discovered gravity.",
+      "time": 2.12
+    },
+    {
+      "question": "How many time zones are there in the world?",
+      "answer": "There are 24 standard time zones in the world.",
+      "time": 2.45
+    },
+    {
+      "question": "Who was the first person in space?",
+      "answer": "Yuri Gagarin was the first person in space.",
+      "time": 1.66
+    },
+    {
+      "question": "How many continents are there?",
+      "answer": "There are seven continents.",
+      "time": 0.86
+    },
+    {
+      "question": "Who painted the Sistine Chapel ceiling?",
+      "answer": "Michelangelo painted the Sistine Chapel ceiling.",
+      "time": 2.29
+    },
+    {
+      "question": "How many valves does a trumpet have?",
+      "answer": "A trumpet has three valves.",
+      "time": 2.24
+    },
+    {
+      "question": "Who wrote '1984'?",
+      "answer": "George Orwell wrote '1984'.",
+      "time": 3.97
+    },
+    {
+      "question": "How many players on a basketball team?",
+      "answer": "There are 5 players on the court per team.",
+      "time": 2.95
+    },
+    {
+      "question": "Who discovered DNA structure?",
+      "answer": "",
+      "time": 2.21
+    },
+    {
+      "question": "How many sides does a hexagon have?",
+      "answer": "A hexagon has six sides.",
+      "time": 1.84
+    },
+    {
+      "question": "Who was the first woman in space?",
+      "answer": "Valentina Tereshkova was the first woman in space.",
+      "time": 1.92
+    },
+    {
+      "question": "How many ribs does a human have?",
+      "answer": "A human typically has 24 ribs (12 pairs).",
+      "time": 2.44
+    },
+    {
+      "question": "Who wrote the Odyssey?",
+      "answer": "Homer is credited with writing the Odyssey.",
+      "time": 2.66
+    },
+    {
+      "question": "How many stars on the US flag?",
+      "answer": "There are 50 stars on the US flag.",
+      "time": 2.62
+    },
+    {
+      "question": "Who invented the light bulb?",
+      "answer": "",
+      "time": 1.94
+    },
+    {
+      "question": "How many seconds in an hour?",
+      "answer": "There are 3,600 seconds in an hour.",
+      "time": 6.15
+    },
+    {
+      "question": "Who discovered radium?",
+      "answer": "Marie Curie discovered radium.",
+      "time": 1.47
+    },
+    {
+      "question": "How many feet in a mile?",
+      "answer": "There are 5,280 feet in a mile.",
+      "time": 2.61
+    },
+    {
+      "question": "Who painted Starry Night?",
+      "answer": "Vincent van Gogh painted Starry Night.",
+      "time": 2.64
+    },
+    {
+      "question": "How many planets have rings?",
+      "answer": "Four planets in our solar system have rings.",
+      "time": 2.65
+    },
+    {
+      "question": "Who wrote the Communist Manifesto?",
+      "answer": "Karl Marx and Friedrich Engels wrote the Communist Manifesto.",
+      "time": 1.94
+    },
+    {
+      "question": "How many days in a leap year?",
+      "answer": "There are 366 days in a leap year.",
+      "time": 3.18
+    },
+    {
+      "question": "Who discovered electricity?",
+      "answer": "Benjamin Franklin is often credited with discovering electricity through his kite experiment.",
+      "time": 4.4
+    },
+    {
+      "question": "How many chambers in the human heart?",
+      "answer": "The human heart has four chambers.",
+      "time": 5.28
+    },
+    {
+      "question": "Who was the first US president?",
+      "answer": "The first US president was George Washington.",
+      "time": 1.91
+    },
+    {
+      "question": "How many bytes in a kilobyte?",
+      "answer": "There are 1,024 bytes in a kilobyte.",
+      "time": 8.51
+    },
+    {
+      "question": "Who invented the printing press?",
+      "answer": "Johannes Gutenberg invented the printing press.",
+      "time": 3.86
+    },
+    {
+      "question": "How many legs does a spider have?",
+      "answer": "A spider has eight legs.",
+      "time": 1.46
+    },
+    {
+      "question": "Who wrote Hamlet?",
+      "answer": "William Shakespeare wrote Hamlet.",
+      "time": 1.84
+    },
+    {
+      "question": "How many colors in a rainbow?",
+      "answer": "There are seven colors in a rainbow.",
+      "time": 4.83
+    },
+    {
+      "question": "Who discovered the electron?",
+      "answer": "J.J. Thomson discovered the electron.",
+      "time": 2.17
+    },
+    {
+      "question": "How many minutes in a day?",
+      "answer": "There are 1440 minutes in a day.",
+      "time": 1.91
+    },
+    {
+      "question": "Who painted the Last Supper?",
+      "answer": "Leonardo da Vinci painted the Last Supper.",
+      "time": 4.55
+    },
+    {
+      "question": "How many bones in the human skull?",
+      "answer": "The human skull consists of 22 bones.",
+      "time": 1.06
+    },
+    {
+      "question": "Who wrote the Theory of Relativity?",
+      "answer": "Albert Einstein wrote the Theory of Relativity.",
+      "time": 4.45
+    },
+    {
+      "question": "How many planets have moons?",
+      "answer": "",
+      "time": 2.3
+    },
+    {
+      "question": "Who discovered bacteria?",
+      "answer": "Antonie van Leeuwenhoek discovered bacteria.",
+      "time": 2.34
+    },
+    {
+      "question": "How many taste buds on the human tongue?",
+      "answer": "The human tongue typically has about 10,000 taste buds.",
+      "time": 2.14
+    }
+  ]
+}

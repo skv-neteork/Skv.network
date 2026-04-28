@@ -1,0 +1,161 @@
+{
+  "cube_id": "project_skv_v1_final",
+  "type": "anketa",
+  "title": "SKV Network v1.0 — Open Knowledge Base for AI",
+  "trigger_intent": [
+    "SKV",
+    "knowledge base",
+    "AI",
+    "RAG",
+    "Qdrant",
+    "consultation",
+    "cubes",
+    "compliance",
+    "queue"
+  ],
+  "rules": [
+    "SKV Network is an open knowledge base for AI agents. Stores cubes — atomic rules that AI follow. 75+ constitutional rules indexed in Qdrant with RAG-powered retrieval. Architecture: user uploads project JSON → SKV finds relevant rules via Qdrant → injects rules as user message context → AI generates compliant answer. Key innovation: rules work as user message context (80%+ compliance), not system prompt (29% empty). Stack: FastAPI + PostgreSQL + Qdrant + Docker + Polza API. Deployed at skv.network on VPS. Solo developer: Deniz. Built April 2026. Features: semantic search, blind jury trial, downvote with auto-trial, AI consultation with rules_used, long anketa support, user profiles, trial journal, PDF/Chart/Code/Markdown/CSV tools, async queue for consultations, USDT donations. 99+ cubes in library. RAG compliance: 80%+ on safety questions."
+  ],
+  "outputs": [
+    "pdf",
+    "code"
+  ],
+  "consultation_request": true,
+  "consultation_query": "Analyze SKV Network v1.0 — a solo developer project launched in April 2026. It is an open knowledge base for AI with 75+ constitutional rules, RAG-powered retrieval, 80%+ compliance rate, async queue, and multiple output tools (PDF, Chart, Code, Markdown, CSV). Stack: FastAPI + PostgreSQL + Qdrant + Docker. Deployed at skv.network. Give: (1) Top 3 unique strengths, (2) Top 3 critical risks before public launch, (3) Top 3 features to add next, (4) How to get first 100 users? Answer in Russian.",
+  "consultation_models": [
+    "deepseek-v4-flash",
+    "qwen3.6-plus",
+    "gpt-5.5"
+  ],
+  "consultation_lang": "ru",
+  "cubes": [
+    {
+      "cube_id": "exp_rag_user_message_001",
+      "type": "experience",
+      "title": "RAG Rules Work in User Message, Not System Prompt",
+      "trigger_intent": [
+        "RAG",
+        "user message",
+        "system prompt",
+        "rules",
+        "injection",
+        "context"
+      ],
+      "rules": [
+        "Inject rules as user message context, not system prompt",
+        "System prompt with rules causes 29% empty answers",
+        "User message with rules achieves 80%+ compliance",
+        "Use RAG to find top-5 relevant rules from Qdrant",
+        "Format: Context: rules | Question: query | Answer:"
+      ]
+    },
+    {
+      "cube_id": "exp_long_anketa_fix_001",
+      "type": "experience",
+      "title": "Long Ankets: Compact Prompt + RAG Prevents Empty Answers",
+      "trigger_intent": [
+        "long anketa",
+        "empty answer",
+        "compact prompt",
+        "consultation",
+        "API"
+      ],
+      "rules": [
+        "For long ankets, extract only title + query + first 3 rules",
+        "Add RAG context from Qdrant before the query",
+        "Keep prompt under 1000 chars to avoid timeouts",
+        "Return rules_used in API response for transparency",
+        "Save all cubes and persona even if consultation fails"
+      ]
+    },
+    {
+      "cube_id": "exp_compliance_testing_001",
+      "type": "experience",
+      "title": "Compliance Testing: 20 Questions at 80%+",
+      "trigger_intent": [
+        "compliance",
+        "testing",
+        "safety",
+        "benchmark"
+      ],
+      "rules": [
+        "Test on 20 safety-critical questions",
+        "Achieved 80% compliance with RAG vs 60% without",
+        "A/B test shows RAG helps on ethical/safety questions",
+        "Add domain-specific rules when compliance gaps found",
+        "Measure compliance as valid_answers/total"
+      ]
+    },
+    {
+      "cube_id": "exp_queue_system_001",
+      "type": "experience",
+      "title": "Async Queue Prevents Server Overload",
+      "trigger_intent": [
+        "queue",
+        "async",
+        "overload",
+        "503",
+        "threading"
+      ],
+      "rules": [
+        "Use threading.Thread for async task processing",
+        "Save results in global dict for status checking",
+        "Return task_id immediately, user checks status later",
+        "Queue for consultations works reliably",
+        "Tools queue needs global keyword for thread-safe dict access"
+      ]
+    },
+    {
+      "cube_id": "exp_tools_pipeline_001",
+      "type": "experience",
+      "title": "Multi-Format Output Pipeline",
+      "trigger_intent": [
+        "tools",
+        "PDF",
+        "chart",
+        "code",
+        "markdown",
+        "CSV"
+      ],
+      "rules": [
+        "Generate PDF with reportlab from project data",
+        "Use matplotlib for bar/pie charts",
+        "Generate Python/JS code from templates",
+        "Create Markdown reports with AI analysis",
+        "Convert JSON to CSV for data export",
+        "Package multiple files into ZIP for download"
+      ]
+    }
+  ],
+  "persona": {
+    "user_id": "deniz",
+    "traits": {
+      "tone": "technical",
+      "language": "ru",
+      "role": "full-stack developer & AI infrastructure builder",
+      "knowledge_level": "expert"
+    },
+    "preferences": [
+      "data-driven decisions",
+      "RAG pipelines",
+      "brutal honesty",
+      "minimal viable solutions",
+      "backup before changes"
+    ],
+    "relationship_summary": "Building SKV Network since April 2026. Solved empty answer problem with RAG + user message approach. Built queue system for stability. Deployed 99+ cubes. Achieved 80%+ compliance rate on safety tests. Deployed at skv.network."
+  },
+  "_consultation": [
+    {
+      "model": "deepseek-v4-flash",
+      "answer": "**Анализ SKV Network v1.0 (запуск апрель 2026, соло-разработчик)**\n\nПроект представляет собой открытую базу знаний для ИИ с конституционными правилами, RAG, асинхронной очередью и множеством форматов вывода. Стек: FastAPI, PostgreSQL, Qdrant, Docker. Оценка ниже дана с учётом статуса «соло-разработчик» и стадии pre-launch.\n\n---\n\n### (1) Три главных уникальных преимущества\n\n1. **Конституционный RAG с 75+ правилами**  \n   Сочетание конституционной фильтрации (constitutional AI) и семантического поиска (Qdrant) даёт управляемую генерацию с высоким compliance (80%+). Это редко встречается в open-source проектах и повышает доверие к выводам.\n\n2. **Асинхронная очередь + мультиформатный экспорт**  \n   Запросы на генерацию обрабатываются асинхронно (вероятно, через Celery или RabbitMQ), что позволяет не блокировать пользователя. Одновременная поддержка PDF, Chart, Code, Markdown, CSV делает систему универсальной для разных сценариев — от отчётов до дашбордов.\n\n3. **Техническая целостность стека**  \n   FastAPI + PostgreSQL + Qdrant + Docker — лёгкая, но мощная связка. Qdrant как векторная БД обеспечивает быстрый RAG, PostgreSQL — структурированные метаданные, Docker упрощает развёртывание. Всё это позволяет соло-разработчику поддерживать продакшн-уровень без излишней сложности.\n\n---\n\n### (2) Три критических риска перед публичным запуском\n\n1. **Единая точка отказа (solo developer)**  \n   Один человек не может обеспечить круглосуточную поддержку, быстрое реагирование на инциденты и резервное копирование. При росте нагрузки или критическом баге система может надолго стать недоступной — это отпугнёт первых пользователей.\n\n2. **Масштабирование и производительность**  \n   Асинхронная очередь и Qdrant требуют ресурсов. На начальном этапе контейнеры могут работать на одном сервере, но без балансировки нагрузки и автоскейлинга (Kubernetes) при 100+ одновременных запросов возможны таймауты и падение compliance из-за перегрузки.\n\n3. **Юридическая и этическая уязвимость**  \n   «Открытая база знаний» означает, что контент может быть ошибочным или нарушающим авторские права. Даже 80% compliance не защищает от судебных исков или репутационных потерь. Без чёткой модерации и лицензий (например, CC-BY) проект рискует столкнуться с DMCA-удалениями.\n\n---\n\n### (3) Три функции, которые стоит добавить следующими\n\n1. **Веб-интерфейс для не-разработчиков**  \n   Сейчас проект, скорее всего, доступен через API. Чтобы привлечь широкую аудиторию, нужен простой UI (React/Vue) с поиском, загрузкой документов и выбором формата вывода. Это снизит порог входа.\n\n2. **Пользовательские профили и история запросов**  \n   Аутентификация (OAuth) и сохранение сессий позволят пользователям управлять своими данными, повторно использовать результаты и настраивать правила (например, персонализировать конституционные правила под свой проект).\n\n3. **Интеграция с популярными AI-инструментами**  \n   Например, плагины для LangChain, AutoGPT или расширение для VS Code. Это создаст виральный эффект через существующие экосистемы и привлечёт разработчиков, которые захотят тестировать собственные RAG-цепочки на базе SKV.\n\n---\n\n### (4) Как получить первых 100 пользователей?\n\n1. **Публикация в профильных сообществах**  \n   Опубликовать демо-ссылку и технический пост на **Reddit (r/MachineLearning, r/LocalLLaMA)**, **Hacker News** и **Product Hunt** (с акцентом на «open-source constitutional AI»). В каждом посте — кейс: как SKV помог сгенерировать отчёт или код с соблюдением правил.\n\n2. **Бесплатный API-доступ с ограничениями**  \n   Дать первым 100 пользователям расширенную квоту (например, 1000 запросов) в обмен на обратную связь. Разместить форму регистрации в Twitter/X, LinkedIn и в Telegram-канале, где будет ежедневный пример использования SKV.\n\n3. **Партнёрство с AI-энтузиастами и студентами**  \n   Предложить SKV как готовую базу знаний для университетских проектов (курсовые, дипломы). Написать в студенческие AI-клубы и на **Kaggle** — короткое руководство «Как построить RAG на Qdrant за 10 минут с SKV». Заодно получите первых контрибьюторов и баг-репорты."
+    },
+    {
+      "model": "qwen3.6-plus",
+      "answer": "**(1) Топ-3 уникальных преимущества:**\n1. **Конституционный RAG с высокой комплаенс-надёжностью (80%+)** — встроенные 75+ правил безопасности и этики снижают риски галлюцинаций и токсичных ответов, что критично для enterprise/исследовательских сценариев.\n2. **Мультиформатный экспорт (PDF, Chart, Code, Markdown, CSV)** — закрывает потребности разных ролей: аналитиков, разработчиков, контент-мейкеров и compliance-офицеров без дополнительной обработки.\n3. **Асинхронная архитектура на FastAPI + Qdrant + Docker** — лёгкий, масштабируемый стек, оптимизированный под векторный поиск и фоновую обработку запросов, что редкость для соло-проектов.\n\n**(2) Топ-3 критических риска перед публичным запуском:**\n1. **Бутылочное горлышко соло-разработчика** — поддержка, мониторинг, патчи безопасности и реакция на инциденты лягут на одного человека; при росте трафика система может стать нестабильной.\n2. **Падение комплаенса на реальных данных** — 80% в тестах часто снижается на краевых, многошаговых или провокационных запросах; публичный релиз без фидбек-петли рискует подорвать доверие.\n3. **Инфраструктурные затраты и безопасность API** — открытые эндпоинты, Qdrant и PostgreSQL требуют строгого rate-limiting, аутентификации, защиты от DDoS/скрапинга и контроля расходов на векторный поиск.\n\n**(3) Топ-3 фичи для следующей версии:**\n1. **Аутентификация и управление доступом** — API-ключи, роли, лимиты запросов, логирование и биллинг/тарификация.\n2. **Петля обратной связи + версионирование правил** — кнопка «ответ неверный/небезопасен», трекинг изменений конституции, A/B-тесты правил, авто-обновление индекса.\n3. **Веб-дашборд** — интерактивный поиск, предпросмотр экспорта, визуализация применённых правил, аналитика использования и статус очереди.\n\n**(4) Как привлечь первые 100 пользователей:**\n- **Технический кейс:** опубликовать статью на Habr/Dev.to/Medium: «Как я собрал RAG-систему с 80% комплаенсом в одиночку (FastAPI + Qdrant)». Включить демо-ссылку и GitHub.\n- **Агрегаторы и комьюнити:** разместить на Futurepedia, Toolify, AI-каталогах; запостить в r/LocalLLaMA, r/MachineLearning, AI-дискорд-серверах и Telegram-чатах разработчиков.\n- **Программа раннего доступа:** предложить бесплатный лимит (напр. 500 запросов/мес) в обмен на фидбек, баг-репорты и участие в тестировании правил. Создать Discord/Telegram для поддержки.\n- **Прямой аутрич:** написать исследователям ИИ, преподавателям, стартапам через LinkedIn и email; предложить кастомные правила под их домен (медицина, юриспруденция, код)."
+    },
+    {
+      "model": "gpt-5.5",
+      "answer": "## (1) Топ-3 уникальные сильные стороны SKV Network v1.0\n\n### 1. **Конституционные правила + RAG как ядро продукта**\nГлавная сила проекта — не просто база знаний, а попытка сделать **управляемую AI-систему с проверяемыми правилами поведения**.  \n75+ constitutional rules, retrieval через Qdrant и измерение compliance дают продукту понятный фокус: **AI, который отвечает не только “умно”, но и в рамках заданных норм**.\n\nЭто особенно ценно для:\n- safety/ethics use cases;\n- AI governance;\n- образовательных и экспертных ассистентов;\n- корпоративных баз знаний, где важны ограничения и прозрачность.\n\n### 2. **Практическая инженерная архитектура**\nСтек FastAPI + PostgreSQL + Qdrant + Docker — хороший выбор для solo developer проекта:\n\n- FastAPI — быстрый backend и удобная API-документация;\n- PostgreSQL — надежное хранение пользователей, сессий, правил, логов;\n- Qdrant — векторный поиск для RAG;\n- Docker — проще деплой и переносимость;\n- async queue — важна для долгих задач: PDF, code generation, charts, batch jobs.\n\nЭто уже не демо “на коленке”, а основа для реального SaaS/AI-инструмента.\n\n### 3. **Мультиформатный вывод**\nPDF, Chart, Code, Markdown, CSV — сильная продуктовая особенность.  \nБольшинство AI knowledge base проектов останавливаются на текстовом ответе. SKV Network может позиционироваться как:\n\n> “AI knowledge base that turns rules and knowledge into usable outputs.”\n\nТо есть не только отвечает, но и помогает создавать документы, отчеты, таблицы, графики и код.\n\n---\n\n## (2) Топ-3 критических риска перед публичным запуском\n\n### 1. **Риск непредсказуемого качества ответов**\n80%+ compliance — хороший результат для v1.0, но для публичного запуска это всё еще означает, что примерно **каждый пятый ответ может быть проблемным**.\n\nОсобенно опасно, если система отвечает на:\n- медицинские;\n- юридические;\n- финансовые;\n- психологические;\n- safety-critical вопросы.\n\nЧто нужно сделать до запуска:\n- явно обозначить ограничения;\n- добавить disclaimer;\n- логировать неудачные ответы;\n- ввести категории риска;\n- для high-risk запросов использовать более строгий режим ответа.\n\n### 2. **Риск непонятного позиционирования**\nСейчас проект можно описать по-разному:\n\n- open knowledge base for AI;\n- constitutional AI rules engine;\n- RAG platform;\n- AI assistant with tools;\n- compliance-testing framework;\n- developer API.\n\nЭто хорошо технически, но опасно маркетингово. Пользователь должен за 5 секунд понять:\n\n> “Зачем мне это, если есть ChatGPT, Perplexity, Notion AI, LangChain, Dify или обычный RAG?”\n\nПеред публичным запуском нужен очень четкий one-liner. Например:\n\n> “SKV Network — open AI knowledge base with constitutional rules, RAG retrieval and transparent compliance testing.”\n\nИли для более практичного позиционирования:\n\n> “Build safer AI assistants with rules, RAG and measurable compliance.”\n\n### 3. **Риск solo developer bottleneck**\nПроект выглядит сложным для одного разработчика: backend, infra, RAG, UI/API, compliance testing, docs, onboarding, security, support, community, marketing.\n\nКритические зоны риска:\n- баги в очередях;\n- падения Qdrant/PostgreSQL;\n- отсутствие мониторинга;\n- security issues;\n- слабая документация;\n- медленная реакция на пользователей;\n- burnout.\n\nДо публичного запуска желательно минимально закрыть:\n- error monitoring;\n- usage logs;\n- backup PostgreSQL/Qdrant;\n- rate limits;\n- API keys;\n- basic admin dashboard;\n- страницу статуса или хотя бы health checks.\n\n---\n\n## (3) Топ-3 фичи, которые стоит добавить следующими\n\n### 1. **Compliance dashboard**\nЕсли compliance — одно из главных отличий, его нужно сделать видимым.\n\nДобавить dashboard:\n\n- общее compliance score;\n- compliance по категориям;\n- список failed questions;\n- сравнение RAG vs no-RAG;\n- какие правила были использованы;\n- confidence / risk level;\n- история тестов"
+    }
+  ]
+}

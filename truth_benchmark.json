@@ -1,0 +1,126 @@
+{
+  "with_skv": [
+    {
+      "question": "What year was the first iPhone released?",
+      "answer": "The first iPhone was released in 2007.",
+      "time": 1.68,
+      "correct": true
+    },
+    {
+      "question": "What is the capital of Australia?",
+      "answer": "The capital of Australia is Canberra.",
+      "time": 1.75,
+      "correct": true
+    },
+    {
+      "question": "What is the speed of light in km/h?",
+      "answer": "The speed of light is approximately 1.08 billion km/h.",
+      "time": 4.33,
+      "correct": false
+    },
+    {
+      "question": "What is the boiling point of water at Mount Everest?",
+      "answer": "",
+      "time": 3.23,
+      "correct": false
+    },
+    {
+      "question": "What year did World War II end?",
+      "answer": "World War II ended in 1945.",
+      "time": 2.17,
+      "correct": true
+    },
+    {
+      "question": "What is the chemical symbol for gold?",
+      "answer": "The chemical symbol for gold is Au.",
+      "time": 2.56,
+      "correct": true
+    },
+    {
+      "question": "What is the longest river in the world?",
+      "answer": "The Nile River is the longest river in the world.",
+      "time": 2.14,
+      "correct": true
+    },
+    {
+      "question": "What is the smallest country in the world?",
+      "answer": "The smallest country in the world is Vatican City.",
+      "time": 1.14,
+      "correct": true
+    },
+    {
+      "question": "What is the tallest mountain in the world?",
+      "answer": "Mount Everest is the tallest mountain in the world.",
+      "time": 1.62,
+      "correct": true
+    },
+    {
+      "question": "What year did the Berlin Wall fall?",
+      "answer": "The Berlin Wall fell in 1989.",
+      "time": 1.56,
+      "correct": true
+    }
+  ],
+  "without_skv": [
+    {
+      "question": "Who wrote the poem 'The Road Not Taken'?",
+      "answer": "Robert Frost wrote the poem 'The Road Not Taken'.",
+      "time": 2.27,
+      "correct": true
+    },
+    {
+      "question": "How many bones does an adult human have?",
+      "answer": "An adult human has 206 bones.",
+      "time": 2.31,
+      "correct": true
+    },
+    {
+      "question": "Who discovered penicillin?",
+      "answer": "Alexander Fleming discovered penicillin.",
+      "time": 1.75,
+      "correct": true
+    },
+    {
+      "question": "How many planets are in our solar system?",
+      "answer": "There are eight planets in our solar system.",
+      "time": 2.56,
+      "correct": false
+    },
+    {
+      "question": "Who painted the Mona Lisa?",
+      "answer": "Leonardo da Vinci.",
+      "time": 8.9,
+      "correct": true
+    },
+    {
+      "question": "How many hearts does an octopus have?",
+      "answer": "An octopus has three hearts.",
+      "time": 2.52,
+      "correct": false
+    },
+    {
+      "question": "Who wrote 'Romeo and Juliet'?",
+      "answer": "William Shakespeare wrote 'Romeo and Juliet'.",
+      "time": 2.06,
+      "correct": true
+    },
+    {
+      "question": "How long does it take for light from the Sun to reach Earth?",
+      "answer": "It takes about 8 minutes and 20 seconds for light from the Sun to reach Earth.",
+      "time": 2.8,
+      "correct": true
+    },
+    {
+      "question": "How many teeth does an adult human have?",
+      "answer": "An adult human typically has 32 teeth.",
+      "time": 1.72,
+      "correct": true
+    },
+    {
+      "question": "How many elements are in the periodic table?",
+      "answer": "There are 118 elements in the periodic table.",
+      "time": 1.72,
+      "correct": true
+    }
+  ]
+}

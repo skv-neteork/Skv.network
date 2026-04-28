@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>SKV</text></svg>">
+<title>SKV Network</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:linear-gradient(135deg,#0a0a1a,#1a0a2e,#0a1a2e);color:#e0e0e0;min-height:100vh}
+.c{max-width:860px;margin:0 auto;padding:24px}
+.header{display:flex;justify-content:space-between;align-items:center;padding:20px 0;border-bottom:1px solid #222;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.logo-text h1{font-size:28px;background:linear-gradient(135deg,#a855f7,#6366f1,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800}
+.logo-text p{color:#888;font-size:13px;margin-top:2px}
+.nav-links{display:flex;gap:6px;flex-wrap:wrap}
+.nav-links a{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:500;text-decoration:none;cursor:pointer;transition:all 0.25s;border:1px solid transparent;color:#aaa}
+.nav-links a:hover{background:rgba(168,85,247,0.1);color:#fff;border-color:rgba(168,85,247,0.3)}
+.nav-links a.active{background:linear-gradient(135deg,rgba(99,102,241,0.3),rgba(168,85,247,0.2));color:#fff;border-color:rgba(168,85,247,0.5)}
+.page{display:none}.page.active{display:block}
+.card{background:rgba(26,26,46,0.8);border-radius:16px;padding:24px;margin-bottom:20px;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.05)}
+.card h3{color:#a855f7;font-size:16px;margin-bottom:16px}
+.search-input{width:100%;padding:16px 20px;border-radius:12px;border:2px solid rgba(255,255,255,0.08);background:rgba(10,10,26,0.8);color:#fff;font-size:15px;outline:none}
+.search-input:focus{border-color:#a855f7}
+.result-item{background:rgba(26,26,46,0.6);border-radius:12px;padding:16px;margin:10px 0;border-left:4px solid #a855f7;cursor:pointer}
+.result-item h3{font-size:15px;color:#a855f7;margin-bottom:4px}
+.result-item .score{float:right;color:#22c55e;font-size:12px;font-weight:600}
+.result-item .rules{font-size:12px;color:#888;margin-top:6px;display:none;line-height:1.5}
+.dzone{border:2px dashed rgba(168,85,247,0.3);border-radius:16px;padding:32px;text-align:center;margin-bottom:14px;cursor:pointer;transition:all 0.3s;background:rgba(168,85,247,0.02)}
+.dzone:hover{border-color:#a855f7;background:rgba(168,85,247,0.06)}
+.dzone .icon{font-size:36px;margin-bottom:8px}
+.dzone p{color:#888;font-size:14px}
+.dzone .sub{color:#666;font-size:11px;margin-top:4px}
+textarea{width:100%;height:180px;background:rgba(10,10,26,0.8);color:#fff;border:2px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;font-family:monospace;font-size:13px;resize:vertical}
+textarea:focus{outline:none;border-color:#a855f7}
+.btn{padding:14px 28px;border-radius:12px;border:none;font-size:15px;cursor:pointer;font-weight:600;width:100%;margin-top:12px;transition:all 0.3s}
+.btn-primary{background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff}
+.btn-primary:hover:not(:disabled){transform:translateY(-2px)}
+.btn-primary:disabled{opacity:0.3;cursor:not-allowed}
+.btn-success{background:linear-gradient(135deg,#22c55e,#10b981);color:#fff}
+.model-list{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.model-chip{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:20px;cursor:pointer;font-size:13px;background:rgba(10,10,26,0.8);border:1px solid rgba(255,255,255,0.08);transition:all 0.2s;user-select:none}
+.model-chip:hover{border-color:#a855f7;background:rgba(168,85,247,0.08)}
+.model-chip input{display:none}
+.model-chip.checked{background:rgba(99,102,241,0.15);border-color:#6366f1;color:#fff}
+.sts{padding:12px 16px;border-radius:10px;font-size:13px;margin-top:12px}
+.sts.ok{background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.2)}
+.sts.err{background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2)}
+.sts.load{background:rgba(168,85,247,0.1);color:#a855f7;border:1px solid rgba(168,85,247,0.2)}
+.footer{text-align:center;padding:32px 0;color:#555;font-size:12px;border-top:1px solid #1a1a2e;margin-top:32px}
+.footer img{margin-top:12px;border-radius:10px}
+</style></head><body>
+<div class="c">
+<div class="header">
+<div class="logo-text"><h1>SKV Network</h1><p>Open knowledge base for AI</p></div>
+<div class="nav-links">
+<a href="#" class="active" onclick="showTab('search')">Search</a>
+<a href="#" onclick="showTab('upload')">Upload & Consult</a>
+<a href="/trials">Trials</a>
+<a href="/docs">Docs</a>
+<a href="/profile" id="navProfile">Profile</a>
+</div>
+</div>
+
+<div id="page-search" class="page active">
+<div class="card"><h3>Search Cubes</h3><input type="text" class="search-input" id="q" placeholder="Type to search by meaning..." onkeyup="if(event.key==='Enter')doSearch()"></div>
+<div id="sr"></div>
+</div>
+
+<div id="page-upload" class="page">
+<div class="card">
+<h3>Upload & Get AI Consultation</h3>
+<div class="dzone" id="dz" ondrop="handleDrop(event)" ondragover="event.preventDefault()" onclick="document.getElementById('fi').click()">
+<div class="icon">+</div><p>Drop .json file here or click to browse</p>
+<div class="sub">.json files only</div>
+<input type="file" id="fi" accept=".json" onchange="loadFile()" style="display:none">
+</div>
+<textarea id="jt" placeholder="Paste your JSON here..."></textarea>
+<div style="display:flex;gap:10px;margin-top:8px">
+<button onclick="copyJson()" style="padding:8px 16px;background:rgba(255,255,255,0.05);color:#888;border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;font-size:12px">Copy</button>
+</div>
+<div class="model-list" id="ml"></div>
+<p style="font-size:12px;color:#888;margin:8px 0">Select AI models:</p>
+<button id="ub" class="btn btn-primary" onclick="doUpload()" disabled>Upload Project</button>
+<div id="sm"></div>
+</div></div>
+
+<div class="footer"><p>SKV Network v1.0 &middot; skv.network</p><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=https://skv.network" alt="QR" width="80" height="80"></div>
+</div>
+
+<script>
+// === GLOBAL VARIABLES ===
+var MODELS=[{id:"deepseek-v4-flash",name:"DeepSeek V4 Flash"},{id:"qwen3.6-plus",name:"Qwen 3.6 Plus"},{id:"gpt-5.5",name:"GPT-5.5"},{id:"gemma-4-26b",name:"Gemma 4"}];
+var currentJson=null;
+
+// === MODEL CHIPS ===
+function renderModels(){
+  var ml=document.getElementById('ml');
+  ml.innerHTML='';
+  MODELS.forEach(function(m){
+    var label=document.createElement('label');
+    label.className='model-chip';
+    var cb=document.createElement('input');
+    cb.type='checkbox';cb.value=m.id;
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(m.name));
+    label.onclick=function(e){
+      var chip=e.currentTarget;
+      var box=chip.querySelector('input');
+      box.checked=!box.checked;
+      if(box.checked) chip.classList.add('checked');
+      else chip.classList.remove('checked');
+    };
+    ml.appendChild(label);
+  });
+}
+renderModels();
+
+// === NAVIGATION ===
+function showTab(n){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.nav-links a').forEach(function(a){a.classList.remove('active');});
+  document.getElementById('page-'+n).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// === SEARCH ===
+async function doSearch(){
+  var q=document.getElementById('q').value;
+  if(!q)return;
+  var r=await fetch('/api/cubes/search?query='+encodeURIComponent(q));
+  var d=await r.json();
+  var sr=document.getElementById('sr');
+  sr.innerHTML='';
+  if(!d.results.length){sr.innerHTML='<p style="color:#666;text-align:center;padding:40px">No results</p>';return;}
+  d.results.forEach(function(c){
+    var div=document.createElement('div');div.className='result-item';
+    var s=document.createElement('span');s.className='score';s.textContent=(c.score||0).toFixed(3);
+    var h=document.createElement('h3');h.textContent=c.title;
+    var rl=document.createElement('div');rl.className='rules';rl.innerHTML=(c.rules||[]).join('<br>');
+    div.appendChild(s);div.appendChild(h);div.appendChild(rl);
+    div.onclick=function(){var x=this.querySelector('.rules');x.style.display=x.style.display==='block'?'none':'block';};
+    sr.appendChild(div);
+  });
+}
+
+// === FILE HANDLING ===
+function handleDrop(e){e.preventDefault();var f=e.dataTransfer.files[0];if(f)readFile(f);}
+function loadFile(){var f=document.getElementById('fi').files[0];if(f)readFile(f);}
+function readFile(file){
+  if(!file.name.endsWith('.json')){alert('Only .json files');return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{JSON.parse(e.target.result);document.getElementById('jt').value=e.target.result;document.getElementById('ub').disabled=false;}
+    catch(err){alert('Invalid JSON');}
+  };
+  reader.readAsText(file);
+}
+function copyJson(){
+  var t=document.getElementById('jt').value;
+  if(!t){alert('Nothing to copy');return;}
+  navigator.clipboard.writeText(t).then(function(){
+    var b=event.target;b.textContent='Copied!';
+    setTimeout(function(){b.textContent='Copy'},1500);
+  });
+}
+document.addEventListener('paste',function(e){
+  if(document.activeElement.tagName==='TEXTAREA'||document.activeElement.tagName==='INPUT')return;
+  var t=e.clipboardData.getData('text');
+  if(t&&t.trim().startsWith('{')){try{JSON.parse(t);document.getElementById('jt').value=t;document.getElementById('ub').disabled=false}catch(err){}}
+});
+document.getElementById('jt').addEventListener('input',function(){
+  var v=this.value.trim();document.getElementById('ub').disabled=!v;
+  try{JSON.parse(v)}catch(e){document.getElementById('ub').disabled=true}
+});
+
+// === RESET ===
+function resetForm(){
+  document.getElementById('jt').value='';
+  document.getElementById('ub').disabled=true;
+  document.getElementById('ub').textContent='Upload Project';
+  document.getElementById('ub').className='btn btn-primary';
+  document.getElementById('ub').onclick=doUpload;
+  document.getElementById('sm').innerHTML='';
+  currentJson=null;
+  renderModels();
+}
+
+// === UPLOAD + CONSULT ===
+async function doUpload(){
+  var t=document.getElementById('jt').value.trim();
+  if(!t)return;
+  var b=document.getElementById('ub');
+  var s=document.getElementById('sm');
+  b.disabled=true;b.textContent='Uploading...';
+  s.innerHTML='<div class="sts load">Saving project...</div>';
+  
+  try{currentJson=JSON.parse(t)}
+  catch(err){s.innerHTML='<div class="sts err">Invalid JSON</div>';b.disabled=false;b.textContent='Upload Project';return}
+  
+  try{
+    var r=await fetch('/api/v1/entries',{method:'POST',headers:{'Content-Type':'application/json'},body:t});
+    var d=await r.json();
+    s.innerHTML='<div class="sts ok">Project saved: '+d.id+'</div>';document.getElementById('jt').value='';document.getElementById('ub').disabled=true;
+    
+    var models=[];
+    document.querySelectorAll('.model-chip.checked input').forEach(function(cb){models.push(cb.value);});
+    if(!models.length){b.disabled=false;b.textContent='Upload Project';return;}
+    
+    s.innerHTML+='<div class="sts load">Consulting '+models.length+' AI models...</div>';
+    b.textContent='Consulting...';
+    
+    var results=[];
+    for(var i=0;i<models.length;i++){
+      try{
+        var rr=await fetch('/api/consult',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:currentJson.consultation_query||currentJson.title||'Analyze',model:models[i],system:"You are an AI consultant via SKV Network."})});
+        var rd=await rr.json();
+        results.push({model:models[i],answer:rd.answer||rd.error});
+      }catch(e){results.push({model:models[i],error:e.message});}
+    }
+    
+    currentJson._consultation=results;
+    b.textContent='Download Results';
+    b.className='btn btn-success';
+    b.disabled=false;
+    b.onclick=function(){
+      var blob=new Blob([JSON.stringify(currentJson,null,2)],{type:'application/json'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');a.href=url;a.download=(currentJson.cube_id||'result')+'.json';a.click();
+      URL.revokeObjectURL(url);
+      s.innerHTML='<div class="sts ok">Downloaded!</div><button class="btn btn-primary" onclick="resetForm()" style="margin-top:10px">New Project</button>';
+    };
+    s.innerHTML='<div class="sts ok">Ready! '+results.length+' models responded.</div>';
+    setTimeout(resetForm,60000);
+  }catch(e){s.innerHTML='<div class="sts err">'+e.message+'</div>';b.disabled=false;b.textContent='Upload Project';}
+}
+
+// === PROFILE ===
+(function(){
+  var saved=localStorage.getItem('skv_user');
+  if(saved){try{var d=JSON.parse(saved);var nav=document.getElementById('navProfile');if(nav){nav.textContent=d.email.split('@')[0];nav.title=d.email}}catch(e){}}
+})();
+</script></body></html>
+<div style="text-align:center;padding:10px;color:#888;font-size:11px">
+Support: USDT (TON) <span style="color:#a855f7">UQDSasHNGFnBNp1G55IZ3I4vmf8IkGzoxQOyx3PcyaMZdJSH</span>
+</div>
+
+<div style="text-align:center;margin-top:8px">
+<img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ton://transfer/UQDSasHNGFnBNp1G55IZ3I4vmf8IkGzoxQOyx3PcyaMZdJSH" alt="Donate USDT" width="100" height="100" style="border-radius:8px">
+<p style="color:#666;font-size:10px;margin-top:4px">Scan to donate USDT (TON)</p>
+</div>

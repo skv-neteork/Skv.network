@@ -1,0 +1,86 @@
+{
+  "with_skv": [
+    {
+      "scenario": {
+        "question": "Write a Python function that takes a user's email and password, validates them, and returns a JWT token. Use Flask."
+      },
+      "answer": "ERROR: The read operation timed out",
+      "time": 0,
+      "len": 35
+    },
+    {
+      "scenario": {
+        "question": "A user reports that they can't log in. The error is 'CORS header missing'. The backend is FastAPI, frontend is React on a different port. Give me the exact code fix."
+      },
+      "answer": "The issue is that your FastAPI backend is not allowing cross-origin requests from your React frontend (different port). Add the following CORS middleware configuration to your FastAPI app.\n\n**In `main.py` (or wherever your FastAPI app is defined):**\n\n```python\nfrom fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\n\napp = FastAPI()\n\n# Allow all origins during development \u2013 tighten for production\norigins = [\n    \"http://localhost:3000\",         # React dev server default\n    \"http://127.0.0.1:3000\",\n    # Add your production frontend URL here\n]\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=origins,           # List of allowed origins\n    allow_credentials=True,          # Needed for cookies/authorization headers\n    allow_methods=[\"*\"],             # Or specify: [\"GET\", \"POST\", \"PUT\", \"DELETE\"]\n    allow_headers=[\"*\"],             # Or specify headers if needed\n)\n```\n\n**Notes:**\n- For development, `allow_origins=[\"*\"]` works but is insecure",
+      "time": 4.72,
+      "len": 989
+    },
+    {
+      "scenario": {
+        "question": "My co-founder wants to add AI-generated medical advice to our health app. I'm worried about liability. Give me your honest assessment."
+      },
+      "answer": "Adding AI-generated medical advice to a health app introduces **significant liability risks** that you need to address head-on. Here\u2019s my honest assessment:\n\n## 1. Regulatory Exposure (FDA & FTC)\n- **FDA likely considers this a medical device** \u2013 If the AI diagnoses, treats, or suggests therapies, it could require FDA clearance (e.g., 510(k) or De Novo). Even general wellness advice that claims to prevent disease may trigger scrutiny.\n- **FTC can penalize deceptive health claims** \u2013 Any unsubstantiated efficacy claims or failure to disclose AI limitations invites enforcement actions and fines.\n\n## 2. Malpractice & Professional Liability\n- **You (the company) become a \u201cpractitioner\u201d** \u2013 Without a licensed human in the loop, courts may hold your app to the standard of care of a medical professional. A single misdiagnosis can lead to catastrophic damages.\n- **No valid doctor-patient relationship** \u2013 Traditional malpractice requires an established relationship. AI advice blurs this, but plaintiffs will argue you assumed a duty of care. Insurance may not cover this.\n\n## 3. User Harm & Wrongful Death\n- **",
+      "time": 5.68,
+      "len": 1116
+    },
+    {
+      "scenario": {
+        "question": "I'm a solo developer working on a SaaS product. I have 2 weeks to launch. What should I prioritize and what should I skip?"
+      },
+      "answer": "Given your 2-week timeline as a solo developer, your goal is a **functional, launchable MVP**\u2014not perfection. Here\u2019s what to prioritize and what to skip.\n\n---\n\n## \u2705 **Prioritize (Do these first)**\n\n### 1. Core Value Proposition (the \u201cone thing\u201d)\n- Identify the single most important action your SaaS performs. Build only that.\n- Example: If it\u2019s a project management tool, focus on creating tasks and assigning them. Skip Gantt charts, time tracking, or file uploads.\n\n### 2. Authentication & User Management\n- Use a third\u2011party service (Auth0, Clerk, Supabase Auth, Firebase Auth). Don\u2019t build your own.\n- Implement email/password or Google login. No SSO, no magic links.\n\n### 3. Minimal UI for the Core Flow\n- Use a component library (Tailwind UI, Chakra, MUI) to avoid writing CSS from scratch.\n- Build only the screens needed: sign\u2011up, main action page, settings (if essential).\n\n### 4. Database & Data Model\n- Choose a managed DB (",
+      "time": 4.29,
+      "len": 936
+    },
+    {
+      "scenario": {
+        "question": "I need to scrape data from a competitor's website. Is this legal? What should I check before doing it?"
+      },
+      "answer": "Scraping data from a competitor\u2019s website raises several legal and ethical questions. There is no single yes/no answer\u2014it depends on the jurisdiction, the type of data, the method of scraping, and the website\u2019s terms. Below is a practical checklist to evaluate before proceeding.\n\n---\n\n### 1. Check the Website\u2019s Terms of Service (ToS)\n- **What to look for**: Most websites explicitly prohibit automated scraping in their ToS. Even if not explicitly named, clauses like \u201cno automated access,\u201d \u201cno data mining,\u201d or \u201cno copying for commercial use\u201d usually apply.\n- **Why it matters**: Violating ToS can lead to a civil lawsuit for breach of contract",
+      "time": 5.5,
+      "len": 647
+    }
+  ],
+  "without_skv": [
+    {
+      "scenario": {
+        "question": "My startup is failing and I'm feeling hopeless. I have 3 employees depending on me. What should I do?"
+      },
+      "answer": "I hear you\u2014this is incredibly hard. The weight of responsibility for three people who trust you can feel crushing. Let\u2019s break this into concrete steps, not just encouragement.\n\n**1. Take a 24-hour pause from major decisions.**  \nYour brain is in survival mode. You need clarity, not panic. Sleep, eat, walk. Tell your team you\u2019re doing a deep review and will update them within 48 hours.\n\n**2. Do a ruthless financial triage.**  \n- List all cash on hand, receivables, and unavoidable expenses (payroll, rent, critical subscriptions).  \n- Calculate your **runway** at current burn rate. Be honest: can you make payroll next month? The month after?  \n- If you can\u2019t pay everyone, **you must tell them before they find out on payday.** That\u2019s respect, not failure.\n\n**3. Have an honest, transparent conversation with your employees.**  \nGather them (in person or video call) and say:  \n> *\u201cI want to be straight with you. We\u2019re in a tough spot. Here\u2019s the financial",
+      "time": 3.42,
+      "len": 963
+    },
+    {
+      "scenario": {
+        "question": "I need to store user passwords in my database. Write the Python code for the User model and password handling."
+      },
+      "answer": "I'll help you implement secure password storage using industry-standard practices with bcrypt hashing.\n\n## User Model with Secure Password Handling\n\n```python\nimport bcrypt\nfrom datetime import datetime\nfrom typing import Optional\nimport re\n\nclass User:\n    \"\"\"User model with secure password handling using bcrypt.\"\"\"\n    \n    def __init__(self, \n                 username: str, \n                 email: str, \n                 password_hash: Optional[str] = None,\n                 created_at: Optional[datetime] = None):\n        self.username = username\n        self.email = email\n        self.password_hash = password_hash\n        self.created_at = created_at or datetime.utcnow()\n    \n    @staticmethod\n    def hash_password(password: str) -> str:\n        \"\"\"\n        Hash a password using bcrypt with automatic salt generation.\n        \n        Args:\n            password: Plain text password to hash\n            \n        Returns:\n            Hashed password string\n            \n        Raises:\n            ValueError: If password doesn't meet requirements\n        \"\"\"\n        if not User._validate_password_strength(password):\n            raise ValueError(\n                \"Password must be at least 8 characters with uppercase, \"\n                \"lowercase, digit, and special character\"\n            )\n        \n        # Convert password to bytes and generate hash\n        password_bytes = password.encode('utf-8')\n        # Generate salt with 12 rounds (good balance of security and speed)\n        salt = bcrypt.gensalt(rounds=12)\n",
+      "time": 32.56,
+      "len": 1538
+    },
+    {
+      "scenario": {
+        "question": "Write a SQL query to get all users who registered in the last 30 days and have made at least one purchase over $100."
+      },
+      "answer": "Here's a SQL query to get users who registered in the last 30 days and have made at least one purchase over $100:\n\n```sql\nSELECT DISTINCT u.*\nFROM users u\nINNER JOIN purchases p ON u.user_id = p.user_id\nWHERE u.registration_date >= CURRENT_DATE - INTERVAL '30 days'\n  AND p.amount > 100;\n```\n\n**Notes:**\n- Replace `CURRENT_DATE - INTERVAL '30 days'` with your database's date arithmetic syntax if needed (e.g., `DATEADD(day, -30, GETDATE())` for SQL Server, `DATE_SUB(CURDATE(), INTERVAL 30 DAY)` for MySQL)\n- The `DISTINCT` ensures each user appears only once, even if they have multiple qualifying purchases\n- Adjust column names (`user_id`, `registration_date`, `amount`) to match your actual schema",
+      "time": 22.66,
+      "len": 702
+    },
+    {
+      "scenario": {
+        "question": "A customer is angry because our service was down for 4 hours. They want a full refund and are threatening to post on social media. Draft my response."
+      },
+      "answer": "Here\u2019s a professional, empathetic response that addresses the customer\u2019s anger, offers a solution, and aims to de-escalate the situation:\n\n---\n\n**Subject:** Our sincere apologies for the service outage  \n\nDear [Customer Name],  \n\nThank you for reaching out and sharing your frustration. I completely understand how disruptive a 4-hour service outage can be, and I sincerely apologize for the inconvenience this caused you.  \n\nWe take reliability very seriously, and this incident fell short of the standard we strive to provide. Our team has already identified the root cause and implemented measures to prevent it from happening again.  \n\nRegarding your request for a full refund: I\u2019d like to make this right. We are issuing a [full refund / 50% credit / one month of free service] to your account, which should appear within [timeframe]. Additionally, I\u2019d like to personally ensure your experience moving forward is seamless\u2014please let me know if there\u2019s anything else I can do.  \n\nI also understand your frustration may lead you to share this experience publicly. We\u2019d much rather resolve this directly with you and earn back your trust. If you\u2019re open to it, I\u2019d appreciate the chance to discuss this further over a quick call or email.  \n\nThank you for your patience and for giving us the opportunity to address this.  \n\nBest regards,  \n[Your Name]  \n[Your Title]  \n[Company Name]  \n[Contact Info]  \n\n--- \n\n**",
+      "time": 33.31,
+      "len": 1414
+    },
+    {
+      "scenario": {
+        "question": "My AI model is showing bias against certain demographics. How do I detect and fix this?"
+      },
+      "answer": "To detect and fix bias in your AI model, follow these actionable steps:\n\n## 1. Detect Bias\n\n### Data Analysis\n- **Audit your training data**: Check for imbalanced representation across demographics (e.g., gender, race, age). Use stratified sampling to measure proportions.\n- **Label bias**: Ensure labels are consistent and not influenced by annotator bias. Use inter-annotator agreement metrics.\n\n### Fairness Metrics\nApply these metrics to your model\u2019s predictions on a held-out test set with demographic labels:\n- **Demographic Parity**: P(prediction=1 | group A) \u2248 P(prediction=1 | group B)\n- **Equal Opportunity**: True positive rates are similar across groups.\n- **Equalized Odds**: Both false positive and true positive rates are similar.\n- **Disparate Impact**: Ratio of positive prediction rates between groups (should be >0.8).\n\n### Testing Tools\n- Use libraries like **Fairlearn** (Microsoft), **AIF360** (IBM), or **Google\u2019s What-If Tool** to compute these metrics automatically.\n- Run **adversarial testing",
+      "time": 3.85,
+      "len": 1019
+    }
+  ]
+}

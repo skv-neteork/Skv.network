@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>SKV - Profile</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:sans-serif;background:#0a0a1a;color:#e0e0e0;padding:20px}
+.c{max-width:500px;margin:0 auto}
+h1{color:#a855f7;margin-bottom:20px}
+.card{background:#1a1a2e;border-radius:12px;padding:20px;margin:15px 0}
+.card h3{color:#a855f7;margin-bottom:10px}
+.back{color:#888;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:20px}
+input{padding:10px;border-radius:6px;border:1px solid #333;background:#0a0a1a;color:#fff;font-size:14px;width:100%;margin:5px 0}
+button{padding:10px 20px;border-radius:6px;border:none;cursor:pointer;font-size:14px;background:#6366f1;color:#fff;width:100%;margin-top:10px}
+.res{font-size:12px;margin-top:10px;color:#888}
+</style></head>
+<body><div class="c"><a href="/" class="back">Back to SKV</a><h1>Profile</h1>
+
+<div class="card" id="lc"><h3>Login</h3>
+<input type="email" id="e" placeholder="Email">
+<input type="password" id="p" placeholder="Password">
+<button onclick="doLogin()">Login</button>
+<div class="res" id="lr"></div></div>
+
+<div class="card" id="rc"><h3>Register</h3>
+<input type="email" id="re" placeholder="Email">
+<input type="password" id="rp" placeholder="Password">
+<input type="password" id="rp2" placeholder="Confirm password">
+<button onclick="doRegister()">Register</button>
+<div class="res" id="rr"></div></div>
+
+<div class="card" id="pc" style="display:none"><h3>Profile</h3>
+<p id="pi"></p>
+<button onclick="doLogout()" style="background:#333;color:#ccc;margin-top:10px">Logout</button></div>
+</div>
+
+<script>
+function showProfile(d){
+  localStorage.setItem('skv_user',JSON.stringify(d));
+  document.getElementById('lc').style.display='none';
+  document.getElementById('rc').style.display='none';
+  document.getElementById('pc').style.display='block';
+  document.getElementById('pi').innerHTML='<p><b>Email:</b> '+d.email+'</p><p><b>API Key:</b> <code style="font-size:11px;word-break:break-all">'+d.api_key+'</code></p><p><b>Balance:</b> '+(d.balance_usdt||0)+' USDT</p>';
+}
+
+async function doRegister(){
+  var e=document.getElementById('re').value;
+  var p1=document.getElementById('rp').value;
+  var p2=document.getElementById('rp2').value;
+  if(!e||!p1){alert('Fill all fields');return}
+  if(p1!==p2){alert('Passwords do not match');return}
+  if(p1.length<4){alert('Password too short');return}
+  var r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p1})});
+  var d=await r.json();
+  if(d.error){document.getElementById('rr').innerHTML='<span style="color:#ef4444">'+d.error+'</span>';return}
+  if(d.status==='ok'){document.getElementById('rr').innerHTML='<span style="color:#22c55e">Registered!</span>';showProfile(d);}
+}
+
+async function doLogin(){
+  var e=document.getElementById('e').value;
+  var p=document.getElementById('p').value;
+  if(!e||!p)return;
+  var r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p})});
+  var d=await r.json();
+  if(d.error){document.getElementById('lr').innerHTML='<span style="color:#ef4444">'+d.error+'</span>';return}
+  if(d.user_id){document.getElementById('lr').innerHTML='';showProfile(d);}
+}
+
+function doLogout(){
+  localStorage.removeItem('skv_user');
+  document.getElementById('lc').style.display='block';
+  document.getElementById('rc').style.display='block';
+  document.getElementById('pc').style.display='none';
+}
+
+(function(){
+  var s=localStorage.getItem('skv_user');
+  if(s){try{showProfile(JSON.parse(s))}catch(e){}}
+})();
+</script></body></html>

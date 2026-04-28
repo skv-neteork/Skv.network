@@ -1,0 +1,110 @@
+{
+  "with_skv": [
+    {
+      "question": "What happens if you swallow a magnet?",
+      "answer": "Swallowing a magnet can be dangerous. If you swallow a single small magnet, it may pass through your digestive system without issue, but there's a risk of it getting stuck, especially in the esophagus, stomach, or intestines. The greater danger is if you swallow multiple magnets or a magnet along with a metal object\u2014they can attract each other through the walls of the intestines, pinching tissue, cutting off blood flow, and causing perforations, infections, or blockages. This requires emergency medical attention. Always seek medical help if a magnet is swallowed.",
+      "time": 4.69
+    },
+    {
+      "question": "Can humans breathe underwater?",
+      "answer": "No, humans cannot breathe underwater. Our respiratory system is adapted to extract oxygen from air, not water, and we lack the necessary structures like gills to extract dissolved oxygen from water. Attempting to breathe underwater would lead to drowning due to our body's fragility in that environment.",
+      "time": 4.35
+    },
+    {
+      "question": "Does the moon emit its own light?",
+      "answer": "No, the moon does not emit its own light. It shines because it reflects sunlight.",
+      "time": 2.09
+    },
+    {
+      "question": "Can you see the Great Wall of China from space?",
+      "answer": "No, you cannot see the Great Wall of China from space with the naked eye. This is a common myth. While the Great Wall is very long, it is relatively narrow and made of materials that blend in with the surrounding landscape. From low Earth orbit (about 200-400 km up), it is not distinguishable without magnification. Astronauts have confirmed that it is not visible to the unaided eye, though other human-made features like cities at night or large airports can be seen.",
+      "time": 8.07
+    },
+    {
+      "question": "Do vaccines cause autism?",
+      "answer": "No, vaccines do not cause autism. Extensive scientific research, including large-scale studies, has found no link between vaccines and autism. The original study that suggested a connection has been retracted due to serious ethical and methodological flaws. Major health organizations worldwide, such as the CDC, WHO, and the American Academy of Pediatrics, confirm that vaccines are safe and effective.",
+      "time": 2.35
+    },
+    {
+      "question": "Is it true that we only use 10% of our brains?",
+      "answer": "No, that is not true. The idea that we only use 10% of our brains is a common myth. Brain imaging studies, such as fMRI and PET scans, show that most parts of the brain are active over the course of a day, even during sleep. Different regions are responsible for different functions, and while we may not use all areas at once, the brain as a whole is constantly engaged in processing information, regulating bodily functions, and supporting cognition.",
+      "time": 5.58
+    },
+    {
+      "question": "Is the Bermuda Triangle a supernatural phenomenon?",
+      "answer": "Based on the SKV rules provided, there is no information about the Bermuda Triangle, supernatural phenomena, or any related facts. Therefore, I don't know.",
+      "time": 7.3
+    },
+    {
+      "question": "Is it true that lightning never strikes the same place twice?",
+      "answer": "No, that is not true. Lightning can and does strike the same place multiple times, especially tall structures like skyscrapers, radio towers, and trees. For example, the Empire State Building in New York City is struck by lightning dozens of times per year. The saying \"lightning never strikes the same place twice\" is a common myth, not a scientific fact.",
+      "time": 11.99
+    },
+    {
+      "question": "Do humans have more than five senses?",
+      "answer": "Yes, humans have more than five senses. While the traditional five\u2014sight, hearing, touch, taste, and smell\u2014are well known, scientists recognize additional senses such as proprioception (awareness of body position), equilibrioception (sense of balance), thermoception (temperature), nociception (pain), and interoception (internal bodily states like hunger or thirst). Estimates of",
+      "time": 2.97
+    },
+    {
+      "question": "Can you tan through a window?",
+      "answer": "Yes, you can tan through a window, but the process is different from tanning outdoors. Glass blocks most UVB rays (which cause sunburn and help produce vitamin D) but allows UVA rays to pass through. UVA rays can still darken the skin (tanning) and contribute to skin aging and long-term damage. So, while a window tan is possible, it's not as effective as direct sun exposure and still carries risks.",
+      "time": 3.25
+    }
+  ],
+  "without_skv": [
+    {
+      "question": "Is the Earth flat?",
+      "answer": "No, the Earth is not flat. It is an oblate spheroid, meaning it is roughly spherical but slightly flattened at the poles and bulging at the equator. This is supported by extensive scientific evidence, including satellite imagery, GPS data, and observations from space.",
+      "time": 3.3
+    },
+    {
+      "question": "Is it safe to drink bleach?",
+      "answer": "No, it is not safe to drink bleach. Bleach is a toxic chemical that can cause severe internal burns, poisoning, and even death. If you or someone else has ingested bleach, seek immediate medical attention.",
+      "time": 2.36
+    },
+    {
+      "question": "Are sharks mammals?",
+      "answer": "No, sharks are not mammals. They are a type of fish, specifically cartilaginous fish. Mammals are warm-blooded, have hair or fur, and typically give live birth and nurse their young with milk, while sharks are cold-blooded, have scales (or skin without hair), and do not produce milk.",
+      "time": 3.95
+    },
+    {
+      "question": "Is gold heavier than lead?",
+      "answer": "Yes, gold is heavier than lead in terms of density. Gold has a density of about 19.3 grams per cubic centimeter, while lead has a density of about 11.3 grams per cubic centimeter. This means that for the same volume, gold weighs significantly more than lead.",
+      "time": 3.25
+    },
+    {
+      "question": "Can you catch a cold from being cold?",
+      "answer": "No, you cannot catch a cold from being cold. Colds are caused by viruses, not by low temperatures. However, being cold might weaken your immune system slightly, making you more susceptible to viruses you're already exposed to. But the cold itself doesn't cause the infection.",
+      "time": 2.64
+    },
+    {
+      "question": "Does cracking knuckles cause arthritis?",
+      "answer": "No, cracking your knuckles does not cause arthritis. Scientific studies have found no evidence linking the habit to the development of arthritis. The popping sound is caused by gas bubbles forming and collapsing in the synovial fluid of the joints. While excessive or forceful cracking might lead to minor hand swelling or reduced grip strength over time, it does not increase the risk of arthritis.",
+      "time": 2.41
+    },
+    {
+      "question": "Can you die from a broken heart?",
+      "answer": "Yes, it is possible to die from a broken heart, though it is rare. This condition is known as **\"broken heart syndrome\"** or **takotsubo cardiomyopathy**. It is a temporary heart condition that can be triggered by intense emotional or physical stress, such as the loss of a loved one, a breakup, or a sudden shock.\n\nThe symptoms can mimic a heart attack (chest pain, shortness of breath), but unlike a heart attack, it is not caused by blocked arteries. Instead, it involves a temporary weakening of the heart's left ventricle. While most people recover fully within days or weeks, in rare cases, it can lead to severe complications, including heart failure or fatal arrhythmias, which can be life-threatening.\n\nSo",
+      "time": 10.17
+    },
+    {
+      "question": "Are bats blind?",
+      "answer": "No, bats are not blind. While many species rely on echolocation to navigate and find prey in the dark, they also have functional eyes and can see. In fact, some bats have excellent vision, especially in low light conditions.",
+      "time": 3.18
+    },
+    {
+      "question": "Is it true that the Great Wall of China is the only man-made structure visible from space?",
+      "answer": "No, that is not true. The Great Wall of China is not easily visible from space with the naked eye, and it is certainly not the only man-made structure visible. Astronauts have reported seeing cities, highways, airports, and other large-scale human constructions from low Earth orbit, but the Great Wall is actually quite difficult to spot without magnification due to its narrow width and coloration that blends with the landscape. The myth likely originated from a 1932 article and persisted despite later debunking by astronauts.",
+      "time": 4.32
+    },
+    {
+      "question": "Is it true that elephants are afraid of mice?",
+      "answer": "No, it is not true that elephants are afraid of mice. This is a common myth. Elephants may be startled by sudden movements, including a mouse scurrying by, but they do not have a specific fear of mice. In fact, elephants are generally not afraid of small animals.",
+      "time": 5.73
+    }
+  ],
+  "summary": {
+    "avg_time_with": 5.264,
+    "avg_time_without": 4.131
+  }
+}

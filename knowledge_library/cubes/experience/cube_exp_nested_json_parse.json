@@ -1,0 +1,31 @@
+{
+  "cube_id": "cube_exp_nested_json_parse_01",
+  "type": "experience",
+  "priority": 3,
+  "version": "1.0.0",
+  "title": "Parsing Nested JSON Strings in Data Files",
+  "trigger_intent": ["nested JSON", "json.loads", "JSONDecodeError", "string to JSON", "answer field", "parse error"],
+  "rules": [
+    "When JSON data contains a string field that is itself JSON, use json.loads() on the string value.",
+    "Always wrap json.loads() in try/except JSONDecodeError to handle malformed data.",
+    "Check if the field is a string with isinstance(value, str) before attempting to parse.",
+    "If parsing fails, log the error and continue processing other files.",
+    "HTML content in JSON fields (like 504 error pages) will cause JSONDecodeError at position 0.",
+    "Validate JSON structure after parsing: check if the result is a list or dict as expected.",
+    "For files with 'answer' field containing arrays, iterate over the array and process each item as a cube."
+  ],
+  "rationale": "AI-generated JSON often contains nested JSON strings. Robust parsing prevents data loss.",
+  "examples": ["cubes_python.json: answer = string -> json.loads(answer) -> list of 5 cubes."],
+  "dependencies": ["cube_exp_load_cubes_startup_01"],
+  "conflicts_with": [],
+  "source": "Deniz + DeepSeek (night session 2026-04-29)",
+  "created": "2026-04-30",
+  "updated": "2026-04-30",
+  "status": "community",
+  "project_ref": "skv_master",
+  "parent_cube_id": null,
+  "anketa_context": {
+    "session_summary": "Fixed JSON parsing for cubes_*.json files with nested answer field.",
+    "source": "dialogue 2026-04-29"
+  }
+}

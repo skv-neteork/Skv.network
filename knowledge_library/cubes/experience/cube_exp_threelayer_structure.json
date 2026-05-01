@@ -1,0 +1,31 @@
+{
+  "cube_id": "cube_exp_threelayer_structure_01",
+  "type": "experience",
+  "priority": 3,
+  "version": "1.0.0",
+  "title": "Three-Layer File Structure for Knowledge Base Projects",
+  "trigger_intent": ["file structure", "knowledge base", "organization", "src", "project layout", "three-layer"],
+  "rules": [
+    "Separate project into three layers: src/ (code), knowledge_library/ (public knowledge), runtime/ (private context).",
+    "src/ contains all application code: main.py, routers/, middleware/, models.py.",
+    "knowledge_library/ contains cubes/ (basic/ and experience/) and anketa/ (project profiles).",
+    "runtime/ contains personas/, sessions/, storage/ for dynamic private data.",
+    "Add infrastructure/ for Docker, nginx, requirements.txt.",
+    "Create archive/ for old files: tests/, scripts/, benchmarks/, backups/.",
+    "Never delete old files during refactoring. Move them to archive/."
+  ],
+  "rationale": "Mixing code, data, and context creates chaos. Three layers enable independent evolution of each component.",
+  "examples": ["SKV project root: 67 files -> 6 directories (src, knowledge_library, runtime, infrastructure, archive, consultations)."],
+  "dependencies": [],
+  "conflicts_with": [],
+  "source": "Deniz + DeepSeek (night session 2026-04-29)",
+  "created": "2026-04-30",
+  "updated": "2026-04-30",
+  "status": "community",
+  "project_ref": "skv_master",
+  "parent_cube_id": null,
+  "anketa_context": {
+    "session_summary": "Night refactoring. Organized 67 files in root into clean three-layer structure.",
+    "source": "dialogue 2026-04-29"
+  }
+}

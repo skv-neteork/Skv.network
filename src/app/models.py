@@ -74,3 +74,20 @@ class UserFields(BaseModel):
 class SKVEntryRequest(BaseModel):
     skv_version: Literal["1.0"]
     user_fields: UserFields
+# === Дополнительные модели из main.py ===
+
+class SKVEntry(BaseModel):
+    cube_id: str
+    title: str
+    type: str = "experience"
+    trigger_intent: list = []
+    rules: list = []
+    content: Optional[dict] = None
+    anketa_context: Optional[dict] = None
+    persona: Optional[dict] = None
+    project: Optional[dict] = None
+
+class EntryResponse(BaseModel):
+    id: str
+    public_url: str
+    delete_token: str

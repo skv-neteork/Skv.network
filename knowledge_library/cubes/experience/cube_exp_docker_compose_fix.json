@@ -1,0 +1,31 @@
+{
+  "cube_id": "cube_exp_docker_compose_fix_01",
+  "type": "experience",
+  "priority": 3,
+  "version": "1.0.0",
+  "title": "Bypassing Broken Docker Compose with docker run",
+  "trigger_intent": ["docker", "docker-compose", "ContainerConfig", "KeyError", "docker run", "container conflict"],
+  "rules": [
+    "When docker-compose fails with KeyError: 'ContainerConfig', remove the container and recreate it with docker run.",
+    "Use docker rm -f <container> to forcefully remove the broken container.",
+    "Connect the new container to the same network with --network <network_name>.",
+    "Pass environment variables explicitly with -e KEY=VALUE instead of relying on docker-compose.",
+    "Mount volumes with -v host_path:container_path.",
+    "Use docker ps and docker logs to diagnose startup issues.",
+    "Old docker-compose v1.29.2 has bugs with newer Docker images. Consider using docker compose (v2) or docker run."
+  ],
+  "rationale": "Old docker-compose versions can fail on container recreation. Direct docker run gives more control.",
+  "examples": ["docker rm -f skv_api && docker run -d --name skv_api --network infrastructure_default ..."],
+  "dependencies": [],
+  "conflicts_with": [],
+  "source": "Deniz + DeepSeek (night session 2026-04-29)",
+  "created": "2026-04-30",
+  "updated": "2026-04-30",
+  "status": "community",
+  "project_ref": "skv_master",
+  "parent_cube_id": null,
+  "anketa_context": {
+    "session_summary": "Fixed Docker deployment issues during SKV refactoring.",
+    "source": "dialogue 2026-04-29"
+  }
+}

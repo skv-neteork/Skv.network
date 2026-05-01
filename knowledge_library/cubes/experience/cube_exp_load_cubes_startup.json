@@ -1,0 +1,32 @@
+{
+  "cube_id": "cube_exp_load_cubes_startup_01",
+  "type": "experience",
+  "priority": 3,
+  "version": "1.0.0",
+  "title": "Loading Knowledge Cubes from JSON Files at API Startup",
+  "trigger_intent": ["load cubes", "startup", "JSON files", "knowledge library", "os.walk", "disk load"],
+  "rules": [
+    "Implement load_cubes_from_disk() function called at module import time.",
+    "Use os.walk() to traverse knowledge_library/ directory recursively.",
+    "Support three JSON formats: single cube, constitution (cubes array field), and AI-answer (answer field with nested JSON).",
+    "Parse cubes_*.json files by extracting the 'answer' field and json.loads() the string.",
+    "Parse constitution files by reading the 'cubes' array field.",
+    "Handle JSON decode errors gracefully: try/except and continue to next file.",
+    "Log the number of loaded cubes at startup for debugging.",
+    "Assign unique entry_id via uuid.uuid4() for each loaded cube."
+  ],
+  "rationale": "Loading cubes from disk at startup ensures the library is populated before any API requests.",
+  "examples": ["load_cubes_from_disk() iterates knowledge_library/ and populates cubes_library dict."],
+  "dependencies": [],
+  "conflicts_with": [],
+  "source": "Deniz + DeepSeek (night session 2026-04-29)",
+  "created": "2026-04-30",
+  "updated": "2026-04-30",
+  "status": "community",
+  "project_ref": "skv_master",
+  "parent_cube_id": null,
+  "anketa_context": {
+    "session_summary": "Implemented disk-based cube loading with support for multiple JSON formats.",
+    "source": "dialogue 2026-04-29"
+  }
+}

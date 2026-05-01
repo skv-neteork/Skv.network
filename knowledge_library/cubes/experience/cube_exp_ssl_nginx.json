@@ -1,0 +1,30 @@
+{
+  "cube_id": "cube_exp_ssl_nginx_01",
+  "type": "experience",
+  "priority": 3,
+  "version": "1.0.0",
+  "title": "Manual SSL Certificate Setup in nginx-proxy with acme-companion",
+  "trigger_intent": ["SSL", "certificate", "nginx", "acme-companion", "letsencrypt", "HTTPS", "ssl_reject_handshake"],
+  "rules": [
+    "When nginx returns ERR_SSL_UNRECOGNIZED_NAME_ALERT, check that ssl_reject_handshake is off and certificate files exist.",
+    "Certificates from acme-companion are stored in /root/.acme.sh/<domain>_ecc/.",
+    "Copy fullchain.cer to /etc/nginx/certs/<domain>.crt and key to /etc/nginx/certs/<domain>.key.",
+    "Restart acme-companion and nginx-proxy after copying certificates.",
+    "Test with curl -sk https://domain/ before checking in browser.",
+    "Force certificate renewal with acme.sh --issue --force if Let's Encrypt limit is not exceeded."
+  ],
+  "rationale": "Manual certificate setup is needed when auto-provisioning through nginx-proxy+acme-companion fails.",
+  "examples": ["docker exec acme-companion cp /root/.acme.sh/skv.network_ecc/fullchain.cer /etc/nginx/certs/skv.network.crt"],
+  "dependencies": [],
+  "conflicts_with": [],
+  "source": "Deniz + DeepSeek (night session 2026-04-29)",
+  "created": "2026-04-30",
+  "updated": "2026-04-30",
+  "status": "community",
+  "project_ref": "skv_master",
+  "parent_cube_id": null,
+  "anketa_context": {
+    "session_summary": "Fixed HTTPS on skv.network by manually copying SSL certificates.",
+    "source": "dialogue 2026-04-29"
+  }
+}

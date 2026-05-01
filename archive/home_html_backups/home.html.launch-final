@@ -1,5 +1,13 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<html lang="en"><head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-08FHVHJ91E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-08FHVHJ91E');
+</script><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>SKV</text></svg>">
 <title>SKV Network</title>
 <style>
@@ -51,11 +59,11 @@ textarea:focus{outline:none;border-color:#a855f7}
 <div class="logo-text"><h1>SKV Network</h1><p style="color:#a855f7;font-size:16px;margin-bottom:20px">Open knowledge base for AI</p>
 <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-bottom:30px">
 <div style="background:#1a1a2e;border-radius:12px;padding:16px 24px;text-align:center;min-width:100px">
-<div class="counter" data-target="87" style="font-size:28px;font-weight:800;background:linear-gradient(135deg,#a855f7,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">0+</div>
+<div class="counter" data-target="0" style="font-size:28px;font-weight:800;background:linear-gradient(135deg,#a855f7,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">0+</div>
 <div style="color:#888;font-size:12px;margin-top:4px">Cubes</div>
 </div>
 <div style="background:#1a1a2e;border-radius:12px;padding:16px 24px;text-align:center;min-width:100px">
-<div class="counter" data-target="85" style="font-size:28px;font-weight:800;background:linear-gradient(135deg,#22c55e,#10b981);-webkit-background-clip:text;-webkit-text-fill-color:transparent">0+</div>
+<div class="counter" data-target="0" style="font-size:28px;font-weight:800;background:linear-gradient(135deg,#22c55e,#10b981);-webkit-background-clip:text;-webkit-text-fill-color:transparent">0+</div>
 <div style="color:#888;font-size:12px;margin-top:4px">Rules in Qdrant</div>
 </div>
 <div style="background:#1a1a2e;border-radius:12px;padding:16px 24px;text-align:center;min-width:100px">
@@ -110,7 +118,7 @@ textarea:focus{outline:none;border-color:#a855f7}
 <div id="sm"></div>
 </div></div>
 
-<div class="footer"><p>SKV Network v1.0 &middot; skv.network</p><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=https://skv.network" alt="QR" width="80" height="80"></div>
+<div class="footer"><p>SKV Network v1.0 &middot; <a href="https://discord.gg/SCNgH3PP" style="color:#a855f7;text-decoration:none" target="_blank">Discord</a> &middot; skv.network</p><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=https://skv.network" alt="QR" width="80" height="80"></div>
 </div>
 
 <script>
@@ -315,7 +323,31 @@ function animateCounters(){
         }, speed);
     });
 }
-window.addEventListener('load', animateCounters);
+window.addEventListener('load', function(){
+    // Get real counts from API
+    fetch('/api/v1/info').then(function(r){return r.json()}).then(function(d){
+        var cubes = d.cubes_count || 0;
+        document.querySelectorAll('.counter').forEach(function(el){
+            if(el.textContent.indexOf('Rules') === -1){
+                el.setAttribute('data-target', cubes);
+                el.textContent = '0+';
+            }
+        });
+        // Get Qdrant count
+        // Rules count from Qdrant is queried via info endpoint
+        var rulesCount = 85; // Fallback
+        // Try to get real count from Qdrant via search
+        fetch('/api/qdrant/count').then(function(r){return r.json()}).then(function(d){
+            rulesCount = (d.count && d.count.count) ? d.count.count : (d.count || 85);
+            var ruleCounter = document.querySelectorAll('.counter')[1];
+            if(ruleCounter){
+                ruleCounter.setAttribute('data-target', rulesCount);
+                ruleCounter.textContent = '0+';
+            }
+        }).catch(function(){});
+        setTimeout(animateCounters, 300);
+    });
+});
 </script></body></html>
 <div style="text-align:center;padding:10px;color:#888;font-size:11px">
 Support: USDT (TON) <span style="color:#a855f7">UQDSasHNGFnBNp1G55IZ3I4vmf8IkGzoxQOyx3PcyaMZdJSH</span>
@@ -324,4 +356,9 @@ Support: USDT (TON) <span style="color:#a855f7">UQDSasHNGFnBNp1G55IZ3I4vmf8IkGzo
 <div style="text-align:center;margin-top:8px">
 <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ton://transfer/UQDSasHNGFnBNp1G55IZ3I4vmf8IkGzoxQOyx3PcyaMZdJSH" alt="Donate USDT" width="100" height="100" style="border-radius:8px">
 <p style="color:#666;font-size:10px;margin-top:4px">Scan to donate USDT (TON)</p>
+<div style="margin-top:15px;padding:12px;background:#1a1a2e;border-radius:8px;display:inline-block">
+<p style="color:#a855f7;font-size:14px;margin:0">💬 Join our Discord</p>
+<p style="color:#888;font-size:12px;margin:5px 0">Get help, share feedback, discuss AI</p>
+<a href="https://discord.gg/SCNgH3PP" target="_blank" style="display:inline-block;padding:8px 20px;background:#6366f1;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;margin-top:5px">Join Discord Server</a>
+</div>
 </div>

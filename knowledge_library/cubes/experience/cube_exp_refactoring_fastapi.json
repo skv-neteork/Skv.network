@@ -1,0 +1,31 @@
+{
+  "cube_id": "cube_exp_refactoring_fastapi_01",
+  "type": "experience",
+  "priority": 3,
+  "version": "1.0.0",
+  "title": "Refactoring Monolithic FastAPI into Routers and Middleware",
+  "trigger_intent": ["refactoring", "FastAPI", "routers", "middleware", "monolithic", "how to split API", "code organization"],
+  "rules": [
+    "Split a monolithic main.py into routers by domain: pages, entries, trials, queue, auth.",
+    "Move rate limiter to middleware/rate_limit.py as a separate module.",
+    "Keep main.py under 60 lines: only FastAPI app creation, middleware registration, and router includes.",
+    "Each router MUST be an APIRouter instance with prefix-appropriate endpoints.",
+    "Backup original main.py before refactoring: cp main.py main.py.backup-$(date +%Y%m%d-%H%M).",
+    "Archive old versions instead of keeping 20+ backup files in the working directory.",
+    "Use Python's py_compile to check syntax before restarting the server."
+  ],
+  "rationale": "A 778-line main.py is unmaintainable. Modular routers enable independent testing and development.",
+  "examples": ["main.py: 778 lines -> 52 lines after refactoring into 5 routers and 1 middleware module."],
+  "dependencies": [],
+  "conflicts_with": [],
+  "source": "Deniz + DeepSeek (night session 2026-04-29)",
+  "created": "2026-04-30",
+  "updated": "2026-04-30",
+  "status": "community",
+  "project_ref": "skv_master",
+  "parent_cube_id": null,
+  "anketa_context": {
+    "session_summary": "Night refactoring session of SKV Network. Reduced main.py from 778 to 52 lines, created router and middleware structure.",
+    "source": "dialogue 2026-04-29"
+  }
+}

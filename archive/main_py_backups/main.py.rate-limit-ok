@@ -11,7 +11,48 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 from app.queue import add_task, get_status
 
+
+# Simple in-memory rate limiter
+import time as _time
+_rate_cache = {}  # {key: [timestamps]}
+
+def check_rate_limit(key, max_requests, window_seconds):
+    now = _time.time()
+    if key not in _rate_cache:
+        _rate_cache[key] = []
+    _rate_cache[key] = [t for t in _rate_cache[key] if now - t < window_seconds]
+    if len(_rate_cache[key]) >= max_requests:
+        return False
+    _rate_cache[key].append(now)
+    return True
+
 app = FastAPI(title="SKV Network", version="2.0")
+# Rate Limit Middleware
+import time as _time
+_rate_storage = {}
+RATE_LIMITS = {
+    "/api/consult": (20, 60),
+    "/api/tools/generate": (5, 60),
+    "/api/v1/entries": (10, 60),
+    "/api/v2/entries": (10, 60),
+}
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    path = request.url.path
+    for route, (limit, window) in RATE_LIMITS.items():
+        if path.startswith(route):
+            client_ip = request.client.host
+            key = f"{client_ip}:{route}"
+            now = _time.time()
+            if key not in _rate_storage:
+                _rate_storage[key] = []
+            _rate_storage[key] = [t for t in _rate_storage[key] if now - t < window]
+            if len(_rate_storage[key]) >= limit:
+                return JSONResponse(status_code=429, content={"error": "Too many requests", "retry_after": f"{window} seconds"})
+            _rate_storage[key].append(now)
+    return await call_next(request)
+
 # rate limiter removed
 # handler removed
 
@@ -83,6 +124,9 @@ async def upload_page():
 
 @app.post("/api/v1/entries", response_model=EntryResponse, status_code=201)
 async def create_entry(request: Request):
+    client_ip = request.client.host
+    if not check_rate_limit(f"entries_{client_ip}", 10, 60):
+        raise HTTPException(429, "Too many requests. Try again later.")
     raw_json = await request.json()
     entry_data = raw_json if "user_fields" in raw_json else {"skv_version": raw_json.get("skv_version", "1.0"), "user_fields": raw_json}
     entry_id = str(uuid.uuid4())[:12]
@@ -504,6 +548,10 @@ async def create_full_entry(request: Request):
 
 @app.post("/api/consult")
 async def consult_rag(request: Request):
+    # Rate limit: 20 requests per minute per IP
+    client_ip = request.client.host
+    if not check_rate_limit(f"consult_{client_ip}", 20, 60):
+        raise HTTPException(429, "Too many requests. Try again later.")
     import urllib.request as _req
     data = await request.json()
     query = data.get("query", "")[:2000]
@@ -555,6 +603,9 @@ async def consult_rag(request: Request):
 
 @app.post("/api/tools/generate")
 async def generate_files(request: Request):
+    client_ip = request.client.host
+    if not check_rate_limit(f"tools_{client_ip}", 5, 60):
+        raise HTTPException(429, "Too many requests. Try again later.")
     """Generate output files from anketa."""
     import io, uuid as _uuid, zipfile, os
     data = await request.json()
@@ -714,3 +765,14 @@ code{background:#0a0a1a;padding:2px 8px;border-radius:4px;color:#22c55e;font-siz
 <p>Solo developer <b>Deniz</b>. April 2026. Moscow.</p>
 <p>Support: USDT (TON) <code>UQDSasHNGFnBNp1G55IZ3I4vmf8IkGzoxQOyx3PcyaMZdJSH</code></p>
 </div></body></html>""")
+
+@app.get("/api/qdrant/count")
+async def qdrant_count():
+    """Get total rules count from Qdrant."""
+    try:
+        from qdrant_client import QdrantClient
+        client = QdrantClient(host="skv_qdrant", port=6333)
+        count = client.count(collection_name="skv_rules_v2")
+        return {"count": count}
+    except:
+        return {"count": 85}

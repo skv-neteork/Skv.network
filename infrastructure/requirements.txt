@@ -9,3 +9,7 @@ jsonschema
 aiogram
 httpx
 jinja2>=3.1.0
+asyncpg
+asyncpg
+reportlab
+matplotlib

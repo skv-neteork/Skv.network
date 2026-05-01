@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trials — SKV Network</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; }
+        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; }
+        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; }
+        .nav a:hover { color: #c9d1d9; }
+        .nav a.active { color: #f78166; }
+        .main { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+        h1 { font-size: 28px; font-weight: 600; color: #f0883e; margin-bottom: 16px; }
+        .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .controls input, .controls select { padding: 8px 12px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 14px; }
+        .controls input:focus, .controls select:focus { outline: none; border-color: #f78166; }
+        .controls button { padding: 8px 16px; background: #238636; color: #fff; border: 1px solid #2ea043; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .controls button:hover { background: #2ea043; }
+        .trial-card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px; margin: 12px 0; }
+        .trial-card h3 { font-size: 16px; color: #c9d1d9; }
+        .trial-card .meta { font-size: 12px; color: #8b949e; margin: 4px 0; }
+        .verdict { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .v-fix { background: #1b3a1b; color: #3fb950; }
+        .v-remove { background: #3a1b1b; color: #f85149; }
+        .jur { font-size: 12px; color: #8b949e; margin: 3px 0; }
+        @media (max-width: 600px) { .controls { flex-direction: column; } }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/upload">Upload</a>
+        <a href="/trials">Trials</a>
+        <a href="/profile">Profile</a>
+        <a href="/.well-known/skv" target="_blank">Discovery</a>
+        <a href="/about">About</a>
+    </div>
+    <div class="main">
+        <h1>Trials</h1>
+        <div class="controls">
+            <input id="cid" placeholder="Cube ID">
+            <select id="vsel"><option value="">All</option><option value="fix">Fix</option><option value="remove">Remove</option></select>
+            <input id="df" type="date"><input id="dt" type="date">
+            <button onclick="lt()">Load</button>
+        </div>
+        <div id="r"></div>
+    </div>
+    <script>
+        async function lt() {
+            var c = document.getElementById('cid').value;
+            var v = document.getElementById('vsel').value;
+            var f = document.getElementById('df').value;
+            var t = document.getElementById('dt').value;
+            var p = new URLSearchParams({limit: 50});
+            if (c) p.set('cube_id', c);
+            if (v) p.set('verdict', v);
+            if (f) p.set('date_from', f);
+            if (t) p.set('date_to', t);
+            var div = document.getElementById('r');
+            div.innerHTML = '<p style="color:#8b949e;">Loading...</p>';
+            try {
+                var r = await fetch('/api/trials/export?' + p);
+                var d = await r.json();
+                if (!d.trials || d.trials.length === 0) {
+                    div.innerHTML = '<p style="color:#d2991d;text-align:center;padding:20px">No trials</p>';
+                    return;
+                }
+                div.innerHTML = d.trials.map(function(t) {
+                    return '<div class="trial-card"><h3>' + t.cube_title + '</h3><div class="meta">' + t.cube_id + ' - Score: ' + t.overall_score + '/' + t.max_score + '</div><span class="verdict v-' + t.verdict + '">' + t.verdict.toUpperCase() + '</span>' +
+                    t.scores.map(function(s) {
+                        return '<div class="jur"><b>' + (s.model || '?') + '</b>: A' + (s.alignment || '?') + ' S' + (s.safety || '?') + ' U' + (s.usefulness || '?') + ' C' + (s.clarity || '?') + ' - ' + (s.comment || '') + '</div>';
+                    }).join('') + '</div>';
+                }).join('');
+            } catch(e) {
+                div.innerHTML = '<p style="color:#f85149;">Error loading trials</p>';
+            }
+        }
+        lt();
+    </script>
+</body>
+</html>

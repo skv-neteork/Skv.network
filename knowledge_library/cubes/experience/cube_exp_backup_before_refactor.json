@@ -1,0 +1,31 @@
+{
+  "cube_id": "cube_exp_backup_before_refactor_01",
+  "type": "experience",
+  "priority": 3,
+  "version": "1.0.0",
+  "title": "Backup and Archive Before Refactoring",
+  "trigger_intent": ["backup", "archive", "refactoring", "save before change", "code safety", "version control"],
+  "rules": [
+    "Before any significant code change, create a dated backup: cp file file.backup-$(date +%Y%m%d-%H%M).",
+    "Keep only the latest working version in the active directory. Move old versions to archive/.",
+    "Archive old files by category: archive/main_py_backups/, archive/html_backups/, archive/scripts/.",
+    "Do not delete old files until the new version is tested and deployed.",
+    "Test syntax with python3 -m py_compile before restarting the server.",
+    "If refactoring breaks functionality, rollback from the most recent backup immediately.",
+    "Having 20+ version copies in the working directory creates chaos. One active file + organized archive."
+  ],
+  "rationale": "Night session taught us: 20+ main.py versions in app/ is chaos. Organized backups save time and nerves.",
+  "examples": ["Before refactoring main.py: cp main.py main.py.backup-20260429-001. After success: mv old versions to archive/main_py_backups/."],
+  "dependencies": ["cube_exp_refactoring_fastapi_01"],
+  "conflicts_with": [],
+  "source": "Deniz + DeepSeek (night session 2026-04-29)",
+  "created": "2026-04-30",
+  "updated": "2026-04-30",
+  "status": "community",
+  "project_ref": "skv_master",
+  "parent_cube_id": null,
+  "anketa_context": {
+    "session_summary": "Learned to backup before changes after dealing with 20+ main.py versions.",
+    "source": "dialogue 2026-04-29"
+  }
+}

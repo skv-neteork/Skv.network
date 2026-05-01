@@ -1,0 +1,123 @@
+import os
+import uuid
+import json
+from datetime import datetime
+import secrets
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, PlainTextResponse
+
+# === Собственные модули ===
+from app.middleware.rate_limit import rate_limit_middleware, RATE_LIMITS, _rate_storage
+from app.routers.entries import router as entries_router
+
+app = FastAPI(title="SKV Network", version="2.0")
+
+# === Rate Limit Middleware ===
+@app.middleware("http")
+async def rate_limit_handler(request: Request, call_next):
+    return await rate_limit_middleware(request, call_next)
+
+# === Подключаем роутеры ===
+app.include_router(entries_router)
+
+# === Queue background task ===
+async def _process_queue():
+    # placeholder
+    pass
+
+@app.on_event("startup")
+async def _start_queue():
+    pass
+
+@app.on_event("startup")
+async def startup():
+    pass
+
+# === Web-страницы ===
+@app.get("/")
+async def home():
+    return HTMLResponse("<h1>SKV Network</h1>")
+
+@app.get("/upload")
+async def upload_page():
+    return HTMLResponse("<h1>Upload</h1>")
+
+@app.get("/profile")
+async def profile_page():
+    return HTMLResponse("<h1>Profile</h1>")
+
+@app.get("/trials")
+async def trials_page():
+    return HTMLResponse("<h1>Trials</h1>")
+
+@app.get("/about")
+async def about_page():
+    return HTMLResponse("<h1>About SKV</h1>")
+
+# === Оставшиеся эндпоинты (пока в main, вынесем позже) ===
+@app.post("/api/trial")
+async def trial(request: Request):
+    return {"status": "ok"}
+
+@app.post("/api/downvote")
+async def downvote(cube_id: str, voter_id: str = "anonymous", reason: str = ""):
+    return {"status": "ok"}
+
+@app.get("/api/trials/export")
+async def export_trials(cube_id: str = "", verdict: str = "", limit: int = 20):
+    return {"results": []}
+
+@app.post("/api/queue/consult")
+async def queue_consult(request: Request):
+    return {"status": "queued"}
+
+@app.get("/api/queue/status/{task_id}")
+async def queue_status_check(task_id: str):
+    return {"status": "unknown"}
+
+@app.post("/api/queue/tools")
+async def queue_tools(request: Request):
+    return {"status": "queued"}
+
+@app.get("/api/v1/info")
+async def api_info():
+    return {"service": "SKV Network", "version": "2.0", "status": "running"}
+
+@app.post("/api/auth/register")
+async def register(request: Request):
+    return {"status": "ok"}
+
+@app.post("/api/auth/login")
+async def login(request: Request):
+    return {"status": "ok"}
+
+@app.post("/api/v2/entries")
+async def create_full_entry(request: Request):
+    return {"status": "ok"}
+
+@app.post("/api/consult")
+async def consult_rag(request: Request):
+    return {"status": "ok"}
+
+@app.post("/api/tools/generate")
+async def generate_files(request: Request):
+    return {"status": "ok"}
+
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    return {"status": "ok"}
+
+@app.post("/api/tools/report")
+async def tools_report(request: Request):
+    return {"status": "ok"}
+
+@app.post("/api/tools/convert")
+async def tools_convert(request: Request):
+    return {"status": "ok"}
+
+@app.get("/api/qdrant/count")
+async def qdrant_count():
+    return {"count": 0}

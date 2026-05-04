@@ -1,0 +1,109 @@
+{
+  "cubes": [
+    {
+      "cube_id": "cube_exp_async_error_basic",
+      "type": "experience",
+      "priority": 3,
+      "title": "Basic error handling with try/except and await",
+      "trigger_intent": [
+        "handle errors in async Python",
+        "try except await",
+        "async error handling"
+      ],
+      "rules": [
+        "Wrap await calls in try/except blocks to catch exceptions from coroutines.",
+        "Exceptions are raised when the awaited coroutine completes or fails."
+      ],
+      "rationale": "Asynchronous code uses the same try/except syntax as synchronous code, but exceptions are raised at the point of await, allowing standard error handling within coroutines."
+    },
+    {
+      "cube_id": "cube_exp_async_gather_error_default",
+      "type": "experience",
+      "priority": 3,
+      "title": "Handling errors in asyncio.gather (default behavior)",
+      "trigger_intent": [
+        "asyncio gather error handling",
+        "handle exceptions in concurrent tasks",
+        "asyncio gather exception propagation"
+      ],
+      "rules": [
+        "When using asyncio.gather without return_exceptions=True, an exception in any task propagates immediately and cancels other pending tasks.",
+        "Wrap gather in try/except to catch the first exception."
+      ],
+      "rationale": "By default, asyncio.gather raises the first exception encountered, which cancels all other tasks. This is useful for fail-fast scenarios but may lose results from other tasks."
+    },
+    {
+      "cube_id": "cube_exp_async_gather_return_exceptions",
+      "type": "experience",
+      "priority": 3,
+      "title": "Handling errors in asyncio.gather with return_exceptions=True",
+      "trigger_intent": [
+        "asyncio gather return exceptions",
+        "handle exceptions without cancelling tasks",
+        "collect exceptions from concurrent tasks"
+      ],
+      "rules": [
+        "Set return_exceptions=True in asyncio.gather to return exceptions as results instead of raising them.",
+        "Then iterate over results to check for exceptions using isinstance(result, Exception)."
+      ],
+      "rationale": "Using return_exceptions=True allows all tasks to complete and returns exceptions as part of the result list, enabling handling of multiple failures without cancelling other tasks."
+    },
+    {
+      "cube_id": "cube_exp_001",
+      "type": "experience",
+      "priority": 3,
+      "title": "Three-layer file structure for knowledge base projects",
+      "trigger_intent": [
+        "organize knowledge base project",
+        "file structure for knowledge base",
+        "three-layer directory structure"
+      ],
+      "rules": [
+        "src/ contains application code including main.py, routers, middleware, models",
+        "knowledge_library/ contains public knowledge with cubes (basic and experience) and anketa",
+        "runtime/ contains private context with personas, sessions, and storage"
+      ],
+      "rationale": "This separation keeps code separate from public knowledge and private runtime data, improving modularity, security, and maintainability."
+    },
+    {
+      "cube_id": "cube_exp_001",
+      "type": "experience",
+      "priority": 3,
+      "title": "Manual SSL Certificate Injection in nginx-proxy with acme-companion",
+      "trigger_intent": [
+        "configure SSL manually",
+        "inject SSL certificate",
+        "nginx-proxy certificate setup",
+        "acme-companion manual certificate",
+        "fix ERR_SSL_UNRECOGNIZED_NAME_ALERT"
+      ],
+      "rules": [
+        "When automatic certificate generation via acme-companion fails",
+        "When you need to manually inject certificates for a specific domain",
+        "When nginx returns ERR_SSL_UNRECOGNIZED_NAME_ALERT",
+        "When you have certificates from an external CA",
+        "When certificates are stored in /root/.acme.sh/<domain>_ecc/"
+      ],
+      "rationale": "This procedure provides a fallback to manually copy certificate files (fullchain and private key) into nginx-proxy's expected location (/etc/nginx/certs/) with the correct naming (.crt and .key), and ensures ssl_reject_handshake is off to prevent SSL errors. It is useful when automatic acquisition fails or external certificates need to be used."
+    },
+    {
+      "cube_id": "cube_exp_backup_before_refactoring",
+      "type": "experience",
+      "priority": 3,
+      "title": "Organize project files and create safe backup before refactoring",
+      "trigger_intent": [
+        "refactor code",
+        "backup files",
+        "organize project files",
+        "safe backup strategy"
+      ],
+      "rules": [
+        "Create a dated backup of the current file before making any significant change using a timestamp to ensure uniqueness and easy rollback: cp file.py file.py.backup-$(date +%Y%m%d-%H%M)",
+        "Keep only the latest working version in the active directory; after refactoring and testing, remove older backups from the active directory.",
+        "Move old versions to a dedicated archive/ folder at the project root to keep the active directory clean: mkdir -p archive; mv file.py.backup-* archive/",
+        "Organize archived files by type or module inside archive/ to make retrieval easier."
+      ],
+      "rationale": "Before refactoring, proper organization and backup are critical to avoid losing work and to enable easy rollback."
+    }
+  ]
+}

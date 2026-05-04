@@ -1,0 +1,129 @@
+{
+  "cubes": [
+    {
+      "cube_id": "cube_exp_001",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Structuring a FastAPI project into modules",
+      "trigger_intent": [
+        "FastAPI project structure",
+        "modular FastAPI",
+        "FastAPI project layout"
+      ],
+      "rules": [
+        "Separate concerns into core, models, schemas, api, services, and repositories directories",
+        "Use pydantic-settings for configuration in core/config.py",
+        "Place route handlers in api/v1/ for versioning",
+        "Implement business logic in services/ and data access in repositories/"
+      ],
+      "rationale": "A modular structure improves maintainability, scalability, and collaboration in FastAPI projects.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_001",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Three-layer file structure for knowledge base projects",
+      "trigger_intent": [
+        "file structure",
+        "knowledge base",
+        "three-layer",
+        "project organization"
+      ],
+      "rules": [
+        "Place all executable code in src/ directory",
+        "Store reusable knowledge in knowledge_library/ with subdirectories cubes and anketa",
+        "Keep dynamic user-specific data in runtime/ with subdirectories personas, sessions, storage"
+      ],
+      "rationale": "This separation improves modularity, security, and maintainability by keeping code separate from public knowledge and private runtime data.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_001",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Project file backup and organization before refactoring",
+      "trigger_intent": [
+        "backup",
+        "refactoring",
+        "project organization"
+      ],
+      "rules": [
+        "Create a dated backup of the current file using cp file.py file.py.backup-$(date +%Y%m%d-%H%M)",
+        "Keep only the latest working version in the active directory, removing older backups after refactoring and testing",
+        "Move old versions to a dedicated archive/ folder using mkdir -p archive && mv file.py.backup-* archive/",
+        "Archive by category by creating subdirectories inside archive/ for each file type or module",
+        "Use version control (Git) as part of the process"
+      ],
+      "rationale": "To avoid losing work and enable easy rollback during refactoring",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_001",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Bypass docker-compose KeyError: ContainerConfig by manual container recreation",
+      "trigger_intent": [
+        "docker-compose",
+        "KeyError",
+        "ContainerConfig",
+        "corrupted metadata"
+      ],
+      "rules": [
+        "Forcefully remove the broken container using `docker rm -f <container_name_or_id>`",
+        "Identify required settings from docker-compose.yml (image, ports, volumes, env, network, etc.)",
+        "Recreate the container with `docker run` using the identified settings, explicitly passing all options"
+      ],
+      "rationale": "When docker-compose fails with KeyError: 'ContainerConfig', the container's metadata is corrupted or incompatible. Manually recreating the container with docker run bypasses the corrupted metadata and restores functionality.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_001",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Reflex Cache Architecture",
+      "trigger_intent": [
+        "efficiency",
+        "caching",
+        "tokens",
+        "optimization",
+        "cost"
+      ],
+      "rules": [
+        "Session-level cache for Discovery: cache a discovery for the entire user session once loaded.",
+        "Dialogue-level cache for Search Results: cache search results (brief info) within the current dialogue; reuse without re-executing search.",
+        "Lazy loading of Full Cubes: return only brief info initially; fetch full cube only when AI decides to apply it.",
+        "Prohibition of reloading already-loaded rules: once cached, a rule cannot be reloaded to avoid duplicate processing."
+      ],
+      "rationale": "The reflex cache architecture is an automatic, rule-driven caching strategy triggered by keywords to minimize token usage and optimize response speed. It operates as a layered caching system (session-level for discoveries, dialogue-level for search results, lazy loading for full cubes) and prohibits reloading cached rules, thereby reducing latency and cost.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_001",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Implementing Rate Limiting in FastAPI using slowapi",
+      "trigger_intent": [
+        "rate limiting",
+        "FastAPI",
+        "slowapi",
+        "protect API"
+      ],
+      "rules": [
+        "Install slowapi: pip install slowapi",
+        "Create Limiter instance with key_func=get_remote_address",
+        "Add limiter to app.state",
+        "Add exception handler for RateLimitExceeded",
+        "Use @limiter.limit decorator on endpoints"
+      ],
+      "rationale": "Rate limiting protects FastAPI applications from abuse, ensures fair usage, and prevents resource exhaustion.",
+      "source": "extraction"
+    }
+  ]
+}

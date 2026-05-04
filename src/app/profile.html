@@ -24,20 +24,25 @@
         .msg.success { background: #1b3a1b; color: #3fb950; display: block; }
         .msg.error { background: #3a1b1b; color: #f85149; display: block; }
     </style>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iI2YwODgzZSIvPgogIDx0ZXh0IHg9IjE2IiB5PSIyMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiMwZDExMTciPlNLVjwvdGV4dD4KPC9zdmc+">
 </head>
 <body>
     <div class="nav">
         <a href="/">Home</a>
         <a href="/upload">Upload</a>
         <a href="/trials">Trials</a>
-        <a href="/profile">Profile</a>
+        
         <a href="/.well-known/skv" target="_blank">Discovery</a>
+        <a href="/guide">Guide</a>
+        
         <a href="/about">About</a>
+        <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
+        <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
     </div>
     <div class="main">
         <h1>SKV Profile</h1>
 
-        <div class="card">
+        <div class="card" id="loginCard">
             <h2>Register / Login</h2>
             <label>Email</label>
             <input type="email" id="email" placeholder="you@example.com">
@@ -59,6 +64,7 @@
         </div>
 
         <div class="card" id="tokenCard" style="display:none;">
+            <button onclick="logout()" style="margin-bottom:12px;background:#30363d;border:1px solid #484f58;color:#c9d1d9;padding:6px 12px;border-radius:4px;cursor:pointer;">↪ Logout</button>
             <h2>Your API Token</h2>
             <p style="font-size:13px;color:#8b949e;margin-bottom:8px;">Use this token to authenticate API requests.</p>
             <code id="tokenDisplay" style="background:#0d1117;padding:8px 12px;border-radius:4px;color:#7ee787;word-break:break-all;font-size:12px;"></code>
@@ -66,6 +72,18 @@
     </div>
 
     <script>
+        // Восстановление сессии
+        (function() {
+            const token = localStorage.getItem('skv_token');
+            const email = localStorage.getItem('skv_email');
+            if (token && email) {
+                document.getElementById('loginCard').style.display = 'none';
+                document.getElementById('tokenCard').style.display = 'block';
+                document.getElementById('tokenDisplay').textContent = token;
+                document.getElementById('email').value = email;
+            }
+        })();
+
         async function register() {
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
@@ -120,16 +138,60 @@
                     showMsg('authMsg', 'success', 'Logged in!');
                     document.getElementById('tokenCard').style.display = 'block';
                     document.getElementById('tokenDisplay').textContent = d.token;
+                        localStorage.setItem('skv_token', d.token);
+                        localStorage.setItem('skv_email', email);
                 } else {
                     showMsg('authMsg', 'error', d.detail || 'Error');
                 }
             } catch(e) { showMsg('authMsg', 'error', 'Network error'); }
         }
 
+        function logout() {
+            localStorage.removeItem("skv_token");
+            localStorage.removeItem("skv_email");
+            document.getElementById("tokenCard").style.display = "none";
+            document.getElementById("email").value = "";
+            document.getElementById("password").value = "";
+            showMsg("authMsg", "success", "Logged out");
+        }
+
         function showMsg(id, type, text) {
             const el = document.getElementById(id);
             el.textContent = text;
             el.className = 'msg ' + type;
+        }
+    
+        // Проверка статуса входа
+        (function() {
+            const email = localStorage.getItem('skv_email');
+            const token = localStorage.getItem('skv_token');
+            if (email && token) {
+                document.getElementById('navProfile').textContent = '⚡ Profile';
+                document.getElementById('navStatus').textContent = 'Logged in as ' + email.split('@')[0];
+                document.getElementById('navStatus').style.color = '#3fb950';
+            }
+        })();
+        function logout() {
+            localStorage.removeItem("skv_token");
+            localStorage.removeItem("skv_email");
+            location.reload();
+        }
+</script>
+    <script>
+        (function() {
+            const email = localStorage.getItem("skv_email");
+            const token = localStorage.getItem("skv_token");
+            if (email && token) {
+                const link = document.getElementById("navProfileLink");
+                if (link) link.textContent = "⚡ " + email.split("@")[0];
+                const status = document.getElementById("navStatus");
+                if (status) { status.textContent = "✓ Logged in"; status.style.color = "#3fb950"; }
+            }
+        })();
+        function logout() {
+            localStorage.removeItem("skv_token");
+            localStorage.removeItem("skv_email");
+            location.reload();
         }
     </script>
 </body>

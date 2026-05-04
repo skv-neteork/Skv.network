@@ -1,0 +1,243 @@
+{
+  "with_skv": [
+    {
+      "question": "How to sort an array in Python?",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "What is the capital of France?",
+      "answer": "The capital of France is Paris. \n\nThis is a well-established fact, and I can confirm it based on general knowledge. If you need further details or have other questions, feel free to ask.",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "How to secure a Linux server?",
+      "answer": "# Securing a Linux Server\n\nSecuring a Linux server involves multiple layers of defense. Here's a practical guide based on best practices:\n\n## 1. **System Updates & Patching**\n- Keep the OS and all software updated: `sudo apt update && sudo apt upgrade` (Debian/Ubuntu) or `sudo yum update` (RHEL/Cent",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "Write a function to reverse a string",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "What is quantum computing?",
+      "answer": "Quantum computing is a type of computation that uses quantum-mechanical phenomena, such as superposition and entanglement, to perform operations on data. Unlike classical computers, which use bits (0 or 1), quantum computers use quantum bits, or qubits, which can exist in multiple states simultaneou",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "How to handle errors in FastAPI?",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "Explain recursion with an example",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "What is Docker and why use it?",
+      "answer": "Docker is an open-source platform that automates the deployment of applications inside lightweight, portable containers. A container packages your code and all its dependencies (libraries, configuration files, etc.) together, ensuring it runs consistently in any environment \u2014 from a developer's lapt",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "How to optimize PostgreSQL queries?",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "What is REST API?",
+      "answer": "REST API (Representational State Transfer Application Programming Interface) is a set of architectural principles for designing networked applications. It uses standard HTTP methods (GET, POST, PUT, DELETE) to perform operations on resources, which are identified by URLs. REST is stateless, meaning ",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "How to implement JWT authentication?",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "Explain binary search algorithm",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "What is Kubernetes?",
+      "answer": "Kubernetes is an open-source container orchestration platform that automates the deployment, scaling, and management of containerized applications. It groups containers into logical units (pods) and schedules them across a cluster of machines, handling networking, storage, and load balancing. Essent",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "How to center a div in CSS?",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "What is machine learning?",
+      "answer": "Machine learning is a subset of artificial intelligence (AI) that enables systems to automatically learn and improve from experience without being explicitly programmed for every task. It works by using algorithms to identify patterns in data, then making predictions or decisions based on those patt",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "How to use async/await in JavaScript?",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "Explain the concept of inheritance in OOP",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "What is a blockchain?",
+      "answer": "A blockchain is a decentralized, distributed digital ledger that records transactions across many computers. Each block contains a set of transactions and is cryptographically linked to the previous block, forming a chain. This makes the data tamper\u2011evident and transparent without requiring a centra",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "How to prevent SQL injection?",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "What is the difference between TCP and UDP?",
+      "answer": "Based on SKV Network cubes, here is a clear explanation of the differences between TCP and UDP.\n\n**TCP (Transmission Control Protocol)** is a connection-oriented, reliable transport protocol. It ensures data arrives in order, without errors, and retransmits lost packets. TCP uses flow control and co",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "How to deploy a Node.js app?",
+      "answer": "To deploy a Node.js app, follow these general steps. I'll cite relevant SKV cubes for each key area.\n\n### 1. Prepare Your Application\n- Ensure your app has a `package.json` with all dependencies listed.\n- Set up environment variables for configuration (e.g., database URLs, API keys).  \n  **Cube refe",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "Explain the Monty Hall problem",
+      "answer": "The Monty Hall problem is a probability puzzle based on a game show scenario. You are on a game show with three doors: behind one is a car (prize), behind the other two are goats. You pick a door, say Door 1. The host, Monty Hall, who knows what's behind the doors, opens another door that has a goat",
+      "used_cubes": [],
+      "rules_used": "yes"
+    },
+    {
+      "question": "What is WebSocket?",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "How to write unit tests in Python?",
+      "answer": "ERROR: HTTP Error 500: Internal Server Error",
+      "used_cubes": []
+    },
+    {
+      "question": "What is a neural network?",
+      "answer": "A **neural network** is a computational model inspired by the biological brain. It consists of layers of interconnected nodes (neurons) that process data by learning patterns through weighted connections. Each neuron receives inputs, applies a mathematical transformation, and passes the result to th",
+      "used_cubes": [],
+      "rules_used": "yes"
+    }
+  ],
+  "without_skv": [
+    {
+      "question": "How to sort an array in Python?",
+      "answer": "In Python, \"array\" can refer to several data types: native **lists**, the `array` module, or **NumPy arrays**. The sorting methods differ slightly for each.\n\n## 1. Sorting Python lists\n\nPython lists are the most common \"array\"\u2011like structure. You have two main options:\n\n### `list.sort()` (in\u2011place)\n"
+    },
+    {
+      "question": "What is the capital of France?",
+      "answer": "The capital of France is Paris."
+    },
+    {
+      "question": "How to secure a Linux server?",
+      "answer": "Securing a Linux server is a multi\u2011layered process that combines system configuration, network hardening, and ongoing maintenance. Below is a step\u2011by\u2011step guide covering the most critical measures.\n\n---\n\n## 1. Keep the System Updated\n\nOut\u2011of\u2011date software is the #1 vector for attacks.\n\n- **Automatic"
+    },
+    {
+      "question": "Write a function to reverse a string",
+      "answer": "Below is a function in Python that reverses a string, with several implementation options.\n\n```python\ndef reverse_string(s: str) -> str:\n    \"\"\"\n    Reverses the input string.\n\n    Args:\n        s: a string (or any sequence with characters).\n\n    Returns:\n        The reversed string. If s is not a s"
+    },
+    {
+      "question": "What is quantum computing?",
+      "answer": ""
+    },
+    {
+      "question": "How to handle errors in FastAPI?",
+      "answer": "FastAPI provides a clean and flexible approach to error handling, built on top of Starlette and Pydantic. You can manage everything from simple HTTP errors to complex validation failures with custom responses. Below is a comprehensive guide.\n\n## 1. Default Error Handling\n\nBy"
+    },
+    {
+      "question": "Explain recursion with an example",
+      "answer": "Recursion is a programming technique where a function calls itself in order to solve a problem. Each recursive call works on a smaller or simpler version of the original problem until it reaches a **base case** \u2014 a condition that stops further recursion.\n\nKey parts of recursion:\n1. **Base case**: Th"
+    },
+    {
+      "question": "What is Docker and why use it?",
+      "answer": "**Docker** is an open-source platform that automates the deployment, scaling, and management of applications using **containers**. Containers are lightweight, standalone, and executable software packages that include everything needed to run an application: code, runtime, system tools, libraries, an"
+    },
+    {
+      "question": "How to optimize PostgreSQL queries?",
+      "answer": "Optimizing PostgreSQL queries involves a combination of **schema design**, **query rewriting**, **indexing strategies**, **configuration tuning**, and **monitoring**. Below is a structured guide covering the most impactful areas.\n\n---\n\n## 1. Use `EXPLAIN (ANALYZE, BUFFERS, SETTINGS)`\n\nBefore any opt"
+    },
+    {
+      "question": "What is REST API?",
+      "answer": "A **REST API"
+    },
+    {
+      "question": "How to implement JWT authentication?",
+      "answer": ""
+    },
+    {
+      "question": "Explain binary search algorithm",
+      "answer": "## Binary Search Algorithm\n\nBinary search is a fast, efficient **searching algorithm** used to find the position of a target value within a **sorted** array or list. It follows a **divide-and-conquer** approach, repeatedly halving the search interval until the target is found or the interval becomes"
+    },
+    {
+      "question": "What is Kubernetes?",
+      "answer": "Here\u2019s a clear, comprehensive explanation of Kubernetes, broken down from the simple concept to the technical details.\n\n### The Simple Answer\n\n**Kubernetes (often called K8s)** is an open-source system for **automating the deployment, scaling, and management of containerized applications**.\n\nThink o"
+    },
+    {
+      "question": "How to center a div in CSS?",
+      "answer": "## How to Center a `<div>` in CSS\n\nThere are several ways to center a `<div>` in CSS, depending on whether you need **horizontal**, **vertical**, or **both** centering, and on the layout context (e.g., parent is a block container, flex container, or grid).\n\nBelow are the most common and recommended "
+    },
+    {
+      "question": "What is machine learning?",
+      "answer": "This is a fundamental question in technology today. Here is a clear, comprehensive explanation of what machine learning is.\n\n### The Simple, Core Definition\n\n**Machine learning (ML) is a type of artificial"
+    },
+    {
+      "question": "How to use async/await in JavaScript?",
+      "answer": "## Using `async`/`await` in JavaScript\n\n`async`/`await` is syntactic sugar built on top of Promises. It makes asynchronous code look and behave a bit more like synchronous code, improving readability and reducing \"callback hell\".\n\n### 1. The `async` keyword\n\n- Placed before a function declaration (o"
+    },
+    {
+      "question": "Explain the concept of inheritance in OOP",
+      "answer": "Inheritance is a fundamental concept in Object-Oriented Programming (OOP). It allows a class to inherit properties and methods (behavior) from another class. The class that inherits is called the **subclass** (or derived class), and the class it inherits from is called the **superclass** (or base cl"
+    },
+    {
+      "question": "What is a blockchain?",
+      "answer": "This is a fundamental question in modern technology. Here is a clear and comprehensive explanation of what a blockchain is.\n\n### The Simple Analogy: A Shared, Unchangeable Notebook\n\nImagine a group of friends who keep a shared notebook to record all their transactions (e.g., \"Alice paid Bob $10 for "
+    },
+    {
+      "question": "How to prevent SQL injection?",
+      "answer": "To prevent SQL injection, follow these key practices:\n\n1. **Use prepared statements (parameterized queries)** \u2013 This is the most effective defense. By separating SQL logic from user input, the database treats input as data only, never as executable code.  \n   - Example in PHP (PDO):  \n     ```php\n  "
+    },
+    {
+      "question": "What is the difference between TCP and UDP?",
+      "answer": ""
+    },
+    {
+      "question": "How to deploy a Node.js app?",
+      "answer": "Deploying a Node.js app involves several steps, from preparing your application for production to choosing a hosting provider and configuring the server. Below is a comprehensive guide covering common deployment methods.\n\n---\n\n## 1. Prepare Your Node.js App for Production\n\nBefore deployment, ensure "
+    },
+    {
+      "question": "Explain the Monty Hall problem",
+      "answer": "The Monty Hall problem is a famous probability puzzle based on the game show *Let\u2019s Make a Deal*, hosted by Monty Hall. It illustrates how our intuition about probability can be surprisingly wrong.\n\n### The Setup\n- There are three doors. Behind one door is a car (the prize); behind the other two are"
+    },
+    {
+      "question": "What is WebSocket?",
+      "answer": ""
+    },
+    {
+      "question": "How to write unit tests in Python?",
+      "answer": "Writing unit tests in Python involves verifying that individual units of code (like functions or methods) behave as expected. Below is a practical guide covering the two most common testing frameworks: **unittest** (built-in) and **pytest** (third-party, but widely used). We'll also cover essential "
+    },
+    {
+      "question": "What is a neural network?",
+      "answer": "This is a foundational question in AI and machine learning. Let me break down the concept in a clear, intuitive way, starting from a simple analogy and building up to its technical operation.\n\n**Think of a neural network as a simplified, mathematical model of the brain.**\n\nJust like our brain has bi"
+    }
+  ]
+}

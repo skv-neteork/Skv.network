@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload — SKV Network</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; }
+        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; }
+        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; }
+        .nav a:hover { color: #c9d1d9; }
+        .nav a.active { color: #f78166; }
+        .main { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+        h1 { font-size: 28px; font-weight: 600; color: #f0883e; }
+        .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 24px; margin-bottom: 20px; }
+        textarea { width: 100%; height: 200px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; padding: 12px; font-family: monospace; font-size: 13px; }
+        .drop-zone { border: 2px dashed #30363d; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 12px; cursor: pointer; }
+        .model-btn { padding: 10px 18px; border-radius: 24px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 4px; border: 1px solid #30363d; background: #0d1117; color: #8b949e; }
+        .model-btn.selected { color: #fff; }
+        .model-deepseek.selected { background: #1a1a3e; color: #7b8cff; border-color: #7b8cff; }
+        .model-qwen.selected { background: #1a2e1a; color: #3fb950; border-color: #3fb950; }
+        .model-gpt.selected { background: #2e1a2e; color: #d2a8ff; border-color: #d2a8ff; }
+        .model-claude.selected { background: #2e1a1a; color: #f0883e; border-color: #f0883e; }
+        .model-grok.selected { background: #1a2e2e; color: #39d353; border-color: #39d353; }
+        .btn { display: block; width: 100%; padding: 14px; text-align: center; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; color: #fff; margin-top: 12px; }
+        .btn-up { background: #238636; }
+        .btn-dl { background: #1f6feb; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/upload" class="active">Upload</a>
+        <a href="/trials">Trials</a>
+        <a href="/profile">Profile</a>
+        <a href="/.well-known/skv" target="_blank">Discovery</a>
+        <a href="/guide">Guide</a>
+        <a href="/about">About</a>
+    </div>
+    <div class="main">
+        <h1>Upload Project</h1>
+        <p>Select models, paste JSON, click Upload.</p>
+
+        <div class="card">
+            <button class="model-btn model-deepseek" onclick="toggle('deepseek',this)">DeepSeek 4.0</button>
+            <button class="model-btn model-qwen" onclick="toggle('qwen',this)">Qwen 3.6</button>
+            <button class="model-btn model-gpt" onclick="toggle('gpt',this)">ChatGPT 5.5</button>
+            <button class="model-btn model-claude" onclick="toggle('claude',this)">Claude 4</button>
+            <button class="model-btn model-grok" onclick="toggle('grok',this)">Grok 4</button>
+        </div>
+
+        <div class="card">
+            <div class="drop-zone" id="dz"><p>📂 Drop .json file here</p></div>
+            <textarea id="jsonInput" placeholder='{"cube_id":"my-project","title":"My Project",...}'></textarea>
+            <div id="btnWrap"><button class="btn btn-up" onclick="upload()">Upload</button></div>
+        </div>
+    </div>
+
+    <script>
+        const selected = new Set();
+        function toggle(m, b) { selected.has(m) ? (selected.delete(m), b.classList.remove('selected')) : (selected.add(m), b.classList.add('selected')); }
+
+        document.getElementById('dz').ondrop = e => {
+            e.preventDefault();
+            const f = e.dataTransfer.files[0];
+            if (f && f.name.endsWith('.json')) { const r = new FileReader(); r.onload = ev => document.getElementById('jsonInput').value = ev.target.result; r.readAsText(f); }
+        };
+        document.getElementById('dz').ondragover = e => e.preventDefault();
+
+        async function upload() {
+            const input = document.getElementById('jsonInput').value.trim();
+            if (!input) return;
+
+            const wrap = document.getElementById('btnWrap');
+            wrap.innerHTML = '<button class="btn btn-up" disabled>Processing...</button>';
+
+            let p;
+            try { p = JSON.parse(input); } catch(e) { wrap.innerHTML = '<button class="btn btn-up" onclick="upload()">Upload</button>'; return; }
+
+            // Добавляем parent_anketa_id если есть в анкете
+            if (p.parent_anketa_id) { p.direct_chain = { parent_anketa_id: p.parent_anketa_id }; }
+            await fetch('/api/v1/entries', { method:'POST', headers:{'Content-Type':'application/json'}, body:input }).catch(()=>{});
+
+            // Консультации
+            let consultText = '';
+            for (const m of selected) {
+                try {
+                    const r = await fetch('/api/consult', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:p.title||p.cube_id,model:m}) });
+                    const d = await r.json();
+                    if (d.answer) consultText += '=== ' + m.toUpperCase() + ' ===\n' + d.answer + '\n\n';
+                } catch(e) {}
+            }
+
+            // Файлы
+            let fileUrls = [];
+            if (p.outputs && p.outputs.length) {
+                try {
+                    const r = await fetch('/api/tools/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cube_id:p.cube_id||'project',title:p.title,rules:p.rules||[],outputs:p.outputs,chart_config:p.chart_config||{}}) });
+                    const d = await r.json();
+                    if (d.files) fileUrls = d.files.filter(f => f.url).map(f => f.url);
+                } catch(e) {}
+            }
+
+            // Скачиваем файлы и создаём ZIP в памяти (если есть файлы)
+            if (fileUrls.length > 0 || consultText) {
+                const zip = new JSZip();
+                if (consultText) zip.file('consultations.txt', consultText);
+                
+                const downloads = fileUrls.map(url => fetch(url).then(r => r.blob()).then(blob => {
+                    const name = url.split('/').pop();
+                    zip.file(name, blob);
+                }));
+                
+                await Promise.all(downloads);
+                const zipBlob = await zip.generateAsync({type:'blob'});
+                const zipUrl = URL.createObjectURL(zipBlob);
+                wrap.innerHTML = '<a class="btn btn-dl" href="'+zipUrl+'" download="project-files.zip">Download All (ZIP)</a>';
+            } else {
+                wrap.innerHTML = '<button class="btn btn-up" onclick="upload()">Upload</button>';
+            }
+
+            document.getElementById('jsonInput').value = '';
+            selected.clear();
+            document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('selected'));
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</body>
+</html>

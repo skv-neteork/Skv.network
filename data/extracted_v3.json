@@ -1,0 +1,338 @@
+{
+  "cubes": [
+    {
+      "cube_id": "cube_exp_fastapi_structure_01",
+      "title": "FastAPI Modular Project Structure",
+      "rules": [
+        "Organize configuration, security, and shared dependencies in a core/ directory",
+        "Use models/ for SQLAlchemy database table definitions",
+        "Use schemas/ for Pydantic request/response validation models",
+        "Place route handlers in api/ with optional versioning (e.g., v1/)",
+        "Separate business logic into a services/ directory",
+        "Isolate data access logic in a repositories/ directory"
+      ],
+      "trigger_intent": [
+        "fastapi project structure",
+        "fastapi modular layout",
+        "fastapi best practices",
+        "organize fastapi app"
+      ],
+      "rationale": "Improves code maintainability, scalability, and team collaboration by enforcing clear separation of concerns.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_async_error_handling_01",
+      "title": "Async Python Error Handling",
+      "rules": [
+        "Wrap await calls in try/except blocks to catch coroutine exceptions",
+        "Use asyncio.gather with return_exceptions=True to prevent task cancellation on failure",
+        "Default asyncio.gather behavior cancels pending tasks on the first exception"
+      ],
+      "trigger_intent": [
+        "async python error handling",
+        "asyncio gather exceptions",
+        "try except await",
+        "python async error handling"
+      ],
+      "rationale": "Ensures robust error handling in asynchronous workflows without crashing the event loop or losing task results.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_kb_structure_01",
+      "title": "Three-Layer Knowledge Base File Structure",
+      "rules": [
+        "Organize projects into three distinct directories: src/, knowledge_library/, and runtime/",
+        "Place all executable code (main.py, routers/, middleware/, models.py) in src/",
+        "Store reusable public knowledge in knowledge_library/ under cubes/basic/, cubes/experience/, and anketa/",
+        "Keep dynamic, user-specific, or session-based data in runtime/ under personas/, sessions/, and storage/"
+      ],
+      "trigger_intent": [
+        "knowledge base structure",
+        "project directory layout",
+        "three layer file structure",
+        "kb architecture"
+      ],
+      "rationale": "Strictly separates application code, public knowledge, and private runtime data to improve modularity, security, and maintainability.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_nginx_ssl_manual_01",
+      "title": "Manual SSL Certificate Setup for nginx-proxy",
+      "rules": [
+        "Place certificate files in /etc/nginx/certs/ named as <domain>.crt and <domain>.key",
+        "Ensure .crt contains the full certificate chain and .key is unencrypted",
+        "Disable ssl_reject_handshake or verify cert placement to prevent ERR_SSL_UNRECOGNIZED_NAME_ALERT"
+      ],
+      "trigger_intent": [
+        "nginx-proxy ssl setup",
+        "manual ssl certificate nginx",
+        "acme-companion manual cert",
+        "ERR_SSL_UNRECOGNIZED_NAME_ALERT fix"
+      ],
+      "rationale": "Ensures proper SSL/TLS termination and prevents handshake failures when automatic certificate generation fails.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_file_backup_01",
+      "title": "Pre-Refactoring File Backup & Organization",
+      "rules": [
+        "Create a timestamped backup of files before modifying them using cp file.py file.py.backup-$(date +%Y%m%d-%H%M)",
+        "Keep only the latest tested version in the active project directory",
+        "Move older backups to a dedicated archive/ folder at the project root",
+        "Organize archived files into category or module subdirectories",
+        "Use version control (Git) alongside manual backups for change tracking"
+      ],
+      "trigger_intent": [
+        "project backup",
+        "refactoring safety",
+        "file organization",
+        "archive old versions",
+        "timestamp backup"
+      ],
+      "rationale": "Prevents data loss during code refactoring and maintains a clean, easily navigable project directory structure.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_docker_compose_keyerror_01",
+      "title": "Bypass Docker-Compose ContainerConfig KeyError",
+      "rules": [
+        "Forcefully remove the broken container using docker rm -f <container_name_or_id>",
+        "Extract required settings (image, ports, volumes, env vars, network) from docker-compose.yml",
+        "Recreate the container using docker run with explicit flags (-d, --name, --network, -p, -e, -v)",
+        "Explicitly pass every environment variable with -e KEY=VALUE instead of relying on env_file or compose environment blocks"
+      ],
+      "trigger_intent": [
+        "docker-compose KeyError ContainerConfig",
+        "docker compose metadata corrupted",
+        "bypass docker-compose error",
+        "recreate container docker run"
+      ],
+      "rationale": "Resolves corrupted or incompatible container metadata errors by bypassing docker-compose parsing and directly using the Docker CLI.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_json_loader_01",
+      "title": "Knowledge Cube JSON Loader Implementation",
+      "rules": [
+        "Execute loader function automatically at module import or application startup",
+        "Use os.walk() to recursively scan the knowledge_library/ directory for .json files",
+        "Handle three JSON formats: single cube object, constitution with a 'cubes' array, and AI-answer with a nested JSON string in the 'answer' field",
+        "For files matching cubes_*.json, extract the 'answer' field and parse it using json.loads()",
+        "Store parsed cubes in a global list or dedicated in-memory data structure"
+      ],
+      "trigger_intent": [
+        "load knowledge cubes",
+        "json loader startup",
+        "parse knowledge library",
+        "os.walk json"
+      ],
+      "rationale": "Ensures all knowledge cubes are correctly parsed from multiple JSON formats and loaded into memory automatically at application startup.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_parse_nested_json_01",
+      "title": "Parsing Nested JSON Strings in Data Files",
+      "rules": [
+        "Load outer JSON first using json.load() or json.loads()",
+        "Check field type with isinstance(value, str) before parsing",
+        "Parse inner strings using json.loads()",
+        "Wrap parsing in try/except JSONDecodeError block",
+        "Log errors and continue processing on failure"
+      ],
+      "trigger_intent": [
+        "parse nested json",
+        "json string parsing",
+        "nested json python",
+        "jsondecodeerror"
+      ],
+      "rationale": "Prevents parsing crashes and ensures robust data extraction when handling stringified JSON payloads.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_reflex_cache_01",
+      "title": "Reflex Cache Architecture",
+      "rules": [
+        "Cache discoveries at the session level to prevent redundant reloading across turns.",
+        "Cache search results (brief info) at the dialogue level for reuse within the same conversation.",
+        "Implement lazy loading for full cubes; fetch detailed content only when explicitly applied.",
+        "Prohibit reloading rules that are already cached to avoid duplicate processing."
+      ],
+      "trigger_intent": [
+        "efficiency",
+        "caching",
+        "tokens",
+        "optimization",
+        "cost",
+        "reflex cache"
+      ],
+      "rationale": "Minimizes token usage, optimizes response speed, and reduces latency and computational cost.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_fastapi_rate_limit_01",
+      "title": "FastAPI Rate Limiting with SlowAPI",
+      "rules": [
+        "Install slowapi using pip install slowapi",
+        "Initialize Limiter with a key function like get_remote_address for IP-based tracking",
+        "Attach limiter to app.state.limiter and register the rate limit exceeded handler",
+        "Apply decorators or middleware to enforce global or per-endpoint rate limits"
+      ],
+      "trigger_intent": [
+        "fastapi rate limit",
+        "slowapi",
+        "api abuse prevention",
+        "rate limiting fastapi"
+      ],
+      "rationale": "Protects API availability, prevents resource exhaustion, and ensures fair usage by controlling request frequency.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_qdrant_search_01",
+      "title": "Qdrant Semantic Search for SKV Cubes",
+      "rules": [
+        "Convert knowledge cubes to dense vector embeddings using a language model",
+        "Store embeddings in Qdrant with metadata (ID, title, triggers, category)",
+        "Vectorize user queries with the same embedding model",
+        "Use cosine similarity for top-k approximate nearest neighbor search",
+        "Return only brief cube info initially per SKV Request Efficiency rules",
+        "Fetch full cube content only after explicit user selection",
+        "Apply blind jury trial and downvote-only rating for quality control"
+      ],
+      "trigger_intent": [
+        "qdrant vector search",
+        "semantic cube retrieval",
+        "embedding generation",
+        "downvote quality control"
+      ],
+      "rationale": "Optimizes semantic search performance and API efficiency while ensuring high-quality knowledge delivery through structured vector indexing and community-driven validation.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_prompt_injection_defense_01",
+      "title": "Prompt Injection Defense Strategies",
+      "rules": [
+        "Adopt a layered, defense-in-depth approach as no single solution is foolproof",
+        "Implement strict input validation to reject special characters, code-like syntax, and known injection patterns",
+        "Use regex or blocklists to filter common injection phrases, acknowledging they can be bypassed",
+        "Restrict maximum input length to limit attack complexity",
+        "Decode and normalize user input (e.g., Unicode normalization, URL decoding) before filtering to catch obfuscated attacks"
+      ],
+      "trigger_intent": [
+        "prompt injection defense",
+        "AI security",
+        "LLM input sanitization",
+        "protect against prompt injection"
+      ],
+      "rationale": "Prevents AI systems from executing malicious instructions disguised as user data, maintaining system integrity and security.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_llm_sandbox_01",
+      "title": "LLM Sandbox Pattern for Context Injection",
+      "rules": [
+        "Use the sandbox pattern to isolate untrusted user input from core system instructions",
+        "Wrap user input in special delimiters to explicitly mark it as data, not instructions",
+        "Apply this technique to prevent prompt injection attacks and unauthorized system prompt overrides"
+      ],
+      "trigger_intent": [
+        "prompt injection",
+        "LLM security",
+        "sandbox pattern",
+        "context injection",
+        "LLM input isolation"
+      ],
+      "rationale": "Prevents adversaries from embedding malicious instructions in user input that could override system prompts, leak data, or trigger unintended actions.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_persist_inmem_pg_01",
+      "title": "Persist In-Memory API Data to PostgreSQL",
+      "rules": [
+        "Implement a persistence layer to sync in-memory data with PostgreSQL",
+        "Use background workers or scheduled tasks to flush volatile data to the database",
+        "Ensure transactional integrity during data migration"
+      ],
+      "trigger_intent": [
+        "persist in-memory data postgresql",
+        "api data persistence",
+        "volatile to durable storage"
+      ],
+      "rationale": "Bridges fast in-memory storage with durable PostgreSQL databases to maintain performance while ensuring data reliability.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_postgres_docker_silent_fail_01",
+      "title": "Prevent Silent PostgreSQL Save Failures in Docker",
+      "rules": [
+        "Mount /var/lib/postgresql/data to a persistent Docker volume to prevent data loss on restart",
+        "Ensure volume ownership and permissions match the postgres user",
+        "Avoid using NFS or VirtualBox shared folders for PostgreSQL data volumes due to fsync incompatibility",
+        "Use modern Docker storage drivers like overlay2 to ensure fsync and data integrity"
+      ],
+      "trigger_intent": [
+        "postgres docker silent failure",
+        "postgresql data loss docker",
+        "docker volume fsync postgres",
+        "postgres save fails silently"
+      ],
+      "rationale": "Prevents silent data corruption and loss in containerized PostgreSQL by addressing volume mounting, permissions, and filesystem fsync compatibility.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_docker_403_01",
+      "title": "Debugging 403 Forbidden in Docker with urllib",
+      "rules": [
+        "Reproduce the request outside the Docker container to verify if the issue is Docker-specific",
+        "If it works on the host but fails in the container, add verbose logging to inspect full request and response headers",
+        "Check credentials, API keys, or server access policies if the error persists outside the container"
+      ],
+      "trigger_intent": [
+        "docker 403 forbidden",
+        "urllib httperror 403",
+        "docker container network error",
+        "python urllib 403"
+      ],
+      "rationale": "Isolates whether the 403 error stems from Docker's network environment (shared IPs, missing headers) or external authentication/policy issues.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_trigger_intent_creation_01",
+      "title": "Effective Cube Trigger Intent Creation",
+      "rules": [
+        "Use realistic natural language search queries, synonyms, and common variations for trigger phrases",
+        "Define clear intent categories (core and contextual) and assign numeric priority levels (1-10) to resolve conflicts",
+        "Identify trigger conditions across environmental, entity state, and external event dimensions",
+        "Map triggers to intents using structured formats like tables or decision trees"
+      ],
+      "trigger_intent": [
+        "trigger intent creation",
+        "cube search phrases",
+        "intent mapping rules",
+        "behavior tree triggers",
+        "cube trigger guidelines"
+      ],
+      "rationale": "Ensures cubes are easily discoverable and accurately map user/system triggers to prioritized intents for reliable execution.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_skv_structure_01",
+      "title": "SKV Cube Structure Standard",
+      "rules": [
+        "Include all required fields: cube_id, type, priority, version, title, trigger_intent, rules",
+        "Set type to exactly one of: basic, experience, or project",
+        "Assign priority as integer 1-4 (1=constitutional, 2=basic, 3=experience, 4=project) where lower numbers override higher in conflicts",
+        "Format version using semantic versioning (major.minor.patch)",
+        "Provide at least 5 English phrases in trigger_intent for search matching"
+      ],
+      "trigger_intent": [
+        "SKV cube structure",
+        "cube format standard",
+        "SKV knowledge unit fields",
+        "cube priority rules",
+        "SKV system standard"
+      ],
+      "rationale": "Ensures consistency, proper conflict resolution, and standardized knowledge representation across the SKV system.",
+      "source": "extraction"
+    }
+  ]
+}

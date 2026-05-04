@@ -1,0 +1,193 @@
+{
+  "cubes": [
+    {
+      "cube_id": "cube_exp_batch_upload_01",
+      "title": "SKV Batch Cube Upload Implementation",
+      "rules": [
+        "Create a POST /api/v1/cubes/batch endpoint accepting an array of cube objects",
+        "Validate and index each cube individually using existing single-upload logic",
+        "Ensure newly uploaded cubes are immediately searchable post-upload",
+        "Use a transactional approach to handle errors and prevent partial failures"
+      ],
+      "trigger_intent": [
+        "batch cube upload",
+        "upload multiple cubes",
+        "SKV batch API"
+      ],
+      "rationale": "Enables efficient, reliable, and protocol-compliant ingestion of multiple knowledge units while maintaining system integrity and searchability.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_conflict_resolution_01",
+      "title": "SKV Cube Priority & Conflict Resolution",
+      "rules": [
+        "Apply hierarchical priority: 1 (Constitutional) > 2 (Basic) > 3 (Experience) > 4 (Project)",
+        "Resolve ties by higher semantic version, then later update date",
+        "If priority, version, and date are identical, apply both rules and notify user of contradiction",
+        "Users cannot override Priority 1 cubes; may override Priority 3/4 per session with AI warning and logging",
+        "When users disagree, explain the rule's rationale and offer a compliant alternative",
+        "Always state which cube was applied and the reason in every conflict"
+      ],
+      "trigger_intent": [
+        "cube priority",
+        "conflict resolution",
+        "SKV rules override",
+        "cube version tiebreaker"
+      ],
+      "rationale": "Ensures deterministic rule application, maintains system integrity, and provides transparent conflict handling within the SKV framework.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_project_root_structure_01",
+      "title": "Clean Project Root Directory Organization",
+      "rules": [
+        "Group related files by concern (source, tests, config, docs)",
+        "Keep the root directory flat and avoid deep nesting",
+        "Follow language/framework conventions for directory naming (e.g., src/ for Python)",
+        "Exclude generated files, lock files, and IDE artifacts using .gitignore",
+        "Include standard top-level directories: src/, tests/, docs/, scripts/, config/, data/, assets/, .github/",
+        "Include standard root files: .gitignore, README.md, LICENSE, CONTRIBUTING.md, CHANGELOG.md, and a task runner (Makefile/Justfile)"
+      ],
+      "trigger_intent": [
+        "project structure",
+        "root directory organization",
+        "clean codebase layout",
+        "project conventions"
+      ],
+      "rationale": "Ensures maintainability, improves team collaboration, and streamlines developer onboarding.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_api_error_handling_01",
+      "title": "API Error Handling Best Practices",
+      "rules": [
+        "Define a standard JSON structure for all error responses (e.g., RFC 7807)",
+        "Map errors to appropriate HTTP status codes (400, 401, 403, 404, 409, 422, 429, 500, 503)",
+        "Avoid returning HTTP 200 with an error flag in the response body",
+        "Provide specific, actionable error messages instead of generic ones"
+      ],
+      "trigger_intent": [
+        "api error handling",
+        "http status codes",
+        "error response format",
+        "api best practices"
+      ],
+      "rationale": "Ensures predictable client-side parsing, correct HTTP semantics, and improves developer debugging experience.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_fastapi_jwt_auth_01",
+      "title": "FastAPI JWT Authentication Implementation",
+      "rules": [
+        "Install python-jose[cryptography], passlib[bcrypt], and python-multipart for JWT and auth handling",
+        "Use passlib with bcrypt for secure password hashing and verification",
+        "Use python-jose with HS256 algorithm and a secure SECRET_KEY for JWT creation/validation",
+        "Implement OAuth2PasswordBearer to extract tokens from incoming requests",
+        "Set appropriate ACCESS_TOKEN_EXPIRE_MINUTES (e.g., 30) for security"
+      ],
+      "trigger_intent": [
+        "fastapi jwt auth",
+        "jwt authentication fastapi",
+        "python-jose passlib fastapi",
+        "secure login fastapi"
+      ],
+      "rationale": "Ensures secure, standardized authentication flow in FastAPI applications using industry-standard libraries.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_fastapi_oauth2_jwt_01",
+      "title": "FastAPI OAuth2 & JWT Implementation",
+      "rules": [
+        "Install required packages: fastapi, uvicorn, python-jose[cryptography], passlib[bcrypt], python-multipart",
+        "Configure JWT constants: SECRET_KEY, ALGORITHM (HS256), and ACCESS_TOKEN_EXPIRE_MINUTES",
+        "Initialize CryptContext with bcrypt for secure password hashing",
+        "Set up OAuth2PasswordBearer with the correct tokenUrl endpoint",
+        "Define Pydantic models for Token, TokenData, User, and UserInDB to handle request/response validation",
+        "Replace mock database dictionaries with a production-ready database in deployment"
+      ],
+      "trigger_intent": [
+        "fastapi oauth2 jwt",
+        "fastapi authentication",
+        "jwt token fastapi",
+        "fastapi login setup"
+      ],
+      "rationale": "Establishes a secure, standardized authentication mechanism using industry-standard OAuth2 and JWT practices in FastAPI.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_pg_optimization_01",
+      "title": "PostgreSQL Query Optimization",
+      "rules": [
+        "Always start optimization with EXPLAIN (ANALYZE, BUFFERS, TIMING) to inspect the query planner",
+        "Add indexes to eliminate Seq Scans on large tables",
+        "Run ANALYZE to update statistics when row estimates significantly differ from actuals",
+        "Select index types based on query patterns: B-tree for equality/range, Partial for conditional subsets, Composite for multi-column (leftmost prefix rule), GIN for full-text"
+      ],
+      "trigger_intent": [
+        "postgresql query optimization",
+        "explain analyze",
+        "postgres indexing",
+        "slow query tuning"
+      ],
+      "rationale": "Ensures efficient query execution, reduces latency, and prevents unnecessary resource consumption.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_k8s_setup_01",
+      "title": "Kubernetes Cluster Setup Prerequisites & kubeadm Init",
+      "rules": [
+        "Disable swap on all Linux nodes before installing kubelet",
+        "Ensure unique hostname, MAC address, and product_uuid per node",
+        "Open required ports (6443, 2379-2380, 10250, etc.) for node communication",
+        "Install container runtime (containerd recommended) before kubeadm",
+        "Run sudo kubeadm init --pod-network-cidr <CIDR> to initialize the control plane"
+      ],
+      "trigger_intent": [
+        "kubernetes cluster setup",
+        "kubeadm init",
+        "k8s prerequisites",
+        "setup k8s"
+      ],
+      "rationale": "Ensures a stable, compliant Kubernetes cluster deployment by meeting core system and network requirements.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_websocket_react_01",
+      "title": "React WebSocket Implementation",
+      "rules": [
+        "Use a custom hook to encapsulate WebSocket connection lifecycle and state management",
+        "Store WebSocket instance and retry counters in useRef to prevent re-renders and stale closures",
+        "Implement automatic reconnection with configurable intervals and max retry limits",
+        "Always clean up WebSocket connections in useEffect cleanup functions to prevent memory leaks",
+        "Wrap message parsing in try/catch blocks to handle malformed JSON safely"
+      ],
+      "trigger_intent": [
+        "react websocket",
+        "useWebSocket hook",
+        "websocket connection lifecycle",
+        "react websocket reconnect"
+      ],
+      "rationale": "Ensures stable, memory-safe, and production-ready real-time communication in React applications.",
+      "source": "extraction"
+    },
+    {
+      "cube_id": "cube_exp_redis_session_01",
+      "title": "Redis Session Management Best Practices",
+      "rules": [
+        "Use Redis for session storage to leverage in-memory speed and sub-millisecond reads/writes",
+        "Configure TTL/EXPIRE to automatically clean up idle sessions",
+        "Utilize atomic operations (HSET, INCR) for safe concurrent session updates",
+        "Enable RDB or AOF persistence for session data recovery",
+        "Deploy Redis Cluster or Sentinel for high availability and horizontal scaling"
+      ],
+      "trigger_intent": [
+        "redis session management",
+        "session storage redis",
+        "redis ttl sessions",
+        "scalable session handling"
+      ],
+      "rationale": "Ensures fast, secure, and scalable session handling with automatic cleanup and fault tolerance.",
+      "source": "extraction"
+    }
+  ]
+}

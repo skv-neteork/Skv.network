@@ -1,0 +1,149 @@
+from fastapi import APIRouter, Request, HTTPException
+from app.sanitize import is_safe_cube
+import json
+import urllib.request as _req
+
+router = APIRouter()
+
+POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+
+# Конституционные кубики — всегда в ответе, без поиска
+CONSTITUTION_CUBES = [
+    "cube_basic_structure_01",
+    "cube_basic_discovery_01", 
+    "cube_basic_priority_01",
+    "cube_basic_ethics_01",
+    "cube_basic_transparency_01",
+    "cube_basic_human_override_01",
+    "cube_basic_feedback_01",
+    "cube_basic_creation_01",
+    "cube_basic_antipoisoning_01",
+    "cube_basic_links_01",
+    "cube_basic_efficiency_01",
+]
+
+MODELS = {
+    "deepseek": "deepseek/deepseek-v4-flash",
+    "qwen": "qwen/qwen3.6-plus",
+    "gpt": "openai/gpt-5.5",
+    "claude": "anthropic/claude-4-sonnet",
+    "grok": "x-ai/grok-4"
+}
+
+@router.post("/api/consult")
+async def consult_rag(request: Request):
+    data = await request.json()
+    query = data.get("query", "")[:2000]
+    model_key = data.get("model", "deepseek")
+    model = MODELS.get(model_key, "deepseek/deepseek-v4-flash")
+
+    # Всегда добавляем конституцию
+    from app.routers.entries import cubes_library
+    constitution_rules = []
+    for cid in CONSTITUTION_CUBES:
+        if cid in cubes_library:
+            cube = cubes_library[cid]
+            content_data = cube.get("content", {})
+            if isinstance(content_data, dict):
+                constitution_rules.extend(content_data.get("rules", [])[:2])
+    if constitution_rules:
+        rules_context = "SKV Constitution: " + " | ".join(constitution_rules[:10])
+
+    # Поиск релевантных кубиков через Qdrant
+    rules_context = ""
+    try:
+        from qdrant_client import QdrantClient
+        emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
+        emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
+            "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
+        })
+        emb_resp = _req.urlopen(emb_req, timeout=15)
+        qv = json.loads(emb_resp.read())["data"][0]["embedding"]
+
+        client = QdrantClient(host="127.0.0.1", port=6333)
+        results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=5)
+        # Санитайзинг: пропускаем небезопасные кубики
+        safe_points = [r for r in results.points[:5] if is_safe_cube(r.payload)]
+        qdrant_rules = [r.payload["title"] + ": " + r.payload["text"] for r in safe_points[:3]]
+        if qdrant_rules:
+            rules_context = " | ".join(qdrant_rules)
+    except:
+        pass
+
+    user_msg = query
+    # Объединяем конституцию и найденные кубики
+    if rules_context and qdrant_rules:
+        rules_context = rules_context + " | Found: " + " | ".join(qdrant_rules[:3])
+    elif qdrant_rules:
+        rules_context = "Found: " + " | ".join(qdrant_rules[:3])
+    
+    if rules_context:
+        user_msg = "Context: " + rules_context[:1500] + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
+
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": user_msg}],
+        "temperature": 0.5,
+        "max_tokens": 1000
+    }).encode()
+
+    for attempt in range(3):
+        try:
+            req = _req.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {POLZA_KEY}"
+            })
+            resp = _req.urlopen(req, timeout=90)
+            answer = json.loads(resp.read())["choices"][0]["message"]["content"]
+            if answer:
+                return {
+                    "answer": answer,
+                    "rules_used": rules_context[:200] if rules_context else "none",
+                    "model": model_key
+                }
+        except Exception as e:
+            if attempt == 2:
+                return {"error": str(e)[:200]}
+    return {"error": "Empty after 3 attempts"}
+
+@router.post("/api/consult/test")
+async def consult_test(request: Request):
+    data = await request.json()
+    query = data.get("query", "")[:2000]
+    model_key = data.get("model", "deepseek")
+    model = MODELS.get(model_key, "deepseek/deepseek-v4-flash")
+    results = {}
+
+    # Without SKV
+    body = json.dumps({"model":model,"messages":[{"role":"user","content":query}],"temperature":0.5,"max_tokens":500}).encode()
+    try:
+        req = _req.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
+        results["without_skv"] = json.loads(_req.urlopen(req, timeout=60).read())["choices"][0]["message"]["content"][:500]
+    except Exception as e:
+        results["without_skv"] = str(e)[:100]
+
+    # With SKV
+    rules_context = ""
+    try:
+        from app.routers.entries import cubes_library
+        ql = query.lower()
+        matched = []
+        for cid, cube in cubes_library.items():
+            if ql in cube.get("title","").lower() or any(ql in t.lower() for t in cube.get("triggers",[])):
+                content = cube.get("content",{})
+                if isinstance(content, dict):
+                    matched.extend(content.get("rules",[])[:2])
+        if matched:
+            rules_context = " | ".join(matched[:3])
+    except:
+        pass
+
+    body2 = json.dumps({"model":model,"messages":[{"role":"user","content":f"Context: {rules_context}\n\nQuestion: {query}\n\nAnswer following the context rules." if rules_context else query}],"temperature":0.5,"max_tokens":500}).encode()
+    try:
+        req2 = _req.Request("https://api.polza.ai/v1/chat/completions", data=body2, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
+        results["with_skv"] = json.loads(_req.urlopen(req2, timeout=60).read())["choices"][0]["message"]["content"][:500]
+        results["rules_used"] = rules_context[:200] if rules_context else "none"
+    except Exception as e:
+        results["with_skv"] = str(e)[:100]
+
+    return {"query":query,"model":model_key,"results":results}

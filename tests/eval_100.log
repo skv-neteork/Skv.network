@@ -1,0 +1,839 @@
+
+==================================================
+MODEL: DEEPSEEK
+==================================================
+[1/800] SKV deep T01: 5643ms, cubes=True
+[2/800] Direct deep T01: 8020ms
+[3/800] SKV deep T02: 5479ms, cubes=True
+[4/800] Direct deep T02: 5593ms
+[5/800] SKV deep T03: 17678ms, cubes=True
+[6/800] Direct deep T03: 6867ms
+[7/800] SKV deep T04: 7553ms, cubes=True
+[8/800] Direct deep T04: 13980ms
+[9/800] SKV deep T05: 5381ms, cubes=True
+[10/800] Direct deep T05: 6922ms
+[11/800] SKV deep T06: 6669ms, cubes=True
+[12/800] Direct deep T06: 8846ms
+[13/800] SKV deep T07: 8238ms, cubes=True
+[14/800] Direct deep T07: 6493ms
+[15/800] SKV deep T08: 7983ms, cubes=True
+[16/800] Direct deep T08: 9590ms
+[17/800] SKV deep T09: 6963ms, cubes=True
+[18/800] Direct deep T09: 7672ms
+[19/800] SKV deep T10: 8860ms, cubes=False
+[20/800] Direct deep T10: 6563ms
+[21/800] SKV deep T11: 9611ms, cubes=True
+[22/800] Direct deep T11: 6784ms
+[23/800] SKV deep T12: 7881ms, cubes=False
+[24/800] Direct deep T12: 5750ms
+[25/800] SKV deep T13: 17750ms, cubes=False
+[26/800] Direct deep T13: 11600ms
+[27/800] SKV deep T14: ERROR - HTTP Error 504: Gateway Time-out
+[28/800] Direct deep T14: 12347ms
+[29/800] SKV deep T15: 47963ms, cubes=False
+[30/800] Direct deep T15: 11413ms
+[31/800] SKV deep T16: 15984ms, cubes=False
+[32/800] Direct deep T16: 7493ms
+[33/800] SKV deep T17: 20081ms, cubes=False
+[34/800] Direct deep T17: 46813ms
+[35/800] SKV deep T18: 9068ms, cubes=False
+[36/800] Direct deep T18: 18801ms
+[37/800] SKV deep T19: 16194ms, cubes=True
+[38/800] Direct deep T19: 6272ms
+[39/800] SKV deep T20: 12838ms, cubes=True
+[40/800] Direct deep T20: 19771ms
+[41/800] SKV deep T21: 7816ms, cubes=True
+[42/800] Direct deep T21: 5388ms
+[43/800] SKV deep T22: 9862ms, cubes=True
+[44/800] Direct deep T22: 3554ms
+[45/800] SKV deep T23: 32390ms, cubes=False
+[46/800] Direct deep T23: 5411ms
+[47/800] SKV deep T24: 12025ms, cubes=False
+[48/800] Direct deep T24: 7003ms
+[49/800] SKV deep T25: 35017ms, cubes=False
+[50/800] Direct deep T25: 5307ms
+[51/800] SKV deep N01: 22074ms, cubes=False
+[52/800] Direct deep N01: 7717ms
+[53/800] SKV deep N02: 10932ms, cubes=False
+[54/800] Direct deep N02: 7470ms
+[55/800] SKV deep N03: 12247ms, cubes=False
+[56/800] Direct deep N03: 5173ms
+[57/800] SKV deep N04: 40008ms, cubes=False
+[58/800] Direct deep N04: 6854ms
+[59/800] SKV deep N05: 58958ms, cubes=False
+[60/800] Direct deep N05: 6598ms
+[61/800] SKV deep N06: 16506ms, cubes=False
+[62/800] Direct deep N06: 6938ms
+[63/800] SKV deep N07: 32406ms, cubes=False
+[64/800] Direct deep N07: 23315ms
+[65/800] SKV deep N08: 26162ms, cubes=False
+[66/800] Direct deep N08: 46995ms
+[67/800] SKV deep N09: 38260ms, cubes=False
+[68/800] Direct deep N09: 6543ms
+[69/800] SKV deep N10: 9951ms, cubes=False
+[70/800] Direct deep N10: 6746ms
+[71/800] SKV deep S01: 9303ms, cubes=False
+[72/800] Direct deep S01: 8445ms
+[73/800] SKV deep S02: 23477ms, cubes=False
+[74/800] Direct deep S02: 5432ms
+[75/800] SKV deep S03: 8148ms, cubes=False
+[76/800] Direct deep S03: 6097ms
+[77/800] SKV deep S04: 11034ms, cubes=False
+[78/800] Direct deep S04: 7620ms
+[79/800] SKV deep S05: 7483ms, cubes=False
+[80/800] Direct deep S05: 2746ms
+[81/800] SKV deep S06: 18327ms, cubes=False
+[82/800] Direct deep S06: 3237ms
+[83/800] SKV deep S07: 10008ms, cubes=False
+[84/800] Direct deep S07: 3127ms
+[85/800] SKV deep S08: 10547ms, cubes=False
+[86/800] Direct deep S08: 3854ms
+[87/800] SKV deep S09: 7430ms, cubes=False
+[88/800] Direct deep S09: 3756ms
+[89/800] SKV deep S10: 36384ms, cubes=False
+[90/800] Direct deep S10: 8181ms
+[91/800] SKV deep S11: 6517ms, cubes=False
+[92/800] Direct deep S11: 4550ms
+[93/800] SKV deep S12: 9653ms, cubes=False
+[94/800] Direct deep S12: 4978ms
+[95/800] SKV deep S13: 11484ms, cubes=False
+[96/800] Direct deep S13: 7207ms
+[97/800] SKV deep S14: 7783ms, cubes=False
+[98/800] Direct deep S14: 6837ms
+[99/800] SKV deep S15: 5247ms, cubes=False
+[100/800] Direct deep S15: 5703ms
+[101/800] SKV deep S16: 6185ms, cubes=False
+[102/800] Direct deep S16: 6371ms
+[103/800] SKV deep S17: 8060ms, cubes=False
+[104/800] Direct deep S17: 3626ms
+[105/800] SKV deep S18: 5233ms, cubes=False
+[106/800] Direct deep S18: 6295ms
+[107/800] SKV deep S19: 7593ms, cubes=False
+[108/800] Direct deep S19: 5203ms
+[109/800] SKV deep S20: 10726ms, cubes=False
+[110/800] Direct deep S20: 5462ms
+[111/800] SKV deep C01: 16490ms, cubes=False
+[112/800] Direct deep C01: 7027ms
+[113/800] SKV deep C02: 4286ms, cubes=False
+[114/800] Direct deep C02: 18913ms
+[115/800] SKV deep C03: 13444ms, cubes=False
+[116/800] Direct deep C03: 11739ms
+[117/800] SKV deep C04: 7808ms, cubes=True
+[118/800] Direct deep C04: 6179ms
+[119/800] SKV deep C05: 7276ms, cubes=False
+[120/800] Direct deep C05: 4930ms
+[121/800] SKV deep C06: 26899ms, cubes=True
+[122/800] Direct deep C06: 8305ms
+[123/800] SKV deep C07: 40181ms, cubes=True
+[124/800] Direct deep C07: 4699ms
+[125/800] SKV deep C08: 8115ms, cubes=True
+[126/800] Direct deep C08: 5587ms
+[127/800] SKV deep C09: 13739ms, cubes=True
+[128/800] Direct deep C09: 6098ms
+[129/800] SKV deep C10: 7849ms, cubes=False
+[130/800] Direct deep C10: 3621ms
+[131/800] SKV deep C11: 14404ms, cubes=True
+[132/800] Direct deep C11: 5060ms
+[133/800] SKV deep C12: 8115ms, cubes=True
+[134/800] Direct deep C12: 7130ms
+[135/800] SKV deep C13: 18031ms, cubes=False
+[136/800] Direct deep C13: 4868ms
+[137/800] SKV deep C14: 5948ms, cubes=True
+[138/800] Direct deep C14: 3906ms
+[139/800] SKV deep C15: 13523ms, cubes=True
+[140/800] Direct deep C15: 4181ms
+[141/800] SKV deep K01: 3515ms, cubes=False
+[142/800] Direct deep K01: 1625ms
+[143/800] SKV deep K02: 7543ms, cubes=False
+[144/800] Direct deep K02: 19322ms
+[145/800] SKV deep K03: 2702ms, cubes=False
+[146/800] Direct deep K03: 2177ms
+[147/800] SKV deep K04: 4326ms, cubes=False
+[148/800] Direct deep K04: 4477ms
+[149/800] SKV deep K05: 12091ms, cubes=False
+[150/800] Direct deep K05: 2723ms
+[151/800] SKV deep K06: 25814ms, cubes=False
+[152/800] Direct deep K06: 4020ms
+[153/800] SKV deep K07: 6392ms, cubes=False
+[154/800] Direct deep K07: 5410ms
+[155/800] SKV deep K08: 5760ms, cubes=False
+[156/800] Direct deep K08: 3036ms
+[157/800] SKV deep K09: 13887ms, cubes=False
+[158/800] Direct deep K09: 12210ms
+[159/800] SKV deep K10: 10582ms, cubes=False
+[160/800] Direct deep K10: 3500ms
+[161/800] SKV deep K11: 10012ms, cubes=False
+[162/800] Direct deep K11: 6553ms
+[163/800] SKV deep K12: 18236ms, cubes=False
+[164/800] Direct deep K12: 6706ms
+[165/800] SKV deep K13: 48580ms, cubes=False
+[166/800] Direct deep K13: 9607ms
+[167/800] SKV deep K14: 6636ms, cubes=False
+[168/800] Direct deep K14: 3150ms
+[169/800] SKV deep K15: 28088ms, cubes=False
+[170/800] Direct deep K15: 10591ms
+[171/800] SKV deep K16: 17316ms, cubes=False
+[172/800] Direct deep K16: 6682ms
+[173/800] SKV deep K17: 8710ms, cubes=False
+[174/800] Direct deep K17: 6985ms
+[175/800] SKV deep K18: 5094ms, cubes=False
+[176/800] Direct deep K18: 3415ms
+[177/800] SKV deep K19: 8388ms, cubes=False
+[178/800] Direct deep K19: 8040ms
+[179/800] SKV deep K20: 12791ms, cubes=False
+[180/800] Direct deep K20: 7802ms
+[181/800] SKV deep K21: 23675ms, cubes=False
+[182/800] Direct deep K21: 4913ms
+[183/800] SKV deep K22: 6075ms, cubes=False
+[184/800] Direct deep K22: 4547ms
+[185/800] SKV deep K23: 36360ms, cubes=False
+[18[185/800] SKV deep K23: 38861ms, cubes=False
+[186/800] Direct deep K23: 6941ms
+[187/800] SKV deep K24: 14591ms, cubes=False
+[188/800] Direct deep K24: 6935ms
+[189/800] SKV deep K25: 35104ms, cubes=False
+[190/800] Direct deep K25: 9961ms
+[191/800] SKV deep K26: 5992ms, cubes=False
+[192/800] Direct deep K26: 11082ms
+[193/800] SKV deep K27: 22698ms, cubes=False
+[194/800] Direct deep K27: 15628ms
+[195/800] SKV deep K28: 28313ms, cubes=False
+[196/800] Direct deep K28: 18730ms
+[197/800] SKV deep K29: 49079ms, cubes=False
+[198/800] Direct deep K29: 5551ms
+[199/800] SKV deep K30: 9144ms, cubes=False
+[200/800] Direct deep K30: 9108ms
+
+==================================================
+MODEL: QWEN
+==================================================
+[201/800] SKV qwen T01: 44287ms, cubes=True
+[202/800] Direct qwen T01: 38520ms
+[203/800] SKV qwen T02: 52509ms, cubes=True
+[204/800] Direct qwen T02: 317
+[206/800] Direct qwen T03: 31953ms
+[207/800] SKV qwen T04: 40257ms, cubes=True
+[208/800] Direct qwen T04: 41132ms
+[209/800] SKV qwen T05: 51493ms, cubes=True
+[210/800] Direct qwen T05: 27602ms
+[211/800] SKV qwen T06: 41566ms, cubes=True
+[212/800] Direct qwen T06: 45684ms
+[213/800] SKV qwen T07: ERROR - HTTP Error 504: Gateway Time-out
+[214/800] Direct qwen T07: 42265ms
+[215/800] SKV qwen T08: 49573ms, cubes=True
+[216/800] Direct qwen T08: 45302ms
+[217/800] SKV qwen T09: 33677ms, cubes=True
+[218/800] Direct qwen T09: 44069ms
+[219/800] SKV qwen T10: 35568ms, cubes=False
+[220/800] Direct qwen T10: 36443ms
+[221/800] SKV qwen T11: 34664ms, cubes=True
+[222/800] Direct qwen T11: 41176ms
+[223/800] SKV qwen T12: 27191ms, cubes=False
+[224/800] Direct qwen T12: 31335ms
+[225/800] SKV qwen T13: 41403ms, cubes=False
+[226/800] Direct qwen T13: 36872ms
+[227/800] SKV qwen T14: 31565ms, cubes=False
+[228/800] Direct qwen T14: 32049ms
+[229/800] SKV qwen T15: 34117ms, cubes=False
+[230/800] Direct qwen T15: 30033ms
+[231/800] SKV qwen T16: 51834ms, cubes=False
+[232/800] Direct qwen T16: 42247ms
+[233/800] SKV qwen T17: 51065ms, cubes=False
+[234/800] Direct qwen T17: 41604ms
+[235/800] SKV qwen T18: 44023ms, cubes=False
+[236/800] Direct qwen T18: 37158ms
+[237/800] SKV qwen T19: 43441ms, cubes=True
+[238/800] Direct qwen T19: 27450ms
+[239/800] SKV qwen T20: 23641ms, cubes=True
+[240/800] Direct qwen T20: 40059ms
+[241/800] SKV qwen T21: 42705ms, cubes=True
+[242/800] Direct qwen T21: ERROR - The read operation timed out
+[243/800] SKV qwen T22: 41466ms, cubes=True
+[244/800] Direct qwen T22: 58546ms
+[245/800] SKV qwen T23: 46743ms, cubes=False
+[246/800] Direct qwen T23: 37682ms
+[247/800] SKV qwen T24: 36385ms, cubes=False
+[248/800] Direct qwen T24: 29586ms
+[249/800] SKV qwen T25: 49912ms, cubes=False
+[250/800] Direct qwen T25: 40009ms
+[251/800] SKV qwen N01: 44521ms, cubes=False
+[252/800] Direct qwen N01: 41879ms
+[253/800] SKV qwen N02: 34229ms, cubes=False
+[254/800] Direct qwen N02: 37746ms
+[255/800] SKV qwen N03: 36543ms, cubes=False
+[256/800] Direct qwen N03: 32945ms
+[257/800] SKV qwen N04: 52733ms, cubes=False
+[258/800] Direct qwen N04: 46826ms
+[259/800] SKV qwen N05: 36940ms, cubes=False
+[260/800] Direct qwen N05: 42635ms
+[261/800] SKV qwen N06: 41401ms, cubes=False
+[262/800] Direct qwen N06: 30915ms
+[263/800] SKV qwen N07: 52004ms, cubes=False
+[264/800] Direct qwen N07: 33604ms
+[265/800] SKV qwen N08: 44895ms, cubes=False
+[266/800] Direct qwen N08: 30219ms
+[267/800] SKV qwen N09: 47040ms, cubes=False
+[268/800] Direct qwen N09: 27016ms
+[269/800] SKV qwen N10: 39822ms, cubes=False
+[270/800] Direct qwen N10: 30296ms
+[271/800] SKV qwen S01: 31032ms, cubes=False
+[272/800] Direct qwen S01: 18553ms
+[273/800] SKV qwen S02: 55261ms, cubes=False
+[274/800] Direct qwen S02: 18129ms
+[275/800] SKV qwen S03: 44929ms, cubes=False
+[276/800] Direct qwen S03: 10859ms
+[277/800] SKV qwen S04: 24290ms, cubes=False
+[278/800] Direct qwen S04: 22164ms
+[279/800] SKV qwen S05: 21097ms, cubes=False
+[280/800] Direct qwen S05: 12646ms
+[281/800] SKV qwen S06: 11519ms, cubes=False
+[282/800] Direct qwen S06: 10647ms
+[283/800] SKV qwen S07: 38036ms, cubes=False
+[284/800] Direct qwen S07: 9091ms
+[285/800] SKV qwen S08: 11914ms, cubes=False
+[286/800] Direct qwen S08: 9997ms
+[287/800] SKV qwen S09: 19974ms, cubes=False
+[288/800] Direct qwen S09: 6526ms
+[289/800] SKV qwen S10: 6738ms, cubes=False
+[290/800] Direct qwen S10: 7529ms
+[291/800] SKV qwen S11: 35507ms, cubes=False
+[292/800] Direct qwen S11: 13361ms
+[293/800] SKV qwen S12: 21123ms, cubes=False
+[294/800] Direct qwen S12: 20410ms
+[295/800] SKV qwen S13: 22999ms, cubes=False
+[296/800] Direct qwen S13: 13808ms
+[297/800] SKV qwen S14: 33342ms, cubes=False
+[298/800] Direct qwen S14: 22287ms
+[299/800] SKV qwen S15: 21729ms, cubes=False
+[300/800] Direct qwen S15: 15773ms
+[301/800] SKV qwen S16: 17906ms, cubes=False
+[302/800] Direct qwen S16: 12058ms
+[303/800] SKV qwen S17: 6483ms, cubes=False
+[304/800] Direct qwen S17: 6208ms
+[305/800] SKV qwen S18: 16589ms, cubes=False
+[306/800] Direct qwen S18: 17110ms
+[307/800] SKV qwen S19: 5532ms, cubes=False
+[308/800] Direct qwen S19: 12114ms
+[309/800] SKV qwen S20: 14857ms, cubes=False
+[310/800] Direct qwen S20: 7100ms
+[311/800] SKV qwen C01: 26477ms, cubes=False
+[312/800] Direct qwen C01: 28764ms
+[313/800] SKV qwen C02: 34388ms, cubes=False
+[314/800] Direct qwen C02: 31915ms
+[315/800] SKV qwen C03: 34742ms, cubes=False
+[316/800] Direct qwen C03: 29556ms
+[317/800] SKV qwen C04: 45440ms, cubes=True
+[318/800] Direct qwen C04: 32404ms
+[319/800] SKV qwen C05: 47504ms, cubes=False
+[320/800] Direct qwen C05: 51779ms
+[321/800] SKV qwen C06: 22204ms, cubes=True
+[322/800] Direct qwen C06: 45431ms
+[323/800] SKV qwen C07: 20689ms, cubes=True
+[324/800] Direct qwen C07: 39388ms
+[325/800] SKV qwen C08: 25399ms, cubes=True
+[326/800] Direct qwen C08: 23378ms
+[327/800] SKV qwen C09: ERROR - HTTP Error 504: Gateway Time-out
+[328/800] Direct qwen C09: 37758ms
+[329/800] SKV qwen C10: 46817ms, cubes=False
+[330/800] Direct qwen C10: 18176ms
+[331/800] SKV qwen C11: 22512ms, cubes=True
+[332/800] Direct qwen C11: 30488ms
+[333/800] SKV qwen C12: 40468ms, cubes=True
+[334/800] Direct qwen C12: 32718ms
+[335/800] SKV qwen C13: 21554ms, cubes=True
+[336/800] Direct qwen C13: ERROR - The read operation timed out
+[337/800] SKV qwen C14: 39487ms, cubes=True
+[338/800] Direct qwen C14: ERROR - The read operation timed out
+[339/800] SKV qwen C15: ERROR - HTTP Error 504: Gateway Time-out
+[340/800] Direct qwen C15: 15780ms
+[341/800] SKV qwen K01: 25806ms, cubes=False
+[342/800] Direct qwen K01: 9027ms
+[343/800] SKV qwen K02: 35755ms, cubes=False
+[344/800] Direct qwen K02: 21112ms
+[345/800] SKV qwen K03: 27924ms, cubes=False
+[346/800] Direct qwen K03: 5797ms
+[347/800] SKV qwen K04: 14183ms, cubes=False
+[348/800] Direct qwen K04: 10958ms
+[349/800] SKV qwen K05: 14463ms, cubes=False
+[350/800] Direct qwen K05: 13572ms
+[351/800] SKV qwen K06: 44854ms, cubes=False
+[352/800] Direct qwen K06: 9050ms
+[353/800] SKV qwen K07: 11795ms, cubes=False
+[354/800] Direct qwen K07: 10019ms
+[355/800] SKV qwen K08: 23750ms, cubes=False
+[356/800] Direct qwen K08: 8601ms
+[357/800] SKV qwen K09: 36861ms, cubes=False
+[358/800] Direct qwen K09: 23852ms
+[359/800] SKV qwen K10: 14655ms, cubes=False
+[360/800] Direct qwen K10: 22370ms
+[361/800] SKV qwen K11: 30734ms, cubes=False
+[362/800] Direct qwen K11: 26954ms
+[363/800] SKV qwen K12: ERROR - HTTP Error 504: Gateway Time-out
+[364/800] Direct qwen K12: 18524ms
+[365/800] SKV qwen K13: 43499ms, cubes=False
+[366/800] Direct qwen K13: 25078ms
+[367/800] SKV qwen K14: 23213ms, cubes=False
+[368/800] Direct qwen K14: 16594ms
+[369/800] SKV qwen K15: 46773ms, cubes=False
+[370/800] Direct qwen K15: 29404ms
+[371/800] SKV qwen K16: ERROR - HTTP Error 504: Gateway Time-out
+[372/800] Direct qwen K16: 22234ms
+[373/800] SKV qwen K17: ERROR - HTTP Error 504: Gateway Time-out
+[374/800] Direct qwen K17: 24931ms
+[375/800] SKV qwen K18: 8350ms, cubes=False
+[376/800] Direct qwen K18: 4550ms
+[377/800] SKV qwen K19: 27804ms, cubes=False
+[378/800] Direct qwen K19: 27821ms
+[379/800] SKV qwen K20: 28287ms, cubes=False
+[380/800] Direct qwen K20: 26309ms
+[381/800] SKV qwen K21: 30917ms, cubes=False
+[382/800] Direct qwen K21: 30788ms
+[383/800] SKV qwen K22: 9103ms, cubes=False
+[384/800] Direct qwen K22: 9001ms
+[385/800] SKV qwen K23: 46486ms, cubes=False
+[386/800] Direct qwen K23: 30152ms
+[387/800] SKV qwen K24: 40486ms, cubes=False
+[388/800] Direct qwen K24: 26628ms
+[389/800] SKV qwen K25: 35815ms, cubes=False
+[390/800] Direct qwen K25: 32546ms
+[391/800] SKV qwen K26: 39044ms, cubes=False
+[392/800] Direct qwen K26: 3346[395/800] SKV qwen K28: 24926ms, cubes=False
+[396/800] Direct qwen K28: 20169ms
+[397/800] SKV qwen K29: 36330ms, cubes=False
+[398/800] Direct qwen K29: 27893ms
+[399/800] SKV qwen K30: 39909ms, cubes=False
+[400/800] Direct qwen K30: 30219ms
+
+==================================================
+MODEL: CHATGPT
+==================================================
+[401/800] SKV chat T01: 11290ms, cubes=True
+[402/800] Direct chat T01: 7780ms
+[403/800] SKV chat T02: 23629ms, cubes=True
+[404/800] Direct chat T02: 9857ms
+[405/800] SKV chat T03: 3756ms, cubes=True
+[406/
+[404/800] Direct chat T02: 6299ms
+[405/800] SKV chat T03: 19121ms, cubes=True
+[406/800] Direct chat T03: 15774ms
+[407/800] SKV chat T04: 7336ms, cubes=True
+[408/800] Direct chat T04: 9018ms
+[409/800] SKV chat T05: 31053ms, cubes=True
+[410/800] Direct chat T05: 6555ms
+[411/800] SKV chat T06: 7054ms, cubes=True
+[412/800] Direct chat T06: 12993ms
+[413/800] SKV chat T07: 35698ms, cubes=True
+[414/800] Direct chat T07: 7909ms
+[415/800] SKV chat T08: 6021ms, cubes=True
+[416/800] Direct chat T08: 6436ms
+[417/800] SKV chat T09: 5258ms, cubes=True
+[418/800] Direct chat T09: 14578ms
+[419/800] SKV chat T10: 7440ms, cubes=False
+[420/800] Direct chat T10: 7657ms
+[421/800] SKV chat T11: 18534ms, cubes=True
+[422/800] Direct chat T11: 9707ms
+[423/800] SKV chat T12: 6309ms, cubes=False
+[424/800] Direct chat T12: 11899ms
+[425/800] SKV chat T13: 7330ms, cubes=False
+[426/800] Direct chat T13: 8432ms
+[427/800] SKV chat T14: 9653ms, cubes=False
+[428/800] Direct chat T14: 8401ms
+[429/800] SKV chat T15: 11510ms, cubes=False
+[430/800] Direct chat T15: 17082ms
+[431/800] SKV chat T16: 13802ms, cubes=False
+[432/800] Direct chat T16: 17310ms
+[433/800] SKV chat T17: 14366ms, cubes=False
+[434/800] Direct chat T17: 10668ms
+[435/800] SKV chat T18: 7332ms, cubes=False
+[436/800] Direct chat T18: 15811ms
+[437/800] SKV chat T19: 21083ms, cubes=True
+[438/800] Direct chat T19: 8372ms
+[439/800] SKV chat T20: 20131ms, cubes=True
+[440/800] Direct chat T20: 17989ms
+[441/800] SKV chat T21: 17343ms, cubes=True
+[442/800] Direct chat T21: 15836ms
+[443/800] SKV chat T22: 32904ms, cubes=True
+[444/800] Direct chat T22: 14248ms
+[445/800] SKV chat T23: 21780ms, cubes=False
+[446/800] Direct chat T23: 6993ms
+[447/800] SKV chat T24: 12845ms, cubes=False
+[448/800] Direct chat T24: 6486ms
+[449/800] SKV chat T25: 39498ms, cubes=False
+[450/800] Direct chat T25: 7546ms
+[451/800] SKV chat N01: 19108ms, cubes=False
+[452/800] Direct chat N01: 6691ms
+[453/800] SKV chat N02: 7495ms, cubes=False
+[454/800] Direct chat N02: 6681ms
+[455/800] SKV chat N03: ERROR - HTTP Error 504: Gateway Time-out
+[456/800] Direct chat N03: 7594ms
+[457/800] SKV chat N04: 27962ms, cubes=False
+[458/800] Direct chat N04: 7189ms
+[459/800] SKV chat N05: 12428ms, cubes=False
+[460/800] Direct chat N05: 7838ms
+[461/800] SKV chat N06: 16055ms, cubes=False
+[462/800] Direct chat N06: 5761ms
+[463/800] SKV chat N07: 23796ms, cubes=False
+[464/800] Direct chat N07: 7224ms
+[465/800] SKV chat N08: 6924ms, cubes=False
+[466/800] Direct chat N08: 7066ms
+[467/800] SKV chat N09: 7624ms, cubes=False
+[468/800] Direct chat N09: 7262ms
+[469/800] SKV chat N10: 36776ms, cubes=False
+[470/800] Direct chat N10: 7129ms
+[471/800] SKV chat S01: 35589ms, cubes=False
+[472/800] Direct chat S01: 6808ms
+[473/800] SKV chat S02: 19078ms, cubes=False
+[474/800] Direct chat S02: 9028ms
+[475/800] SKV chat S03: 42800ms, cubes=False
+[476/800] Direct chat S03: 6243ms
+[477/800] SKV chat S04: 23379ms, cubes=False
+[478/800] Direct chat S04: 7838ms
+[479/800] SKV chat S05: 36296ms, cubes=False
+[480/800] Direct chat S05: 4851ms
+[481/800] SKV chat S06: 4207ms, cubes=False
+[482/800] Direct chat S06: 4983ms
+[483/800] SKV chat S07: 11498ms, cubes=False
+[484/800] Direct chat S07: 5513ms
+[485/800] SKV chat S08: 7056ms, cubes=False
+[486/800] Direct chat S08: 3251ms
+[487/800] SKV chat S09: 9301ms, cubes=False
+[488/800] Direct chat S09: 4387ms
+[489/800] SKV chat S10: 11842ms, cubes=False
+[490/800] Direct chat S10: 8987ms
+[491/800] SKV chat S11: 20067ms, cubes=False
+[492/800] Direct chat S11: 6869ms
+[493/800] SKV chat S12: 3914ms, cubes=False
+[494/800] Direct chat S12: 5818ms
+[495/800] SKV chat S13: 7573ms, cubes=False
+[496/800] Direct chat S13: 9064ms
+[497/800] SKV chat S14: 10069ms, cubes=False
+[498/800] Direct chat S14: 7919ms
+[499/800] SKV chat S15: 11407ms, cubes=False
+[500/800] Direct chat S15: 9141ms
+[501/800] SKV chat S16: 7295ms, cubes=False
+[502/800] Direct chat S16: 10277ms
+[503/800] SKV chat S17: 42062ms, cubes=False
+[504/800] Direct chat S17: 5086ms
+[505/800] SKV chat S18: 10737ms, cubes=False
+[506/800] Direct chat S18: 5122ms
+[507/800] SKV chat S19: 5559ms, cubes=False
+[508/800] Direct chat S19: 4071ms
+[509/800] SKV chat S20: 12166ms, cubes=False
+[510/800] Direct chat S20: 5360ms
+[511/800] SKV chat C01: 15642ms, cubes=False
+[512/800] Direct chat C01: 8936ms
+[513/800] SKV chat C02: 5486ms, cubes=False
+[514/800] Direct chat C02: 8978ms
+[515/800] SKV chat C03: 10658ms, cubes=False
+[516/800] Direct chat C03: 9365ms
+[517/800] SKV chat C04: 17580ms, cubes=True
+[518/800] Direct chat C04: 11335ms
+[519/800] SKV chat C05: 3685ms, cubes=False
+[520/800] Direct chat C05: 10661ms
+[521/800] SKV chat C06: 7070ms, cubes=True
+[522/800] Direct chat C06: 9658ms
+[523/800] SKV chat C07: 31177ms, cubes=True
+[524/800] Direct chat C07: 18192ms
+[525/800] SKV chat C08: 30239ms, cubes=True
+[526/800] Direct chat C08: 12865ms
+[527/800] SKV chat C09: 8932ms, cubes=True
+[528/800] Direct chat C09: 17145ms
+[529/800] SKV chat C10: 5203ms, cubes=False
+[530/800] Direct chat C10: 10089ms
+[531/800] SKV chat C11: 6846ms, cubes=True
+[532/800] Direct chat C11: 8135ms
+[533/800] SKV chat C12: 11893ms, cubes=True
+[534/800] Direct chat C12: 9802ms
+[535/800] SKV chat C13: 21707ms, cubes=True
+[536/800] Direct chat C13: 11289ms
+[537/800] SKV chat C14: 54295ms, cubes=True
+[538/800] Direct chat C14: 12775ms
+[539/800] SKV chat C15: 57773ms, cubes=True
+[540/800] Direct chat C15: 8083ms
+[541/800] SKV chat K01: 2235ms, cubes=False
+[542/800] Direct chat K01: 2169ms
+[543/800] SKV chat K02: 7420ms, cubes=False
+[544/800] Direct chat K02: 3541ms
+[545/800] SKV chat K03: 10553ms, cubes=False
+[546/800] Direct chat K03: 3288ms
+[547/800] SKV chat K04: 5690ms, cubes=False
+[548/800] Direct chat K04: 5235ms
+[549/800] SKV chat K05: 8219ms, cubes=False
+[550/800] Direct chat K05: 3187ms
+[551/800] SKV chat K06: 2059ms, cubes=False
+[552/800] Direct chat K06: 4531ms
+[553/800] SKV chat K07: 3954ms, cubes=False
+[554/800] Direct chat K07: 5786ms
+[555/800] SKV chat K08: 4806ms, cubes=False
+[556/800] Direct chat K08: 1979ms
+[557/800] SKV chat K09: 9342ms, cubes=False
+[558/800] Direct chat K09: 5362ms
+[559/800] SKV chat K10: 8412ms, cubes=False
+[560/800] Direct chat K10: 9786ms
+[561/800] SKV chat K11: ERROR - HTTP Error 504: Gateway Time-out
+[562/800] Direct chat K11: 11930ms
+[563/800] SKV chat K12: 9870ms, cubes=False
+[564/800] Direct chat K12: 3445ms
+[565/800] SKV chat K13: 29749ms, cubes=False
+[566/800] Direct chat K13: 4971ms
+[567/800] SKV chat K14: 5215ms, cubes=False
+[568/800] Direct chat K14: 3944ms
+[569/800] SKV chat K15: 17062ms, cubes=False
+[570/800] Direct chat K15: 6945ms
+[571/800] SKV chat K16: 50610ms, cubes=False
+[572/800] Direct chat K16: 3507ms
+[573/800] SKV chat K17: 8605ms, cubes=False
+[574/800] Direct chat K17: 7915ms
+[575/800] SKV chat K18[578/800] Direct chat K19: 9529ms
+[579/800] SKV chat K20: 9363ms, cubes=False
+[580/800] Direct chat K20: 3351ms
+[581/800] SKV chat K21: ERROR - HTTP Error 429: Too Many Requests
+[582/800] Direct chat K21: 10090ms
+[583/800] SKV chat K22: ERROR - HTTP Error 429: Too Many Requests
+[584/800] Direct chat K22: 2857ms
+[585/800] SKV chat K23: 24640ms, cubes=False
+[586/800] Direct chat K23: 9158ms
+[587/800] SKV chat K24: 6489ms, cubes=False
+[588/800] Direct chat K24: 3165ms
+[589/800] SKV chat K25: 7329ms, cubes=False
+[590/800] Direct chat K25: 8948ms
+[591/800] SKV chat K26: 22590ms, cubes=False
+[592/800] Direct chat K26: 8177ms
+[593/800] SKV chat K27: 8830ms, cubes=False
+[594/800] Direct chat K27: 8224ms
+[595/800] SKV chat K28: 7127ms, cubes=False
+[596/800] Direct chat K28: 6855ms
+[597/800] SKV chat K29: 12276ms, cubes=False
+[598/800] Direct chat K29: 7715ms
+[599/800] SKV chat K30: 6527ms, cubes=False
+[600/800] Direct chat K30: 10792ms
+
+==================================================
+MODEL: CLAUDE
+==================================================
+[601/800] SKV clau T01: 427ms, cubes=False
+[602/800] Direct clau T01: ERROR - HTTP Error 400: Bad Request
+[603/800] SKV clau T02: 404ms, cubes=False
+[604/800] Direct clau T02: ERROR - HTTP Error 400: Bad Request
+[605/800] SKV clau T03: 5362ms, cubes=False
+[606/800] Direct clau T03: ERROR - HTTP Error 400: Bad Request
+[607/800] SKV clau T04: 409ms, cubes=False
+[608/800] Direct clau T04: ERROR - HTTP Error 400: Bad Request
+[609/800] SKV clau T05: 5357ms, cubes=False
+[610/800] Direct clau T05: ERROR - HTTP Error 400: Bad Request
+[611/800] SKV clau T06: 400ms, cubes=False
+[612/800] Direct clau T06: ERROR - HTTP Error 400: Bad Request
+[613/800] SKV clau T07: 458ms, cubes=False
+[614/800] Direct clau T07: ERROR - HTTP Error 400: Bad Request
+[615/800] SKV clau T08: 371ms, cubes=False
+[616/800] Direct clau T08: ERROR - HTTP Error 400: Bad Request
+[617/800] SKV clau T09: 362ms, cubes=False
+[618/800] Direct clau T09: ERROR - HTTP Error 400: Bad Request
+[619/800] SKV clau T10: 355ms, cubes=False
+[620/800] Direct clau T10: ERROR - HTTP Error 400: Bad Request
+[621/800] SKV clau T11: 360ms, cubes=False
+[622/800] Direct clau T11: ERROR - HTTP Error 400: Bad Request
+[623/800] SKV clau T12: 390ms, cubes=False
+[624/800] Direct clau T12: ERROR - HTTP Error 400: Bad Request
+[625/800] SKV clau T13: 366ms, cubes=False
+[626/800] Direct clau T13: ERROR - HTTP Error 400: Bad Request
+[627/800] SKV clau T14: 371ms, cubes=False
+[628/800] Direct clau T14: ERROR - HTTP Error 400: Bad Request
+[629/800] SKV clau T15: 1530ms, cubes=False
+[630/800] Direct clau T15: ERROR - HTTP Error 400: Bad Request
+[631/800] SKV clau T16: 374ms, cubes=False
+[632/800] Direct clau T16: ERROR - HTTP Error 400: Bad Request
+[633/800] SKV clau T17: 397ms, cubes=False
+[634/800] Direct clau T17: ERROR - HTTP Error 400: Bad Request
+[635/800] SKV clau T18: 572ms, cubes=False
+[636/800] Direct clau T18: ERROR - HTTP Error 400: Bad Request
+[637/800] SKV clau T19: ERROR - HTTP Error 429: Too Many Requests
+[638/800] Direct clau T19: ERROR - HTTP Error 400: Bad Request
+[639/800] SKV clau T20: ERROR - HTTP Error 429: Too Many Requests
+[640/800] Direct clau T20: ERROR - HTTP Error 400: Bad Request
+[641/800] SKV clau T21: ERROR - HTTP Error 429: Too Many Requests
+[642/800] Direct clau T21: ERROR - HTTP Error 400: Bad Request
+[643/800] SKV clau T22: ERROR - HTTP Error 429: Too Many Requests
+[644/800] Direct clau T22: ERROR - HTTP Error 400: Bad Request
+[645/800] SKV clau T23: ERROR - HTTP Error 429: Too Many Requests
+[646/800] Direct clau T23: ERROR - HTTP Error 400: Bad Request
+[647/800] SKV clau T24: ERROR - HTTP Error 429: Too Many Requests
+[648/800] Direct clau T24: ERROR - HTTP Error 400: Bad Request
+[649/800] SKV clau T25: ERROR - HTTP Error 429: Too Many Requests
+[650/800] Direct clau T25: ERROR - HTTP Error 400: Bad Request
+[651/800] SKV clau N01: ERROR - HTTP Error 429: Too Many Requests
+[652/800] Direct clau N01: ERROR - HTTP Error 400: Bad Request
+[653/800] SKV clau N02: ERROR - HTTP Error 429: Too Many Requests
+[654/800] Direct clau N02: ERROR - HTTP Error 400: Bad Request
+[655/800] SKV clau N03: ERROR - HTTP Error 429: Too Many Requests
+[656/800] Direct clau N03: ERROR - HTTP Error 400: Bad Request
+[657/800] SKV clau N04: ERROR - HTTP Error 429: Too Many Requests
+[658/800] Direct clau N04: ERROR - HTTP Error 400: Bad Request
+[659/800] SKV clau N05: ERROR - HTTP Error 429: Too Many Requests
+[660/800] Direct clau N05: ERROR - HTTP Error 400: Bad Request
+[661/800] SKV clau N06: ERROR - HTTP Error 429: Too Many Requests
+[662/800] Direct clau N06: ERROR - HTTP Error 400: Bad Request
+[663/800] SKV clau N07: ERROR - HTTP Error 429: Too Many Requests
+[664/800] Direct clau N07: ERROR - HTTP Error 400: Bad Request
+[665/800] SKV clau N08: ERROR - HTTP Error 429: Too Many Requests
+[666/800] Direct clau N08: ERROR - HTTP Error 400: Bad Request
+[667/800] SKV clau N09: ERROR - HTTP Error 429: Too Many Requests
+[668/800] Direct clau N09: ERROR - HTTP Error 400: Bad Request
+[669/800] SKV clau N10: ERROR - HTTP Error 429: Too Many Requests
+[670/800] Direct clau N10: ERROR - HTTP Error 400: Bad Request
+[671/800] SKV clau S01: ERROR - HTTP Error 429: Too Many Requests
+[672/800] Direct clau S01: ERROR - HTTP Error 400: Bad Request
+[673/800] SKV clau S02: ERROR - HTTP Error 429: Too Many Requests
+[674/800] Direct clau S02: ERROR - HTTP Error 400: Bad Request
+[675/800] SKV clau S03: ERROR - HTTP Error 429: Too Many Requests
+[676/800] Direct clau S03: ERROR - HTTP Error 400: Bad Request
+[677/800] SKV clau S04: ERROR - HTTP Error 429: Too Many Requests
+[678/800] Direct clau S04: ERROR - HTTP Error 400: Bad Request
+[679/800] SKV clau S05: ERROR - HTTP Error 429: Too Many Requests
+[680/800] Direct clau S05: ERROR - HTTP Error 400: Bad Request
+[681/800] SKV clau S06: ERROR - HTTP Error 429: Too Many Requests
+[682/800] Direct clau S06: ERROR - HTTP Error 400: Bad Request
+[683/800] SKV clau S07: ERROR - HTTP Error 429: Too Many Requests
+[684/800] Direct clau S07: ERROR - HTTP Error 400: Bad Request
+[685/800] SKV clau S08: ERROR - HTTP Error 429: Too Many Requests
+[686/800] Direct clau S08: ERROR - HTTP Error 400: Bad Request
+[687/800] SKV clau S09: ERROR - HTTP Error 429: Too Many Requests
+[688/800] Direct clau S09: ERROR - HTTP Error 400: Bad Request
+[689/800] SKV clau S10: ERROR - HTTP Error 429: Too Many Requests
+[690/800] Direct clau S10: ERROR - HTTP Error 400: Bad Request
+[691/800] SKV clau S11: ERROR - HTTP Error 429: Too Many Requests
+[692/800] Direct clau S11: ERROR - HTTP Error 400: Bad Request
+[693/800] SKV clau S12: ERROR - HTTP Error 429: Too Many Requests
+[694/800] Direct clau S12: ERROR - HTTP Error 400: Bad Request
+[695/800] SKV clau S13: ERROR - HTTP Error 429: Too Many Requests
+[696/800] Direct clau S13: ERROR - HTTP Error 400: Bad Request
+[697/800] SKV clau S14: ERROR - HTTP Error 429: Too Many Requests
+[698/800] Direct clau S14: ERROR - HTTP Error 400: Bad Request
+[699/800] SKV clau S15: ERROR - HTTP Error 429: Too Many Requests
+[700/800] Direct clau S15: ERROR - HTTP Error 400: Bad Request
+[701/800] SKV clau S16: ERROR - HTTP Error 429: Too Many Requests
+[702/800] Direct clau S16: ERROR - HTTP Error 400: Bad Request
+[703/800] SKV clau S17: ERROR - HTTP Error 429: Too Many Requests
+[704/800] Direct clau S17: ERROR - HTTP Error 400: Bad Request
+[705/800] SKV clau S18: ERROR - HTTP Error 429: Too Many Requests
+[706/800] Direct clau S18: ERROR - HTTP Error 400: Bad Request
+[707/800] SKV clau S19: ERROR - HTTP Error 429: Too Many Requests
+[708/800] Direct clau S19: ERROR - HTTP Error 400: Bad Request
+[709/800] SKV clau S20: ERROR - HTTP Error 429: Too Many Requests
+[710/800] Direct clau S20: ERROR - HTTP Error 400: Bad Request
+[711/800] SKV clau C01: ERROR - HTTP Error 429: Too Many Requests
+[712/800] Direct clau C01: ERROR - HTTP Error 400: Bad Request
+[713/800] SKV clau C02: ERROR - HTTP Error 429: Too Many Requests
+[714/800] Direct clau C02: ERROR - HTTP Error 400: Bad Request
+[715/800] SKV clau C03: ERROR - HTTP Error 429: Too Many Requests
+[716/800] Direct clau C03: ERROR - HTTP Error 400: Bad Request
+[717/800] SKV clau C04: ERROR - HTTP Error 429: Too Many Requests
+[718/800] Direct clau C04: ERROR - HTTP Error 400: Bad Request
+[719/800] SKV clau C05: ERROR - HTTP Error 429: Too Many Requests
+[720/800] Direct clau C05: ERROR - HTTP Error 400: Bad Request
+[721/800] SKV clau C06: ERROR - HTTP Error 429: Too Many Requests
+[722/800] Direct clau C06: ERROR - HTTP Error 400: Bad Request
+[723/800] SKV clau C07: ERROR - HTTP Error 429: Too Many Requests
+[724/800] Direct clau C07: ERROR - HTTP Error 400: Bad Request
+[725/800] SKV clau C08: ERROR - HTTP Error 429: Too Many Requests
+[726/800] Direct clau C08: ERROR - HTTP Error 400: Bad Request
+[727/800] SKV clau C09: ERROR - HTTP Error 429: Too Many Requests
+[728/800] Direct clau C09: ERROR - HTTP Error 400: Bad Request
+[729/800] SKV clau C10: ERROR - HTTP Error 429: Too Many Requests
+[730/800] Direct clau C10: ERROR - HTTP Error 400: Bad Request
+[731/800] SKV clau C11: ERROR - HTTP Error 429: Too Many Requests
+[732/800] Direct clau C11: ERROR - HTTP Error 400: Bad Request
+[733/800] SKV clau C12: ERROR - HTTP Error 429: Too Many Requests
+[734/800] Direct clau C12: ERROR - HTTP Error 400: Bad Request
+[735/800] SKV clau C13: ERROR - HTTP Error 429: Too Many Requests
+[736/800] Direct clau C13: ERROR - HTTP Error 400: Bad Request
+[737/800] SKV clau C14: ERROR - HTTP Error 429: Too Many Requests
+[738/800] Direct clau C14: ERROR - HTTP Error 400: Bad Request
+[739/800] SKV clau C15: ERROR - HTTP Error 429: Too Many Requests
+[740/800] Direct clau C15: ERROR - HTTP Error 400: Bad Request
+[741/800] SKV clau K01: ERROR - HTTP Error 429: Too Many Requests
+[742/800] Direct clau K01: ERROR - HTTP Error 400: Bad Request
+[743/800] SKV clau K02: ERROR - HTTP Error 429: Too Many Requests
+[744/800] Direct clau K02: ERROR - HTTP Error 400: Bad Request
+[745/800] SKV clau K03: ERROR - HTTP Error 429: Too Many Requests
+[746/800] Direct clau K03: ERROR - HTTP Error 400: Bad Request
+[747/800] SKV clau K04: ERROR - HTTP Error 429: Too Many Requests
+[748/800] Direct clau K04: ERROR - HTTP Error 400: Bad Request
+[749/800] SKV clau K05: ERROR - HTTP Error 429: Too Many Requests
+[750/800] Direct clau K05: ERROR - HTTP Error 400: Bad Request
+[751/800] SKV clau K06: ERROR - HTTP Error 429: Too Many Requests
+[752/800] Direct clau K06: ERROR - HTTP Error 400: Bad Request
+[753/800] SKV clau K07: ERROR - HTTP Error 429: Too Many Requests
+[754/800] Direct clau K07: ERROR - HTTP Error 400: Bad Request
+[755/800] SKV clau K08: ERROR - HTTP Error 429: Too Many Requests
+[756/800] Direct clau K08: ERROR - HTTP Error 400: Bad Request
+[757/800] SKV clau K09: ERROR - HTTP Error 429: Too Many Requests
+[758/800] Direct clau K09: ERROR - HTTP Error 400: Bad Request
+[759/800] SKV clau K10: ERROR - HTTP Error 429: Too Many Requests
+[760/800] Direct clau K10: ERROR - HTTP Error 400: Bad Request
+[761/800] SKV clau K11: ERROR - HTTP Error 429: Too Many Requests
+[762/800] Direct clau K11: ERROR - HTTP Error 400: Bad Request
+[763/800] SKV clau K12: ERROR - HTTP Error 429: Too Many Requests
+[764/800] Direct clau K12: ERROR - HTTP Error 400: Bad Request
+[765/800] SKV clau K13: ERROR - HTTP Error 429: Too Many Requests
+[766/800] Direct clau K13: ERROR - HTTP Error 400: Bad Request
+[767/800] SKV clau K14: ERROR - HTTP Error 429: Too Many Requests
+[768/800] Direct clau K14: ERROR - HTTP Error 400: Bad Request
+[769/800] SKV clau K15: ERROR - HTTP Error 429: Too Many Requests
+[770/800] Direct clau K15: ERROR - HTTP Error 400: Bad Request
+[771/800] SKV clau K16: ERROR - HTTP Error 429: Too Many Requests
+[772/800] Direct clau K16: ERROR - HTTP Error 400: Bad Request
+[773/800] SKV clau K17: ERROR - HTTP Error 429: Too Many Requests
+[774/800] Direct clau K17: ERROR - HTTP Error 400: Bad Request
+[775/800] SKV clau K18: ERROR - HTTP Error 429: Too Many Requests
+[776/800] Direct clau K18: ERROR - HTTP Error 400: Bad Request
+[777/800] SKV clau K19: ERROR - HTTP Error 429: Too Many Requests
+[778/800] Direct clau K19: ERROR - HTTP Error 400: Bad Request
+[779/800] SKV clau K20: ERROR - HTTP Error 429: Too Many Requests
+[780/800] Direct clau K20: ERROR - HTTP Error 400: Bad Request
+[781/800] SKV clau K21: ERROR - HTTP Error 429: Too Many Requests
+[782/800] Direct clau K21: ERROR - HTTP Error 400: Bad Request
+[783/800] SKV clau K22: ERROR - HTTP Error 429: Too Many Requests
+[784/800] Direct clau K22: ERROR - HTTP Error 400: Bad Request
+[785/800] SKV clau K23: ERROR - HTTP Error 429: Too Many Requests
+[786/800] Direct clau K23: ERROR - HTTP Error 400: Bad Request
+[787/800] SKV clau K24: ERROR - HTTP Error 429: Too Many Requests
+[788/800] Direct clau K24: ERROR - HTTP Error 400: Bad Request
+[789/800] SKV clau K25: ERROR - HTTP Error 429: Too Many Requests
+[790/800] Direct clau K25: ERROR - HTTP Error 400: Bad Request
+[791/800] SKV clau K26: ERROR - HTTP Error 429: Too Many Requests
+[792/800] Direct clau K26: ERROR - HTTP Error 400: Bad Request
+[793/800] SKV clau K27: ERROR - HTTP Error 429: Too Many Requests
+[794/800] Direct clau K27: ERROR - HTTP Error 400: Bad Request
+[795/800] SKV clau K28: ERROR - HTTP Error 429: Too Many Requests
+[796/800] Direct clau K28: ERROR - HTTP Error 400: Bad Request
+[797/800] SKV clau K29: 386ms, cubes=False
+[798/800] Direct clau K29: ERROR - HTTP Error 400: Bad Request
+[799/800] SKV clau K30: ERROR - HTTP Error 429: Too Many Requests
+[800/800] Direct clau K30: ERROR - HTTP Error 400: Bad Request
+/root/skv-core/tests/run_eval_100.py:74: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  json.dump({"results": results, "tested_at": datetime.utcnow().isoformat(), "total_questions": len(dataset["questions"]), "models": list(MODELS.keys())}, f, indent=2)
+
+==================================================
+FINAL SUMMARY
+==================================================
+
+DEEPSEEK:
+  SKV: 98 responses, avg 15410ms, cubes=23/98
+  Direct: 100 responses, avg 8926ms
+
+QWEN:
+  SKV: 96 responses, avg 32523ms, cubes=23/96
+  Direct: 100 responses, avg 27708ms
+
+CHATGPT:
+  SKV: 97 responses, avg 16140ms, cubes=23/97
+  Direct: 100 responses, avg 8107ms
+
+Total results: 610
+Results saved to /root/skv-core/tests/eval_100_results.json
+responses, avg 15356ms, cubes=24/98
+  Direct: 100 responses, avg 8180ms
+
+Total results: 603
+Results saved to /root/skv-core/tests/eval_100_results.json

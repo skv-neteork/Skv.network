@@ -18,15 +18,23 @@
         .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 20px; margin: 16px 0; }
         code { background: #0d1117; padding: 2px 6px; border-radius: 3px; color: #7ee787; font-size: 13px; }
     </style>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iI2YwODgzZSIvPgogIDx0ZXh0IHg9IjE2IiB5PSIyMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiMwZDExMTciPlNLVjwvdGV4dD4KPC9zdmc+">
 </head>
 <body>
     <div class="nav">
         <a href="/">Home</a>
         <a href="/upload">Upload</a>
         <a href="/trials">Trials</a>
-        <a href="/profile">Profile</a>
+        
         <a href="/.well-known/skv" target="_blank">Discovery</a>
+        <a href="/chat">💬 Chat</a>
+        <a href="/guide">Guide</a>
+        
+        <a href="/profile" id="navProfileLink">Profile</a>
         <a href="/about">About</a>
+        <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
+        <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
+        <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
     </div>
     <div class="main">
         <h1>About SKV Network</h1>
@@ -43,5 +51,56 @@
             <p><b>4. Save:</b> Creates new cubes from experience</p>
         </div>
     </div>
-</body>
+<script>
+        // Проверка статуса входа
+        (function() {
+            const email = localStorage.getItem('skv_email');
+            const token = localStorage.getItem('skv_token');
+            if (email && token) {
+                document.getElementById('navProfile').textContent = '⚡ Profile';
+                document.getElementById('navStatus').textContent = 'Logged in as ' + email.split('@')[0];
+                document.getElementById('navStatus').style.color = '#3fb950';
+            }
+        })();
+
+        const email = localStorage.getItem('skv_email');
+        const token = localStorage.getItem('skv_token');
+        if (email && token) {
+            const link = document.getElementById('navProfileLink');
+            if (link && email && token) {
+                link.textContent = '⚡ ' + email.split('@')[0];
+                const status = document.getElementById('navStatus');
+                if (status) {
+                    status.textContent = '✓ Logged in';
+                    status.style.color = '#3fb950';
+                }
+            }
+        }
+</script>
+        const email = localStorage.getItem('skv_email');
+        const token = localStorage.getItem('skv_token');
+        if (email && token) {
+            const link = document.getElementById('navProfileLink');
+            if (link && email && token) {
+                link.textContent = '⚡ ' + email.split('@')[0];
+                const status = document.getElementById('navStatus');
+                if (status) {
+                    status.textContent = '✓ Logged in';
+                    status.style.color = '#3fb950';
+                }
+            }
+        }
+    <script>
+        (function() {
+            const email = localStorage.getItem("skv_email");
+            const token = localStorage.getItem("skv_token");
+            if (email && token) {
+                const link = document.getElementById("navProfileLink");
+                if (link) link.textContent = "⚡ " + email.split("@")[0];
+                const status = document.getElementById("navStatus");
+                if (status) { status.textContent = "✓ Logged in"; status.style.color = "#3fb950"; }
+            }
+        })();
+    </script>
+</script></body>
 </html>

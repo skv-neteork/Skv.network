@@ -4,28 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload — SKV Network</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23f0883e'/><text x='16' y='22' text-anchor='middle' font-family='Arial' font-size='16' font-weight='700' fill='%230d1117'>SKV</text></svg>">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; }
-        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; }
+        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; flex-wrap: wrap; }
         .nav a { color: #8b949e; text-decoration: none; font-size: 14px; }
         .nav a:hover { color: #c9d1d9; }
         .nav a.active { color: #f78166; }
         .main { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
-        h1 { font-size: 28px; font-weight: 600; color: #f0883e; }
+        h1 { font-size: 28px; font-weight: 600; color: #f0883e; margin-bottom: 8px; }
+        p { font-size: 14px; color: #8b949e; margin-bottom: 20px; }
         .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 24px; margin-bottom: 20px; }
-        textarea { width: 100%; height: 200px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; padding: 12px; font-family: monospace; font-size: 13px; }
-        .drop-zone { border: 2px dashed #30363d; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 12px; cursor: pointer; }
-        .model-btn { padding: 10px 18px; border-radius: 24px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 4px; border: 1px solid #30363d; background: #0d1117; color: #8b949e; }
+        textarea { width: 100%; height: 200px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; padding: 12px; font-family: monospace; font-size: 13px; resize: vertical; }
+        textarea:focus { outline: none; border-color: #f78166; }
+        .drop-zone { border: 2px dashed #30363d; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 12px; cursor: pointer; transition: border-color 0.2s; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: #f78166; background: rgba(247,129,102,0.03); }
+        .model-btn { padding: 10px 18px; border-radius: 24px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 4px; border: 1px solid #30363d; background: #0d1117; color: #8b949e; transition: all 0.2s; user-select: none; }
+        .model-btn:hover { border-color: #8b949e; }
         .model-btn.selected { color: #fff; }
         .model-deepseek.selected { background: #1a1a3e; color: #7b8cff; border-color: #7b8cff; }
         .model-qwen.selected { background: #1a2e1a; color: #3fb950; border-color: #3fb950; }
         .model-gpt.selected { background: #2e1a2e; color: #d2a8ff; border-color: #d2a8ff; }
         .model-claude.selected { background: #2e1a1a; color: #f0883e; border-color: #f0883e; }
         .model-grok.selected { background: #1a2e2e; color: #39d353; border-color: #39d353; }
-        .btn { display: block; width: 100%; padding: 14px; text-align: center; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; color: #fff; margin-top: 12px; }
-        .btn-up { background: #238636; }
-        .btn-dl { background: #1f6feb; text-decoration: none; }
+        .main-btn { display: block; width: 100%; padding: 14px; text-align: center; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; color: #fff; margin-top: 12px; }
+        .btn-upload { background: #238636; }
+        .btn-upload:disabled { opacity: 0.5; pointer-events: none; }
+        .btn-download { background: #1f6feb; text-decoration: none; }
     </style>
 </head>
 <body>
@@ -33,97 +39,141 @@
         <a href="/">Home</a>
         <a href="/upload" class="active">Upload</a>
         <a href="/trials">Trials</a>
-        <a href="/profile">Profile</a>
         <a href="/.well-known/skv" target="_blank">Discovery</a>
+        <a href="/chat">💬 Chat</a>
+        <a href="/guide">Guide</a>
+        <a href="/profile" id="navProfileLink">Profile</a>
         <a href="/about">About</a>
+        <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
     </div>
     <div class="main">
         <h1>Upload Project</h1>
-        <p>Select models, paste JSON, click Upload.</p>
+        <p>Select AI models, paste or drop JSON, click Upload.</p>
 
         <div class="card">
-            <button class="model-btn model-deepseek" onclick="toggle('deepseek',this)">DeepSeek 4.0</button>
-            <button class="model-btn model-qwen" onclick="toggle('qwen',this)">Qwen 3.6</button>
-            <button class="model-btn model-gpt" onclick="toggle('gpt',this)">ChatGPT 5.5</button>
-            <button class="model-btn model-claude" onclick="toggle('claude',this)">Claude 4</button>
-            <button class="model-btn model-grok" onclick="toggle('grok',this)">Grok 4</button>
+            <button class="model-btn model-deepseek" onclick="toggleModel('deepseek', this)">DeepSeek 4.0</button>
+            <button class="model-btn model-qwen" onclick="toggleModel('qwen', this)">Qwen 3.6</button>
+            <button class="model-btn model-gpt" onclick="toggleModel('gpt', this)">ChatGPT 5.5</button>
+            <button class="model-btn model-claude" onclick="toggleModel('claude', this)">Claude 4</button>
+            <button class="model-btn model-grok" onclick="toggleModel('grok', this)">Grok 4</button>
         </div>
 
         <div class="card">
-            <div class="drop-zone" id="dz"><p>📂 Drop .json file here</p></div>
+            <div class="drop-zone" id="dropZone">
+                <p style="color:#8b949e;font-size:14px;">📂 Drop .json file here or click to choose</p>
+            </div>
             <textarea id="jsonInput" placeholder='{"cube_id":"my-project","title":"My Project",...}'></textarea>
-            <div id="btnWrap"><button class="btn btn-up" onclick="upload()">Upload</button></div>
+            <button class="main-btn btn-upload" id="uploadBtn" onclick="upload()">Upload</button>
         </div>
     </div>
 
     <script>
         const selected = new Set();
-        function toggle(m, b) { selected.has(m) ? (selected.delete(m), b.classList.remove('selected')) : (selected.add(m), b.classList.add('selected')); }
+        function toggleModel(m, btn) {
+            selected.has(m) ? (selected.delete(m), btn.classList.remove('selected')) : (selected.add(m), btn.classList.add('selected'));
+        }
 
-        document.getElementById('dz').ondrop = e => {
+        // Предотвращаем открытие файла браузером
+        window.addEventListener('dragover', e => e.preventDefault());
+        window.addEventListener('drop', e => e.preventDefault());
+
+        // Drag & drop
+        const dz = document.getElementById('dropZone');
+        dz.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const f = e.target.files[0];
+                if (f) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => { document.getElementById('jsonInput').value = ev.target.result; };
+                    reader.readAsText(f);
+                }
+            };
+            input.click();
+        });
+        dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+        dz.addEventListener('dragleave', () => { dz.classList.remove('dragover'); });
+        dz.addEventListener('drop', (e) => {
             e.preventDefault();
+            dz.classList.remove('dragover');
             const f = e.dataTransfer.files[0];
-            if (f && f.name.endsWith('.json')) { const r = new FileReader(); r.onload = ev => document.getElementById('jsonInput').value = ev.target.result; r.readAsText(f); }
-        };
-        document.getElementById('dz').ondragover = e => e.preventDefault();
+            if (f && f.name.endsWith('.json')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => { document.getElementById('jsonInput').value = ev.target.result; };
+                reader.readAsText(f);
+            }
+        });
 
         async function upload() {
             const input = document.getElementById('jsonInput').value.trim();
             if (!input) return;
 
-            const wrap = document.getElementById('btnWrap');
-            wrap.innerHTML = '<button class="btn btn-up" disabled>Processing...</button>';
+            const btn = document.getElementById('uploadBtn');
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
 
-            let p;
-            try { p = JSON.parse(input); } catch(e) { wrap.innerHTML = '<button class="btn btn-up" onclick="upload()">Upload</button>'; return; }
+            let project;
+            try { project = JSON.parse(input); } catch(e) { btn.textContent = 'Upload'; btn.disabled = false; return; }
 
-            // Добавляем parent_anketa_id если есть в анкете
-            if (p.parent_anketa_id) { p.direct_chain = { parent_anketa_id: p.parent_anketa_id }; }
             await fetch('/api/v1/entries', { method:'POST', headers:{'Content-Type':'application/json'}, body:input }).catch(()=>{});
 
-            // Консультации
-            let consultText = '';
+            // Если есть outputs — сначала генерируем файлы
+            if (project.outputs && project.outputs.length) {
+                try {
+                    const r = await fetch('/api/tools/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cube_id:project.cube_id||'project',title:project.title,rules:project.rules||[],outputs:project.outputs,chart_config:project.chart_config||{}}) });
+                    const d = await r.json();
+                    if (d.files && d.files[0] && d.files[0].url) {
+                        btn.textContent = 'Download ' + (d.files[0].type || 'File').toUpperCase();
+                        btn.classList.add('btn-download');
+                        btn.onclick = () => { const a = document.createElement('a'); a.href = d.files[0].url; a.download = d.files[0].url.split('/').pop(); document.body.appendChild(a); a.click(); document.body.removeChild(a); };
+                        document.getElementById('jsonInput').value = '';
+                        selected.clear();
+                        document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('selected'));
+                        btn.disabled = false;
+                        return;
+                    }
+                } catch(e) {}
+            }
+
+            // Консультации (если выбраны модели)
+            const results = [];
             for (const m of selected) {
                 try {
-                    const r = await fetch('/api/consult', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:p.title||p.cube_id,model:m}) });
+                    const r = await fetch('/api/consult', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:project.title||project.cube_id, model:m}) });
                     const d = await r.json();
-                    if (d.answer) consultText += '=== ' + m.toUpperCase() + ' ===\n' + d.answer + '\n\n';
+                    if (d.answer) results.push('=== ' + m.toUpperCase() + ' ===\n' + d.answer + '\n');
                 } catch(e) {}
             }
 
-            // Файлы
-            let fileUrls = [];
-            if (p.outputs && p.outputs.length) {
-                try {
-                    const r = await fetch('/api/tools/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cube_id:p.cube_id||'project',title:p.title,rules:p.rules||[],outputs:p.outputs,chart_config:p.chart_config||{}}) });
-                    const d = await r.json();
-                    if (d.files) fileUrls = d.files.filter(f => f.url).map(f => f.url);
-                } catch(e) {}
-            }
-
-            // Скачиваем файлы и создаём ZIP в памяти (если есть файлы)
-            if (fileUrls.length > 0 || consultText) {
-                const zip = new JSZip();
-                if (consultText) zip.file('consultations.txt', consultText);
-                
-                const downloads = fileUrls.map(url => fetch(url).then(r => r.blob()).then(blob => {
-                    const name = url.split('/').pop();
-                    zip.file(name, blob);
-                }));
-                
-                await Promise.all(downloads);
-                const zipBlob = await zip.generateAsync({type:'blob'});
-                const zipUrl = URL.createObjectURL(zipBlob);
-                wrap.innerHTML = '<a class="btn btn-dl" href="'+zipUrl+'" download="project-files.zip">Download All (ZIP)</a>';
+            if (results.length > 0) {
+                const blob = new Blob([results.join('\n\n')], {type:'text/plain'});
+                const url = URL.createObjectURL(blob);
+                btn.textContent = 'Download TXT';
+                btn.classList.add('btn-download');
+                btn.onclick = () => { const a = document.createElement('a'); a.href = url; a.download = 'skv-results.txt'; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
             } else {
-                wrap.innerHTML = '<button class="btn btn-up" onclick="upload()">Upload</button>';
+                btn.textContent = 'Done';
+                setTimeout(() => { btn.textContent = 'Upload'; btn.classList.remove('btn-download'); }, 2000);
             }
 
             document.getElementById('jsonInput').value = '';
             selected.clear();
             document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('selected'));
+            btn.disabled = false;
         }
+
+        (function() {
+            const email = localStorage.getItem('skv_email');
+            const token = localStorage.getItem('skv_token');
+            if (email && token) {
+                const link = document.getElementById('navProfileLink');
+                if (link) link.textContent = '⚡ ' + email.split('@')[0];
+                const status = document.getElementById('navStatus');
+                if (status) { status.textContent = '✓ Logged in'; status.style.color = '#3fb950'; }
+            }
+        })();
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </body>
 </html>

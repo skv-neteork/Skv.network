@@ -3,13 +3,13 @@ import asyncpg
 import os
 import secrets
 import hashlib
-import smtplib
-from email.mime.text import MIMEText
-import threading
+import requests
+import json
 
 router = APIRouter()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db")
+RESEND_KEY = "re_S7pvVUex_GjH4EYHJVcjs72Xt7Lbbrz5s"
 
 async def get_db():
     return await asyncpg.connect(DATABASE_URL)
@@ -21,31 +21,32 @@ def hash_password(password: str) -> str:
 def generate_code() -> str:
     return secrets.token_hex(3).upper()
 
-def send_email_async(email: str, code: str):
-    """Отправляет email в отдельном потоке, не блокируя API"""
+def send_email(email: str, code: str) -> bool:
     try:
-        smtp_host = os.getenv("SMTP_HOST", "")
-        smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        smtp_user = os.getenv("SMTP_USER", "")
-        smtp_pass = os.getenv("SMTP_PASS", "")
-
-        if not smtp_host or not smtp_user:
-            print(f"[SKV] SMTP not configured. Code for {email}: {code}")
-            return
-
-        msg = MIMEText(f"Your SKV confirmation code: {code}")
-        msg["Subject"] = "SKV Network - Email Confirmation"
-        msg["From"] = smtp_user
-        msg["To"] = email
-
-        server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
-        server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.send_message(msg)
-        server.quit()
-        print(f"[SKV] Email sent to {email}")
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_KEY}",
+                "Content-Type": "application/json",
+                "User-Agent": "SKV-Network/2.0"
+            },
+            json={
+                "from": "SKV Network <noreply@skv.network>",
+                "to": email,
+                "subject": "SKV Network - Email Confirmation",
+                "text": f"Your SKV confirmation code: {code}"
+            },
+            timeout=10
+        )
+        if resp.status_code == 200:
+            print(f"[SKV] Email sent to {email}: {resp.json().get('id', 'ok')}")
+            return True
+        else:
+            print(f"[SKV] Email error: {resp.status_code} {resp.text[:100]}")
+            return False
     except Exception as e:
         print(f"[SKV] Email error for {email}: {e}")
+        return False
 
 @router.post("/api/auth/register")
 async def register(request: Request):
@@ -74,13 +75,8 @@ async def register(request: Request):
         )
         await conn.close()
 
-        # Отправляем email в фоне, не блокируем ответ
-        threading.Thread(target=send_email_async, args=(email, confirmation_code), daemon=True).start()
-
-        return {
-            "status": "ok",
-            "message": "Check your email for confirmation code"
-        }
+        send_email(email, confirmation_code)
+        return {"status": "ok", "message": "Confirmation code sent to email"}
     except HTTPException:
         raise
     except Exception as e:

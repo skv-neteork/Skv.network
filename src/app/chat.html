@@ -1,169 +1,166 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SKV Chat</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23f0883e'/><text x='16' y='22' text-anchor='middle' font-family='Arial' font-size='16' font-weight='700' fill='%230d1117'>SKV</text></svg>">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; height: 100vh; }
-        .sidebar { width: 260px; background: #161b22; border-right: 1px solid #21262d; padding: 20px; display: flex; flex-direction: column; }
-        .sidebar h2 { color: #f0883e; font-size: 18px; margin-bottom: 12px; }
-        .sidebar .status { font-size: 12px; color: #8b949e; margin-bottom: 16px; }
-        .sidebar .status.logged { color: #3fb950; }
-        .sidebar button { width: 100%; padding: 8px; background: #30363d; border: 1px solid #484f58; color: #c9d1d9; border-radius: 6px; cursor: pointer; font-size: 13px; margin-bottom: 8px; }
-        .sidebar button:hover { background: #484f58; }
-        .sidebar a { color: #8b949e; text-decoration: none; font-size: 13px; margin-top: 4px; }
-        .sidebar a:hover { color: #c9d1d9; }
-        .main { flex: 1; display: flex; flex-direction: column; }
-        .chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-        .msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
-        .msg-user { align-self: flex-end; background: #238636; color: #fff; }
-        .msg-ai { align-self: flex-start; background: #161b22; border: 1px solid #21262d; }
-        .msg-ai .cubes { margin-top: 8px; padding-top: 8px; border-top: 1px solid #21262d; font-size: 11px; color: #8b949e; }
-        .msg-ai .cubes span { color: #f0883e; }
-        .empty-state { text-align: center; color: #484f58; padding: 60px 20px; }
-        .empty-state h3 { font-size: 18px; color: #8b949e; margin-bottom: 8px; }
-        .input-area { padding: 16px 20px; background: #161b22; border-top: 1px solid #21262d; display: flex; gap: 8px; }
-        .input-area input { flex: 1; padding: 10px 14px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 14px; }
-        .input-area input:focus { outline: none; border-color: #f78166; }
-        .input-area button { padding: 10px 20px; background: #238636; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
-        .input-area button:hover { background: #2ea043; }
-        .input-area button:disabled { opacity: 0.5; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKV Chat</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; height: 100vh; }
+.sidebar { width: 260px; background: #161b22; border-right: 1px solid #21262d; padding: 20px; display: flex; flex-direction: column; }
+.sidebar h2 { color: #f0883e; font-size: 18px; margin-bottom: 12px; }
+.sidebar .status { font-size: 12px; color: #8b949e; margin-bottom: 16px; }
+.sidebar button { width: 100%; padding: 8px; background: #30363d; border: 1px solid #484f58; color: #c9d1d9; border-radius: 6px; cursor: pointer; font-size: 13px; margin-bottom: 8px; }
+.sidebar button:hover { background: #484f58; }
+.sidebar a { color: #8b949e; text-decoration: none; font-size: 13px; margin-top: 4px; }
+.sidebar a:hover { color: #c9d1d9; }
+.main { flex: 1; display: flex; flex-direction: column; }
+.chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
+.msg-user { align-self: flex-end; background: #238636; color: #fff; }
+.msg-ai { align-self: flex-start; background: #161b22; border: 1px solid #21262d; }
+.msg-ai .cubes { margin-top: 8px; padding-top: 8px; border-top: 1px solid #21262d; font-size: 11px; color: #8b949e; }
+.empty-state { text-align: center; color: #484f58; padding: 60px 20px; }
+.empty-state h3 { font-size: 18px; color: #8b949e; margin-bottom: 8px; }
+.input-area { padding: 16px 20px; background: #161b22; border-top: 1px solid #21262d; display: flex; gap: 8px; }
+.input-area input { flex: 1; padding: 10px 14px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 14px; }
+.input-area input:focus { outline: none; border-color: #f78166; }
+.input-area button { padding: 10px 20px; background: #238636; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
+.input-area button:hover { background: #2ea043; }
+.input-area button:disabled { opacity: 0.5; }
+</style>
 </head>
 <body>
-    <div class="sidebar">
-        <h2>🧩 SKV Chat</h2>
-        <p class="status" id="loginStatus">Not logged in</p>
-        <button onclick="clearChat()">🗑️ Clear Chat</button>
-        <a href="/">← Back to Home</a>
-        <a href="/profile">👤 Profile</a>
-        <a href="/guide">📘 Agent Guide</a>
-    </div>
-    <div class="main">
-        <div class="chat-area" id="chatArea">
-            <div class="empty-state" id="emptyState">
-                <h3>SKV Chat</h3>
-                <p>Ask anything. SKV injects constitution and relevant cubes into every response.</p>
-            </div>
-        </div>
-        <div class="input-area">
-            <input type="text" id="userInput" placeholder="Type your message..." onkeydown="if(event.key==='Enter')sendMessage()">
-            <button id="sendBtn" onclick="sendMessage()">Send</button>
-        </div>
-    </div>
+<div class="sidebar">
+<h2>🧩 SKV Chat</h2>
+<p class="status" id="loginStatus">Not logged in</p>
+<button onclick="clearChat()">🗑️ Clear Chat</button>
+<a href="/">← Back to Home</a>
+<a href="/profile">👤 Profile</a>
+<a href="/guide">📘 Agent Guide</a>
+</div>
+<div class="main">
+<div class="chat-area" id="chatArea">
+<div class="empty-state" id="emptyState">
+<h3>SKV Chat</h3>
+<p>Ask anything. SKV injects constitution and relevant cubes into every response.</p>
+</div>
+</div>
+<div class="input-area">
+<input type="text" id="userInput" placeholder="Type your message..." onkeydown="if(event.key==='Enter')sendMessage()">
+<button id="sendBtn" onclick="sendMessage()">Send</button>
+</div>
+</div>
+<script>
+const chatArea = document.getElementById('chatArea');
+const userInput = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const emptyState = document.getElementById('emptyState');
+const skvEmail = localStorage.getItem('skv_email');
+const skvToken = localStorage.getItem('skv_token');
+const isLoggedIn = skvEmail && skvToken;
+const historyKey = 'skv_chat_' + (skvEmail || 'anonymous');
+let chatHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
 
-    <script>
-        const chatArea = document.getElementById('chatArea');
-        const userInput = document.getElementById('userInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const emptyState = document.getElementById('emptyState');
-        
-        const skvEmail = localStorage.getItem('skv_email');
-        const skvToken = localStorage.getItem('skv_token');
-        const isLoggedIn = skvEmail && skvToken;
-        const historyKey = 'skv_chat_' + (skvEmail || 'anonymous');
-        let chatHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
+if (isLoggedIn) {
+    document.getElementById('loginStatus').textContent = '✓ Logged in as ' + skvEmail.split('@')[0];
+    document.getElementById('loginStatus').className = 'status logged';
+}
 
-        if (isLoggedIn) {
-            document.getElementById('loginStatus').textContent = '✓ Logged in as ' + skvEmail.split('@')[0];
-            document.getElementById('loginStatus').className = 'status logged';
-        }
+function saveHistory() {
+    localStorage.setItem(historyKey, JSON.stringify(chatHistory.slice(-50)));
+}
 
-        function loadHistory() {
-            if (chatHistory.length > 0 && emptyState) {
-                emptyState.style.display = 'none';
-            }
-            chatHistory.forEach(msg => {
-                renderMessage(msg.role, msg.content, msg.cubes || []);
-            });
-            if (chatHistory.length > 0) {
-                chatArea.scrollTop = chatArea.scrollHeight;
-            }
-        }
+function loadHistory() {
+    if (chatHistory.length > 0 && emptyState) {
+        emptyState.style.display = 'none';
+    }
+    chatHistory.forEach(msg => {
+        renderMessage(msg.role, msg.content, msg.cubes || []);
+    });
+    if (chatHistory.length > 0) {
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+}
 
-        function renderMessage(role, content, cubes) {
-            if (emptyState && emptyState.style.display !== 'none') {
-                emptyState.style.display = 'none';
-            }
-            const div = document.createElement('div');
-            div.className = 'msg msg-' + (role === 'user' ? 'user' : 'ai');
-            div.textContent = content;
-            
-            if (cubes && cubes.length > 0) {
-                const cdiv = document.createElement('div');
-                cdiv.className = 'cubes';
-                cdiv.innerHTML = '🧩 Used: ' + cubes.map(c => '<span>' + c + '</span>').join(', ');
-                div.appendChild(cdiv);
-            }
+function renderMessage(role, content, cubes) {
+    if (emptyState && emptyState.style.display !== 'none') {
+        emptyState.style.display = 'none';
+    }
+    const div = document.createElement('div');
+    div.className = 'msg msg-' + (role === 'user' ? 'user' : 'ai');
+    div.textContent = content;
+    if (cubes && cubes.length > 0) {
+        const cdiv = document.createElement('div');
+        cdiv.className = 'cubes';
+        cdiv.innerHTML = '🧩 Used: ' + cubes.map(c => '<span>' + c + '</span>').join(', ');
+        div.appendChild(cdiv);
+    }
+    chatArea.appendChild(div);
+    chatArea.scrollTop = chatArea.scrollHeight;
+}
 
-            chatArea.appendChild(div);
-            chatArea.scrollTop = chatArea.scrollHeight;
-        }
+async function sendMessage() {
+    const text = userInput.value.trim();
+    if (!text) return;
 
-        async function sendMessage() {
-            const text = userInput.value.trim();
-            if (!text) return;
+    userInput.value = '';
+    sendBtn.disabled = true;
 
-            userInput.value = '';
-            sendBtn.disabled = true;
+    renderMessage('user', text);
+    chatHistory.push({role: 'user', content: text, cubes: []});
+    saveHistory();
 
-            renderMessage('user', text);
-            chatHistory.push({role: 'user', content: text, cubes: []});
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'msg msg-ai';
+    loadingDiv.style.opacity = '0.5';
+    loadingDiv.textContent = 'Thinking...';
+    chatArea.appendChild(loadingDiv);
+
+    try {
+        const resp = await fetch('/api/consult', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                query: text,
+                model: 'deepseek',
+                history: chatHistory.slice(-6)
+            })
+        });
+
+        const data = await resp.json();
+        loadingDiv.remove();
+
+        if (data.answer) {
+            const cubes = data.used_cubes || [];
+            renderMessage('ai', data.answer, cubes);
+            chatHistory.push({role: 'assistant', content: data.answer, cubes: cubes});
             saveHistory();
-
-            const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'msg msg-ai';
-            loadingDiv.style.opacity = '0.5';
-            loadingDiv.textContent = 'Thinking...';
-            chatArea.appendChild(loadingDiv);
-
-            try {
-                const resp = await fetch('/api/consult', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        query: text,
-                        model: 'deepseek',
-                        history: chatHistory.slice(-6)
-                    })
-                });
-                const data = await resp.json();
-                loadingDiv.remove();
-
-                if (data.answer) {
-                    const cubes = data.used_cubes || [];
-                    renderMessage('ai', data.answer, cubes);
-                    chatHistory.push({role: 'assistant', content: data.answer, cubes: cubes});
-                    saveHistory();
-                } else {
-                    renderMessage('ai', 'Sorry, no response. Try again.');
-                }
-            } catch(e) {
-                loadingDiv.remove();
-                renderMessage('ai', 'Error connecting to SKV. Please try again.');
-            }
-
-            sendBtn.disabled = false;
+        } else {
+            renderMessage('ai', 'Sorry, no response. Try again.');
         }
+    } catch(e) {
+        loadingDiv.remove();
+        renderMessage('ai', 'Error connecting to SKV. Please try again.');
+    }
 
-        function saveHistory() {
-            localStorage.setItem(historyKey, JSON.stringify(chatHistory.slice(-50)));
-        }
+    sendBtn.disabled = false;
+    chatArea.scrollTop = chatArea.scrollHeight;
+}
 
-        function clearChat() {
-            chatHistory = [];
-            localStorage.removeItem(historyKey);
-            chatArea.innerHTML = '';
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'empty-state';
-            emptyDiv.innerHTML = '<h3>SKV Chat</h3><p>Ask anything. SKV injects constitution and relevant cubes into every response.</p>';
-            chatArea.appendChild(emptyDiv);
-        }
+function clearChat() {
+    chatHistory = [];
+    localStorage.removeItem(historyKey);
+    chatArea.innerHTML = '';
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'empty-state';
+    emptyDiv.innerHTML = '<h3>SKV Chat</h3><p>Ask anything. SKV injects constitution and relevant cubes into every response.</p>';
+    chatArea.appendChild(emptyDiv);
+}
 
-        loadHistory();
-    </script>
+loadHistory();
+</script>
 </body>
 </html>

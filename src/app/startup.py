@@ -45,7 +45,9 @@ async def preload_constitution():
         "cube_basic_structure_01", "cube_basic_discovery_01", "cube_basic_priority_01",
         "cube_basic_ethics_01", "cube_basic_transparency_01", "cube_basic_human_override_01",
         "cube_basic_feedback_01", "cube_basic_creation_01", "cube_basic_antipoisoning_01",
-        "cube_basic_links_01", "cube_basic_efficiency_01"
+        "cube_basic_links_01", "cube_basic_efficiency_01",
+        "cube_const_response_style_v1",
+        "cube_const_natural_response_style_v1",
     ]
     rules = []
     for cid in CONSTITUTION_CUBES:

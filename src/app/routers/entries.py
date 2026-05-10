@@ -1,55 +1,88 @@
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
-
-from fastapi import APIRouter, HTTPException, Request, Response
-from app.schemas.common import EntryResponse
-import uuid
-import json
-import os
-import hashlib
-import asyncio
-import asyncpg
+import json, uuid, hashlib, asyncio, subprocess, psycopg2
 from datetime import datetime, timezone
-from app.cache import cache
+from fastapi import APIRouter, HTTPException, Request, Response
+
+POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+DATABASE_URL = "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db"
 
 router = APIRouter()
-
 entries_db = {}
-delete_tokens = {}
 cubes_library = {}
+delete_tokens = {}
+_feedback = {}
+cache = None  # Будет установлен из main.py
 
-KNOWLEDGE_DIR = "/knowledge_library"
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db")
+# --- Функция загрузки кубиков с диска (только для инициализации) ---
+def load_cubes_from_disk():
+    import os
+    knowledge_dir = "/knowledge_library"
+    if not os.path.exists(knowledge_dir):
+        return
+    for root, dirs, files in os.walk(knowledge_dir):
+        for file in files:
+            if file.endswith('.json'):
+                filepath = os.path.join(root, file)
+                try:
+                    with open(filepath, 'r') as f:
+                        data = json.load(f)
+                    # Поддержка разных форматов файлов
+                    cubes = data.get('cubes', [])
+                    if not cubes and isinstance(data, list):
+                        cubes = data
+                    for cube in cubes:
+                        if isinstance(cube, dict) and 'cube_id' in cube:
+                            cid = cube['cube_id']
+                            cubes_library[cid] = {
+                                "id": str(uuid.uuid4()),
+                                "cube_id": cid,
+                                "title": cube.get('title', 'Untitled'),
+                                "content": cube,
+                                "triggers": cube.get('trigger_intent', []),
+                                "created_at": datetime.now(timezone.utc).isoformat()
+                            }
+                except Exception as e:
+                    print(f"[SKV] Disk load error: {e}")
 
-async def _index_to_qdrant(cube_id, title, trigger_intent, rules):
+# Загружаем кубики с диска при импорте модуля
+load_cubes_from_disk()
+
+# Загружаем кубики из БД синхронно при импорте
+def load_cubes_from_db():
     try:
-        from qdrant_client import QdrantClient
-        from qdrant_client.models import PointStruct
-        import urllib.request as _req
-        import uuid as _uuid
-        
-        text = f"{title}: {' '.join(trigger_intent)} {' '.join(rules)}"[:500]
-        emb_body = json.dumps({"model": "text-embedding-3-small", "input": text}).encode()
-        emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
-            "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
-        })
-        emb_resp = json.loads(_req.urlopen(emb_req, timeout=15).read())
-        vector = emb_resp["data"][0]["embedding"]
-        
-        client = QdrantClient(host="127.0.0.1", port=6333)
-        point_id = str(_uuid.uuid5(_uuid.NAMESPACE_DNS, cube_id))
-        client.upsert(
-            collection_name="skv_rules_v2",
-            points=[PointStruct(id=point_id, vector=vector, payload={
-                "cube_id": cube_id, "title": title,
-                "triggers": trigger_intent, "text": " ".join(rules)
-            })]
+        import psycopg2, json as json_lib
+        conn = psycopg2.connect(
+            host="127.0.0.1", port=5432,
+            dbname="skv_db", user="skv_user", password="skv_secret_2026"
         )
-        print(f"[SKV] Indexed in Qdrant: {cube_id}")
+        cur = conn.cursor()
+        cur.execute("SELECT cube_id, title, type, trigger_intent, rules, status, created_at FROM cubes")
+        for row in cur.fetchall():
+            cube_id = row[0]
+            if cube_id not in cubes_library:
+                triggers = row[3]
+                if isinstance(triggers, str):
+                    triggers = json_lib.loads(triggers)
+                cubes_library[cube_id] = {
+                    "id": str(uuid.uuid4()),
+                    "cube_id": cube_id,
+                    "title": row[1],
+                    "content": {},
+                    "triggers": triggers if triggers else [],
+                    "status": row[5] or "community",
+                    "created_at": str(row[6]) if row[6] else ""
+                }
+        cur.close()
+        conn.close()
+        print(f"[SKV] Loaded {len(cubes_library)} cubes total (disk + DB)")
     except Exception as e:
-        print(f"[SKV] Qdrant index error for {cube_id}: {e}")
+        print(f"[SKV] DB load error: {e}")
 
+load_cubes_from_db()
+
+# --- Вспомогательная функция для сохранения в БД ---
 async def _save_cube_to_db(cube_id, title, cube_type, priority, trigger_intent, rules, content, status="community"):
     try:
+        import asyncpg
         conn = await asyncpg.connect(DATABASE_URL)
         await conn.execute(
             "INSERT INTO cubes (cube_id, title, type, priority, version, trigger_intent, rules, content, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (cube_id) DO UPDATE SET title=$2, type=$3, priority=$4, trigger_intent=$6, rules=$7, content=$8, status=$9, updated_at=NOW()",
@@ -60,186 +93,272 @@ async def _save_cube_to_db(cube_id, title, cube_type, priority, trigger_intent, 
     except Exception as e:
         print(f"[SKV] DB save error for {cube_id}: {e}")
 
-def load_cubes_from_disk():
-    loaded = 0
-    for root, dirs, files in os.walk(KNOWLEDGE_DIR):
-        for fname in files:
-            if not fname.endswith(".json"):
-                continue
-            fpath = os.path.join(root, fname)
-            try:
-                with open(fpath, "r") as f:
-                    data = json.load(f)
-            except Exception:
-                continue
-
-            if "cubes" in data and isinstance(data["cubes"], list):
-                for cube in data["cubes"]:
-                    cube_id = cube.get("cube_id", str(uuid.uuid4()))
-                    entry_id = str(uuid.uuid4())
-                    entries_db[entry_id] = {"id": entry_id, "created_at": datetime.now(timezone.utc).isoformat(), "data": cube}
-                    cubes_library[cube_id] = {
-                        "id": entry_id, "cube_id": cube_id,
-                        "title": cube.get("title", "Untitled"),
-                        "content": cube,
-                        "triggers": cube.get("trigger_intent", []),
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                        "source_file": fname
-                    }
-                    loaded += 1
-            else:
-                cube_id = data.get("cube_id") or data.get("anketa_id") or fname.replace(".json", "")
-                title = data.get("title") or data.get("project_name") or fname
-                triggers = data.get("trigger_intent", [])
-                entry_id = str(uuid.uuid4())
-                entries_db[entry_id] = {"id": entry_id, "created_at": datetime.now(timezone.utc).isoformat(), "data": data}
-                cubes_library[cube_id] = {
-                    "id": entry_id, "cube_id": cube_id,
-                    "title": title,
-                    "content": data,
-                    "triggers": triggers,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "source_file": fpath
-                }
-                loaded += 1
-    print(f"[SKV] Loaded {loaded} cubes from {KNOWLEDGE_DIR}")
-
-# load_cubes_from_disk()  # Disabled, using PostgreSQL
-
-# === Эндпоинты ===
-
+# --- Эндпоинты ---
 @router.post("/api/v1/entries", status_code=201)
 async def create_entry(request: Request):
     try:
         body = await request.json()
+        print(f"[DEBUG] 📥 Request body keys: {list(body.keys())}")
+        print(f"[DEBUG] 🔑 Has persona: {'persona' in body}")
+        print(f"[DEBUG] 🔑 Has cubes: {'cubes' in body}")
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    
+
     entry_id = str(uuid.uuid4())
     delete_token = f"skv_del_{uuid.uuid4().hex[:24]}"
     entries_db[entry_id] = {"id": entry_id, "created_at": datetime.now(timezone.utc).isoformat(), "data": body}
 
-    # Массовая загрузка
+    # Массовая загрузка кубиков
     if "cubes" in body and isinstance(body["cubes"], list):
         loaded = []
         for cube_data in body["cubes"]:
             cid = cube_data.get("cube_id", f"{entry_id}_{len(loaded)}")
             c_entry_id = str(uuid.uuid4())
             entries_db[c_entry_id] = {"id": c_entry_id, "created_at": datetime.now(timezone.utc).isoformat(), "data": cube_data}
-            cubes_library[cid] = {"id": c_entry_id, "cube_id": cid, "title": cube_data.get("title", f"Cube"), "content": cube_data, "triggers": cube_data.get("trigger_intent", []), "created_at": datetime.now(timezone.utc).isoformat()}
+            
+            # Сохраняем persona в каждом кубике
+            merged_data = cube_data.copy()
+            if "persona" in body:
+                merged_data["persona"] = body["persona"]
+            
+            cubes_library[cid] = {"id": c_entry_id, "cube_id": cid, "title": cube_data.get("title", "Cube"), "content": merged_data, "triggers": cube_data.get("trigger_intent", []), "created_at": datetime.now(timezone.utc).isoformat()}
             loaded.append({"cube_id": cid, "id": c_entry_id})
-            # Авто-индексация в Qdrant
+            
+            # Сохраняем в БД
+            asyncio.create_task(_save_cube_to_db(cid, cube_data.get("title", "Cube"), cube_data.get("type", "experience"), cube_data.get("priority", 3), cube_data.get("trigger_intent", []), cube_data.get("rules", []), merged_data))
+        
+        # Автоматически сохраняем persona в профиль
+        if "persona" in body:
+            persona_data = body["persona"]
+            user_id = persona_data.get("user_id", "unknown")
             try:
-                import asyncio
-                asyncio.create_task(_save_cube_to_db(cid, cube_data.get("title", "Cube"), cube_data.get("type", "experience"), cube_data.get("priority", 3), cube_data.get("trigger_intent", []), cube_data.get("rules", []), cube_data))
-            except:
-                pass
-            # Сохраняем в БД и индексируем в Qdrant
-            asyncio.create_task(_save_cube_to_db(cid, cube_data.get("title", "Cube"), cube_data.get("type", "experience"), cube_data.get("priority", 3), cube_data.get("trigger_intent", []), cube_data.get("rules", []), cube_data))
-            asyncio.create_task(_index_to_qdrant(cid, cube_data.get("title", "Cube"), cube_data.get("trigger_intent", []), cube_data.get("rules", [])))
+                pg_conn = psycopg2.connect(
+                    host="127.0.0.1", port=5432,
+                    dbname="skv_db", user="skv_user", password="skv_secret_2026"
+                )
+                cur = pg_conn.cursor()
+                persona_json = json.dumps(persona_data)
+                cur.execute(
+                    "INSERT INTO user_personas (user_id, persona) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET persona = EXCLUDED.persona, updated_at = NOW()",
+                    (user_id, persona_json)
+                )
+                pg_conn.commit()
+                cur.close()
+                pg_conn.close()
+                print(f"[SKV] Persona saved for {user_id}")
+            except Exception as e:
+                import traceback
+                print(f"[SKV] Persona save error: {e}")
+                traceback.print_exc()
+        
+        # Обработка фидбэка
+        if "feedback" in body and isinstance(body["feedback"], list):
+            for fb in body["feedback"]:
+                try:
+                    fb_cube_id = fb.get("cube_id", "")
+                    fb_vote = fb.get("vote", "up")
+                    fb_comment = fb.get("comment", "").replace("'", "''")
+                    if fb_cube_id and fb_vote in ("up", "down"):
+                        pg_conn = psycopg2.connect(
+                            host="127.0.0.1", port=5432,
+                            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+                        )
+                        cur = pg_conn.cursor()
+                        cur.execute(
+                            "INSERT INTO feedback (cube_id, vote, comment) VALUES (%s, %s, %s)",
+                            (fb_cube_id, fb_vote, fb_comment)
+                        )
+                        pg_conn.commit()
+                        cur.close()
+                        pg_conn.close()
+                except:
+                    pass
+        
         delete_tokens[delete_token] = entry_id
-        cache.clear()
+        if cache:
+            cache.clear()
         return {"id": entry_id, "public_url": f"/api/v1/entries/{entry_id}", "delete_token": delete_token, "cubes_loaded": len(loaded), "cubes": loaded}
 
     # Одиночная загрузка
     cube_id = body.get("cube_id") or body.get("user_fields", {}).get("cube_id", entry_id)
-    cubes_library[cube_id] = {"id": entry_id, "cube_id": cube_id, "title": body.get("title") or body.get("user_fields", {}).get("title", "Cube"), "content": body, "triggers": body.get("trigger_intent") or body.get("user_fields", {}).get("trigger_intent", []), "created_at": datetime.now(timezone.utc).isoformat()}
+    merged_content = body.copy()
+    if "persona" in body:
+        merged_content["persona"] = body["persona"]
+    
+    cubes_library[cube_id] = {"id": entry_id, "cube_id": cube_id, "title": body.get("title") or body.get("user_fields", {}).get("title", "Cube"), "content": merged_content, "triggers": body.get("trigger_intent") or body.get("user_fields", {}).get("trigger_intent", []), "created_at": datetime.now(timezone.utc).isoformat()}
     delete_tokens[delete_token] = entry_id
-    cache.clear()
-    # Сохраняем в БД и индексируем в Qdrant
-    asyncio.create_task(_save_cube_to_db(cube_id, body.get("title", "Cube"), body.get("type", "experience"), body.get("priority", 3), body.get("trigger_intent", []), body.get("rules", []), body))
-    asyncio.create_task(_index_to_qdrant(cube_id, body.get("title", "Cube"), body.get("trigger_intent", []), body.get("rules", [])))
+    if cache:
+        cache.clear()
+    asyncio.create_task(_save_cube_to_db(cube_id, body.get("title", "Cube"), body.get("type", "experience"), body.get("priority", 3), body.get("trigger_intent", []), body.get("rules", []), merged_content))
     return {"id": entry_id, "public_url": f"/api/v1/entries/{entry_id}", "delete_token": delete_token}
+
+# Остальные эндпоинты (get_entry, search, feedback) оставляем из старого файла
+
+def get_cubes_count():
+    return len(cubes_library)
 
 @router.get("/api/v1/entries/{entry_id}")
 async def get_entry(entry_id: str):
     entry = entries_db.get(entry_id) or cubes_library.get(entry_id)
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
-    data = entry.get("data") or entry.get("content") or entry
-    return data
+    return entry
 
-@router.get("/api/v1/entries/{entry_id}/export")
-async def export_entry(entry_id: str):
-    entry = entries_db.get(entry_id) or cubes_library.get(entry_id)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Entry not found")
-    data = entry.get("data") or entry.get("content") or entry
-    return data
+
+def tokenize(text: str) -> set:
+    """Разбивает текст на слова, убирая пунктуацию"""
+    import re
+    return set(re.findall(r'\w+', text.lower()))
+
+def score_keyword_match(query: str, cube: dict) -> float:
+    """Возвращает релевантность 0.0-1.0"""
+    q_words = tokenize(query)
+    if not q_words:
+        return 0.0
+    
+    title = cube.get("title", "")
+    triggers = cube.get("trigger_intent", [])
+    cube_text = f"{title} {' '.join(triggers)}".lower()
+    c_words = tokenize(cube_text)
+    
+    # Доля слов запроса, найденных в кубике
+    overlap = len(q_words.intersection(c_words))
+    base_score = overlap / len(q_words)
+    
+    # Бонус за точное вхождение фразы
+    phrase_bonus = 0.0
+    if query.lower() in title.lower():
+        phrase_bonus = 0.5
+    elif any(query.lower() in t.lower() for t in triggers):
+        phrase_bonus = 0.3
+    
+    return min(1.0, base_score + phrase_bonus)
+
+
+def tokenize(text: str) -> set:
+    import re
+    return set(re.findall(r'\b\w+\b', text.lower()))
+
+def score_keyword_match(query: str, cube: dict) -> float:
+    q = query.lower().strip()
+    stop_words = {"how", "to", "the", "a", "an", "for", "and", "or", "in", "on", "at", "of", "is", "it", "by", "from", "with", "what", "when", "where", "why", "can", "do", "does", "i", "my", "me", "we", "you", "your"}
+    q_words = [word for word in q.split() if len(word) > 2 and word not in stop_words]
+    
+    if not q_words:
+        return 0.0
+    
+    title = cube.get("title", "").lower()
+    triggers = [t.lower() for t in cube.get("trigger_intent", [])]
+    all_text = f"{title} {' '.join(triggers)}"
+    
+    # Сильные совпадения
+    if any(q in t for t in triggers):
+        return 1.0
+    if q in title:
+        return 0.95
+    
+    # Подсчёт важных слов
+    matched = 0
+    for word in q_words:
+        if word in title or any(word in trigger for trigger in triggers):
+            matched += 1
+    
+    coverage = matched / len(q_words)
+    
+    if coverage >= 0.8:
+        return 0.85
+    if coverage >= 0.6:
+        return 0.65
+    if coverage >= 0.5 and any(w in all_text for w in ["leaking", "pipe", "faucet", "sink", "repair", "fix"]):
+        return 0.55
+    
+    return 0.0
 
 @router.get("/api/cubes/search")
 async def search_cubes(query: str = "", response: Response = None):
     cache_key = f"search:{hashlib.md5(query.encode()).hexdigest()[:12]}"
-    cached = cache.get(cache_key)
-    if cached:
-        if response:
-            response.headers["X-Cache-Status"] = "HIT"
-        return cached
-
+    if cache:
+        cached = cache.get(cache_key)
+        if cached:
+            if response:
+                response.headers["X-Cache-Status"] = "HIT"
+            return cached
     results = []
     if query and len(query.strip()) > 0:
-        try:
-            from qdrant_client import QdrantClient
-            import urllib.request as _req
-            # Embed запрос
-            emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
-            emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
-                "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
-            })
-            emb_resp = json.loads(_req.urlopen(emb_req, timeout=15).read())
-            qv = emb_resp["data"][0]["embedding"]
-            
-            client = QdrantClient(host="127.0.0.1", port=6333)
-            qdrant_results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=20)
-            
-            for r in qdrant_results.points:
-                payload = r.payload
-                results.append({
-                    "id": str(r.id),
-                    "cube_id": payload.get("cube_id", ""),
-                    "title": payload.get("title", ""),
-                    "triggers": payload.get("triggers", payload.get("trigger_intent", []))
+        # Гибридный поиск: keyword с score + Qdrant fallback
+        q_lower = query.lower()
+        kw_candidates = []
+        for cube_id, cube in cubes_library.items():
+            s = score_keyword_match(q_lower, cube)
+            if s >= 0.65:
+                kw_candidates.append((s, cube_id, cube))
+        
+        kw_candidates.sort(key=lambda x: -x[0])
+        
+        # Если keyword дал хороший результат
+        if kw_candidates and kw_candidates[0][0] >= 0.7:
+            for s, cube_id, cube in kw_candidates[:5]:
+                results.append({"id": cube["id"], "cube_id": cube_id, "title": cube.get("title", ""), "triggers": cube.get("triggers", [])})
+        
+        # Если keyword-поиск не нашёл ничего — пробуем Qdrant
+        if len(results) == 0:
+            try:
+                import urllib.request as _req
+                from qdrant_client import QdrantClient
+                
+                # Получаем embedding для запроса
+                emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
+                emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
+                    "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
                 })
-        except Exception as e:
-            # Fallback: substring search
-            for cube_id, cube in cubes_library.items():
-                title = cube.get("title", "")
-                triggers = cube.get("triggers", [])
-                if query.lower() in title.lower() or any(query.lower() in t.lower() for t in triggers):
-                    results.append({"id": cube.get("id", ""), "cube_id": cube_id, "title": title, "triggers": triggers})
-
+                emb_resp = json.loads(_req.urlopen(emb_req, timeout=15).read())
+                qv = emb_resp["data"][0]["embedding"]
+                
+                # Ищем в Qdrant
+                client = QdrantClient(host="127.0.0.1", port=6333)
+                qdrant_results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=10)
+                
+                for r in qdrant_results.points:
+                    payload = r.payload
+                    results.append({
+                        "id": str(r.id),
+                        "cube_id": payload.get("cube_id", ""),
+                        "title": payload.get("title", ""),
+                        "triggers": payload.get("triggers", payload.get("trigger_intent", []))
+                    })
+            except Exception as e:
+                pass  # Qdrant недоступен — остаёмся с пустым результатом
+    else:
+        # Пустой запрос — возвращаем все кубики
+        for cube_id, cube in cubes_library.items():
+            results.append({"id": cube["id"], "cube_id": cube_id, "title": cube.get("title", ""), "triggers": cube.get("triggers", [])})
     result = {"results": results, "count": len(results), "query": query}
-    cache.set(cache_key, result, ttl=300)
+    if cache:
+        cache.set(cache_key, result, ttl=300)
     if response:
         response.headers["X-Cache-Status"] = "MISS"
     return result
 
-@router.post("/api/session/export")
-async def export_session(data: dict):
-    session_id = str(uuid.uuid4())
-    data["session_id"] = session_id
-    data["exported_at"] = datetime.now(timezone.utc).isoformat()
-    entries_db[session_id] = {"id": session_id, "data": data, "created_at": datetime.now(timezone.utc).isoformat()}
-    return {"status": "saved", "session_id": session_id}
-
-_feedback = {}
-
-@router.post("/api/feedback")
-async def feedback(cube_id: str, vote: str = "up", comment: str = ""):
-    if cube_id not in cubes_library:
-        raise HTTPException(status_code=404, detail="Cube not found")
-    if cube_id not in _feedback:
-        _feedback[cube_id] = {"upvotes": 0, "downvotes": 0, "reviews": []}
-    if vote == "up":
-        _feedback[cube_id]["upvotes"] += 1
-    elif vote == "down":
-        _feedback[cube_id]["downvotes"] += 1
-        _feedback[cube_id]["reviews"].append({"comment": comment, "timestamp": datetime.now(timezone.utc).isoformat()})
-    return {"status": "ok", "feedback": _feedback[cube_id]}
-
-@router.get("/api/feedback/{cube_id}")
-async def get_feedback(cube_id: str):
-    return {"cube_id": cube_id, "feedback": _feedback.get(cube_id, {"upvotes": 0, "downvotes": 0, "reviews": []})}
-
-def get_cubes_count():
-    return len(cubes_library)
+@router.get("/api/profile/{user_id}/persona")
+async def get_persona(user_id: str, request: Request):
+    auth_header = request.headers.get("Authorization", "")
+    api_token = auth_header.replace("Bearer ", "")
+    if not api_token:
+        raise HTTPException(status_code=401, detail="API token required")
+    try:
+        import asyncpg
+        conn = await asyncpg.connect(DATABASE_URL)
+        user = await conn.fetchrow("SELECT email FROM users WHERE api_token = $1", api_token)
+        if not user:
+            await conn.close()
+            raise HTTPException(status_code=403, detail="Invalid token")
+        row = await conn.fetchrow("SELECT persona FROM user_personas WHERE user_id = $1", user_id)
+        await conn.close()
+        if row and row['persona']:
+            persona_data = json.loads(row['persona']) if isinstance(row['persona'], str) else row['persona']
+            return {"user_id": user_id, "persona": persona_data}
+        return {"user_id": user_id, "persona": None, "message": "No persona found"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:200])

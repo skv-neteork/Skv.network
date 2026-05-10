@@ -51,11 +51,11 @@
         <p>Select AI models, paste or drop JSON, click Upload.</p>
 
         <div class="card">
-            <button class="model-btn model-deepseek" onclick="toggleModel('deepseek', this)">DeepSeek 4.0</button>
-            <button class="model-btn model-qwen" onclick="toggleModel('qwen', this)">Qwen 3.6</button>
-            <button class="model-btn model-gpt" onclick="toggleModel('gpt', this)">ChatGPT 5.5</button>
-            <button class="model-btn model-claude" onclick="toggleModel('claude', this)">Claude 4</button>
-            <button class="model-btn model-grok" onclick="toggleModel('grok', this)">Grok 4</button>
+            <button class="model-btn model-deepseek" data-model="deepseek" onclick="toggleModel('deepseek', this)">DeepSeek 4.0</button>
+            <button class="model-btn model-qwen" data-model="qwen" onclick="toggleModel('qwen', this)">Qwen 3.6</button>
+            <button class="model-btn model-gpt" data-model="gpt" onclick="toggleModel('gpt', this)">ChatGPT 5.5</button>
+            <button class="model-btn model-claude" data-model="claude" onclick="toggleModel('claude', this)">Claude 4</button>
+            <button class="model-btn model-grok" data-model="grok" onclick="toggleModel('grok', this)">Grok 4</button>
         </div>
 
         <div class="card">
@@ -107,73 +107,172 @@
         });
 
         async function upload() {
-            const input = document.getElementById('jsonInput').value.trim();
-            if (!input) return;
-
-            const btn = document.getElementById('uploadBtn');
-            btn.textContent = 'Processing...';
-            btn.disabled = true;
-
-            let project;
-            try { project = JSON.parse(input); } catch(e) { btn.textContent = 'Upload'; btn.disabled = false; return; }
-
-            await fetch('/api/v1/entries', { method:'POST', headers:{'Content-Type':'application/json'}, body:input }).catch(()=>{});
-
-            // Если есть outputs — сначала генерируем файлы
-            if (project.outputs && project.outputs.length) {
-                try {
-                    const r = await fetch('/api/tools/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cube_id:project.cube_id||'project',title:project.title,rules:project.rules||[],outputs:project.outputs,chart_config:project.chart_config||{}}) });
-                    const d = await r.json();
-                    if (d.files && d.files[0] && d.files[0].url) {
-                        btn.textContent = 'Download ' + (d.files[0].type || 'File').toUpperCase();
-                        btn.classList.add('btn-download');
-                        btn.onclick = () => { const a = document.createElement('a'); a.href = d.files[0].url; a.download = d.files[0].url.split('/').pop(); document.body.appendChild(a); a.click(); document.body.removeChild(a); };
-                        document.getElementById('jsonInput').value = '';
-                        selected.clear();
-                        document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('selected'));
-                        btn.disabled = false;
-                        return;
+    const input = document.getElementById('jsonInput').value.trim();
+    if (!input) return;
+    
+    let project;
+    try { project = JSON.parse(input); } catch(e) { return; }
+    
+    const btn = document.getElementById('uploadBtn');
+    
+    // Если есть action — выполняем через /api/execute
+    if (project.action) {
+        btn.textContent = 'Executing...';
+        btn.disabled = true;
+        
+        try {
+            const resp = await fetch('/api/execute', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: input
+            });
+            const result = await resp.json();
+            
+            if (result.status === 'success') {
+                const card = document.querySelector('.card:last-of-type');
+                if (result.file_url) {
+                    const url = result.file_url.replace("/downloads/", "/api/execute/file/");
+                    if (project.action === 'generate_image') {
+                        card.innerHTML += `<div style="margin-top:16px;text-align:center">
+                            <img src="${url}" style="max-width:100%;border-radius:8px" alt="Generated">
+                            <p style="color:#3fb950;margin-top:8px">✅ Done! <a href="${url}" download>Download</a></p>
+                        </div>`;
+                    } else {
+                        card.innerHTML += `<div style="margin-top:16px;text-align:center">
+                            <p style="color:#3fb950">✅ Done! <a href="${url}" download>Download</a></p>
+                        </div>`;
                     }
-                } catch(e) {}
-            }
-
-            // Консультации (если выбраны модели)
-            const results = [];
-            for (const m of selected) {
-                try {
-                    const r = await fetch('/api/consult', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:project.title||project.cube_id, model:m}) });
-                    const d = await r.json();
-                    if (d.answer) results.push('=== ' + m.toUpperCase() + ' ===\n' + d.answer + '\n');
-                } catch(e) {}
-            }
-
-            if (results.length > 0) {
-                const blob = new Blob([results.join('\n\n')], {type:'text/plain'});
-                const url = URL.createObjectURL(blob);
-                btn.textContent = 'Download TXT';
-                btn.classList.add('btn-download');
-                btn.onclick = () => { const a = document.createElement('a'); a.href = url; a.download = 'skv-results.txt'; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
+                } else if (result.files) {
+                    let html = '<div style="margin-top:16px">';
+                    result.files.forEach(f => {
+                        const url = f.file_url.replace("/downloads/", "/api/execute/file/");
+                        if (f.type === 'image') {
+                            html += `<div style="text-align:center;margin-bottom:16px">
+                                <img src="${url}" style="max-width:100%;border-radius:8px" alt="Generated">
+                                <p style="color:#3fb950">✅ ${f.type} <a href="${url}" download>Download</a></p>
+                            </div>`;
+                        } else {
+                            html += `<div style="text-align:center;margin-bottom:8px">
+                                <p style="color:#3fb950">✅ ${f.type.toUpperCase()} <a href="${url}" download>Download</a></p>
+                            </div>`;
+                        }
+                    });
+                    html += '</div>';
+                    card.innerHTML += html;
+                }
+                document.getElementById('jsonInput').value = '';
             } else {
-                btn.textContent = 'Done';
-                setTimeout(() => { btn.textContent = 'Upload'; btn.classList.remove('btn-download'); }, 2000);
+                alert('Error: ' + (result.message || 'Unknown'));
             }
-
-            document.getElementById('jsonInput').value = '';
-            selected.clear();
-            document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('selected'));
-            btn.disabled = false;
+        } catch(e) {
+            alert('Error: ' + e.message);
         }
-
-        (function() {
-            const email = localStorage.getItem('skv_email');
-            const token = localStorage.getItem('skv_token');
-            if (email && token) {
-                const link = document.getElementById('navProfileLink');
-                if (link) link.textContent = '⚡ ' + email.split('@')[0];
-                const status = document.getElementById('navStatus');
-                if (status) { status.textContent = '✓ Logged in'; status.style.color = '#3fb950'; }
+        
+        btn.textContent = 'Upload';
+        btn.disabled = false;
+        document.getElementById('jsonInput').value = '';
+        return;
+    }
+    
+    // Если нет action — обычная загрузка кубиков
+    btn.textContent = 'Uploading...';
+    btn.disabled = true;
+    try {
+        // Если вставлен массив — оборачиваем в {"cubes": ...}
+        let payload = input;
+        try {
+            const parsed = JSON.parse(input);
+            if (Array.isArray(parsed)) {
+                payload = JSON.stringify({cubes: parsed});
+            } else if (parsed.persona && !parsed.persona.user_id) {
+                const email = localStorage.getItem('skv_email');
+                if (email) {
+                    parsed.persona.user_id = email;
+                    payload = JSON.stringify(parsed);
+                }
             }
-        })();
-    </script>
+        } catch(e) {}
+        
+        const resp = await fetch('/api/v1/entries', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: payload
+        });
+        if (resp.ok) {
+            alert('Cube uploaded! Starting consultation...');
+            
+            // Запускаем консультацию для выбранных моделей
+            const selectedModels = [];
+            document.querySelectorAll('.model-btn.selected').forEach(btn => {
+                const model = btn.getAttribute('data-model');
+                if (model) selectedModels.push(model);
+            });
+            
+            if (selectedModels.length > 0 && project.instructions && project.instructions.prompt) {
+                const consultArea = document.createElement('div');
+                consultArea.style.marginTop = '16px';
+                consultArea.innerHTML = '<h3 style="color:#f0883e">Consultation Results:</h3>';
+                document.querySelector('.card:last-of-type').appendChild(consultArea);
+                
+                // Последовательно отправляем запросы с задержкой 1 сек
+                (async () => {
+                    for (const model of selectedModels) {
+                        try {
+                            const resp = await fetch('/api/consult', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({query: project.instructions.prompt, model: model})
+                            });
+                            if (!resp.ok) {
+                                const text = await resp.text();
+                                throw new Error(text.substring(0, 100));
+                            }
+                            const result = await resp.json();
+                            const answer = result.answer || 'No response';
+                            consultArea.innerHTML += `<div style="margin-top:8px;padding:8px;background:#161b22;border-radius:6px">
+                                <strong style="color:#f0883e">${model.toUpperCase()}:</strong>
+                                <p style="color:#c9d1d9;font-size:13px;margin-top:4px">${answer.substring(0, 300)}</p>
+                            </div>`;
+                        } catch(e) {
+                            consultArea.innerHTML += `<div style="margin-top:8px"><strong style="color:#f0883e">${model.toUpperCase()}:</strong> <span style="color:red">Error: ${e.message}</span></div>`;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                    // Кнопка скачивания результатов
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.textContent = '📥 Скачать результаты консультации';
+                    downloadBtn.style.cssText = 'margin-top:16px;padding:10px 20px;background:#1f6feb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px';
+                    downloadBtn.onclick = () => {
+                        const items = consultArea.querySelectorAll('div > strong');
+                        let text = 'SKV Consultation Results\n' + '='.repeat(30) + '\n\n';
+                        items.forEach(item => {
+                            const model = item.textContent.replace(':', '').trim();
+                            const answerEl = item.nextElementSibling;
+                            const answer = answerEl ? answerEl.textContent.trim() : '';
+                            text += '### ' + model + '\n' + answer + '\n\n';
+                        });
+                        const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'skv_consultation_results.txt';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    };
+                    consultArea.appendChild(downloadBtn);
+                })();
+            }
+            document.getElementById('jsonInput').value = '';
+        } else {
+            alert('Upload failed: ' + resp.status);
+        }
+    } catch(e) {
+        alert('Error: ' + e.message);
+    }
+    btn.textContent = 'Upload';
+    btn.disabled = false;
+}
+
+</script>
 </body>
 </html>

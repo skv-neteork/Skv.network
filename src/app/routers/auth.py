@@ -3,6 +3,7 @@ import asyncpg
 import os
 import secrets
 import hashlib
+import uuid
 import requests
 import json
 
@@ -138,9 +139,11 @@ async def login(request: Request):
             await conn.close()
             raise HTTPException(status_code=403, detail="Email not confirmed")
 
-        token = secrets.token_hex(16)
+        # Генерируем и сохраняем постоянный API-токен
+        api_token = str(uuid.uuid4())
+        await conn.execute("UPDATE users SET api_token = $1 WHERE id = $2", api_token, user["id"])
         await conn.close()
-        return {"status": "ok", "token": token}
+        return {"status": "ok", "api_token": api_token, "message": "Use this token in Authorization header to access your personal data."}
     except HTTPException:
         raise
     except Exception as e:

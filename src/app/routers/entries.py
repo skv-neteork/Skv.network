@@ -121,6 +121,17 @@ async def create_entry(request: Request):
             if "persona" in body:
                 merged_data["persona"] = body["persona"]
             
+            # Нормализация правил (если пришли как словари)
+            raw_rules = cube_data.get("rules", [])
+            normalized_rules = []
+            for r in raw_rules:
+                if isinstance(r, dict):
+                    normalized_rules.append(r.get("rule", str(r)))
+                elif isinstance(r, str):
+                    normalized_rules.append(r)
+                else:
+                    normalized_rules.append(str(r))
+            cube_data["rules"] = normalized_rules
             cubes_library[cid] = {"id": c_entry_id, "cube_id": cid, "title": cube_data.get("title", "Cube"), "content": merged_data, "triggers": cube_data.get("trigger_intent", []), "created_at": datetime.now(timezone.utc).isoformat()}
             loaded.append({"cube_id": cid, "id": c_entry_id})
             

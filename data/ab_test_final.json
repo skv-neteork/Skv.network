@@ -1,0 +1,103 @@
+{
+  "results": [
+    {
+      "question": "How to fix a leaking faucet?",
+      "skv_answer": "Based on the SKV Constitution, I\u2019ll answer helpfully and transparently. The provided sources list \u201cHow to Fix a Leaking Faucet:\u201d but contain no actual steps. Therefore, I\u2019ll share general knowledge (not from those sources) to assist you.\n\n---\n\n**How to Fix a Leaking Faucet (General Guide)**\n\nA leaki",
+      "skv_cubes": [
+        "cube_exp_fix_leaking_faucet",
+        "cube_exp_fix_running_toilet_01",
+        "cube_exp_unclog_sink_01"
+      ],
+      "direct_answer": "This is a very common DIY fix. The key to fixing it correctly is to first identify what **type** of faucet you have, as the internal mechanism differs.\n\n**\u26a0\ufe0f Before you start: Turn off the water!**\nLocate the shut-off valves under the sink (usually two: one for hot, one for cold). Turn them clockwis"
+    },
+    {
+      "question": "How to change a car tire safely?",
+      "skv_answer": "Here\u2019s a safe, step-by-step guide to changing a car tire, based on general automotive safety principles from the SKV knowledge base. Always prioritize your safety and follow your vehicle\u2019s owner manual.\n\n---\n\n### \ud83d\uded1 Before You Start \u2013 Safety First\n- **Park on a flat, stable surface** away from traffi",
+      "skv_cubes": [
+        "cube_exp_change_car_tire_01",
+        "cube_exp_change_engine_oil",
+        "cube_exp_jump_start_car"
+      ],
+      "direct_answer": "This is a great question, and prioritizing safety is absolutely the right approach. Changing a tire is a straightforward task, but a mistake can lead to serious injury, especially if you're on the side of a road.\n\nHere is a step-by-step guide on how to change a car tire safely.\n\n### Before You Start"
+    },
+    {
+      "question": "How to start saving money from zero?",
+      "skv_answer": "Great question! Starting from zero can feel overwhelming, but it\u2019s absolutely doable with a clear plan. Based on the SKV knowledge cubes you shared, here\u2019s a step\u2011by\u2011step guide that combines budgeting, emergency savings, and investing \u2014 in that order.\n\n---\n\n### 1. **Create a Monthly Budget**  \n*Sour",
+      "skv_cubes": [
+        "cube_exp_emergency_fund_01",
+        "cube_exp_beginner_investing",
+        "cube_exp_create_monthly_budget"
+      ],
+      "direct_answer": "This is a fantastic question because it addresses the most crucial hurdle: the psychology of starting when the numbers look too small to matter.\n\nStarting from zero isn't about deprivation;"
+    },
+    {
+      "question": "How to meditate for beginners?",
+      "skv_answer": "Of course! Here\u2019s a beginner-friendly guide to meditation, drawn from the SKV knowledge base (cube #042: \"Mindfulness Fundamentals\"). I\u2019ll keep it simple, safe, and transparent.\n\n---\n\n## \ud83e\uddd8 How to Meditate for Beginners\n\nMeditation is a practice of training your attention and awareness. It doesn\u2019t re",
+      "skv_cubes": [
+        "cube_exp_meditation_beginners_01",
+        "cube_exp_beginner_investing",
+        "cube_exp_hobby_drawing_01"
+      ],
+      "direct_answer": "This is a great question. The most important thing to know as a beginner is that meditation is a **skill**, not a perfect state of mind. You won't \"empty your mind.\" You'll learn to notice when your mind wanders and gently bring it back. That back-and-forth *is* the practice.\n\nHere is a simple, step"
+    },
+    {
+      "question": "How to write a resume that gets interviews?",
+      "skv_answer": "Of course! Based on the SKV Constitution's principles of transparency and citing sources, here's a helpful guide on how to write a resume that gets interviews, drawing from the knowledge cubes you've found.\n\n### How to Write a Resume That Gets Interviews\n\nA resume isn't just a list of jobs; it's a m",
+      "skv_cubes": [
+        "cube_exp_resume_interviews_01",
+        "cube_exp_improve_writing"
+      ],
+      "direct_answer": "This is the single most important question in a job search. The answer isn't about listing your duties; it's about **proving you can solve the employer's specific problems.**\n\nHere is the exact formula to write a resume that doesn't just get read, but *gets you an interview*. We'll break it down int"
+    },
+    {
+      "question": "How to remove red wine stains from carpet?",
+      "skv_answer": "Based on the SKV knowledge base (cube #042: \"Red Wine Stain Removal\"), here\u2019s a safe, step\u2011by\u2011step method to remove red wine stains from carpet:\n\n1. **Blot immediately** \u2013 Use a clean, white cloth or paper towel to gently blot (don\u2019t rub) the stain, absorbing as much wine as possible.\n2. **Apply sal",
+      "skv_cubes": [
+        "cube_exp_remove_wine_stains_01",
+        "cube_exp_remove_mold_bathroom_01"
+      ],
+      "direct_answer": "Here\u2019s a step-by-step guide to removing a red wine stain from carpet. **Time is critical**\u2014the faster you act, the better your chances of complete removal.\n\n### 1. Blot, Don\u2019t Rub!\n- Grab a clean, white cloth (or paper towels).\n- **Gently blot** the stain to absorb as much wine as possible. Press do"
+    },
+    {
+      "question": "How to build an emergency fund?",
+      "skv_answer": "Based on the SKV knowledge cube **\"How to Build an Emergency Fund from Scratch\"**, here\u2019s a clear, step-by-step guide:\n\n1. **Set a target amount** \u2013 Aim for 3\u20136 months of essential living expenses (rent, food, utilities, insurance). Start with a smaller goal like $1,000 if that feels more achievable",
+      "skv_cubes": [
+        "cube_exp_emergency_fund_01",
+        "cube_exp_beginner_investing",
+        "cube_exp_build_basic_budget"
+      ],
+      "direct_answer": ""
+    },
+    {
+      "question": "How to clean a laptop screen safely?",
+      "skv_answer": "To safely clean a laptop screen, you should follow the best practices from the SKV cube **How to Properly Clean Electronic Devices**. Here\u2019s the safe method:\n\n1. **Power off & unplug** the laptop to avoid electrical damage and see smudges clearly.\n2. **Use a soft, lint-free microfiber cloth** (never",
+      "skv_cubes": [
+        "cube_exp_clean_electronic_devices",
+        "cube_exp_clean_stainless_steel_01"
+      ],
+      "direct_answer": "Here\u2019s a safe, step-by-step guide to clean your laptop screen without damaging it.\n\n### \u26a0\ufe0f **The Golden Rule: NEVER spray liquid directly on the screen.**\nLiquid can drip down into the bezel edges, damaging internal components and voiding your warranty.\n\n### \ud83d\udee0\ufe0f **What You\u2019ll Need**\n- **Two soft, lin"
+    },
+    {
+      "question": "How to overcome procrastination?",
+      "skv_answer": "As SKV Assistant, I'm here to help you overcome procrastination using the knowledge embedded in SKV\u2019s 1001+ cubes. While the specific cubes you\u2019ve listed focus on public speaking, productivity, and study strategies, the **\"How to Boost Daily Productivity\"** cube is directly relevant. Based on that a",
+      "skv_cubes": [
+        "cube_exp_public_speaking_01",
+        "cube_exp_improve_productivity",
+        "cube_exp_edu_exam_prep_01"
+      ],
+      "direct_answer": ""
+    },
+    {
+      "question": "What is the capital of France?",
+      "skv_answer": "The capital of France is **Paris**. \n\nThis is a well-established geographical fact, widely documented in reliable sources such as encyclopedias and official government references. If you need further details about Paris or France, feel free to ask! \n\n*\u2014 SKV Assistant, powered by SKV Network (https:/",
+      "skv_cubes": [],
+      "direct_answer": "The capital of France is Paris."
+    }
+  ],
+  "summary": {
+    "skv_avg_ms": 15428,
+    "direct_avg_ms": 11821,
+    "hit_rate": "9/10",
+    "cubes_total": 24
+  }
+}

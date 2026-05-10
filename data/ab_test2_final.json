@@ -1,0 +1,99 @@
+{
+  "results": [
+    {
+      "question": "How to paint a room like a professional?",
+      "skv_answer": "Here\u2019s a professional step-by-step guide to painting a room like a pro, following SKV principles of safety, transparency, and helpfulness.\n\n---\n\n### \ud83d\udee0\ufe0f 1. Prepare the Room (The Pro\u2019s Secret)\n- **Clear",
+      "skv_cubes": [
+        "cube_exp_hobby_drawing_01"
+      ],
+      "direct_answer": "Painting a room like a professional is less about raw talent and more about **process, tools, and patience**. Pros spend 80% of their time on"
+    },
+    {
+      "question": "How to grow tomatoes on a balcony?",
+      "skv_answer": "Based on the SKV Constitution (safety first, transparency, citing sources) and the two referenced guides\u2014**How to Grow Tomatoes on a Balcony** and **Growing Healthy Tomatoes in Small Spaces**\u2014here is ",
+      "skv_cubes": [
+        "cube_exp_grow_tomatoes_balcony_01",
+        "cube_exp_garden_tomato_01"
+      ],
+      "direct_answer": ""
+    },
+    {
+      "question": "How to negotiate a better salary?",
+      "skv_answer": "I\u2019m here to help you negotiate a better salary\u2014ethically and effectively. Based on two relevant entries from the **SKV knowledge base** (which contains 1001+ practical cubes), here are proven strategi",
+      "skv_cubes": [
+        "cube_exp_negotiate_salary_01",
+        "cube_exp_biz_negotiation_01",
+        "cube_sql_second_highest_01_v1"
+      ],
+      "direct_answer": "This is a great question. Negotiating a better salary is a critical career skill. It's not about being demanding; it's about demonstrating your value and finding a fair agreement. Here\u2019s a structured,"
+    },
+    {
+      "question": "How to learn a foreign language in 3 months?",
+      "skv_answer": "I'm SKV Assistant, powered by SKV Network \u2014 an open knowledge base of 1001+ atomic rules (cubes) that help AI agents share memory and practical skills. I can help you with language learning, generate ",
+      "skv_cubes": [
+        "cube_exp_hobby_music_01"
+      ],
+      "direct_answer": "Learning a foreign language in 3 months is an ambitious but achievable goal, provided you have the right strategy, intense focus, and consistent daily effort. While you won't reach native fluency, you"
+    },
+    {
+      "question": "How to fix a running toilet?",
+      "skv_answer": "Here's a step-by-step guide to fixing a running toilet, based on common household plumbing knowledge. A running toilet is usually caused by a faulty flapper, fill valve, or float. Always turn off the ",
+      "skv_cubes": [
+        "cube_exp_fix_running_toilet_01",
+        "cube_exp_fix_leaking_faucet",
+        "cube_exp_unclog_sink_01"
+      ],
+      "direct_answer": "# Fixing a Running Toilet: Step-by-Step Guide\n\nA running toilet is annoying and can waste hundreds of gallons of water per day. Fortunately, it's usually an easy DIY fix. Here's a systematic guide to "
+    },
+    {
+      "question": "How to roast a whole chicken?",
+      "skv_answer": "Hello! I'm SKV Assistant, powered by the SKV Network \u2014 an open knowledge base of 1001+ atomic rules (cubes) for AI agents. I'm happy to help you roast a whole chicken safely and deliciously. \ud83d\udc14\n\nBelow ",
+      "skv_cubes": [
+        "cube_exp_roast_whole_chicken"
+      ],
+      "direct_answer": "Here is a comprehensive guide to roasting a whole chicken that results in crispy skin and juicy meat. I'll cover the classic method, plus a few tips for extra flavor.\n\n### The Short Answer (Quick Reci"
+    },
+    {
+      "question": "How to improve sleep quality naturally?",
+      "skv_answer": "Based on the **SKV Knowledge Base** (cube: *How to Improve Sleep Quality Naturally*), here are evidence-backed, natural strategies to enhance your sleep:\n\n1. **Maintain a consistent sleep schedule** \u2013",
+      "skv_cubes": [
+        "cube_exp_sleep_better_01",
+        "cube_exp_build_morning_routine",
+        "cube_exp_improve_writing"
+      ],
+      "direct_answer": "Improving sleep quality naturally involves adopting healthy habits and creating an environment conducive to rest. Here are evidence-based strategies:\n\n### 1. Establish a Consistent Sleep Schedule\n- Go"
+    },
+    {
+      "question": "How to give constructive feedback at work?",
+      "skv_answer": "# How to Give Constructive Feedback at Work\n\nGiving constructive feedback is a vital skill for professional growth and team collaboration. Here's a practical framework based on SKV's knowledge base:\n\n",
+      "skv_cubes": [
+        "cube_basic_feedback_01",
+        "cube_exp_improve_writing",
+        "cube_exp_project_consultation"
+      ],
+      "direct_answer": ""
+    },
+    {
+      "question": "How to parallel park a car perfectly?",
+      "skv_answer": "Here\u2019s a step-by-step guide to parallel park perfectly, following SKV\u2019s safety-first approach.\n\n---\n\n### Perfect Parallel Parking \u2013 Step by Step\n\n1. **Find a suitable space**  \n   The gap should be at",
+      "skv_cubes": [
+        "cube_exp_parallel_parking_01",
+        "cube_exp_change_car_tire_01",
+        "cube_exp_jump_start_car"
+      ],
+      "direct_answer": "This is a classic driving challenge. The key to a perfect parallel park isn't luck, but a predictable, repeatable process using **reference points** on your car.\n\nHere is the step-by-step method for a"
+    },
+    {
+      "question": "What year did World War II end?",
+      "skv_answer": "World War II ended in **1945**. The war in Europe concluded on May 8 (V-E Day), and the war in the Pacific ended on September 2 (V-J Day) after the surrender of Japan.\n\n**Source:** History.com \u2013 \u201cWorl",
+      "skv_cubes": [],
+      "direct_answer": "World War II ended in **1945**. \n\nThe war concluded with the surrender of Germany in May (Victory in Europe Day) and the surrender of Japan in September (Victory over Japan Day), following the atomic "
+    }
+  ],
+  "summary": {
+    "skv_avg_ms": 15010,
+    "direct_avg_ms": 10231,
+    "hit_rate": "9/10",
+    "cubes_total": 20
+  }
+}

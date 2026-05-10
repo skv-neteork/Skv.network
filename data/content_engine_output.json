@@ -1,0 +1,2293 @@
+{
+  "cubes": [
+    {
+      "title": "Fix Leaks Fast",
+      "trigger_intent": [
+        "leaking faucet",
+        "fix faucet",
+        "stop leak",
+        "faucet repair",
+        "DIY plumbing",
+        "water leak"
+      ],
+      "rationale": "Fixing a leaking faucet can save water and money. A leaky faucet can waste up to 20 gallons of water per day. This guide provides step-by-step instructions to fix a leaking faucet.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST turn off water supply"
+        },
+        {
+          "rule": "WARNING: avoid scalding from hot water"
+        },
+        {
+          "rule": "PROHIBITED: use pliers on faucet handles"
+        },
+        {
+          "rule": "MUST disconnect water supply lines"
+        },
+        {
+          "rule": "WARNING: beware of sharp edges on pipes"
+        },
+        {
+          "rule": "MUST remove old O-ring or gasket"
+        },
+        {
+          "rule": "PROHIBITED: overtighten faucet parts"
+        },
+        {
+          "rule": "MUST apply plumber's grease to new O-ring"
+        },
+        {
+          "rule": "WARNING: test water pressure carefully"
+        },
+        {
+          "rule": "MUST check for leaks after repair"
+        }
+      ],
+      "cube_id": "cube_exp_fix_leaks_fast"
+    },
+    {
+      "title": "Unclog Sink",
+      "trigger_intent": [
+        "kitchen sink clog",
+        "unclog drain",
+        "sink blockage",
+        "plumbing issues",
+        "clogged sink",
+        "drain cleaning"
+      ],
+      "rationale": "Unclogging a kitchen sink drain can save time and money by avoiding professional plumbing services. It also helps to prevent water damage and reduces the risk of health hazards. Regular maintenance can prevent future clogs.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST turn off water supply"
+        },
+        {
+          "rule": "PROHIBITED using harsh chemicals"
+        },
+        {
+          "rule": "WARNING: wear gloves for protection"
+        },
+        {
+          "rule": "MUST use plunger to loosen clog"
+        },
+        {
+          "rule": "WARNING: avoid using drain snakes excessively"
+        },
+        {
+          "rule": "MUST check for visible blockages"
+        },
+        {
+          "rule": "PROHIBITED sharing plumbing tools"
+        },
+        {
+          "rule": "WARNING: be cautious with hot water"
+        },
+        {
+          "rule": "MUST test drain after unclogging"
+        }
+      ],
+      "cube_id": "cube_exp_unclog_sink"
+    },
+    {
+      "title": "Fix Drywall",
+      "trigger_intent": [
+        "drywall repair",
+        "patch drywall",
+        "drywall hole",
+        "home improvement",
+        "DIY projects",
+        "wall repair"
+      ],
+      "rationale": "Patching drywall holes perfectly is crucial for a smooth finish and to prevent further damage. A well-patched drywall hole can save time and money in the long run. With the right techniques, anyone can achieve professional-looking results.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST clean area around hole"
+        },
+        {
+          "rule": "PROHIBITED use of wrong joint compound"
+        },
+        {
+          "rule": "WARNING wear protective gloves"
+        },
+        {
+          "rule": "MUST apply thin joint compound layer"
+        },
+        {
+          "rule": "WARNING avoid over-sanding"
+        },
+        {
+          "rule": "MUST press patch firmly into place"
+        },
+        {
+          "rule": "PROHIBITED skip drying time"
+        },
+        {
+          "rule": "WARNING keep area well-ventilated"
+        },
+        {
+          "rule": "MUST inspect patch for air bubbles"
+        },
+        {
+          "rule": "MUST sand lightly between coats"
+        }
+      ],
+      "cube_id": "cube_exp_fix_drywall"
+    },
+    {
+      "title": "Paint Pro",
+      "trigger_intent": [
+        "paint a room",
+        "professional painting",
+        "interior design",
+        "home decor",
+        "DIY painting",
+        "room painting tips"
+      ],
+      "rationale": "Painting a room like a professional can increase the value of your home and enhance its aesthetic appeal. With the right techniques and tools, you can achieve a high-quality finish. This cube provides actionable rules to help you get started.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST prepare surface"
+        },
+        {
+          "rule": "PROHIBITED use low-quality paint"
+        },
+        {
+          "rule": "WARNING wear protective gear"
+        },
+        {
+          "rule": "MUST tape off trim"
+        },
+        {
+          "rule": "WARNING avoid breathing fumes"
+        },
+        {
+          "rule": "MUST prime dark walls"
+        },
+        {
+          "rule": "PROHIBITED overload roller"
+        },
+        {
+          "rule": "MUST work in sections"
+        },
+        {
+          "rule": "WARNING clean up spills"
+        },
+        {
+          "rule": "MUST inspect for mistakes"
+        }
+      ],
+      "cube_id": "cube_exp_paint_pro"
+    },
+    {
+      "title": "Fix Leaks",
+      "trigger_intent": [
+        "running toilet",
+        "toilet repair",
+        "fix leaky toilet",
+        "toilet troubleshooting",
+        "DIY plumbing",
+        "bathroom fix"
+      ],
+      "rationale": "Fixing a running toilet can save water and money. A running toilet can waste up to 200 gallons of water per day. By following these steps, you can fix the issue quickly and easily.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST turn off water supply"
+        },
+        {
+          "rule": "PROHIBITED using harsh chemicals"
+        },
+        {
+          "rule": "WARNING: avoid electrical shock"
+        },
+        {
+          "rule": "MUST wear gloves for protection"
+        },
+        {
+          "rule": "WARNING: beware of overflowing water"
+        },
+        {
+          "rule": "MUST inspect flapper for damage"
+        },
+        {
+          "rule": "PROHIBITED over-tightening toilet parts"
+        },
+        {
+          "rule": "MUST test toilet after repair"
+        },
+        {
+          "rule": "WARNING: check for hidden leaks"
+        },
+        {
+          "rule": "MUST follow manufacturer instructions"
+        }
+      ],
+      "cube_id": "cube_exp_fix_leaks"
+    },
+    {
+      "title": "Mold Free",
+      "trigger_intent": [
+        "remove mold",
+        "bathroom silicone",
+        "mold removal",
+        "silicone cleaning",
+        "bathroom maintenance",
+        "mold prevention"
+      ],
+      "rationale": "Removing mold from bathroom silicone is crucial for a healthy and clean environment. This cube provides essential steps to achieve this. By following these rules, users can ensure their bathroom remains mold-free and well-maintained.",
+      "rules": [
+        {
+          "rule": "MUST wear gloves"
+        },
+        {
+          "rule": "PROHIBITED use bleach"
+        },
+        {
+          "rule": "WARNING avoid inhalation"
+        },
+        {
+          "rule": "MUST use soap water"
+        },
+        {
+          "rule": "WARNING prevent slipping"
+        },
+        {
+          "rule": "MUST scrub gently"
+        },
+        {
+          "rule": "PROHIBITED use abrasive"
+        },
+        {
+          "rule": "WARNING check ventilation"
+        },
+        {
+          "rule": "MUST rinse thoroughly"
+        },
+        {
+          "rule": "MUST dry surface"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_mold_free"
+    },
+    {
+      "title": "Safe Switch",
+      "trigger_intent": [
+        "replace light switch",
+        "electrical safety",
+        "DIY tips",
+        "home improvement",
+        "lighting repair",
+        "safety precautions"
+      ],
+      "rationale": "Replacing a light switch can be a daunting task, but with the right guidance, it can be done safely and efficiently. This cube provides essential rules to follow for a successful replacement. By following these rules, individuals can avoid common mistakes and ensure their safety.",
+      "rules": [
+        {
+          "rule": "MUST turn off power"
+        },
+        {
+          "rule": "PROHIBITED to touch wires"
+        },
+        {
+          "rule": "WARNING: risk of shock"
+        },
+        {
+          "rule": "MUST use voltage tester"
+        },
+        {
+          "rule": "WARNING: electrical fire risk"
+        },
+        {
+          "rule": "MUST wear protective gear"
+        },
+        {
+          "rule": "PROHIBITED to overload circuits"
+        },
+        {
+          "rule": "MUST follow manufacturer instructions"
+        },
+        {
+          "rule": "WARNING: improper installation risks"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_safe_switch"
+    },
+    {
+      "title": "Silent Doors",
+      "trigger_intent": [
+        "stop squeaking",
+        "door maintenance",
+        "silence doors",
+        "reduce noise",
+        "door repair",
+        "squeaky door fix"
+      ],
+      "rationale": "A squeaky door can be annoying and disturbing. Fixing it can improve the overall quality of life. Regular maintenance can prevent future issues.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST tighten loose hinges"
+        },
+        {
+          "rule": "PROHIBITED use wrong lubricant"
+        },
+        {
+          "rule": "WARNING avoid over-tightening"
+        },
+        {
+          "rule": "MUST check door alignment"
+        },
+        {
+          "rule": "WARNING beware of sharp edges"
+        },
+        {
+          "rule": "MUST use silicone spray"
+        },
+        {
+          "rule": "PROHIBITED force door open"
+        },
+        {
+          "rule": "WARNING protect floor from spills"
+        },
+        {
+          "rule": "MUST test door after fix"
+        }
+      ],
+      "cube_id": "cube_exp_silent_doors"
+    },
+    {
+      "title": "Streak-Free Steel",
+      "trigger_intent": [
+        "clean stainless steel",
+        "stainless steel cleaning",
+        "remove streaks",
+        "stainless steel appliances",
+        "cleaning tips",
+        "steel maintenance"
+      ],
+      "rationale": "Cleaning stainless steel appliances without streaks can enhance their appearance and durability. This requires careful techniques and materials. Proper cleaning can prevent damage and maintain the appliances' shine.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST use microfiber cloth"
+        },
+        {
+          "rule": "PROHIBITED to use abrasive cleaners"
+        },
+        {
+          "rule": "WARNING: Avoid bleach for discoloration risk"
+        },
+        {
+          "rule": "MUST dilute vinegar with water"
+        },
+        {
+          "rule": "WARNING: Never use steel wool for scratching risk"
+        },
+        {
+          "rule": "MUST clean in the direction of grain"
+        },
+        {
+          "rule": "PROHIBITED to use paper towels"
+        },
+        {
+          "rule": "WARNING: Wear gloves to prevent skin irritation"
+        },
+        {
+          "rule": "MUST dry with a clean towel"
+        },
+        {
+          "rule": "WARNING: Avoid cleaning in direct sunlight"
+        }
+      ],
+      "cube_id": "cube_exp_streak_free_steel"
+    },
+    {
+      "title": "Stain Free",
+      "trigger_intent": [
+        "carpet stain removal",
+        "permanent stain removal",
+        "remove tough stains",
+        "carpet cleaning",
+        "stain removal tips",
+        "cleaning solutions"
+      ],
+      "rationale": "Removing carpet stains permanently can be a challenging task, but with the right techniques and precautions, it can be achieved. This cube provides a set of rules to help users remove carpet stains effectively. By following these rules, users can save time and effort, and enjoy a stain-free carpet.",
+      "rules": [
+        {
+          "rule": "MUST act quickly on stains"
+        },
+        {
+          "rule": "PROHIBITED using harsh chemicals"
+        },
+        {
+          "rule": "WARNING: wear gloves when cleaning"
+        },
+        {
+          "rule": "MUST blot stains, not rub"
+        },
+        {
+          "rule": "WARNING: test cleaning solutions first"
+        },
+        {
+          "rule": "MUST use cold water for blood stains"
+        },
+        {
+          "rule": "PROHIBITED using hot water for protein stains"
+        },
+        {
+          "rule": "MUST rinse with clean water"
+        },
+        {
+          "rule": "WARNING: avoid over-saturating carpet"
+        },
+        {
+          "rule": "MUST dry carpet thoroughly"
+        }
+      ],
+      "cube_id": "cube_exp_stain_free"
+    },
+    {
+      "title": "Safe Tire Change",
+      "trigger_intent": [
+        "car tire change",
+        "roadside safety",
+        "tire blowout",
+        "flat tire",
+        "emergency kit",
+        "car maintenance",
+        "road trip"
+      ],
+      "rationale": "Changing a car tire on the roadside can be dangerous if not done properly. Following safety rules can prevent injuries and accidents. This cube provides essential guidelines for a safe tire change.",
+      "rules": [
+        {
+          "rule": "MUST turn off engine"
+        },
+        {
+          "rule": "PROHIBITED using phone while changing"
+        },
+        {
+          "rule": "WARNING loose clothing can get caught"
+        },
+        {
+          "rule": "MUST wear gloves for protection"
+        },
+        {
+          "rule": "WARNING oncoming traffic can be deadly"
+        },
+        {
+          "rule": "MUST use tire iron to loosen lug nuts"
+        },
+        {
+          "rule": "PROHIBITED over-tightening lug nuts"
+        },
+        {
+          "rule": "WARNING changing tire on slope is hazardous"
+        },
+        {
+          "rule": "MUST check tire pressure after change"
+        },
+        {
+          "rule": "MUST drive carefully after tire change"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_safe_tire_change"
+    },
+    {
+      "title": "Jump-Start Car",
+      "trigger_intent": [
+        "dead battery",
+        "car jump",
+        "jump start",
+        "car battery",
+        "dead car",
+        "jump-starting"
+      ],
+      "rationale": "Jump-starting a car with a dead battery can get you back on the road quickly. It's a valuable skill to have in emergency situations. With the right steps, you can do it safely and effectively.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST wear protective gloves"
+        },
+        {
+          "rule": "WARNING: Avoid touching cables to body"
+        },
+        {
+          "rule": "PROHIBITED: Jump-start in enclosed space"
+        },
+        {
+          "rule": "MUST set parking brake"
+        },
+        {
+          "rule": "WARNING: Never touch battery terminals to eyes"
+        },
+        {
+          "rule": "MUST use correct cable polarity"
+        },
+        {
+          "rule": "PROHIBITED: Use damaged or frayed cables"
+        },
+        {
+          "rule": "MUST start working car first"
+        },
+        {
+          "rule": "WARNING: Keep children away from process"
+        },
+        {
+          "rule": "MUST remove cables in reverse order"
+        }
+      ],
+      "cube_id": "cube_exp_jump_start_car"
+    },
+    {
+      "title": "Oil Check",
+      "trigger_intent": [
+        "engine oil",
+        "car maintenance",
+        "oil refill",
+        "vehicle care",
+        "engine check",
+        "oil level"
+      ],
+      "rationale": "Regular oil checks help extend engine life and prevent damage. Proper oil levels ensure smooth engine operation. This cube provides step-by-step guidance.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST check oil level regularly"
+        },
+        {
+          "rule": "WARNING: Never touch hot engine"
+        },
+        {
+          "rule": "PROHIBITED: Overfilling oil"
+        },
+        {
+          "rule": "MUST use dipstick to check level"
+        },
+        {
+          "rule": "WARNING: Avoid skin contact with oil"
+        },
+        {
+          "rule": "MUST refill oil with correct type"
+        },
+        {
+          "rule": "PROHIBITED: Mixing oil types"
+        },
+        {
+          "rule": "MUST dispose of used oil properly"
+        },
+        {
+          "rule": "WARNING: Check owner's manual for specifics"
+        },
+        {
+          "rule": "MUST record oil change dates"
+        }
+      ],
+      "cube_id": "cube_exp_oil_check"
+    },
+    {
+      "title": "Safe Wiper Swap",
+      "trigger_intent": [
+        "replace windshield wipers",
+        "windshield wiper replacement",
+        "car maintenance",
+        "auto repair",
+        "windshield wiper install",
+        "car safety"
+      ],
+      "rationale": "Replacing windshield wipers is a crucial car maintenance task that ensures clear visibility while driving. Proper installation is key to safety and effectiveness. This cube provides step-by-step guidance.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST purchase correct wiper size"
+        },
+        {
+          "rule": "PROHIBITED touching wiper blades with bare hands"
+        },
+        {
+          "rule": "WARNING avoid eye injury from broken glass"
+        },
+        {
+          "rule": "MUST wear gloves when handling wipers"
+        },
+        {
+          "rule": "WARNING prevent electrical shock from battery"
+        },
+        {
+          "rule": "MUST turn off ignition before replacement"
+        },
+        {
+          "rule": "PROHIBITED using damaged or worn-out wipers"
+        },
+        {
+          "rule": "MUST clean windshield before installation"
+        },
+        {
+          "rule": "WARNING ensure proper wiper arm alignment"
+        }
+      ],
+      "cube_id": "cube_exp_safe_wiper_swap"
+    },
+    {
+      "title": "Clear Headlights",
+      "trigger_intent": [
+        "clean car headlights",
+        "restore cloudy headlights",
+        "headlight restoration",
+        "car maintenance",
+        "DIY headlight cleaning",
+        "foggy headlights"
+      ],
+      "rationale": "Restoring cloudy car headlights improves visibility and safety on the road. Regular cleaning and maintenance can prevent damage and reduce the need for costly replacements. This guide provides a step-by-step approach to achieving clear headlights.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST wear gloves"
+        },
+        {
+          "rule": "WARNING: Avoid harsh chemicals"
+        },
+        {
+          "rule": "MUST use masking tape"
+        },
+        {
+          "rule": "PROHIBITED: Use high-speed buffers"
+        },
+        {
+          "rule": "MUST clean headlights weekly"
+        },
+        {
+          "rule": "WARNING: Avoid breathing in dust"
+        },
+        {
+          "rule": "MUST apply UV protector"
+        },
+        {
+          "rule": "PROHIBITED: Use household cleaners"
+        },
+        {
+          "rule": "MUST inspect headlights regularly"
+        }
+      ],
+      "cube_id": "cube_exp_clear_headlights"
+    },
+    {
+      "title": "Safe Tires",
+      "trigger_intent": [
+        "tire pressure",
+        "inflate tires",
+        "car safety",
+        "tire maintenance",
+        "vehicle care",
+        "road safety"
+      ],
+      "rationale": "Proper tire pressure can improve fuel efficiency, handling, and safety. Underinflated tires can lead to accidents and tire blowouts. Regular checks can prevent these risks.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST check tire pressure monthly"
+        },
+        {
+          "rule": "PROHIBITED driving with underinflated tires"
+        },
+        {
+          "rule": "WARNING: underinflation causes tire blowouts"
+        },
+        {
+          "rule": "MUST use tire pressure gauge"
+        },
+        {
+          "rule": "WARNING: overinflation reduces traction"
+        },
+        {
+          "rule": "MUST inflate tires in shade"
+        },
+        {
+          "rule": "PROHIBITED using damaged tires"
+        },
+        {
+          "rule": "MUST check tire pressure when cold"
+        },
+        {
+          "rule": "WARNING: ignore tire pressure at own risk"
+        },
+        {
+          "rule": "MUST refer to owner's manual for specs"
+        }
+      ],
+      "cube_id": "cube_exp_safe_tires"
+    },
+    {
+      "title": "Save Money",
+      "trigger_intent": [
+        "zero income",
+        "save money",
+        "financial freedom",
+        "budgeting",
+        "frugal living",
+        "money management"
+      ],
+      "rationale": "Starting to save money from zero income requires discipline and patience. This cube provides actionable rules to help individuals achieve financial stability. By following these rules, individuals can build a strong foundation for saving and investing.",
+      "rules": [
+        {
+          "rule": "MUST track expenses"
+        },
+        {
+          "rule": "PROHIBITED from impulse buys"
+        },
+        {
+          "rule": "WARNING: avoid high-interest loans"
+        },
+        {
+          "rule": "MUST create budget plan"
+        },
+        {
+          "rule": "WARNING: beware of investment scams"
+        },
+        {
+          "rule": "MUST prioritize needs over wants"
+        },
+        {
+          "rule": "PROHIBITED from using credit cards"
+        },
+        {
+          "rule": "MUST automate savings"
+        },
+        {
+          "rule": "WARNING: be cautious of get-rich-quick schemes"
+        },
+        {
+          "rule": "MUST review budget regularly"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_save_money"
+    },
+    {
+      "title": "Emergency Fund",
+      "trigger_intent": [
+        "emergency fund",
+        "financial security",
+        "save money",
+        "budgeting",
+        "financial planning",
+        "money management"
+      ],
+      "rationale": "Building an emergency fund provides financial security and reduces stress. It helps cover unexpected expenses and avoids debt. A safety net for life's uncertainties.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST start small"
+        },
+        {
+          "rule": "PROHIBITED: use credit cards"
+        },
+        {
+          "rule": "WARNING: avoid large withdrawals"
+        },
+        {
+          "rule": "MUST set a savings goal"
+        },
+        {
+          "rule": "WARNING: don't invest impulsively"
+        },
+        {
+          "rule": "MUST automate savings"
+        },
+        {
+          "rule": "PROHIBITED: dip into fund unnecessarily"
+        },
+        {
+          "rule": "WARNING: beware of market volatility"
+        },
+        {
+          "rule": "MUST review fund regularly"
+        },
+        {
+          "rule": "WARNING: don't forget inflation"
+        }
+      ],
+      "cube_id": "cube_exp_emergency_fund"
+    },
+    {
+      "title": "Budget Success",
+      "trigger_intent": [
+        "monthly budget",
+        "financial planning",
+        "money management",
+        "expense tracking",
+        "savings goals",
+        "debt reduction"
+      ],
+      "rationale": "Creating a monthly budget helps individuals manage their finances effectively, reduce debt, and achieve long-term financial goals. A well-structured budget enables people to prioritize their spending and make informed decisions. By following a budget, individuals can ensure a stable financial future.",
+      "rules": [
+        {
+          "rule": "MUST track income"
+        },
+        {
+          "rule": "PROHIBITED overspending"
+        },
+        {
+          "rule": "WARNING ignore debt"
+        },
+        {
+          "rule": "MUST prioritize needs"
+        },
+        {
+          "rule": "WARNING use credit"
+        },
+        {
+          "rule": "MUST review expenses"
+        },
+        {
+          "rule": "PROHIBITED impulse buys"
+        },
+        {
+          "rule": "MUST set savings goals"
+        },
+        {
+          "rule": "WARNING miss payments"
+        },
+        {
+          "rule": "MUST adjust budget"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_budget_success"
+    },
+    {
+      "title": "Grow Wealth",
+      "trigger_intent": [
+        "invest wisely",
+        "first 100 dollars",
+        "smart investment",
+        "financial growth",
+        "wealth creation",
+        "investment strategy"
+      ],
+      "rationale": "Investing your first 100 dollars wisely can set the foundation for long-term financial growth. It's essential to make informed decisions to avoid common pitfalls. By following these rules, you can create a solid investment strategy.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST research investment options"
+        },
+        {
+          "rule": "PROHIBITED from investing in unknown assets"
+        },
+        {
+          "rule": "WARNING: avoid high-risk investments"
+        },
+        {
+          "rule": "MUST diversify your portfolio"
+        },
+        {
+          "rule": "WARNING: never invest more than you can afford"
+        },
+        {
+          "rule": "MUST set clear financial goals"
+        },
+        {
+          "rule": "PROHIBITED from emotional decision-making"
+        },
+        {
+          "rule": "MUST monitor and adjust investments"
+        },
+        {
+          "rule": "WARNING: beware of investment scams"
+        },
+        {
+          "rule": "MUST start with low-cost investments"
+        }
+      ],
+      "cube_id": "cube_exp_grow_wealth"
+    },
+    {
+      "title": "Boost Credit",
+      "trigger_intent": [
+        "credit score",
+        "improve credit",
+        "credit repair",
+        "fast credit",
+        "credit tips",
+        "credit advice"
+      ],
+      "rationale": "Improving credit score fast can help individuals qualify for better loan rates and terms. A good credit score can save thousands of dollars in interest payments. By following these rules, individuals can take control of their credit score.",
+      "rules": [
+        {
+          "rule": "MUST pay bills on time"
+        },
+        {
+          "rule": "PROHIBITED from applying for multiple credits"
+        },
+        {
+          "rule": "WARNING: avoid high credit utilization"
+        },
+        {
+          "rule": "MUST monitor credit report regularly"
+        },
+        {
+          "rule": "WARNING: never ignore credit card debt"
+        },
+        {
+          "rule": "MUST keep old accounts open"
+        },
+        {
+          "rule": "PROHIBITED from closing multiple accounts"
+        },
+        {
+          "rule": "WARNING: beware of credit repair scams"
+        },
+        {
+          "rule": "MUST diversify credit types"
+        },
+        {
+          "rule": "WARNING: don't miss payments on loans"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_boost_credit"
+    },
+    {
+      "title": "Boost Salary",
+      "trigger_intent": [
+        "salary negotiation",
+        "higher pay",
+        "job offer",
+        "career development",
+        "financial growth",
+        "professional advancement"
+      ],
+      "rationale": "Negotiating a higher salary can significantly impact your financial growth and career development. It requires preparation, confidence, and the right strategies. By following these rules, you can effectively negotiate a higher salary.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST research market value"
+        },
+        {
+          "rule": "PROHIBITED discussing personal finances"
+        },
+        {
+          "rule": "WARNING: avoid emotional decisions"
+        },
+        {
+          "rule": "MUST practice negotiation skills"
+        },
+        {
+          "rule": "WARNING: don't disclose current salary"
+        },
+        {
+          "rule": "MUST highlight achievements"
+        },
+        {
+          "rule": "PROHIBITED making ultimatums"
+        },
+        {
+          "rule": "WARNING: be aware of company budget"
+        },
+        {
+          "rule": "MUST be confident and assertive"
+        },
+        {
+          "rule": "WARNING: don't rush the process"
+        }
+      ],
+      "cube_id": "cube_exp_boost_salary"
+    },
+    {
+      "title": "Run Safely",
+      "trigger_intent": [
+        "start running",
+        "beginner runner",
+        "running for beginners",
+        "how to run",
+        "running tips",
+        "beginner running tips"
+      ],
+      "rationale": "Starting a running routine can be intimidating, but with the right guidance, beginners can minimize risks and achieve their fitness goals. This cube provides essential rules to ensure a safe and effective start. By following these rules, beginners can reduce the risk of injury and improve their overall running experience.",
+      "rules": [
+        {
+          "rule": "MUST wear proper shoes"
+        },
+        {
+          "rule": "PROHIBITED running on empty stomach"
+        },
+        {
+          "rule": "WARNING: check with doctor before starting"
+        },
+        {
+          "rule": "MUST stretch before running"
+        },
+        {
+          "rule": "WARNING: avoid running in extreme weather"
+        },
+        {
+          "rule": "MUST stay hydrated"
+        },
+        {
+          "rule": "PROHIBITED using headphones in traffic"
+        },
+        {
+          "rule": "MUST start with short distances"
+        },
+        {
+          "rule": "WARNING: listen to body for pain signals"
+        },
+        {
+          "rule": "MUST cool down after running"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_run_safely"
+    },
+    {
+      "title": "Meditate",
+      "trigger_intent": [
+        "meditation for beginners",
+        "mindfulness",
+        "relaxation techniques",
+        "stress relief",
+        "calm mind",
+        "focus improvement"
+      ],
+      "rationale": "Proper meditation techniques can reduce stress and improve mental clarity. Regular practice enhances self-awareness and emotional regulation. By following these rules, beginners can establish a safe and effective meditation routine.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST sit comfortably"
+        },
+        {
+          "rule": "PROHIBITED using phones"
+        },
+        {
+          "rule": "WARNING avoid meditation if injured"
+        },
+        {
+          "rule": "MUST close eyes"
+        },
+        {
+          "rule": "WARNING never meditate near water"
+        },
+        {
+          "rule": "MUST focus on breath"
+        },
+        {
+          "rule": "PROHIBITED eating before meditation"
+        },
+        {
+          "rule": "MUST start with short sessions"
+        },
+        {
+          "rule": "WARNING consult doctor before intense meditation"
+        },
+        {
+          "rule": "MUST practice regularly"
+        }
+      ],
+      "cube_id": "cube_exp_meditate"
+    },
+    {
+      "title": "Better Posture",
+      "trigger_intent": [
+        "improve posture",
+        "desk work",
+        "back pain",
+        "office ergonomics",
+        "healthy habits",
+        "workplace wellness"
+      ],
+      "rationale": "Improving posture while working at a desk can reduce back pain and improve overall health. Good posture also increases energy levels and productivity. By following these rules, individuals can develop healthy habits for a better work experience.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST sit up straight"
+        },
+        {
+          "rule": "PROHIBITED crossing legs"
+        },
+        {
+          "rule": "WARNING avoid bending neck"
+        },
+        {
+          "rule": "MUST take breaks hourly"
+        },
+        {
+          "rule": "WARNING watch for numbness"
+        },
+        {
+          "rule": "MUST adjust chair height"
+        },
+        {
+          "rule": "PROHIBITED leaning forward"
+        },
+        {
+          "rule": "WARNING report back pain"
+        },
+        {
+          "rule": "MUST stretch daily"
+        },
+        {
+          "rule": "WARNING limit screen time"
+        }
+      ],
+      "cube_id": "cube_exp_better_posture"
+    },
+    {
+      "title": "Sleep Fast",
+      "trigger_intent": [
+        "fall asleep",
+        "sleep faster",
+        "natural sleep",
+        "insomnia",
+        "relaxation",
+        "bedtime routine"
+      ],
+      "rationale": "Falling asleep faster naturally improves overall well-being and productivity. A consistent sleep schedule and relaxing bedtime routine can help. Creating a sleep-conducive environment is also crucial.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST relax before bed"
+        },
+        {
+          "rule": "PROHIBITED screen time before sleep"
+        },
+        {
+          "rule": "WARNING avoid caffeine at night"
+        },
+        {
+          "rule": "MUST exercise regularly"
+        },
+        {
+          "rule": "WARNING don't eat heavy meals late"
+        },
+        {
+          "rule": "MUST create a dark sleep space"
+        },
+        {
+          "rule": "PROHIBITED loud noises at bedtime"
+        },
+        {
+          "rule": "WARNING beware of sleep disorders"
+        },
+        {
+          "rule": "MUST stick to a sleep schedule"
+        }
+      ],
+      "cube_id": "cube_exp_sleep_fast"
+    },
+    {
+      "title": "Save Lives",
+      "trigger_intent": [
+        "CPR",
+        "adult CPR",
+        "heart attack",
+        "cardiac arrest",
+        "first aid",
+        "emergency response"
+      ],
+      "rationale": "Knowing how to perform CPR correctly can significantly increase a person's chances of survival during cardiac arrest. Proper technique is crucial to ensure effective blood circulation and breathing. By following these rules, you can help save lives.",
+      "rules": [
+        {
+          "rule": "MUST call 911 immediately"
+        },
+        {
+          "rule": "WARNING: never perform CPR without training"
+        },
+        {
+          "rule": "MUST start with 30 chest compressions"
+        },
+        {
+          "rule": "PROHIBITED: do not press too hard on chest"
+        },
+        {
+          "rule": "WARNING: be aware of potential neck injuries"
+        },
+        {
+          "rule": "MUST give two breaths after compressions"
+        },
+        {
+          "rule": "MUST continue until medical help arrives"
+        },
+        {
+          "rule": "PROHIBITED: do not stop compressions unnecessarily"
+        },
+        {
+          "rule": "WARNING: be cautious of automated defibrillators"
+        },
+        {
+          "rule": "MUST follow CPR guidelines precisely"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_save_lives"
+    },
+    {
+      "title": "Save Choker",
+      "trigger_intent": [
+        "choking person",
+        "Heimlich maneuver",
+        "first aid",
+        "emergency response",
+        "save life",
+        "relieve choking"
+      ],
+      "rationale": "The Heimlich maneuver is a lifesaving technique that can help relieve choking in emergency situations. It is essential to perform the maneuver correctly to avoid causing further harm. By following the rules, you can help save a choking person's life.",
+      "rules": [
+        {
+          "rule": "MUST stand behind person"
+        },
+        {
+          "rule": "PROHIBITED use forceful blows"
+        },
+        {
+          "rule": "WARNING may cause injury"
+        },
+        {
+          "rule": "MUST wrap arms around waist"
+        },
+        {
+          "rule": "WARNING check for pregnancy"
+        },
+        {
+          "rule": "MUST make fist with one hand"
+        },
+        {
+          "rule": "MUST perform quick thrusts"
+        },
+        {
+          "rule": "WARNING avoid hitting spine"
+        },
+        {
+          "rule": "MUST repeat until relieved"
+        },
+        {
+          "rule": "MUST call for medical help"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_save_choker"
+    },
+    {
+      "title": "Pain Free",
+      "trigger_intent": [
+        "back pain",
+        "sitting all day",
+        "office work",
+        "health tips",
+        "wellness",
+        "posture correction"
+      ],
+      "rationale": "Reducing back pain from sitting all day can significantly improve overall health and productivity. Simple changes in daily habits can make a big difference. Following these rules can help alleviate back pain.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST stand up every hour"
+        },
+        {
+          "rule": "PROHIBITED crossing legs"
+        },
+        {
+          "rule": "WARNING avoid heavy lifting"
+        },
+        {
+          "rule": "MUST adjust chair height"
+        },
+        {
+          "rule": "PROHIBITED bending forward"
+        },
+        {
+          "rule": "WARNING watch for numbness"
+        },
+        {
+          "rule": "MUST take breaks"
+        },
+        {
+          "rule": "PROHIBITED sitting too long"
+        },
+        {
+          "rule": "WARNING consult a doctor"
+        },
+        {
+          "rule": "MUST exercise regularly"
+        }
+      ],
+      "cube_id": "cube_exp_pain_free"
+    },
+    {
+      "title": "Fast Safe",
+      "trigger_intent": [
+        "intermittent fasting",
+        "weight loss",
+        "healthy diet",
+        "fasting benefits",
+        "safe fasting",
+        "nutrition tips"
+      ],
+      "rationale": "Intermittent fasting can improve overall health and increase longevity. It's essential to start safely to avoid potential risks. With proper guidance, anyone can begin fasting and see significant benefits.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST consult a doctor before starting"
+        },
+        {
+          "rule": "PROHIBITED to fast with certain medications"
+        },
+        {
+          "rule": "WARNING: dehydration is a significant risk"
+        },
+        {
+          "rule": "MUST drink plenty of water during fasting"
+        },
+        {
+          "rule": "WARNING: fasting is not for pregnant women"
+        },
+        {
+          "rule": "MUST listen to your body and stop if needed"
+        },
+        {
+          "rule": "PROHIBITED to fast for extended periods without eating"
+        },
+        {
+          "rule": "WARNING: low blood sugar is a potential risk"
+        },
+        {
+          "rule": "MUST eat nutrient-rich foods during eating windows"
+        },
+        {
+          "rule": "WARNING: fasting can worsen certain mental health conditions"
+        }
+      ],
+      "cube_id": "cube_exp_fast_safe"
+    },
+    {
+      "title": "Beat Procrastination",
+      "trigger_intent": [
+        "overcome procrastination",
+        "productivity tips",
+        "time management",
+        "goal setting",
+        "motivation techniques",
+        "focus enhancement"
+      ],
+      "rationale": "Overcoming procrastination is crucial for achieving goals and reducing stress. By following these rules, individuals can develop healthy habits and increase productivity. Science-backed strategies can help individuals overcome procrastination and improve their overall well-being.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST set clear goals"
+        },
+        {
+          "rule": "PROHIBITED excessive social media"
+        },
+        {
+          "rule": "WARNING: avoid multitasking"
+        },
+        {
+          "rule": "MUST prioritize tasks"
+        },
+        {
+          "rule": "WARNING: excessive caffeine risks"
+        },
+        {
+          "rule": "PROHIBITED procrastination excuses"
+        },
+        {
+          "rule": "MUST use Pomodoro timer"
+        },
+        {
+          "rule": "WARNING: sleep deprivation risks"
+        },
+        {
+          "rule": "MUST review progress daily"
+        },
+        {
+          "rule": "PROHIBITED perfectionism"
+        }
+      ],
+      "cube_id": "cube_exp_beat_procrastination"
+    },
+    {
+      "title": "Rise & Shine",
+      "trigger_intent": [
+        "morning routine",
+        "productivity",
+        "time management",
+        "self care",
+        "goal setting",
+        "habit formation"
+      ],
+      "rationale": "A consistent morning routine can boost energy and set a positive tone for the day. It helps prioritize tasks and increase productivity. By following these rules, you can create a routine that sticks.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST wake up 15 minutes earlier"
+        },
+        {
+          "rule": "PROHIBITED using phones in bed"
+        },
+        {
+          "rule": "WARNING: avoid heavy meals before bedtime"
+        },
+        {
+          "rule": "MUST drink water immediately after waking"
+        },
+        {
+          "rule": "PROHIBITED hitting the snooze button"
+        },
+        {
+          "rule": "WARNING: be cautious with morning exercise intensity"
+        },
+        {
+          "rule": "MUST prioritize one important task"
+        },
+        {
+          "rule": "PROHIBITED checking work emails first"
+        },
+        {
+          "rule": "MUST take a few minutes to meditate"
+        },
+        {
+          "rule": "WARNING: watch for signs of sleep deprivation"
+        }
+      ],
+      "cube_id": "cube_exp_rise_shine"
+    },
+    {
+      "title": "Deep Focus",
+      "trigger_intent": [
+        "long periods",
+        "high concentration",
+        "mental clarity",
+        "productivity boost",
+        "distraction free",
+        "flow state"
+      ],
+      "rationale": "Achieving deep focus enhances productivity and mental clarity. It allows individuals to complete tasks efficiently and effectively. By following these rules, one can improve their ability to concentrate.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST set clear goals"
+        },
+        {
+          "rule": "PROHIBITED from social media"
+        },
+        {
+          "rule": "WARNING: avoid burnout"
+        },
+        {
+          "rule": "MUST use a timer"
+        },
+        {
+          "rule": "PROHIBITED from multitasking"
+        },
+        {
+          "rule": "WARNING: stay hydrated"
+        },
+        {
+          "rule": "MUST take breaks"
+        },
+        {
+          "rule": "PROHIBITED from email checks"
+        },
+        {
+          "rule": "WARNING: maintain posture"
+        },
+        {
+          "rule": "MUST prioritize sleep"
+        }
+      ],
+      "cube_id": "cube_exp_deep_focus"
+    },
+    {
+      "title": "Get Done",
+      "trigger_intent": [
+        "task management",
+        "productivity",
+        "getting things done",
+        "GTD method",
+        "organization",
+        "time management"
+      ],
+      "rationale": "The Getting Things Done method helps individuals manage tasks efficiently, reducing stress and increasing productivity. By following a set of simple rules, users can achieve a sense of control and clarity. This method is beneficial for individuals with busy schedules.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST capture all tasks"
+        },
+        {
+          "rule": "PROHIBITED use of unclear labels"
+        },
+        {
+          "rule": "WARNING avoid overcommitting"
+        },
+        {
+          "rule": "MUST prioritize tasks daily"
+        },
+        {
+          "rule": "WARNING ignore non-essential tasks"
+        },
+        {
+          "rule": "MUST review progress weekly"
+        },
+        {
+          "rule": "PROHIBITED procrastination"
+        },
+        {
+          "rule": "WARNING avoid multitasking"
+        },
+        {
+          "rule": "MUST use a task list"
+        },
+        {
+          "rule": "MUST set realistic deadlines"
+        }
+      ],
+      "cube_id": "cube_exp_get_done"
+    },
+    {
+      "title": "Fluent Fast",
+      "trigger_intent": [
+        "learn language",
+        "language skills",
+        "foreign language",
+        "language learning",
+        "3 months",
+        "language fluency",
+        "fast learning"
+      ],
+      "rationale": "Learning a foreign language in 3 months can enhance career opportunities and cultural understanding. It requires dedication and a well-structured approach. With the right strategy, anyone can achieve language fluency quickly.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST set daily goals"
+        },
+        {
+          "rule": "PROHIBITED skip practice"
+        },
+        {
+          "rule": "WARNING avoid burnout"
+        },
+        {
+          "rule": "MUST use flashcards"
+        },
+        {
+          "rule": "WARNING ignore grammar rules"
+        },
+        {
+          "rule": "MUST practice speaking"
+        },
+        {
+          "rule": "PROHIBITED translate word by word"
+        },
+        {
+          "rule": "MUST listen to podcasts"
+        },
+        {
+          "rule": "WARNING don't overstudy"
+        },
+        {
+          "rule": "MUST review consistently"
+        }
+      ],
+      "cube_id": "cube_exp_fluent_fast"
+    },
+    {
+      "title": "Read Fast",
+      "trigger_intent": [
+        "read a book per week",
+        "consistent reading",
+        "book club",
+        "reading habits",
+        "speed reading",
+        "weekly reading goal"
+      ],
+      "rationale": "Reading a book per week can improve knowledge and reduce stress. Consistency is key to developing a reading habit. It can also enhance critical thinking and vocabulary.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST set a timer"
+        },
+        {
+          "rule": "PROHIBITED using phone"
+        },
+        {
+          "rule": "WARNING: avoid eye strain"
+        },
+        {
+          "rule": "MUST take notes"
+        },
+        {
+          "rule": "WARNING: don't read before bed"
+        },
+        {
+          "rule": "MUST create schedule"
+        },
+        {
+          "rule": "PROHIBITED multitasking"
+        },
+        {
+          "rule": "MUST review progress"
+        },
+        {
+          "rule": "WARNING: stay hydrated"
+        },
+        {
+          "rule": "MUST discuss with others"
+        }
+      ],
+      "cube_id": "cube_exp_read_fast"
+    },
+    {
+      "title": "Get Hired",
+      "trigger_intent": [
+        "resume writing",
+        "job search",
+        "interview tips",
+        "career advice",
+        "job application",
+        "hiring process"
+      ],
+      "rationale": "A well-crafted resume is essential to stand out in a competitive job market. It increases the chances of getting noticed by hiring managers and recruiters. A good resume can make a significant difference in the job search process.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST use clear font"
+        },
+        {
+          "rule": "PROHIBITED typos"
+        },
+        {
+          "rule": "WARNING: avoid lies"
+        },
+        {
+          "rule": "MUST tailor to job"
+        },
+        {
+          "rule": "WARNING: don't overdo"
+        },
+        {
+          "rule": "MUST proofread"
+        },
+        {
+          "rule": "PROHIBITED jargon"
+        },
+        {
+          "rule": "MUST quantify results"
+        },
+        {
+          "rule": "WARNING: check grammar"
+        },
+        {
+          "rule": "MUST keep concise"
+        }
+      ],
+      "cube_id": "cube_exp_get_hired"
+    },
+    {
+      "title": "Ace Tech Interviews",
+      "trigger_intent": [
+        "job interview",
+        "tech company",
+        "prepare for interview",
+        "interview tips",
+        "career advice",
+        "job search"
+      ],
+      "rationale": "Preparing for a tech company job interview can be daunting, but with the right strategies, you can increase your chances of success. This cube provides essential rules to help you prepare and make a great impression. By following these rules, you can boost your confidence and land your dream job.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST research company"
+        },
+        {
+          "rule": "PROHIBITED use slang"
+        },
+        {
+          "rule": "WARNING: be honest about skills"
+        },
+        {
+          "rule": "MUST practice coding"
+        },
+        {
+          "rule": "WARNING: don't overpromise"
+        },
+        {
+          "rule": "MUST review resume"
+        },
+        {
+          "rule": "PROHIBITED use phone"
+        },
+        {
+          "rule": "MUST ask questions"
+        },
+        {
+          "rule": "WARNING: don't be late"
+        },
+        {
+          "rule": "MUST follow up"
+        }
+      ],
+      "cube_id": "cube_exp_ace_tech_interviews"
+    },
+    {
+      "title": "Feedback Pro",
+      "trigger_intent": [
+        "give feedback",
+        "constructive criticism",
+        "work improvement",
+        "team growth",
+        "communication skills",
+        "conflict resolution"
+      ],
+      "rationale": "Giving constructive feedback is crucial for team growth and improvement. It helps to resolve conflicts and improve communication skills. Effective feedback leads to increased productivity and job satisfaction.",
+      "rules": [
+        {
+          "rule": "MUST focus on behavior"
+        },
+        {
+          "rule": "PROHIBITED from being personal"
+        },
+        {
+          "rule": "WARNING: avoid being aggressive"
+        },
+        {
+          "rule": "MUST be specific and timely"
+        },
+        {
+          "rule": "WARNING: never give feedback in public"
+        },
+        {
+          "rule": "MUST listen actively"
+        },
+        {
+          "rule": "PROHIBITED from being biased"
+        },
+        {
+          "rule": "MUST provide actionable steps"
+        },
+        {
+          "rule": "WARNING: be aware of cultural differences"
+        },
+        {
+          "rule": "MUST follow up on progress"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_feedback_pro"
+    },
+    {
+      "title": "Work From Home",
+      "trigger_intent": [
+        "remote work",
+        "work from home",
+        "negotiate arrangement",
+        "flexible schedule",
+        "productivity",
+        "work life balance"
+      ],
+      "rationale": "Negotiating a work from home arrangement can increase productivity and improve work life balance. It allows employees to work in a comfortable environment and reduces commuting time. This can lead to increased job satisfaction and reduced turnover rates.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST discuss goals with manager"
+        },
+        {
+          "rule": "PROHIBITED from using personal social media"
+        },
+        {
+          "rule": "WARNING: maintain regular working hours"
+        },
+        {
+          "rule": "MUST create dedicated workspace"
+        },
+        {
+          "rule": "WARNING: avoid distractions at home"
+        },
+        {
+          "rule": "PROHIBITED from sharing company data"
+        },
+        {
+          "rule": "MUST establish communication channels"
+        },
+        {
+          "rule": "WARNING: ensure data security measures"
+        },
+        {
+          "rule": "MUST set boundaries with family members"
+        },
+        {
+          "rule": "WARNING: prioritize self-care and exercise"
+        }
+      ],
+      "cube_id": "cube_exp_work_from_home"
+    },
+    {
+      "title": "Get Promoted",
+      "trigger_intent": [
+        "career advancement",
+        "promotion tips",
+        "job growth",
+        "professional development",
+        "salary increase",
+        "career success"
+      ],
+      "rationale": "Asking for a promotion effectively can lead to career advancement and increased salary. It requires preparation and confidence. Following these rules can help you achieve your goal.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST prepare your case"
+        },
+        {
+          "rule": "PROHIBITED from being negative"
+        },
+        {
+          "rule": "WARNING: avoid timing conflicts"
+        },
+        {
+          "rule": "MUST show your achievements"
+        },
+        {
+          "rule": "WARNING: don't overestimate yourself"
+        },
+        {
+          "rule": "MUST be confident"
+        },
+        {
+          "rule": "PROHIBITED from apologetic tone"
+        },
+        {
+          "rule": "MUST provide solutions"
+        },
+        {
+          "rule": "WARNING: be prepared for rejection"
+        },
+        {
+          "rule": "MUST follow up"
+        }
+      ],
+      "cube_id": "cube_exp_get_promoted"
+    },
+    {
+      "title": "Secure Passwords",
+      "trigger_intent": [
+        "password security",
+        "strong passwords",
+        "password management",
+        "online safety",
+        "cybersecurity",
+        "password protection"
+      ],
+      "rationale": "A strong password strategy is crucial for protecting personal and sensitive information from cyber threats. It helps prevent unauthorized access and reduces the risk of identity theft. By following these rules, individuals can significantly enhance their online security.",
+      "rules": [
+        {
+          "rule": "MUST use unique passwords for each account"
+        },
+        {
+          "rule": "PROHIBITED: Using easily guessable info"
+        },
+        {
+          "rule": "WARNING: Avoid using same password twice"
+        },
+        {
+          "rule": "MUST include uppercase and lowercase letters"
+        },
+        {
+          "rule": "PROHIBITED: Sharing passwords with others"
+        },
+        {
+          "rule": "WARNING: Be cautious of phishing scams"
+        },
+        {
+          "rule": "MUST use a password manager"
+        },
+        {
+          "rule": "MUST update passwords every 60 days"
+        },
+        {
+          "rule": "WARNING: Public computers pose security risks"
+        },
+        {
+          "rule": "MUST enable two-factor authentication"
+        }
+      ],
+      "cube_id": "cube_exp_secure_passwords"
+    },
+    {
+      "title": "Secure Login",
+      "trigger_intent": [
+        "two-factor auth",
+        "security setup",
+        "password protection",
+        "online safety",
+        "account security",
+        "login protection"
+      ],
+      "rationale": "Enabling two-factor authentication provides an additional layer of security, protecting against unauthorized access. It reduces the risk of identity theft and data breaches. This setup ensures only authorized individuals can access sensitive information.",
+      "source": "wikihow",
+      "rules": [
+        "MUST enable 2FA on all accounts",
+        "PROHIBITED: use same password twice",
+        "WARNING: avoid using public computers",
+        "MUST use authenticator app",
+        "WARNING: never share 2FA codes",
+        "MUST keep backup codes safe",
+        "PROHIBITED: disable 2FA for convenience",
+        "MUST review account activity regularly",
+        "WARNING: beware of phishing scams",
+        "MUST update 2FA methods periodically"
+      ],
+      "cube_id": "cube_exp_secure_login"
+    },
+    {
+      "title": "Safe Email",
+      "trigger_intent": [
+        "phishing emails",
+        "email scams",
+        "online safety",
+        "cyber security",
+        "email protection",
+        "scam alerts"
+      ],
+      "rationale": "Learning to spot phishing emails and scams is crucial for protecting personal and financial information. This skill helps individuals avoid falling prey to cyber attacks. By following these rules, users can significantly reduce the risk of online fraud.",
+      "source": "wikihow",
+      "rules": [
+        "MUST verify sender's email address",
+        "PROHIBITED from clicking suspicious links",
+        "WARNING: Never share passwords via email",
+        "MUST check email for spelling mistakes",
+        "WARNING: Be cautious of urgent requests",
+        "MUST use two-factor authentication",
+        "PROHIBITED from downloading attachments from unknown senders",
+        "MUST use strong antivirus software",
+        "WARNING: Be wary of generic greetings",
+        "MUST report suspicious emails to authorities"
+      ],
+      "cube_id": "cube_exp_safe_email"
+    },
+    {
+      "title": "Clean Laptop Safely",
+      "trigger_intent": [
+        "laptop cleaning",
+        "screen care",
+        "keyboard maintenance",
+        "safe cleaning",
+        "laptop maintenance",
+        "device care"
+      ],
+      "rationale": "Cleaning your laptop regularly can improve its performance and longevity. A clean laptop screen and keyboard can also enhance your overall user experience. Proper cleaning techniques are essential to avoid damage.",
+      "rules": [
+        {
+          "rule": "MUST turn off laptop before cleaning"
+        },
+        {
+          "rule": "PROHIBITED using harsh chemicals"
+        },
+        {
+          "rule": "WARNING: avoid liquid contact with ports"
+        },
+        {
+          "rule": "MUST use soft cloth for screen"
+        },
+        {
+          "rule": "WARNING: never spray liquids directly"
+        },
+        {
+          "rule": "MUST ground yourself to prevent static"
+        },
+        {
+          "rule": "PROHIBITED eating or drinking nearby"
+        },
+        {
+          "rule": "MUST clean keyboard keys gently"
+        },
+        {
+          "rule": "WARNING: unplug laptop during cleaning"
+        },
+        {
+          "rule": "MUST dry laptop after cleaning"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_clean_laptop_safely"
+    },
+    {
+      "title": "Fast PC",
+      "trigger_intent": [
+        "slow computer",
+        "speed up windows",
+        "optimize pc",
+        "fast startup",
+        "improve performance",
+        "windows tips"
+      ],
+      "rationale": "Speeding up a slow Windows computer can greatly improve productivity and user experience. By following these rules, users can quickly identify and fix common issues. This will save time and reduce frustration.",
+      "rules": [
+        {
+          "rule": "MUST update Windows"
+        },
+        {
+          "rule": "PROHIBITED disable antivirus"
+        },
+        {
+          "rule": "WARNING avoid malware"
+        },
+        {
+          "rule": "MUST free up disk space"
+        },
+        {
+          "rule": "WARNING beware of phishing"
+        },
+        {
+          "rule": "MUST close unused programs"
+        },
+        {
+          "rule": "PROHIBITED overload RAM"
+        },
+        {
+          "rule": "MUST run disk cleanup"
+        },
+        {
+          "rule": "WARNING avoid public Wi-Fi"
+        },
+        {
+          "rule": "MUST restart regularly"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_fast_pc"
+    },
+    {
+      "title": "Longer Battery",
+      "trigger_intent": [
+        "smartphone battery life",
+        "extend battery",
+        "battery saving tips",
+        "mobile phone battery",
+        "increase battery life",
+        "battery longevity"
+      ],
+      "rationale": "Extending smartphone battery life significantly improves user experience and reduces the need for frequent recharging. This helps to minimize downtime and increase productivity. By following these rules, users can enjoy longer battery life and reduce the risk of battery damage.",
+      "rules": [
+        {
+          "rule": "MUST turn off Bluetooth when not in use"
+        },
+        {
+          "rule": "PROHIBITED from overcharging your phone"
+        },
+        {
+          "rule": "WARNING: avoid extreme temperatures"
+        },
+        {
+          "rule": "MUST update your phone's software regularly"
+        },
+        {
+          "rule": "WARNING: don't mix battery types"
+        },
+        {
+          "rule": "MUST limit screen brightness"
+        },
+        {
+          "rule": "PROHIBITED from using phone in low-signal areas"
+        },
+        {
+          "rule": "MUST close unused apps"
+        },
+        {
+          "rule": "WARNING: avoid physical stress on battery"
+        },
+        {
+          "rule": "MUST use power-saving mode"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_longer_battery"
+    },
+    {
+      "title": "Perfect Roast",
+      "trigger_intent": [
+        "roast chicken",
+        "whole chicken",
+        "perfect roast",
+        "chicken recipe",
+        "roasting tips",
+        "cooking chicken"
+      ],
+      "rationale": "Roasting a whole chicken can be a daunting task, but with the right guidelines, it can be a delicious and memorable meal. By following these rules, you can ensure a perfectly cooked chicken every time. This will save you time and reduce the risk of foodborne illness.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST preheat oven to 425°F"
+        },
+        {
+          "rule": "PROHIBITED from washing chicken before cooking"
+        },
+        {
+          "rule": "WARNING: always handle raw chicken safely"
+        },
+        {
+          "rule": "MUST pat chicken dry with paper towels"
+        },
+        {
+          "rule": "WARNING: never leave cooking chicken unattended"
+        },
+        {
+          "rule": "MUST season chicken with salt and pepper"
+        },
+        {
+          "rule": "PROHIBITED from overcrowding the roasting pan"
+        },
+        {
+          "rule": "MUST roast chicken for 45-50 minutes per pound"
+        },
+        {
+          "rule": "WARNING: always use a food thermometer to check internal temperature"
+        },
+        {
+          "rule": "MUST let chicken rest for 10-15 minutes before carving"
+        }
+      ],
+      "cube_id": "cube_exp_perfect_roast"
+    },
+    {
+      "title": "Fluffy Scrambled",
+      "trigger_intent": [
+        "scrambled eggs",
+        "breakfast recipe",
+        "egg cooking",
+        "morning meal",
+        "perfect scramble",
+        "cooking technique"
+      ],
+      "rationale": "Making perfect scrambled eggs requires attention to detail and proper technique. This cube provides a step-by-step guide to achieve fluffy and delicious scrambled eggs. By following these rules, users can improve their cooking skills and enjoy a great breakfast.",
+      "rules": [
+        {
+          "rule": "MUST crack eggs gently"
+        },
+        {
+          "rule": "PROHIBITED overmixing eggs"
+        },
+        {
+          "rule": "WARNING: use low heat"
+        },
+        {
+          "rule": "MUST whisk eggs thoroughly"
+        },
+        {
+          "rule": "WARNING: avoid overcooking"
+        },
+        {
+          "rule": "MUST use fresh eggs"
+        },
+        {
+          "rule": "PROHIBITED adding cold ingredients"
+        },
+        {
+          "rule": "MUST cook slowly"
+        },
+        {
+          "rule": "WARNING: handle hot pan carefully"
+        },
+        {
+          "rule": "MUST serve immediately"
+        }
+      ],
+      "source": "wikihow",
+      "cube_id": "cube_exp_fluffy_scrambled"
+    },
+    {
+      "title": "Meal Prep Mastery",
+      "trigger_intent": [
+        "meal prep",
+        "efficient cooking",
+        "healthy eating",
+        "food planning",
+        "weekly meals",
+        "cooking tips"
+      ],
+      "rationale": "Meal prepping saves time and money, while promoting healthy eating. It reduces food waste and increases productivity. With a solid plan, anyone can master meal prep.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST plan meals weekly"
+        },
+        {
+          "rule": "PROHIBITED skip breakfast"
+        },
+        {
+          "rule": "WARNING undercook poultry"
+        },
+        {
+          "rule": "MUST use airtight containers"
+        },
+        {
+          "rule": "WARNING overheat oils"
+        },
+        {
+          "rule": "MUST label leftovers"
+        },
+        {
+          "rule": "PROHIBITED eat expired food"
+        },
+        {
+          "rule": "MUST refrigerate promptly"
+        },
+        {
+          "rule": "WARNING cross-contaminate foods"
+        },
+        {
+          "rule": "MUST clean utensils daily"
+        }
+      ],
+      "cube_id": "cube_exp_meal_prep_mastery"
+    },
+    {
+      "title": "Sharp Knife",
+      "trigger_intent": [
+        "kitchen knife",
+        "sharpening",
+        "knife care",
+        "cooking tips",
+        "sharp blade",
+        "knife maintenance"
+      ],
+      "rationale": "Sharpening a kitchen knife properly is crucial for safety and efficiency. A sharp knife reduces the risk of accidents and makes cooking easier. Proper sharpening techniques also extend the life of the knife.",
+      "source": "wikihow",
+      "rules": [
+        {
+          "rule": "MUST hold knife at 20° angle"
+        },
+        {
+          "rule": "PROHIBITED from applying too much pressure"
+        },
+        {
+          "rule": "WARNING: never sharpen towards body"
+        },
+        {
+          "rule": "MUST use whetstone or sharpener"
+        },
+        {
+          "rule": "WARNING: keep fingers away from blade"
+        },
+        {
+          "rule": "MUST sharpen in one direction only"
+        },
+        {
+          "rule": "PROHIBITED from sharpening on uneven surface"
+        },
+        {
+          "rule": "MUST check sharpness after each stroke"
+        },
+        {
+          "rule": "WARNING: never leave sharp knife unattended"
+        },
+        {
+          "rule": "MUST store knife safely after sharpening"
+        }
+      ],
+      "cube_id": "cube_exp_sharp_knife"
+    }
+  ],
+  "count": 51
+}

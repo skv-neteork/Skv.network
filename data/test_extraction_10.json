@@ -1,0 +1,202 @@
+{
+  "cubes": [
+    {
+      "cube_id": "cube_exp_faucet_leak_01",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Fixing a Leaking Faucet",
+      "rules": [
+        "MUST turn off the water supply before starting any repair work.",
+        "MUST use an adjustable wrench to loosen the faucet components.",
+        "SHALL inspect the washer and O-ring for wear and tear; replace if damaged.",
+        "PROHIBITED using excessive force when tightening faucet parts to avoid cracking.",
+        "WARNING: Ensure the workspace is dry to prevent slipping or electrical hazards.",
+        "MUST use plumber's tape on threaded connections to ensure a watertight seal.",
+        "SHALL test the faucet after repair to confirm the leak is fixed.",
+        "WARNING: Wear safety gloves to protect hands from sharp edges or hot water."
+      ],
+      "trigger_intent": [
+        "leaking faucet",
+        "fix faucet",
+        "dripping tap"
+      ],
+      "rationale": "Prevents water waste and potential water damage to the home.",
+      "source": "wikihow"
+    },
+    {
+      "cube_id": "cube_exp_BRAKE_PADS_01",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Replacing Brake Pads on a Car",
+      "rules": [
+        "MUST use a jack and jack stands to lift the car securely before starting.",
+        "MUST wear safety gloves and goggles to protect against brake dust and sharp edges.",
+        "PROHIBITED from working on brakes without ensuring the car is in park and the parking brake is engaged.",
+        "MUST use a brake pad spreader or C-clamp to compress the brake caliper piston.",
+        "WARNING: Avoid inhaling brake dust as it may contain harmful materials; use a mask if necessary.",
+        "MUST inspect the brake rotor for wear or damage before installing new pads.",
+        "PROHIBITED from reusing old brake pads or hardware if they are worn or damaged.",
+        "MUST torque the caliper bolts to the manufacturer's specifications using a torque wrench.",
+        "WARNING: Test the brakes at low speed in a safe area after replacement to ensure proper function."
+      ],
+      "trigger_intent": [
+        "brake pads",
+        "replace brakes",
+        "car maintenance"
+      ],
+      "rationale": "Ensures safe and effective replacement of brake pads, preventing accidents and maintaining vehicle performance.",
+      "source": "wikihow"
+    },
+    {
+      "cube_id": "cube_exp_PAINT_ROOM_01",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "How to Paint a Room Like a Professional",
+      "rules": [
+        "MUST clean the walls thoroughly before painting to remove dust and grease",
+        "MUST use painter's tape to protect trim, windows, and outlets",
+        "SHALL apply primer if painting over a dark color or new drywall",
+        "PROHIBITED painting without proper ventilation; ensure windows are open or use a fan",
+        "WARNING: Wear safety goggles and a mask to avoid inhaling fumes or getting paint in your eyes",
+        "MUST use a high-quality roller and brush for even coverage",
+        "SHALL allow each coat of paint to dry completely before applying the next",
+        "WARNING: Keep paint and tools away from children and pets",
+        "MUST cover the floor with drop cloths to protect it from spills"
+      ],
+      "trigger_intent": [
+        "paint room",
+        "professional painting",
+        "wall painting"
+      ],
+      "rationale": "Ensures a smooth, professional finish while maintaining safety and efficiency",
+      "source": "wikihow"
+    },
+    {
+      "cube_id": "cube_exp_saving_money_01",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Starting to Save Money from Zero",
+      "rules": [
+        "MUST create a detailed budget to track income and expenses. Use tools like spreadsheets or budgeting apps (e.g., Mint, YNAB).",
+        "MUST set a specific savings goal, such as an emergency fund or a down payment.",
+        "SHALL automate savings by setting up automatic transfers to a savings account.",
+        "PROHIBITED spending on non-essential items until the savings goal is met.",
+        "WARNING: Avoid high-interest debt, such as credit card debt, as it can hinder savings progress.",
+        "MUST review and adjust the budget monthly to ensure savings goals are on track.",
+        "SHALL seek out free financial education resources to improve money management skills.",
+        "PROHIBITED using savings for discretionary purchases unless it aligns with the savings goal.",
+        "WARNING: Be cautious of scams promising quick financial gains; focus on steady, disciplined saving."
+      ],
+      "trigger_intent": [
+        "saving money",
+        "budgeting",
+        "financial planning"
+      ],
+      "rationale": "Helps individuals build financial security and achieve long-term goals by establishing disciplined saving habits.",
+      "source": "wikihow"
+    },
+    {
+      "cube_id": "cube_exp_language_01",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Learn a Foreign Language in 3 Months",
+      "rules": [
+        "MUST dedicate at least 1 hour daily to focused language practice",
+        "MUST use language learning apps like Duolingo or Babbel for structured lessons",
+        "PROHIBITED relying solely on passive learning methods like watching TV without subtitles",
+        "MUST practice speaking with native speakers using tools like iTalki or HelloTalk",
+        "WARNING: Avoid overloading yourself with too many resources; focus on consistency",
+        "MUST set specific, measurable goals (e.g., learn 500 words in a month)",
+        "PROHIBITED skipping review sessions; use spaced repetition tools like Anki",
+        "WARNING: Ensure proper ergonomics when studying to avoid physical strain"
+      ],
+      "trigger_intent": [
+        "learn language",
+        "foreign language",
+        "3 months"
+      ],
+      "rationale": "Provides actionable steps to achieve fluency in a short timeframe",
+      "source": "wikihow"
+    },
+    {
+      "cube_id": "cube_exp_PROCRASTINATION_01",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Overcoming Procrastination",
+      "rules": [
+        "MUST identify the root cause of procrastination, such as fear of failure or lack of motivation.",
+        "MUST break tasks into smaller, manageable steps to reduce overwhelm.",
+        "SHALL use productivity tools like Pomodoro timers or task management apps to stay focused.",
+        "PROHIBITED multitasking; focus on one task at a time to maintain efficiency.",
+        "MUST set specific, achievable deadlines for each task to create accountability.",
+        "WARNING: Avoid perfectionism, as it can lead to unnecessary delays and stress.",
+        "SHALL reward yourself after completing tasks to reinforce positive behavior.",
+        "MUST eliminate distractions by creating a dedicated workspace free from interruptions."
+      ],
+      "trigger_intent": [
+        "procrastination",
+        "delay tasks",
+        "avoid work"
+      ],
+      "rationale": "Helps individuals improve productivity and reduce stress by addressing procrastination effectively.",
+      "source": "wikihow"
+    },
+    {
+      "cube_id": "cube_exp_clean_laptop_screen_01",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "How to Clean a Laptop Screen Safely",
+      "rules": [
+        "MUST turn off the laptop and unplug it before cleaning to avoid electrical hazards.",
+        "MUST use a microfiber cloth specifically designed for electronics to prevent scratches.",
+        "MUST apply a small amount of distilled water or screen cleaning solution to the cloth, not directly to the screen.",
+        "PROHIBITED using household cleaners, ammonia, or alcohol-based products as they can damage the screen coating.",
+        "PROHIBITED spraying liquids directly onto the screen to prevent liquid seepage into the device.",
+        "WARNING: Avoid applying excessive pressure while cleaning to prevent screen damage.",
+        "MUST gently wipe the screen in a circular motion to remove smudges and dust effectively.",
+        "MUST allow the screen to air dry completely before turning the laptop back on."
+      ],
+      "trigger_intent": [
+        "clean laptop screen",
+        "safe screen cleaning",
+        "laptop maintenance"
+      ],
+      "rationale": "Properly cleaning a laptop screen ensures longevity and maintains display clarity without causing damage.",
+      "source": "wikihow"
+    },
+    {
+      "cube_id": "cube_exp_INVEST_01",
+      "type": "experience",
+      "priority": 3,
+      "version": "1.0.0",
+      "title": "Investing Your First $100",
+      "rules": [
+        "MUST research investment options such as stocks, ETFs, or mutual funds before committing funds.",
+        "MUST use a reputable brokerage platform like Robinhood, Fidelity, or Vanguard for transactions.",
+        "PROHIBITED investing in high-risk assets like cryptocurrencies without understanding the volatility.",
+        "MUST allocate funds based on your risk tolerance and financial goals.",
+        "WARNING: Avoid scams by verifying the legitimacy of investment platforms and advisors.",
+        "MUST diversify your investment to reduce risk, even with a small amount.",
+        "PROHIBITED investing money you cannot afford to lose.",
+        "WARNING: Be cautious of 'get rich quick' schemes promising unrealistic returns.",
+        "MUST monitor your investments regularly to track performance.",
+        "MUST educate yourself on basic investment principles using resources like Investopedia or books."
+      ],
+      "trigger_intent": [
+        "invest",
+        "first $100",
+        "beginner investing"
+      ],
+      "rationale": "Helps beginners start investing wisely with limited funds.",
+      "source": "wikihow"
+    }
+  ],
+  "count": 8
+}

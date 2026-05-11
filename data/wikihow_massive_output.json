@@ -1,0 +1,183 @@
+{
+  "cubes": [
+    {
+      "name": "Preparation for Fixing a Leaking Faucet",
+      "rules": [
+        {
+          "type": "MUST",
+          "rule": "Turn off the water supply valves under the sink by twisting them clockwise until tight."
+        },
+        {
+          "type": "MUST",
+          "rule": "Plug the drain with a rag or stopper to prevent small parts from falling in."
+        },
+        {
+          "type": "MUST",
+          "rule": "Gather tools including adjustable wrench, screwdriver set, replacement washers or O-rings, and plumber's grease."
+        },
+        {
+          "type": "MUST",
+          "rule": "Identify the faucet type (compression, ball, cartridge, or ceramic disk) by checking the handle mechanism."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Do not proceed without turning off the water to avoid flooding."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Avoid using excessive force on handles or nuts to prevent stripping threads."
+        },
+        {
+          "type": "WARNING",
+          "rule": "Wear safety gloves to protect hands from sharp edges or old grime."
+        },
+        {
+          "type": "WARNING",
+          "rule": "Ensure the area is well-lit; use a flashlight if needed to avoid mistakes."
+        },
+        {
+          "type": "MUST",
+          "rule": "Lay down a towel under the faucet to catch any drips and protect the sink surface."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Do not ignore leaks from the supply lines; address them separately if present."
+        }
+      ],
+      "trigger_intent": [
+        "how to prepare to fix a dripping faucet",
+        "steps before repairing leaky tap",
+        "tools needed for faucet leak repair",
+        "safety prep for fixing sink faucet",
+        "identify faucet type for repair",
+        "turn off water for faucet fix",
+        "avoid mistakes in faucet preparation"
+      ],
+      "rationale": "Proper preparation ensures safety and prevents further damage during faucet repair. Identifying the faucet type and gathering tools streamlines the process, reducing frustration and errors. This approach, sourced from WikiHow, emphasizes efficiency and precaution to achieve a successful fix.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Fixing a Compression Faucet Leak",
+      "rules": [
+        {
+          "type": "MUST",
+          "rule": "Remove the handle by unscrewing the set screw with a screwdriver and lifting it off."
+        },
+        {
+          "type": "MUST",
+          "rule": "Use an adjustable wrench to loosen and remove the packing nut."
+        },
+        {
+          "type": "MUST",
+          "rule": "Pull out the stem and inspect the rubber washer at the bottom; replace if worn."
+        },
+        {
+          "type": "MUST",
+          "rule": "Apply plumber's grease to the new washer and O-ring before reassembling."
+        },
+        {
+          "type": "MUST",
+          "rule": "Reassemble in reverse order and test by turning on the water slowly."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Do not overtighten the packing nut to avoid damaging the stem."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Avoid using metal tools directly on chrome surfaces; wrap with tape to prevent scratches."
+        },
+        {
+          "type": "WARNING",
+          "rule": "Be cautious of old parts that may be corroded and break easily."
+        },
+        {
+          "type": "WARNING",
+          "rule": "If the seat is damaged, use a seat wrench to replace it, but only if experienced."
+        },
+        {
+          "type": "MUST",
+          "rule": "Clean all parts with a soft cloth and vinegar to remove mineral buildup."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Do not force the stem back in if it doesn't fit smoothly; check for obstructions."
+        }
+      ],
+      "trigger_intent": [
+        "repair compression faucet drip",
+        "fix two-handle faucet leak",
+        "replace washer in old faucet",
+        "steps for compression tap repair",
+        "handle removal for leaky faucet",
+        "stem and washer fix in sink",
+        "reassemble compression faucet",
+        "common errors in faucet stem repair"
+      ],
+      "rationale": "Compression faucets leak due to worn washers, and replacing them is a straightforward fix. This method from WikiHow provides detailed steps to disassemble, inspect, and reassemble safely. Following these rules prevents common pitfalls like overtightening, ensuring a long-lasting repair.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Fixing a Cartridge or Ball Faucet Leak",
+      "rules": [
+        {
+          "type": "MUST",
+          "rule": "Pry off the decorative cap on the handle and remove the screw underneath with a screwdriver."
+        },
+        {
+          "type": "MUST",
+          "rule": "Lift off the handle and use pliers to remove the retaining clip or nut."
+        },
+        {
+          "type": "MUST",
+          "rule": "Pull out the cartridge or ball assembly and inspect O-rings and seats for wear; replace as needed."
+        },
+        {
+          "type": "MUST",
+          "rule": "Lubricate new parts with plumber's grease and align properly during reinsertion."
+        },
+        {
+          "type": "MUST",
+          "rule": "Reassemble and turn on water to check for leaks, adjusting the cam or cap if necessary."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Do not mix parts from different faucet brands; use exact replacements."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Avoid bending or damaging the retaining clip during removal."
+        },
+        {
+          "type": "WARNING",
+          "rule": "Water may spurt out when removing the cartridge; have a towel ready."
+        },
+        {
+          "type": "WARNING",
+          "rule": "If the leak persists after repair, the entire faucet may need replacement."
+        },
+        {
+          "type": "MUST",
+          "rule": "For ball faucets, ensure the ball is seated correctly in the valve body."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Do not use excessive force on plastic cartridges to prevent cracking."
+        }
+      ],
+      "trigger_intent": [
+        "fix single-handle faucet leak",
+        "replace cartridge in dripping tap",
+        "ball faucet repair steps",
+        "O-ring replacement in faucet",
+        "handle and cartridge removal",
+        "reassemble ball valve faucet",
+        "troubleshoot cartridge leak",
+        "avoid damage in faucet cartridge fix"
+      ],
+      "rationale": "Cartridge and ball faucets require specific disassembly to access internal seals. WikiHow's guidance ensures users replace worn components accurately without causing further issues. This structured approach minimizes water waste and promotes DIY competence for common household problems.",
+      "cube_id": "cube_exp_untitled"
+    }
+  ],
+  "count": 3
+}

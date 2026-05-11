@@ -136,5 +136,29 @@
 
 
 
+<script>
+async function loadTrials() {
+    try {
+        const resp = await fetch('/api/v1/trials');
+        const data = await resp.json();
+        const container = document.getElementById('trials-list');
+        
+        if (data.trials && data.trials.length > 0) {
+            container.innerHTML = data.trials.map(t => `
+                <div style="background:#161b22;border:1px solid #21262d;border-radius:8px;padding:16px;margin-bottom:16px">
+                    <h3 style="color:#f0883e">${t.cube_id}</h3>
+                    <p style="color:#8b949e;font-size:13px">Score: ${t.score}/20 | Verdict: <strong style="color:${t.verdict === 'KEEP' ? '#3fb950' : t.verdict === 'FIX' ? '#f0883e' : '#f85149'}">${t.verdict}</strong></p>
+                    <div style="margin-top:8px;font-size:13px;color:#c9d1d9">${t.reviews ? t.reviews.map(r => `<p><strong>${r.model}:</strong> ${r.comment}</p>`).join('') : 'No reviews yet'}</div>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = '<p style="color:#8b949e">No active trials. When a cube receives 3 downvotes from different users, it will appear here.</p>';
+        }
+    } catch(e) {
+        document.getElementById('trials-list').innerHTML = '<p style="color:#f85149">Error loading trials data.</p>';
+    }
+}
+loadTrials();
+</script>
 </body>
 </html>

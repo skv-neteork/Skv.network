@@ -55,7 +55,7 @@ def load_cubes_from_db():
             dbname="skv_db", user="skv_user", password="skv_secret_2026"
         )
         cur = conn.cursor()
-        cur.execute("SELECT cube_id, title, type, trigger_intent, rules, status, created_at FROM cubes")
+        cur.execute("SELECT cube_id, title, type, trigger_intent, rules, status, created_at, content FROM cubes")
         for row in cur.fetchall():
             cube_id = row[0]
             if cube_id not in cubes_library:
@@ -66,7 +66,7 @@ def load_cubes_from_db():
                     "id": str(uuid.uuid4()),
                     "cube_id": cube_id,
                     "title": row[1],
-                    "content": {},
+                    "content": row["content"] if row["content"] else {},
                     "triggers": triggers if triggers else [],
                     "status": row[5] or "community",
                     "created_at": str(row[6]) if row[6] else ""
@@ -283,6 +283,47 @@ async def get_cube_links(cube_id: str):
         cur.close()
         conn.close()
         return {"cube_id": cube_id, "links": links}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:200])
+
+
+@router.post("/api/feedback")
+async def feedback(request: Request):
+    """Принимает оценку кубика (up/down). При 3 дизлайках запускает Trials."""
+    try:
+        data = await request.json()
+        cube_id = data.get("cube_id")
+        vote = data.get("vote", "up")
+        comment = data.get("comment", "")
+        
+        if not cube_id or vote not in ("up", "down"):
+            raise HTTPException(status_code=400, detail="cube_id and vote (up/down) required")
+        
+        import psycopg2 as pg2
+        pg_conn = pg2.connect(
+            host="127.0.0.1", port=5432,
+            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+        )
+        cur = pg_conn.cursor()
+        cur.execute(
+            "INSERT INTO feedback (cube_id, vote, comment) VALUES (%s, %s, %s)",
+            (cube_id, vote, comment)
+        )
+        pg_conn.commit()
+        
+        # Проверяем, не пора ли запустить Trials
+        cur.execute("SELECT COUNT(*) FROM feedback WHERE cube_id = %s AND vote = 'down'", (cube_id,))
+        downvotes = cur.fetchone()[0]
+        cur.close()
+        pg_conn.close()
+        
+        return {
+            "status": "ok",
+            "cube_id": cube_id,
+            "vote": vote,
+            "downvotes": downvotes,
+            "pending_trial": downvotes >= 3
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
 

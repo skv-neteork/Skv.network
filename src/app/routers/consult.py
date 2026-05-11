@@ -2,7 +2,7 @@ import json, urllib.request as _req, time as _time
 from fastapi import APIRouter, Request
 
 router = APIRouter()
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
 
 MODELS = {
     "deepseek": "deepseek/deepseek-v4-flash",

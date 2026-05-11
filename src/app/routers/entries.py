@@ -327,6 +327,47 @@ async def feedback(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
 
+
+@router.get("/api/v1/trials")
+async def get_trials():
+    """Возвращает список активных Trials (кубики с 3+ дизлайками)"""
+    try:
+        import psycopg2 as pg2
+        pg_conn = pg2.connect(
+            host="127.0.0.1", port=5432,
+            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+        )
+        cur = pg_conn.cursor()
+        
+        # Находим кубики с 3+ дизлайками
+        cur.execute("""
+            SELECT cube_id, COUNT(*) as downvotes
+            FROM feedback 
+            WHERE vote = 'down'
+            GROUP BY cube_id 
+            HAVING COUNT(*) >= 3
+        """)
+        
+        trials = []
+        for row in cur.fetchall():
+            cube_id = row[0]
+            # Получаем отзывы для этого кубика
+            cur.execute("SELECT vote, comment, created_at FROM feedback WHERE cube_id = %s ORDER BY created_at DESC", (cube_id,))
+            reviews = [{"vote": r[0], "comment": r[1], "date": str(r[2])} for r in cur.fetchall()]
+            
+            trials.append({
+                "cube_id": cube_id,
+                "downvotes": row[1],
+                "reviews": reviews
+            })
+        
+        cur.close()
+        pg_conn.close()
+        
+        return {"trials": trials, "count": len(trials)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:200])
+
 def get_cubes_count():
     return len(cubes_library)
 

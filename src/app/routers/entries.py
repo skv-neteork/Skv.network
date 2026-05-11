@@ -163,6 +163,41 @@ async def create_entry(request: Request):
                     except Exception as e:
                         print(f"[SKV] Link save error: {e}")
 
+            # Косвенные связи: shared_cubes
+            if "cubes" in body:
+                try:
+                    import psycopg2 as pg2
+                    pg_conn = pg2.connect(
+                        host="127.0.0.1", port=5432,
+                        dbname="skv_db", user="skv_user", password="skv_secret_2026"
+                    )
+                    cur = pg_conn.cursor()
+                    all_triggers = []
+                    for c in body.get("cubes", []):
+                        all_triggers.extend(c.get("trigger_intent", []))
+                    
+                    if all_triggers:
+                        for trigger in all_triggers[:5]:
+                            cur.execute(
+                                "SELECT DISTINCT cube_id FROM cubes WHERE trigger_intent::text LIKE %s",
+                                (f"%{trigger}%",)
+                            )
+                            related = cur.fetchall()
+                            for row in related:
+                                for cid in [c.get("cube_id") for c in body.get("cubes", [])]:
+                                    if row[0] != cid:
+                                        cur.execute(
+                                            "INSERT INTO cube_links (cube_id, linked_cube_id, link_type) VALUES (%s, %s, 'shared_cubes') ON CONFLICT DO NOTHING",
+                                            (cid, row[0])
+                                        )
+                    
+                    pg_conn.commit()
+                    cur.close()
+                    pg_conn.close()
+                    print(f"[SKV] Indirect links (shared_cubes) saved")
+                except Exception as e:
+                    print(f"[SKV] Indirect link error: {e}")
+
         # Автоматически сохраняем persona в профиль
         if "persona" in body:
             persona_data = body["persona"]

@@ -28,18 +28,22 @@
         @media (max-width: 600px) { .controls { flex-direction: column; } }
     </style>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iI2YwODgzZSIvPgogIDx0ZXh0IHg9IjE2IiB5PSIyMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiMwZDExMTciPlNLVjwvdGV4dD4KPC9zdmc+">
+
+
 </head>
 <body>
     <div class="nav">
         <a href="/">Home</a>
         <a href="/upload">Upload</a>
         <a href="/trials">Trials</a>
+            <a href="/evolver">Evolver</a>
         
         <a href="/.well-known/skv" target="_blank">Discovery</a>
         <a href="/chat">💬 Chat</a>
         <a href="/guide">Guide</a>
         
         <a href="/profile" id="navProfileLink">Profile</a>
+        
         <a href="/about">About</a>
         <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
         <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
@@ -47,6 +51,8 @@
     </div>
     <div class="main">
         <h1>Trials</h1>
+
+
         <div class="controls">
             <input id="cid" placeholder="Cube ID">
             <select id="vsel"><option value="">All</option><option value="fix">Fix</option><option value="remove">Remove</option></select>
@@ -124,5 +130,11 @@
             }
         })();
     </script>
+
+
+
+
+
+
 </body>
 </html>

@@ -100,6 +100,123 @@ async def download_generated_file(filename: str):
     return FileResponse(path, filename=filename, media_type=media_type)
 
 
+
+
+@router.get("/api/evolver/log")
+async def get_evolver_log():
+    """Возвращает последние 50 строк лога Evolver'а"""
+    import os
+    log_file = "/root/skv-core/data/evolver.log"
+    lines = []
+    try:
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as f:
+                lines = f.readlines()[-50:]
+    except:
+        pass
+    return {"lines": [l.strip() for l in lines]}
+
+
+@router.get("/api/evolver/report")
+async def get_evolver_report():
+    """Возвращает последний отчёт Evolver'а"""
+    import os, json as json_lib
+    
+    log_file = "/root/skv-core/data/evolver.log"
+    report = {
+        "status": "active",
+        "summary": {"total_checked": 0, "keep": 0, "fix": 0, "remove": 0}
+    }
+    
+    try:
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as f:
+                lines = f.readlines()
+            
+            for line in lines[-100:]:
+                if "Results:" in line:
+                    parts = line.split("Results:")[1].strip()
+                    for part in parts.split():
+                        if "✅" in part:
+                            report["summary"]["keep"] += int(''.join(filter(str.isdigit, part)) or 0)
+                        elif "🔧" in part:
+                            report["summary"]["fix"] += int(''.join(filter(str.isdigit, part)) or 0)
+                        elif "❌" in part:
+                            report["summary"]["remove"] += int(''.join(filter(str.isdigit, part)) or 0)
+            
+            report["summary"]["total_checked"] = report["summary"]["keep"] + report["summary"]["fix"] + report["summary"]["remove"]
+    except:
+        pass
+    
+    return report
+
+
+@router.get("/evolver")
+async def evolver_page():
+    """Страница Evolver — автономного аудитора SKV"""
+    return HTMLResponse(content="""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SKV Evolver — Autonomous Guardian</title>
+    <style>
+        body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #f0883e; }
+        .nav { display: flex; gap: 20px; margin-bottom: 30px; }
+        .nav a { color: #8b949e; text-decoration: none; }
+        .nav a:hover { color: #f0883e; }
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 30px; }
+        .stat { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 20px; text-align: center; }
+        .stat .n { font-size: 32px; font-weight: 700; color: #f0883e; }
+        .stat .l { font-size: 11px; color: #8b949e; text-transform: uppercase; margin-top: 4px; }
+        .log { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 13px; max-height: 500px; overflow-y: auto; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/trials">Trials</a>
+        <a href="/evolver" style="color:#f0883e">Evolver</a>
+    </div>
+    
+    <h1>🛡️ SKV Evolver</h1>
+    <p style="color:#8b949e;margin-bottom:20px">Autonomous guardian that audits cube quality every 4 hours when server load is low. Sends weak cubes to Trials automatically.</p>
+    
+    <div class="stats" id="stats">
+        <div class="stat"><div class="n" id="total">--</div><div class="l">Total Checked</div></div>
+        <div class="stat"><div class="n" id="keep" style="color:#3fb950">--</div><div class="l">Keep</div></div>
+        <div class="stat"><div class="n" id="fix" style="color:#f0883e">--</div><div class="l">Fix</div></div>
+        <div class="stat"><div class="n" id="remove" style="color:#f85149">--</div><div class="l">Remove</div></div>
+    </div>
+    
+    <h3 style="color:#f0883e">Recent Activity</h3>
+    <div class="log" id="log">Loading...</div>
+    
+    <script>
+    async function load() {
+        try {
+            const resp = await fetch('/api/evolver/report');
+            const data = await resp.json();
+            document.getElementById('total').textContent = data.summary.total_checked;
+            document.getElementById('keep').textContent = data.summary.keep;
+            document.getElementById('fix').textContent = data.summary.fix;
+            document.getElementById('remove').textContent = data.summary.remove;
+            
+            // Загружаем логи
+            const logResp = await fetch('/api/evolver/log');
+            const logData = await logResp.json();
+            document.getElementById('log').textContent = logData.lines.join('\n');
+        } catch(e) {
+            document.getElementById('log').textContent = 'Waiting for first audit cycle...';
+        }
+    }
+    load();
+    </script>
+</body>
+</html>
+""")
+
 @router.get("/downloads/skv-persona-pack-{user_id}.txt")
 async def download_persona_pack(user_id: str):
     """Генерирует и отдаёт файл с портфелем пользователя + конституцией + Agent Guide"""

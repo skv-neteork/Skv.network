@@ -106,7 +106,7 @@ async def download_generated_file(filename: str):
 async def get_evolver_log():
     """Возвращает последние 50 строк лога Evolver'а"""
     import os
-    log_file = "/root/skv-core/data/evolver.log"
+    log_file = "/tmp/evolver.log"
     lines = []
     try:
         if os.path.exists(log_file):
@@ -122,7 +122,7 @@ async def get_evolver_report():
     """Возвращает последний отчёт Evolver'а"""
     import os, json as json_lib
     
-    log_file = "/root/skv-core/data/evolver.log"
+    log_file = "/tmp/evolver.log"
     report = {
         "status": "active",
         "summary": {"total_checked": 0, "keep": 0, "fix": 0, "remove": 0}
@@ -134,15 +134,14 @@ async def get_evolver_report():
                 lines = f.readlines()
             
             for line in lines[-100:]:
-                if "Results:" in line:
-                    parts = line.split("Results:")[1].strip()
-                    for part in parts.split():
-                        if "✅" in part:
-                            report["summary"]["keep"] += int(''.join(filter(str.isdigit, part)) or 0)
-                        elif "🔧" in part:
-                            report["summary"]["fix"] += int(''.join(filter(str.isdigit, part)) or 0)
-                        elif "❌" in part:
-                            report["summary"]["remove"] += int(''.join(filter(str.isdigit, part)) or 0)
+                if "📝" in line:
+                    if "KEEP" in line.upper():
+                        report["summary"]["keep"] += 1
+                    elif "FIX" in line.upper():
+                        report["summary"]["fix"] += 1
+                    elif "REMOVE" in line.upper():
+                        report["summary"]["remove"] += 1
+                    report["summary"]["total_checked"] += 1
             
             report["summary"]["total_checked"] = report["summary"]["keep"] + report["summary"]["fix"] + report["summary"]["remove"]
     except:
@@ -184,35 +183,41 @@ async def evolver_page():
     <p style="color:#8b949e;margin-bottom:20px">Autonomous guardian that audits cube quality every 4 hours when server load is low. Sends weak cubes to Trials automatically.</p>
     
     <div class="stats" id="stats">
-        <div class="stat"><div class="n" id="total">--</div><div class="l">Total Checked</div></div>
-        <div class="stat"><div class="n" id="keep" style="color:#3fb950">--</div><div class="l">Keep</div></div>
-        <div class="stat"><div class="n" id="fix" style="color:#f0883e">--</div><div class="l">Fix</div></div>
-        <div class="stat"><div class="n" id="remove" style="color:#f85149">--</div><div class="l">Remove</div></div>
+        <div class="stat"><div class="n" id="evTotal">--</div><div class="l">Total Checked</div></div>
+        <div class="stat"><div class="n" id="evKeep" style="color:#3fb950">--</div><div class="l">Keep</div></div>
+        <div class="stat"><div class="n" id="evFix" style="color:#f0883e">--</div><div class="l">Fix</div></div>
+        <div class="stat"><div class="n" id="evRemove" style="color:#f85149">--</div><div class="l">Remove</div></div>
     </div>
     
     <h3 style="color:#f0883e">Recent Activity</h3>
-    <div class="log" id="log">Loading...</div>
+    <div class="log" id="evolverLog">Loading...</div>
     
-    <script>
-    async function load() {
-        try {
-            const resp = await fetch('/api/evolver/report');
-            const data = await resp.json();
-            document.getElementById('total').textContent = data.summary.total_checked;
-            document.getElementById('keep').textContent = data.summary.keep;
-            document.getElementById('fix').textContent = data.summary.fix;
-            document.getElementById('remove').textContent = data.summary.remove;
-            
-            // Загружаем логи
-            const logResp = await fetch('/api/evolver/log');
-            const logData = await logResp.json();
-            document.getElementById('log').textContent = logData.lines.join('\n');
-        } catch(e) {
-            document.getElementById('log').textContent = 'Waiting for first audit cycle...';
+    
+
+<script>
+async function loadEvolverData() {
+    try {
+        const resp = await fetch('/api/evolver/report');
+        const data = await resp.json();
+        document.getElementById('evTotal').textContent = data.summary.total_checked || 0;
+        document.getElementById('evKeep').textContent = data.summary.keep || 0;
+        document.getElementById('evFix').textContent = data.summary.fix || 0;
+        document.getElementById('evRemove').textContent = data.summary.remove || 0;
+        
+        const logResp = await fetch('/api/evolver/log');
+        const logData = await logResp.json();
+        const logDiv = document.getElementById('evolverLog');
+        if (logData.lines && logData.lines.length > 0) {
+            logDiv.innerHTML = logData.lines.join('<br>');
+        } else {
+            logDiv.textContent = 'Waiting for first audit cycle...';
         }
+    } catch(e) {
+        console.error(e);
     }
-    load();
-    </script>
+}
+loadEvolverData();
+</script>
 </body>
 </html>
 """)

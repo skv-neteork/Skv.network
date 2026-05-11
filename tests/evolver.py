@@ -77,8 +77,16 @@ Return: VERDICT: [X] | SCORE: [X] | REASON: [1 sentence] | SUGGESTIONS: [if FIX]
     resp = json.loads(req.urlopen(r, timeout=60).read())
     return resp["choices"][0]["message"]["content"].strip()
 
+def is_constitutional(cube_id):
+    """Проверяет, является ли кубик конституционным"""
+    return cube_id.startswith('cube_basic_') or cube_id.startswith('cube_const_')
+
 def submit_to_trials(cube_id, verdict):
-    """Отправляет кубик в Trials с 3 downvotes"""
+    """Отправляет кубик в Trials с 3 downvotes (кроме Constitutional)"""
+    if is_constitutional(cube_id):
+        log(f"  🛡️ Constitutional cube protected — skipping Trials")
+        return False
+    
     if "REMOVE" not in verdict.upper() and "FIX" not in verdict.upper():
         return False
     
@@ -106,7 +114,7 @@ def run_audit_cycle():
     log("=" * 50)
     log("🔍 Deep audit cycle — Grok-4 analysis")
     
-    cubes = get_random_cubes_v2(5)
+    cubes = get_random_cubes(5)
     if not cubes:
         log("❌ No eligible cubes found")
         return
@@ -120,14 +128,18 @@ def run_audit_cycle():
         verdict = deep_analyze(cube)
         log(f"  📝 {verdict[:200]}")
         
-        mark_as_checked(cube_id)
+        # Извлекаем Score из вердикта (например "SCORE: 7")
+        import re
+        score_match = re.search(r'SCORE:\s*(\d+)', verdict)
+        score = int(score_match.group(1)) if score_match else 5
         
-        if "KEEP" in verdict.upper():
+        if score >= 7:
             results["KEEP"] += 1
-        elif "FIX" in verdict.upper():
+        elif score >= 4:
             results["FIX"] += 1
-            submit_to_trials(cube_id, verdict)
-        elif "REMOVE" in verdict.upper():
+            if score <= 4:  # Strong Fix — отправляем в Trials
+                submit_to_trials(cube_id, verdict)
+        else:
             results["REMOVE"] += 1
             submit_to_trials(cube_id, verdict)
         
@@ -143,7 +155,7 @@ while True:
     load = get_system_load()
     log(f"System load: {load:.0f}%")
     
-    if load < 30:
+    if load < 70:  # TEMP
         run_audit_cycle()
     else:
         log(f"⏸️ Load too high ({load:.0f}%), skipping")

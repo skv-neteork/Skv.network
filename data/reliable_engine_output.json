@@ -1,0 +1,1088 @@
+{
+  "cubes": [
+    {
+      "rules": [
+        "MUST turn off the water supply before starting any repairs.",
+        "PROHIBITED to use pliers without protective wrapping to avoid scratching the faucet.",
+        "WARNING: Ensure the area is dry to prevent slips and falls.",
+        "MUST wear safety gloves to protect hands from sharp edges.",
+        "PROHIBITED to ignore worn-out washers; replace them immediately.",
+        "WARNING: Test for leaks after reassembly to avoid water damage.",
+        "MUST clean all parts thoroughly before reinstalling.",
+        "PROHIBITED to overtighten screws, which can cause cracks.",
+        "WARNING: If unsure, consult a professional plumber."
+      ],
+      "trigger_intent": [
+        "how to fix a dripping kitchen faucet",
+        "stop leak in sink tap",
+        "repair kitchen faucet drip",
+        "diy fix for leaking kitchen handle",
+        "kitchen faucet leaking from base",
+        "how to mend a leaky sink",
+        "fixing drip in home faucet"
+      ],
+      "rationale": "This experience cube provides step-by-step guidance for repairing a common kitchen faucet leak, emphasizing safety and proper techniques. It helps users avoid common mistakes that could lead to further damage or injury. By following these rules, homeowners can save money on professional services while ensuring a durable fix.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST shut off the main water valve before disassembling the showerhead.",
+        "PROHIBITED to use harsh chemicals that could damage the finish.",
+        "WARNING: Be cautious of hot water residues to prevent burns.",
+        "MUST replace O-rings if they show signs of wear.",
+        "PROHIBITED to force stuck parts; use lubricant instead.",
+        "WARNING: Check for mold buildup which could indicate larger issues.",
+        "MUST dry all components before reassembly to prevent corrosion.",
+        "PROHIBITED to neglect sealing tape on threaded connections.",
+        "WARNING: Test water pressure gradually after repairs."
+      ],
+      "trigger_intent": [
+        "fix leaking bathroom shower",
+        "stop drip from shower faucet",
+        "repair shower head leak",
+        "how to fix bathroom faucet drip",
+        "leaking shower valve repair",
+        "diy shower faucet fix"
+      ],
+      "rationale": "This cube focuses on bathroom shower faucets, where leaks often stem from seals and valves. It promotes safe practices to handle wet environments and potential hazards like scalding. Users benefit from clear rules that ensure a thorough and safe repair process.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST locate and close the outdoor shut-off valve first.",
+        "PROHIBITED to repair during freezing temperatures to avoid pipe bursts.",
+        "WARNING: Wear protective eyewear due to potential debris.",
+        "MUST inspect the packing nut for tightness.",
+        "PROHIBITED to use metal tools directly on brass fittings.",
+        "WARNING: Drain all water from the spigot before winter.",
+        "MUST apply waterproof grease to moving parts.",
+        "PROHIBITED to ignore rust; treat it promptly.",
+        "WARNING: If leak persists, check for underground pipe issues.",
+        "MUST test for full functionality post-repair."
+      ],
+      "trigger_intent": [
+        "fix outdoor faucet leak",
+        "repair leaking garden spigot",
+        "stop drip from outside tap",
+        "how to mend outdoor hose bib",
+        "leaking exterior faucet diy",
+        "fix outdoor water leak",
+        "repair spigot drip"
+      ],
+      "rationale": "Designed for outdoor faucets exposed to elements, this cube addresses weather-related challenges. It guides users through seasonal preparations and repairs to prevent costly damages. The rationale ensures longevity and safety in external home maintenance.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST identify if it's a compression faucet before proceeding.",
+        "PROHIBITED to mix up hot and cold water stems during reassembly.",
+        "WARNING: Use a seat wrench carefully to avoid damaging the valve seat.",
+        "MUST replace the rubber washer at the stem's base.",
+        "PROHIBITED to apply excessive force when tightening the bonnet nut.",
+        "WARNING: Old faucets may contain lead; handle with care.",
+        "MUST lubricate threads with plumber's grease.",
+        "PROHIBITED to reuse damaged seats; always replace them.",
+        "WARNING: Flush the lines after repair to remove debris."
+      ],
+      "trigger_intent": [
+        "how to fix compression faucet leak",
+        "repair old style faucet drip",
+        "stop leak in compression tap",
+        "diy compression valve fix",
+        "leaking stem faucet repair",
+        "fix compression handle drip"
+      ],
+      "rationale": "This cube targets older compression-type faucets, common in many homes. It provides specialized rules for their unique mechanisms, reducing the risk of improper fixes. Overall, it empowers users with knowledge for effective, long-term solutions.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST remove the decorative cap to access the cartridge.",
+        "PROHIBITED to pull the cartridge without releasing the retaining clip.",
+        "WARNING: Match the replacement cartridge exactly to the model.",
+        "MUST clean the valve body of mineral deposits.",
+        "PROHIBITED to install the cartridge upside down.",
+        "WARNING: High water pressure can exacerbate leaks; consider a regulator.",
+        "MUST align the cartridge tabs properly.",
+        "PROHIBITED to use non-compatible parts from different brands.",
+        "WARNING: If seals are brittle, replace the entire assembly.",
+        "MUST reassemble in reverse order and test thoroughly."
+      ],
+      "trigger_intent": [
+        "fix cartridge faucet leak",
+        "repair single handle faucet drip",
+        "stop leak in cartridge tap",
+        "diy cartridge replacement",
+        "leaking modern faucet fix",
+        "how to mend cartridge valve",
+        "cartridge faucet drip repair"
+      ],
+      "rationale": "Focused on modern cartridge faucets, this cube simplifies the repair of single-handle designs. It highlights precision in part handling to avoid installation errors. This approach ensures users achieve a reliable seal and functional faucet.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST wear protective gloves to avoid contact with debris.",
+        "PROHIBITED: Pouring boiling water directly if pipes are PVC.",
+        "WARNING: Ensure good ventilation when using chemical cleaners.",
+        "MUST use a plunger with a flat bottom for sinks.",
+        "PROHIBITED: Using sharp objects that could damage pipes.",
+        "MUST check for standing water before starting.",
+        "WARNING: Avoid mixing different chemical cleaners.",
+        "MUST test the drain after unclogging.",
+        "PROHIBITED: Ignoring leaks during the process.",
+        "WARNING: Call a professional if clog persists."
+      ],
+      "trigger_intent": [
+        "how to unclog kitchen sink with plunger",
+        "kitchen sink blocked what to do",
+        "diy sink unclogging methods",
+        "plunger for sink drain",
+        "home remedies for clogged sink",
+        "sink not draining help",
+        "unblock kitchen drain easily"
+      ],
+      "rationale": "This cube focuses on plunger-based methods for safe and effective unclogging. It emphasizes basic tools to prevent damage and ensure user safety. Providing structured rules helps users avoid common mistakes.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST use baking soda and vinegar in equal parts.",
+        "PROHIBITED: Using this method on metal pipes without checking corrosion.",
+        "WARNING: Reaction may cause fizzing; stand back.",
+        "MUST pour hot water after the mixture sits.",
+        "PROHIBITED: Combining with commercial chemicals.",
+        "MUST let the solution sit for at least 30 minutes.",
+        "WARNING: Not suitable for severe clogs.",
+        "MUST rinse thoroughly with water afterward.",
+        "PROHIBITED: Using on garbage disposal units."
+      ],
+      "trigger_intent": [
+        "natural ways to unclog sink",
+        "baking soda vinegar for drain",
+        "eco-friendly sink unclog",
+        "homemade sink cleaner",
+        "chemical-free drain fix",
+        "kitchen sink clog remedy"
+      ],
+      "rationale": "This cube promotes natural, eco-friendly solutions using household items. It guides users through a safe chemical reaction process. The rules ensure environmental safety and prevent pipe damage.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST follow product instructions precisely.",
+        "PROHIBITED: Using on non-compatible pipe materials.",
+        "WARNING: Wear eye protection and gloves.",
+        "MUST ventilate the area well.",
+        "PROHIBITED: Mixing with other cleaners.",
+        "MUST wait the recommended time before flushing.",
+        "WARNING: Keep away from children and pets.",
+        "MUST dispose of containers properly.",
+        "PROHIBITED: Using excessively without trying manual methods first.",
+        "WARNING: May not work on hair clogs."
+      ],
+      "trigger_intent": [
+        "chemical drain cleaners for sink",
+        "best product to unclog kitchen sink",
+        "drano for kitchen drain",
+        "store-bought sink unclogger",
+        "fast chemical fix for clog",
+        "liquid plumber instructions",
+        "commercial drain solutions"
+      ],
+      "rationale": "This cube addresses the use of commercial chemical cleaners for quick results. It stresses safety precautions due to the hazardous nature of chemicals. Structured warnings help mitigate risks to health and plumbing.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST disconnect the P-trap carefully.",
+        "PROHIBITED: Forcing rusted parts without lubricant.",
+        "WARNING: Place a bucket under to catch water.",
+        "MUST wear gloves and use tools like pliers.",
+        "PROHIBITED: Reassembling without cleaning thoroughly.",
+        "MUST inspect for damage before reattaching.",
+        "WARNING: This method requires basic plumbing knowledge.",
+        "MUST test for leaks after reassembly.",
+        "PROHIBITED: Attempting on complex systems without experience."
+      ],
+      "trigger_intent": [
+        "manual unclog kitchen sink",
+        "remove p-trap to clear clog",
+        "plumbing fix for sink drain",
+        "diy pipe cleaning",
+        "under sink clog removal",
+        "snake tool for kitchen sink"
+      ],
+      "rationale": "This cube covers manual disassembly for direct clog removal. It is designed for users with some DIY skills. The rationale ensures safe handling of plumbing components to avoid further issues.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST research licensed professionals.",
+        "PROHIBITED: Delaying if clog causes backups.",
+        "WARNING: Compare quotes from multiple plumbers.",
+        "MUST describe the issue accurately over phone.",
+        "PROHIBITED: Attempting fixes that void warranties.",
+        "MUST prepare the area by clearing under the sink.",
+        "WARNING: Be aware of potential costs for severe clogs.",
+        "MUST ask about guarantees on work.",
+        "PROHIBITED: Hiring unlicensed services.",
+        "WARNING: Monitor for recurring issues post-service."
+      ],
+      "trigger_intent": [
+        "when to call plumber for sink",
+        "professional help for clogged sink",
+        "hire expert to unclog drain",
+        "plumbing service for kitchen",
+        "persistent sink clog solution",
+        "emergency drain cleaning",
+        "cost to unclog kitchen sink"
+      ],
+      "rationale": "This cube advises on when and how to seek professional help. It prevents DIY disasters for complex problems. Providing these guidelines ensures users make informed decisions for long-term fixes.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Gather all necessary tools including drywall patch, joint compound, sandpaper, and putty knife.",
+        "MUST: Clean the damaged area thoroughly before starting.",
+        "PROHIBITED: Do not apply joint compound on a dirty or wet surface.",
+        "WARNING: Wear protective gloves to avoid skin irritation from compounds.",
+        "MUST: Cut the patch to fit the hole precisely.",
+        "PROHIBITED: Avoid using excessive force when sanding to prevent further damage.",
+        "MUST: Apply multiple thin layers of joint compound, allowing drying time between each.",
+        "WARNING: Ensure good ventilation when using chemical-based compounds.",
+        "MUST: Sand the area smooth after the final layer dries.",
+        "PROHIBITED: Do not paint over unsanded or uneven patches."
+      ],
+      "trigger_intent": [
+        "how to fix small hole in drywall",
+        "patching drywall tutorial",
+        "repair drywall damage",
+        "DIY drywall patch",
+        "steps to mend wall hole",
+        "beginner drywall repair",
+        "fixing drywall at home"
+      ],
+      "rationale": "This cube provides a basic guide for small drywall patches to empower homeowners with simple repairs. It emphasizes safety and precision to ensure a professional finish without professional help. Following these steps prevents common mistakes like bubbling or cracking.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Use a drywall saw to square off irregular large holes.",
+        "PROHIBITED: Do not skip installing backing support for large patches.",
+        "WARNING: Be cautious with electrical wiring behind the wall.",
+        "MUST: Secure a new drywall piece with screws into the backing.",
+        "MUST: Tape seams with fiberglass mesh tape.",
+        "PROHIBITED: Avoid rushing the drying process between compound layers.",
+        "WARNING: Use a dust mask during sanding to avoid inhaling particles.",
+        "MUST: Feather the edges of the compound for a seamless blend.",
+        "PROHIBITED: Do not use paper tape on large repairs as it may crack."
+      ],
+      "trigger_intent": [
+        "patching large drywall hole",
+        "repair big wall damage",
+        "how to fix major drywall issue",
+        "advanced drywall patching",
+        "mending large holes in walls",
+        "professional drywall repair steps"
+      ],
+      "rationale": "This cube is designed for handling larger drywall damages that require structural support. It focuses on durability and safety to prevent future failures. The guidelines help users achieve a sturdy, invisible repair.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Identify if the damage is from water and address the source first.",
+        "PROHIBITED: Do not patch over moldy or damp drywall.",
+        "WARNING: Check for mold and wear a respirator if present.",
+        "MUST: Remove all damaged material and dry the area completely.",
+        "MUST: Apply a mold-resistant primer before patching.",
+        "PROHIBITED: Avoid using standard joint compound in moist areas.",
+        "WARNING: Ensure the room is well-ventilated during drying.",
+        "MUST: Use setting-type compound for faster drying in humid conditions.",
+        "MUST: Seal the patch with waterproof paint.",
+        "PROHIBITED: Do not ignore signs of ongoing moisture issues."
+      ],
+      "trigger_intent": [
+        "patching water-damaged drywall",
+        "fix moldy wall hole",
+        "repair drywall after leak",
+        "water damage drywall patch",
+        "mending damp wall",
+        "how to fix wet drywall",
+        "moisture-resistant drywall repair"
+      ],
+      "rationale": "This cube addresses water-related drywall issues to prevent health risks like mold growth. It prioritizes thorough preparation and moisture control for long-lasting repairs. Users learn to identify and mitigate underlying problems effectively.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Select tools like a utility knife, sanding block, and premixed compound for quick fixes.",
+        "PROHIBITED: Do not use heavy tools that could cause more damage.",
+        "WARNING: Work in a well-lit area to spot imperfections.",
+        "MUST: Apply self-adhesive patches for minor holes.",
+        "MUST: Skim coat the patch lightly and sand gently.",
+        "PROHIBITED: Avoid over-sanding which thins the wall.",
+        "WARNING: Keep children and pets away from the work area.",
+        "MUST: Clean tools immediately after use to prevent hardening.",
+        "PROHIBITED: Do not leave compound uncovered as it dries out."
+      ],
+      "trigger_intent": [
+        "quick drywall patch",
+        "fast wall repair",
+        "easy DIY drywall fix",
+        "minor hole patching",
+        "simple drywall mend",
+        "beginner quick repair"
+      ],
+      "rationale": "This cube offers a streamlined process for minor, quick drywall patches suitable for beginners. It minimizes time and tools needed while ensuring quality. The focus is on efficiency without compromising safety or results.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Match the texture of the existing wall before final sanding.",
+        "PROHIBITED: Do not apply texture spray without practicing first.",
+        "WARNING: Use eye protection when spraying textures.",
+        "MUST: Prime the patched area to ensure even paint absorption.",
+        "MUST: Use a knockdown tool for orange peel textures if needed.",
+        "PROHIBITED: Avoid mismatched textures that highlight the repair.",
+        "WARNING: Test paint color on a small area to match perfectly.",
+        "MUST: Allow full curing time before applying texture.",
+        "MUST: Clean up all dust and debris post-repair.",
+        "PROHIBITED: Do not rush painting over uncured surfaces."
+      ],
+      "trigger_intent": [
+        "textured drywall patching",
+        "matching wall texture repair",
+        "how to patch textured wall",
+        "finishing drywall patch",
+        "blending drywall repair",
+        "seamless wall mend",
+        "professional finish drywall"
+      ],
+      "rationale": "This cube specializes in achieving a seamless textured finish for drywall patches. It guides users on texture matching to make repairs invisible. Emphasis is on final steps for aesthetic perfection and durability.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST turn off the water supply to the toilet before starting repairs.",
+        "PROHIBITED: Attempting repairs without proper tools like pliers and a screwdriver.",
+        "WARNING: Ensure the area is dry to avoid slips and falls.",
+        "MUST inspect the flapper for wear and tear.",
+        "PROHIBITED: Using excessive force that could damage the tank components.",
+        "WARNING: Wear gloves to protect hands from bacteria.",
+        "MUST replace the flapper if it's warped or not sealing properly.",
+        "PROHIBITED: Ignoring leaks that could lead to water damage.",
+        "WARNING: Test the flush multiple times after repairs to ensure no running.",
+        "MUST clean the flapper seat to remove any debris."
+      ],
+      "trigger_intent": [
+        "how to fix running toilet flapper",
+        "toilet keeps running after flush",
+        "replace toilet flapper",
+        "leaky toilet valve",
+        "stop toilet from constant running",
+        "diy toilet flapper repair",
+        "running toilet sound"
+      ],
+      "rationale": "A running toilet often stems from a faulty flapper, wasting water and increasing bills. This cube provides safe steps to diagnose and fix it efficiently. Following these rules prevents common mistakes and ensures a lasting repair.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST locate the fill valve inside the toilet tank.",
+        "PROHIBITED: Adjusting the valve without shutting off water first.",
+        "WARNING: Be cautious of water overflow during adjustments.",
+        "MUST check the float height and adjust if necessary.",
+        "PROHIBITED: Using non-compatible replacement parts.",
+        "WARNING: Ensure the valve is not cracked before proceeding.",
+        "MUST clean any mineral buildup on the valve.",
+        "PROHIBITED: Forcing the adjustment screw too tightly.",
+        "WARNING: Monitor water level to avoid overfilling."
+      ],
+      "trigger_intent": [
+        "adjust toilet fill valve",
+        "toilet runs constantly",
+        "fix toilet water level",
+        "running toilet valve issue",
+        "diy fill valve repair",
+        "toilet tank filling noise"
+      ],
+      "rationale": "Issues with the fill valve are a common cause of running toilets, leading to inefficiency. This cube guides users through safe adjustments and replacements. It helps conserve water and avoid professional plumber costs.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST drain the toilet tank completely before work.",
+        "PROHIBITED: Handling electrical tools near water.",
+        "WARNING: Use eye protection when dealing with old parts.",
+        "MUST examine the chain for proper length and attachment.",
+        "PROHIBITED: Leaving the chain too slack or too tight.",
+        "WARNING: Avoid chemical cleaners that could corrode metal.",
+        "MUST lubricate the chain if it's sticking.",
+        "PROHIBITED: Ignoring rust on the chain mechanism.",
+        "WARNING: Reassemble carefully to prevent misalignment.",
+        "MUST flush test after adjustments."
+      ],
+      "trigger_intent": [
+        "toilet chain repair",
+        "fix running toilet chain",
+        "adjust flush chain",
+        "toilet won't stop running",
+        "diy toilet chain fix",
+        "loose toilet chain",
+        "running toilet handle issue"
+      ],
+      "rationale": "A misadjusted flush chain can cause continuous running, wasting resources. This cube offers precise rules for correction. It promotes DIY skills while emphasizing safety to prevent injuries.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST identify sediment buildup in the tank.",
+        "PROHIBITED: Using abrasive tools that scratch porcelain.",
+        "WARNING: Ventilate the area if using cleaning agents.",
+        "MUST flush out debris with clean water.",
+        "PROHIBITED: Reassembling without drying parts.",
+        "WARNING: Check for cracks in the tank during cleaning.",
+        "MUST scrub gently with a non-abrasive brush.",
+        "PROHIBITED: Pouring harsh chemicals directly into the tank.",
+        "WARNING: Wear a mask to avoid inhaling particles."
+      ],
+      "trigger_intent": [
+        "clean running toilet tank",
+        "sediment in toilet causing run",
+        "fix toilet mineral buildup",
+        "running toilet cleaning",
+        "diy toilet sediment removal",
+        "toilet tank maintenance"
+      ],
+      "rationale": "Sediment accumulation can disrupt toilet mechanisms, leading to running issues. This cube details safe cleaning methods. It ensures longevity of the toilet and reduces water waste.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST shut off water and empty the tank.",
+        "PROHIBITED: Attempting replacement without matching parts.",
+        "WARNING: Secure the tank lid to avoid breakage.",
+        "MUST disconnect the old flush valve carefully.",
+        "PROHIBITED: Over-tightening nuts that could crack the base.",
+        "WARNING: Apply sealant to prevent future leaks.",
+        "MUST align the new valve properly.",
+        "PROHIBITED: Testing without full reassembly.",
+        "WARNING: Dispose of old parts responsibly.",
+        "MUST verify no leaks after installation."
+      ],
+      "trigger_intent": [
+        "replace toilet flush valve",
+        "fix running toilet valve replacement",
+        "diy flush valve install",
+        "toilet runs after flushing",
+        "leaking flush valve",
+        "running toilet repair guide",
+        "toilet valve swap"
+      ],
+      "rationale": "A worn flush valve is a frequent culprit for running toilets, affecting efficiency. This cube provides structured replacement rules. It empowers users to handle repairs confidently and safely.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Wear protective gloves and a mask to avoid direct contact with mold spores.",
+        "MUST: Ensure the bathroom is well-ventilated by opening windows or using an exhaust fan.",
+        "PROHIBITED: Using bleach on porous surfaces as it may not fully eradicate mold roots.",
+        "WARNING: If mold covers more than 10 square feet, consult a professional.",
+        "MUST: Scrub the affected area with a mixture of vinegar and water.",
+        "PROHIBITED: Ignoring signs of mold growth, as it can lead to health issues.",
+        "MUST: Dry the area thoroughly after cleaning to prevent regrowth.",
+        "WARNING: Test any cleaning solution on a small area first to avoid damage.",
+        "MUST: Dispose of cleaning materials properly to avoid spreading spores."
+      ],
+      "trigger_intent": [
+        "natural ways to remove bathroom mold",
+        "vinegar mold removal in shower",
+        "eco-friendly mold cleaning tips",
+        "DIY mold remover without chemicals",
+        "home remedies for black mold",
+        "safe mold removal for families"
+      ],
+      "rationale": "This cube focuses on natural methods to ensure safe, chemical-free mold removal. It promotes health-conscious approaches that minimize environmental impact. Using everyday items like vinegar helps users avoid harsh substances while effectively tackling mold.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Read and follow the instructions on commercial mold remover labels.",
+        "PROHIBITED: Mixing different chemical cleaners, as it can produce toxic fumes.",
+        "WARNING: Avoid using chemical cleaners in poorly ventilated spaces.",
+        "MUST: Wear eye protection and long sleeves during application.",
+        "MUST: Rinse the area thoroughly after treatment to remove residues.",
+        "PROHIBITED: Applying chemicals to electrical fixtures or outlets.",
+        "WARNING: Keep children and pets away from the treated area until dry.",
+        "MUST: Test the cleaner on an inconspicuous spot first.",
+        "MUST: Store chemicals out of reach after use.",
+        "PROHIBITED: Using expired or damaged cleaning products."
+      ],
+      "trigger_intent": [
+        "best chemical for bathroom mold",
+        "how to use bleach on mold",
+        "commercial mold killers for tiles",
+        "strong cleaners for shower mold",
+        "effective products to remove black mold",
+        "mold removal sprays for bathrooms",
+        "heavy-duty mold removers"
+      ],
+      "rationale": "This cube provides guidelines for using chemical solutions to address stubborn mold. It emphasizes safety to prevent accidents or health risks from fumes. Proper use ensures thorough removal while protecting surfaces and users.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Identify and fix sources of moisture, like leaks, before cleaning.",
+        "PROHIBITED: Cleaning mold without addressing underlying humidity issues.",
+        "WARNING: High humidity levels above 60% can cause rapid mold regrowth.",
+        "MUST: Use a dehumidifier in the bathroom to control moisture.",
+        "MUST: Clean and dry bathroom surfaces after each use.",
+        "PROHIBITED: Leaving wet towels or mats on the floor.",
+        "WARNING: Poor ventilation can trap moisture and promote mold.",
+        "MUST: Install mold-resistant paint or materials during renovations.",
+        "MUST: Regularly inspect grout and seals for cracks."
+      ],
+      "trigger_intent": [
+        "prevent mold after removal",
+        "stop mold from coming back in bathroom",
+        "moisture control for mold prevention",
+        "tips to avoid bathroom mold regrowth",
+        "long-term mold prevention strategies",
+        "humidity and mold in showers"
+      ],
+      "rationale": "This cube targets prevention to maintain a mold-free bathroom long-term. It addresses root causes like moisture to reduce recurrence. Implementing these steps saves time and effort on repeated cleanings.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Assess the extent of mold before starting removal.",
+        "PROHIBITED: Attempting removal if allergic to mold without protection.",
+        "WARNING: Mold can cause respiratory issues; seek medical advice if symptoms appear.",
+        "MUST: Use HEPA-filtered vacuums for spore containment.",
+        "MUST: Seal off the bathroom to prevent spore spread to other areas.",
+        "PROHIBITED: Disturbing large mold areas without professional gear.",
+        "WARNING: Pregnant individuals or those with weakened immune systems should avoid exposure.",
+        "MUST: Wash hands and change clothes after handling moldy areas.",
+        "MUST: Monitor for health symptoms post-cleaning."
+      ],
+      "trigger_intent": [
+        "safety tips for mold removal",
+        "health risks of bathroom mold",
+        "protect yourself from mold spores",
+        "safe DIY mold cleaning precautions",
+        "mold removal for sensitive people",
+        "avoiding mold allergies in cleaning"
+      ],
+      "rationale": "This cube prioritizes user safety during mold removal processes. It highlights health risks to encourage protective measures. Following these rules minimizes exposure and potential adverse effects.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Call professionals if mold is extensive or hidden behind walls.",
+        "PROHIBITED: Ignoring persistent mold odors after DIY attempts.",
+        "WARNING: DIY methods may not address toxic black mold effectively.",
+        "MUST: Research certified mold remediation services.",
+        "MUST: Document the mold issue with photos for insurance purposes.",
+        "PROHIBITED: Delaying professional help in cases of water damage.",
+        "WARNING: Structural damage from mold requires expert assessment.",
+        "MUST: Follow up with professionals for post-removal inspections.",
+        "MUST: Ensure the service uses EPA-approved methods.",
+        "PROHIBITED: Hiring unlicensed contractors for mold work."
+      ],
+      "trigger_intent": [
+        "when to hire pros for bathroom mold",
+        "professional mold removal services",
+        "signs you need expert help with mold",
+        "toxic mold in bathroom what to do",
+        "calling in mold specialists",
+        "large mold infestation removal",
+        "insurance and mold professionals"
+      ],
+      "rationale": "This cube guides users on when professional intervention is necessary for effective mold removal. It prevents inadequate handling of severe cases that could lead to health or property damage. Professional expertise ensures complete eradication and safety.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Turn off the power at the circuit breaker before starting.",
+        "PROHIBITED: Do not work on live wires to avoid electrocution.",
+        "WARNING: Ensure the switch is compatible with your wiring system.",
+        "MUST: Use insulated tools to handle electrical components.",
+        "PROHIBITED: Avoid using damaged or frayed wires.",
+        "WARNING: Double-check connections to prevent short circuits.",
+        "MUST: Test the new switch after installation.",
+        "PROHIBITED: Do not overload the circuit with incompatible devices.",
+        "WARNING: Wear safety gloves and goggles during the process."
+      ],
+      "trigger_intent": [
+        "how to replace a light switch",
+        "steps for changing a wall switch",
+        "DIY light switch replacement",
+        "installing a new light switch",
+        "fixing a faulty light switch",
+        "guide to switch replacement"
+      ],
+      "rationale": "This cube focuses on basic safety and procedural steps for replacing a light switch to ensure user safety. It emphasizes turning off power and using proper tools to minimize risks. Providing clear rules helps prevent common electrical accidents.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Identify the type of switch (single-pole or three-way) beforehand.",
+        "PROHIBITED: Do not mix up hot and neutral wires.",
+        "WARNING: Check voltage with a tester before touching wires.",
+        "MUST: Secure all wire connections with wire nuts.",
+        "PROHIBITED: Avoid installing dimmer switches on non-dimmable bulbs.",
+        "WARNING: Ensure the electrical box is grounded properly.",
+        "MUST: Follow local electrical codes and regulations.",
+        "PROHIBITED: Do not reuse old, corroded switches.",
+        "WARNING: Label the breaker for future reference.",
+        "MUST: Dispose of old switches responsibly."
+      ],
+      "trigger_intent": [
+        "replacing single-pole light switch",
+        "how to install three-way switch",
+        "wiring a new light switch",
+        "electrical switch replacement tips",
+        "common mistakes in switch installation",
+        "tools for light switch replacement",
+        "safe wiring practices for switches"
+      ],
+      "rationale": "This cube targets wiring specifics and code compliance to guide users through technical aspects. It highlights identification and secure connections to avoid malfunctions. The rules promote adherence to standards for long-term reliability.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Gather tools like screwdriver, wire stripper, and voltage tester.",
+        "PROHIBITED: Do not proceed without verifying power is off.",
+        "WARNING: Be cautious of hidden wires in older homes.",
+        "MUST: Match the amperage rating of the new switch.",
+        "PROHIBITED: Avoid forcing wires into the box if overcrowded.",
+        "WARNING: Inspect for signs of wear on existing wiring.",
+        "MUST: Tighten all screws securely.",
+        "PROHIBITED: Do not use metal tools on live circuits.",
+        "WARNING: Call a professional if unsure about any step."
+      ],
+      "trigger_intent": [
+        "tools needed to replace light switch",
+        "beginner guide to switch replacement",
+        "safety tips for DIY electrical work",
+        "replacing switch in old house",
+        "how to test if power is off",
+        "matching switch types",
+        "avoiding electrical hazards"
+      ],
+      "rationale": "This cube emphasizes preparation and tools to make the process efficient for beginners. It warns about common pitfalls in older installations to enhance safety. Overall, it aims to build user confidence through structured guidance.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Document the existing wiring configuration with photos.",
+        "PROHIBITED: Do not cut wires without measuring twice.",
+        "WARNING: Ensure the new switch fits the wall plate.",
+        "MUST: Use appropriate gauge wire for extensions if needed.",
+        "PROHIBITED: Avoid bypassing safety features like ground wires.",
+        "WARNING: Test for continuity after reassembly.",
+        "MUST: Restore power only after full installation.",
+        "PROHIBITED: Do not leave exposed wires unattended.",
+        "WARNING: Consider energy-efficient switch options.",
+        "MUST: Clean the area before and after work."
+      ],
+      "trigger_intent": [
+        "documenting wiring for switch replacement",
+        "advanced tips for light switch install",
+        "energy-efficient switch replacement",
+        "troubleshooting switch installation",
+        "photographing wires before changing switch",
+        "extending wires in switch box",
+        "post-installation testing"
+      ],
+      "rationale": "This cube addresses documentation and advanced tips to prevent errors during replacement. It encourages thorough testing and cleanliness for optimal results. The rationale supports users in achieving a professional finish.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Wear non-conductive footwear during the task.",
+        "PROHIBITED: Do not work in wet or damp conditions.",
+        "WARNING: Be aware of potential asbestos in old walls.",
+        "MUST: Use a flashlight for visibility in dim areas.",
+        "PROHIBITED: Avoid rushing the process to prevent mistakes.",
+        "WARNING: Have a first-aid kit nearby for emergencies.",
+        "MUST: Verify switch functionality with multiple tests.",
+        "PROHIBITED: Do not modify the switch without expertise.",
+        "WARNING: Recycle electronic waste properly."
+      ],
+      "trigger_intent": [
+        "environmental safety for switch replacement",
+        "health precautions in electrical DIY",
+        "testing new light switch",
+        "avoiding rush in switch installation",
+        "recycling old switches",
+        "working in low-light conditions",
+        "emergency prep for electrical work"
+      ],
+      "rationale": "This cube prioritizes environmental and health safety to protect users beyond basic electrical risks. It includes precautions for specific conditions like wetness or poor lighting. The focus ensures a holistic approach to safe DIY practices.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST identify the source of the squeak before applying any lubricant.",
+        "PROHIBITED using water-based solutions on metal hinges to avoid rust.",
+        "WARNING: Ensure the door is properly supported to prevent it from falling during repairs.",
+        "MUST clean the hinges thoroughly with a dry cloth before lubrication.",
+        "PROHIBITED forcing the door if it's stuck, as this could damage the frame.",
+        "MUST use a silicone-based lubricant for long-lasting results.",
+        "WARNING: Work in a well-ventilated area if using spray lubricants.",
+        "MUST test the door after lubrication to confirm the squeak is gone.",
+        "PROHIBITED ignoring loose screws, as they can worsen the issue."
+      ],
+      "trigger_intent": [
+        "how to fix a squeaky door hinge",
+        "stop door from squeaking",
+        "lubricate noisy door",
+        "home remedy for squeaky door",
+        "why is my door squeaking",
+        "fix creaky door at home"
+      ],
+      "rationale": "This cube provides basic guidelines for fixing squeaky doors in household settings to ensure safe and effective repairs. It emphasizes proper identification and maintenance to prevent further damage. Following these rules helps users avoid common mistakes and achieve a quiet door efficiently.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST tighten all hinge screws before applying any fix.",
+        "PROHIBITED using petroleum jelly on wooden doors to prevent staining.",
+        "WARNING: Avoid over-lubricating to prevent drips on floors.",
+        "MUST remove the hinge pin if lubrication doesn't work.",
+        "PROHIBITED attempting repairs without proper tools like a screwdriver.",
+        "MUST clean old lubricant residue from hinges first.",
+        "WARNING: Be cautious of sharp edges on metal hinges during handling.",
+        "MUST reinsert the hinge pin securely after cleaning.",
+        "PROHIBITED using cooking oil as it attracts dirt over time.",
+        "WARNING: Test for allergies before using chemical lubricants."
+      ],
+      "trigger_intent": [
+        "tighten squeaky door hinges",
+        "remove hinge pin for squeak",
+        "wooden door squeak fix",
+        "best lubricant for door hinges",
+        "diy squeaky door repair",
+        "creaking door solution",
+        "hinge maintenance tips"
+      ],
+      "rationale": "This cube focuses on mechanical adjustments for squeaky wooden doors to promote durability and safety. It guides users through step-by-step hardware fixes to address root causes. Adhering to these rules ensures the door functions smoothly without risking structural integrity.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST wear protective gloves when handling lubricants.",
+        "PROHIBITED applying lubricant while the door is in use.",
+        "WARNING: Keep lubricants away from children and pets.",
+        "MUST use WD-40 or equivalent for metal hinges.",
+        "PROHIBITED mixing different types of lubricants.",
+        "MUST wipe excess lubricant to avoid buildup.",
+        "WARNING: Ensure the area is dry to prevent slips.",
+        "MUST inspect for rust and treat if present.",
+        "PROHIBITED ignoring alignment issues in the door frame."
+      ],
+      "trigger_intent": [
+        "metal door squeak repair",
+        "wd40 for squeaky door",
+        "lubricant types for hinges",
+        "fix rusty door hinge",
+        "noisy metal door fix",
+        "hinge lubrication guide"
+      ],
+      "rationale": "This cube is designed for metal door repairs, emphasizing safe lubricant application to eliminate squeaks. It prevents common errors like contamination or accidents. The rules help users maintain door hardware effectively for long-term quiet operation.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST prop the door open securely during repairs.",
+        "PROHIBITED using abrasive tools on painted surfaces.",
+        "WARNING: Disconnect power if working near electrical components.",
+        "MUST apply lubricant sparingly to each hinge joint.",
+        "PROHIBITED leaving tools unattended in high-traffic areas.",
+        "MUST check for worn-out hinges and replace if necessary.",
+        "WARNING: Avoid inhaling fumes from chemical sprays.",
+        "MUST clean up any spills immediately.",
+        "PROHIBITED forcing hinges that are seized.",
+        "WARNING: Consult a professional for antique doors."
+      ],
+      "trigger_intent": [
+        "professional squeaky door fix",
+        "replace worn door hinges",
+        "advanced door repair tips",
+        "squeaky door maintenance",
+        "hinge replacement guide",
+        "fix old creaky door",
+        "door hardware repair"
+      ],
+      "rationale": "This cube offers advanced rules for professional-level squeaky door fixes, suitable for complex issues. It prioritizes safety and precision to avoid damage to valuable doors. These guidelines ensure thorough repairs that extend the door's lifespan.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST use eco-friendly lubricants for indoor doors.",
+        "PROHIBITED applying fixes during humid weather to avoid moisture issues.",
+        "WARNING: Test lubricant on a small area first for compatibility.",
+        "MUST lubricate all moving parts of the hinge.",
+        "PROHIBITED using makeshift tools that could scratch surfaces.",
+        "MUST ensure the door swings freely after repair.",
+        "WARNING: Keep a fire extinguisher nearby if using flammable products.",
+        "MUST document the repair for future reference.",
+        "PROHIBITED overlooking door alignment problems."
+      ],
+      "trigger_intent": [
+        "eco-friendly squeaky door fix",
+        "natural remedies for door squeak",
+        "humid weather door repair",
+        "safe lubricant for home doors",
+        "prevent door squeak recurrence",
+        "diy hinge lubrication"
+      ],
+      "rationale": "This cube promotes environmentally conscious methods for fixing squeaky doors, focusing on sustainable materials. It helps users avoid harmful chemicals while achieving effective results. The rules encourage preventive maintenance to reduce future squeaks.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Use a soft microfiber cloth to avoid scratches.",
+        "MUST: Apply a mixture of mild dish soap and warm water for initial cleaning.",
+        "PROHIBITED: Using abrasive sponges or steel wool that can damage the surface.",
+        "WARNING: Avoid prolonged exposure to chlorine-based cleaners to prevent pitting.",
+        "MUST: Rinse thoroughly with clean water after cleaning.",
+        "PROHIBITED: Applying harsh chemicals like bleach directly on the steel.",
+        "MUST: Dry immediately with a soft towel to prevent water spots.",
+        "WARNING: Test any new cleaner on a small inconspicuous area first.",
+        "MUST: Polish with olive oil for a shiny finish if desired.",
+        "PROHIBITED: Using oven cleaners or acidic substances on appliances."
+      ],
+      "trigger_intent": [
+        "how to clean stainless steel fridge",
+        "best way to remove fingerprints from oven",
+        "cleaning tips for stainless steel microwave",
+        "remove stains from stainless steel dishwasher",
+        "polish stainless steel kitchen appliances",
+        "safe cleaners for stainless steel surfaces",
+        "diy cleaning for stainless steel range"
+      ],
+      "rationale": "This experience cube focuses on cleaning stainless steel kitchen appliances to maintain their appearance and longevity. It provides practical rules to prevent common damage like scratches and corrosion. Following these guidelines ensures appliances remain hygienic and visually appealing.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Wipe in the direction of the grain to enhance shine.",
+        "MUST: Use baking soda paste for tough stains and let it sit briefly.",
+        "PROHIBITED: Pouring boiling water directly into the sink to avoid warping.",
+        "WARNING: Be cautious with vinegar as it can dull the finish over time.",
+        "MUST: Rinse with warm water and mild soap regularly.",
+        "PROHIBITED: Using scouring pads that scratch the surface.",
+        "MUST: Apply a stainless steel cleaner for protection against rust.",
+        "WARNING: Avoid leaving wet sponges in the sink overnight.",
+        "PROHIBITED: Using ammonia-based cleaners that can cause discoloration."
+      ],
+      "trigger_intent": [
+        "clean stainless steel kitchen sink",
+        "remove water spots from sink",
+        "how to polish stainless steel basin",
+        "best method for sink stain removal",
+        "daily cleaning for stainless steel sink",
+        "prevent rust in kitchen sink"
+      ],
+      "rationale": "This cube addresses cleaning stainless steel sinks, which are prone to water spots and mineral buildup. It emphasizes gentle methods to preserve the sink's integrity and hygiene. Proper care extends the sink's lifespan and keeps it looking new.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Soak in warm soapy water for a few minutes before wiping.",
+        "MUST: Use a soft cloth or cotton swab for intricate designs.",
+        "PROHIBITED: Submerging in ultrasonic cleaners unless specified safe.",
+        "WARNING: Avoid contact with perfumes or lotions that can tarnish.",
+        "MUST: Dry thoroughly to prevent water marks.",
+        "PROHIBITED: Using toothpaste or baking soda abrasively on fine jewelry.",
+        "MUST: Store in a dry place after cleaning.",
+        "WARNING: Test polishing cloths on a small area to avoid scratches.",
+        "MUST: Use jewelry-specific stainless steel polish sparingly.",
+        "PROHIBITED: Exposing to saltwater without rinsing immediately."
+      ],
+      "trigger_intent": [
+        "clean stainless steel necklace",
+        "remove tarnish from steel rings",
+        "how to polish stainless steel earrings",
+        "safe cleaning for steel bracelets",
+        "diy clean stainless steel jewelry",
+        "prevent dullness in steel accessories",
+        "best cloth for jewelry cleaning"
+      ],
+      "rationale": "This experience cube is tailored for stainless steel jewelry, which requires delicate handling to avoid damage. It helps users maintain the luster and durability of their pieces. Adhering to these rules prevents common issues like scratching or discoloration.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Cool pots and pans completely before cleaning.",
+        "MUST: Use non-abrasive sponges with dish soap for scrubbing.",
+        "PROHIBITED: Putting hot cookware directly into cold water to avoid warping.",
+        "WARNING: Avoid dishwasher use if not specified, as it can cause pitting.",
+        "MUST: Soak burnt food residues in warm water before cleaning.",
+        "PROHIBITED: Using metal utensils that scratch the interior.",
+        "MUST: Dry immediately to prevent rust formation.",
+        "WARNING: Be careful with acidic foods like tomatoes that can etch the surface.",
+        "PROHIBITED: Applying oven cleaner or harsh abrasives."
+      ],
+      "trigger_intent": [
+        "clean stainless steel pots",
+        "remove burnt food from pans",
+        "how to maintain stainless steel cookware",
+        "best way to polish frying pans",
+        "safe scrubbing for steel saucepans",
+        "prevent stains in cookware"
+      ],
+      "rationale": "This cube covers cleaning stainless steel cookware to ensure food safety and longevity. It focuses on methods that remove residues without compromising the material. These guidelines help in preserving the cookware's performance over time.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Hose down with water to remove loose dirt first.",
+        "MUST: Use a mild detergent solution for washing.",
+        "PROHIBITED: Using pressure washers at high settings that can dent the steel.",
+        "WARNING: Protect from bird droppings which are acidic and corrosive.",
+        "MUST: Apply a protective wax coating after cleaning.",
+        "PROHIBITED: Leaving in direct sunlight without UV protection.",
+        "MUST: Wipe dry to avoid water streaks.",
+        "WARNING: Avoid salt exposure in coastal areas to prevent corrosion.",
+        "MUST: Inspect for rust spots and treat promptly.",
+        "PROHIBITED: Using chlorine cleaners outdoors."
+      ],
+      "trigger_intent": [
+        "clean stainless steel patio furniture",
+        "remove dirt from outdoor steel chairs",
+        "how to polish garden steel tables",
+        "weatherproof cleaning for steel benches",
+        "best method for outdoor steel maintenance",
+        "prevent rust on patio steel",
+        "seasonal cleaning for steel furniture"
+      ],
+      "rationale": "This experience cube is designed for stainless steel outdoor furniture exposed to elements. It provides rules to combat weathering and maintain aesthetics. Following these ensures the furniture withstands outdoor conditions effectively.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Blot the red wine stain immediately with a clean cloth to absorb excess liquid.",
+        "PROHIBITED: Do not rub the stain, as it can spread the wine further into the carpet fibers.",
+        "WARNING: Always test any cleaning solution on an inconspicuous area of the carpet first to avoid discoloration.",
+        "MUST: Apply a mixture of dish soap and white vinegar diluted in water to the stain.",
+        "PROHIBITED: Avoid using bleach or harsh chemicals that could damage the carpet.",
+        "MUST: Rinse the area with cold water after applying the cleaning solution.",
+        "WARNING: Ensure the room is well-ventilated when using any cleaning agents.",
+        "MUST: Allow the carpet to air dry completely before walking on it.",
+        "PROHIBITED: Do not use hot water, as it can set the stain permanently."
+      ],
+      "trigger_intent": [
+        "how to remove red wine from carpet",
+        "red wine spill on rug",
+        "cleaning wine stains on floor",
+        "get rid of wine mark on carpet",
+        "wine stain removal tips",
+        "emergency wine spill cleanup"
+      ],
+      "rationale": "Red wine stains are common household accidents that can ruin carpets if not treated promptly. This experience cube provides safe, effective methods to remove them without causing further damage. It focuses on natural solutions to ensure accessibility for most users.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Absorb as much pet urine as possible with paper towels immediately.",
+        "PROHIBITED: Do not use ammonia-based cleaners, as they can attract pets back to the spot.",
+        "WARNING: Wear gloves to avoid direct contact with urine, which may contain bacteria.",
+        "MUST: Apply an enzymatic cleaner specifically designed for pet stains.",
+        "PROHIBITED: Avoid steam cleaning before treating the stain, as heat can set the odor.",
+        "MUST: Blot the area gently after applying the cleaner, without scrubbing.",
+        "WARNING: Test the cleaner on a small patch to prevent color fading.",
+        "MUST: Allow the area to dry thoroughly and vacuum afterward.",
+        "PROHIBITED: Do not ignore the odor, as it can lead to repeated accidents.",
+        "WARNING: If the stain persists, consult a professional cleaner."
+      ],
+      "trigger_intent": [
+        "remove pet urine from carpet",
+        "dog pee stain on rug",
+        "cleaning cat urine smell",
+        "pet accident on floor",
+        "urine odor removal tips",
+        "how to fix pet stains",
+        "animal urine cleanup"
+      ],
+      "rationale": "Pet urine stains not only discolor carpets but also leave lingering odors that can encourage repeat incidents. This cube offers specialized advice using pet-safe products to effectively neutralize both stain and smell. It promotes hygiene and prevents long-term damage to flooring.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Blot up excess coffee liquid with a white cloth to prevent spreading.",
+        "PROHIBITED: Do not use colored cloths, as they might transfer dye to the carpet.",
+        "WARNING: Act quickly, as dried coffee can become more difficult to remove.",
+        "MUST: Mix laundry detergent with warm water and apply to the stain.",
+        "PROHIBITED: Avoid using hot water on wool or delicate carpets to prevent shrinkage.",
+        "MUST: Rinse with a vinegar-water solution to neutralize residues.",
+        "WARNING: Ensure the carpet is not over-saturated to avoid mold growth.",
+        "MUST: Dry the area with a fan or hairdryer on low heat.",
+        "PROHIBITED: Do not walk on the wet area until fully dry."
+      ],
+      "trigger_intent": [
+        "how to clean coffee stain on carpet",
+        "spilled coffee on rug",
+        "remove coffee mark from floor",
+        "coffee spill cleanup",
+        "get out coffee stains",
+        "morning coffee accident",
+        "stained carpet from drink"
+      ],
+      "rationale": "Coffee stains are frequent due to daily beverage consumption and can leave dark marks if untreated. This experience cube guides users through simple, household-item-based removal techniques. It emphasizes prevention of deeper penetration to maintain carpet appearance.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Sprinkle baking soda or cornstarch on the ink stain to absorb it.",
+        "PROHIBITED: Do not rub the ink, as it will spread and embed deeper.",
+        "WARNING: Identify the ink type (ballpoint vs. permanent) for best results.",
+        "MUST: Dab with rubbing alcohol on a cotton swab for solvent-based inks.",
+        "PROHIBITED: Avoid water on fresh ink stains, as it can cause spreading.",
+        "MUST: Blot with a clean cloth after applying solvent.",
+        "WARNING: Work in a well-ventilated area when using alcohol.",
+        "MUST: Rinse with mild soap and water once the ink lifts.",
+        "PROHIBITED: Do not use heat sources, which can set the ink permanently.",
+        "WARNING: If unsuccessful, seek professional dry cleaning."
+      ],
+      "trigger_intent": [
+        "remove ink from carpet",
+        "pen ink stain on rug",
+        "cleaning marker on floor",
+        "ink spill removal",
+        "get rid of ink marks",
+        "accidental pen leak",
+        "stained carpet ink"
+      ],
+      "rationale": "Ink stains from pens or markers can be particularly stubborn and permanent if mishandled. This cube provides targeted methods for different ink types to ensure effective removal. It helps users avoid common mistakes that could worsen the damage.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Scrape off excess grease with a dull knife without pressing down.",
+        "PROHIBITED: Do not use water initially, as it can spread the oil.",
+        "WARNING: Act fast to prevent the grease from soaking into the fibers.",
+        "MUST: Apply dish soap or degreaser directly to the stain.",
+        "PROHIBITED: Avoid abrasive scrubbers that could fray the carpet.",
+        "MUST: Blot with a cloth after letting the soap sit for a few minutes.",
+        "WARNING: Test any degreaser on an unseen area first.",
+        "MUST: Rinse with warm water and blot dry.",
+        "PROHIBITED: Do not use bleach, which can discolor the carpet."
+      ],
+      "trigger_intent": [
+        "remove grease stain from carpet",
+        "oil spill on rug",
+        "cleaning fatty marks on floor",
+        "grease removal tips",
+        "get out oil stains",
+        "kitchen grease accident"
+      ],
+      "rationale": "Grease and oil stains are common in high-traffic areas like kitchens and can attract dirt if left untreated. This experience cube uses everyday items for quick and effective cleanup. It focuses on gentle techniques to preserve the carpet's texture and color.",
+      "cube_id": "cube_exp_untitled"
+    }
+  ],
+  "count": 45
+}

@@ -1,0 +1,465 @@
+{
+  "cubes": [
+    {
+      "cube_name": "Basic Faucet Leak Fix",
+      "rules": [
+        "MUST turn off the water supply before starting repairs.",
+        "MUST gather necessary tools like a wrench, screwdriver, and replacement parts.",
+        "MUST inspect the faucet to identify the source of the leak.",
+        "PROHIBITED from using excessive force when disassembling the faucet.",
+        "MUST clean all components before reassembly.",
+        "MUST replace worn-out washers or O-rings.",
+        "WARNING: Ensure all connections are tight to prevent future leaks.",
+        "MUST test the faucet after repairs to confirm the leak is fixed."
+      ],
+      "trigger_intents": [
+        "fix leaky faucet",
+        "how to stop faucet dripping",
+        "repair dripping faucet",
+        "faucet leak solution",
+        "stop faucet leak"
+      ],
+      "rationale": "This cube provides essential steps for fixing a basic faucet leak. It emphasizes preparation, careful handling, and testing to ensure a successful repair.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Compression Faucet Repair",
+      "rules": [
+        "MUST turn off the water supply before disassembling the faucet.",
+        "MUST remove the handle using a screwdriver.",
+        "MUST unscrew the packing nut to access the stem.",
+        "MUST inspect the washer and seat for damage.",
+        "MUST replace the washer if it is worn or damaged.",
+        "PROHIBITED from reassembling the faucet without cleaning the components.",
+        "MUST tighten the packing nut securely but not excessively.",
+        "MUST test the faucet after reassembly to ensure no leaks."
+      ],
+      "trigger_intents": [
+        "fix compression faucet",
+        "repair compression faucet leak",
+        "compression faucet dripping",
+        "how to fix compression faucet",
+        "compression faucet repair guide"
+      ],
+      "rationale": "This cube focuses on repairing compression faucets, which are common in older homes. It highlights the importance of inspecting and replacing key components like the washer and seat.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Cartridge Faucet Repair",
+      "rules": [
+        "MUST turn off the water supply before starting the repair.",
+        "MUST remove the faucet handle to access the cartridge.",
+        "MUST use a cartridge puller if the cartridge is stuck.",
+        "MUST inspect the cartridge for wear or damage.",
+        "MUST replace the cartridge if it is faulty.",
+        "PROHIBITED from forcing the cartridge into place.",
+        "MUST lubricate the O-rings before reassembly.",
+        "MUST test the faucet after repairs to ensure no leaks."
+      ],
+      "trigger_intents": [
+        "fix cartridge faucet",
+        "repair cartridge faucet leak",
+        "cartridge faucet dripping",
+        "how to replace faucet cartridge",
+        "cartridge faucet repair steps"
+      ],
+      "rationale": "This cube provides guidance for repairing cartridge faucets, which are common in modern homes. It stresses the need for proper tools and careful handling of the cartridge.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Ball Faucet Repair",
+      "rules": [
+        "MUST turn off the water supply before disassembling the faucet.",
+        "MUST remove the handle and cap to access the ball assembly.",
+        "MUST inspect the ball, springs, and seals for damage.",
+        "MUST replace any damaged components.",
+        "PROHIBITED from reassembling the faucet without cleaning all parts.",
+        "MUST lubricate the O-rings and seals before reassembly.",
+        "MUST tighten the collar securely but not excessively.",
+        "MUST test the faucet after repairs to ensure no leaks."
+      ],
+      "trigger_intents": [
+        "fix ball faucet",
+        "repair ball faucet leak",
+        "ball faucet dripping",
+        "how to repair ball faucet",
+        "ball faucet repair guide"
+      ],
+      "rationale": "This cube outlines steps for repairing ball faucets, which are often found in kitchens. It emphasizes inspecting and replacing worn components and proper reassembly.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Ceramic Disc Faucet Repair",
+      "rules": [
+        "MUST turn off the water supply before starting the repair.",
+        "MUST remove the handle to access the ceramic disc cartridge.",
+        "MUST inspect the ceramic discs for cracks or wear.",
+        "MUST replace the ceramic disc cartridge if damaged.",
+        "PROHIBITED from using abrasive cleaners on ceramic discs.",
+        "MUST clean the faucet body before reassembly.",
+        "MUST tighten the cartridge securely but not excessively.",
+        "MUST test the faucet after repairs to ensure no leaks."
+      ],
+      "trigger_intents": [
+        "fix ceramic disc faucet",
+        "repair ceramic disc faucet leak",
+        "ceramic disc faucet dripping",
+        "how to replace ceramic disc cartridge",
+        "ceramic disc faucet repair steps"
+      ],
+      "rationale": "This cube provides instructions for repairing ceramic disc faucets, known for their durability. It highlights the importance of inspecting and replacing the ceramic disc cartridge.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Basic Sink Unclogging",
+      "rules": [
+        "MUST turn off the water supply before attempting to unclog the sink.",
+        "MUST use a plunger first to attempt dislodging the clog.",
+        "MUST wear rubber gloves to protect your hands.",
+        "PROHIBITED from using chemical drain cleaners if you have a garbage disposal.",
+        "WARNING: Avoid excessive force to prevent pipe damage.",
+        "MUST check the P-trap under the sink if the plunger fails.",
+        "PROHIBITED from pouring grease or oil down the drain afterward.",
+        "MUST run hot water after unclogging to clear residual debris."
+      ],
+      "trigger_intents": [
+        "How do I unclog my kitchen sink?",
+        "What's the easiest way to fix a clogged sink?",
+        "Help, my sink is blocked!",
+        "Can I use a plunger on a kitchen sink?",
+        "Why won't my sink drain?",
+        "How to clear a sink clog naturally?",
+        "What not to do with a clogged sink?"
+      ],
+      "rationale": "This cube covers the foundational steps for unclogging a kitchen sink safely. It emphasizes non-chemical methods first and highlights common mistakes to avoid, ensuring users don't worsen the problem.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Chemical Drain Cleaner Safety",
+      "rules": [
+        "MUST read the product label instructions carefully before use.",
+        "MUST ensure the area is well-ventilated when using chemical cleaners.",
+        "PROHIBITED from mixing different chemical drain cleaners.",
+        "WARNING: Keep children and pets away during application.",
+        "MUST wear protective goggles and gloves.",
+        "PROHIBITED from using chemical cleaners if pipes are old or corroded.",
+        "MUST flush the drain with plenty of water after use.",
+        "WARNING: Avoid skin or eye contact with the chemicals."
+      ],
+      "trigger_intents": [
+        "Are drain cleaners safe for kitchen sinks?",
+        "Best chemical solution for a clogged sink.",
+        "How to use liquid drain cleaner?",
+        "Dangers of using drain cleaners.",
+        "Can I use Drano in my kitchen sink?",
+        "What precautions for chemical drain cleaners?",
+        "Alternatives to chemical drain openers."
+      ],
+      "rationale": "This cube focuses on the safe use of chemical drain cleaners, which are common but often misused. It provides critical safety measures to prevent harm to users or plumbing systems.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Natural Home Remedies",
+      "rules": [
+        "MUST try a baking soda and vinegar solution before harsh chemicals.",
+        "MUST pour boiling water down the drain first to loosen grease.",
+        "PROHIBITED from using vinegar if you've recently used bleach.",
+        "MUST let the baking soda/vinegar mixture sit for 15-30 minutes.",
+        "WARNING: Boiling water can damage PVC pipes - use hot tap water instead.",
+        "MUST use a coarse salt and baking soda mix for tougher clogs.",
+        "PROHIBITED from using natural remedies if the clog is severe.",
+        "MUST follow up with a plunger if the natural remedy doesn't work."
+      ],
+      "trigger_intents": [
+        "How to unclog a sink without chemicals?",
+        "Does baking soda and vinegar work for clogs?",
+        "Home remedies for a blocked sink.",
+        "Eco-friendly ways to clear a drain.",
+        "Is boiling water good for clogged sinks?",
+        "Natural drain cleaner recipes.",
+        "Why isn't my baking soda method working?"
+      ],
+      "rationale": "This cube caters to users seeking environmentally friendly solutions. It provides effective natural methods while warning about limitations and potential pipe damage from certain approaches.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Plumbing Snake Technique",
+      "rules": [
+        "MUST insert the snake slowly to avoid scratching pipes.",
+        "MUST rotate the snake clockwise while pushing it forward.",
+        "PROHIBITED from forcing the snake if it meets resistance.",
+        "WARNING: Wear eye protection in case of back-splash.",
+        "MUST clean the snake thoroughly after each use.",
+        "PROHIBITED from using a snake if you suspect tree root intrusion.",
+        "MUST run water after removing the clog to verify it's clear.",
+        "WARNING: Be cautious of sharp edges on the snake cable."
+      ],
+      "trigger_intents": [
+        "How to use a drain snake properly?",
+        "What's the technique for augering a sink?",
+        "Manual drain cleaning tools.",
+        "Can I snake my own kitchen drain?",
+        "Where to buy a sink auger?",
+        "Drain snake vs plunger effectiveness.",
+        "How far should I insert a drain snake?"
+      ],
+      "rationale": "This cube provides specialized guidance for using a plumbing snake, a common tool for tougher clogs. It emphasizes proper technique to avoid pipe damage and ensure effective clog removal.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Preventative Maintenance",
+      "rules": [
+        "MUST install a sink strainer to catch food particles.",
+        "MUST flush drains weekly with hot water.",
+        "PROHIBITED from putting coffee grounds or eggshells down the drain.",
+        "WARNING: Grease will solidify and cause clogs over time.",
+        "MUST clean the garbage disposal monthly with ice cubes and citrus.",
+        "PROHIBITED from using the sink as a trash receptacle.",
+        "MUST check for slow drainage regularly as an early warning sign.",
+        "WARNING: Fibrous foods like celery can wrap around disposal blades."
+      ],
+      "trigger_intents": [
+        "How to prevent kitchen sink clogs?",
+        "Best practices for sink maintenance.",
+        "What not to put down kitchen drains.",
+        "Keeping garbage disposal clean.",
+        "Why does my sink keep clogging?",
+        "Daily habits to avoid drain problems.",
+        "Signs your sink is about to clog."
+      ],
+      "rationale": "This proactive cube focuses on preventing clogs before they happen. It educates users on daily habits and maintenance routines that can significantly reduce plumbing issues over time.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Drywall Patching Preparation",
+      "rules": [
+        "MUST inspect the damaged area to determine the extent of repair needed.",
+        "MUST clean the damaged area by removing loose debris and dust.",
+        "PROHIBITED from patching without ensuring the drywall is dry and free of moisture.",
+        "MUST wear safety goggles and a dust mask to protect from dust and particles.",
+        "MUST gather all necessary tools and materials before starting the repair.",
+        "WARNING: Avoid using excessive force when removing damaged drywall to prevent further damage.",
+        "MUST ensure the surrounding area is protected with drop cloths or plastic sheeting.",
+        "PROHIBITED from skipping the priming step if the drywall has been exposed to water."
+      ],
+      "trigger_intent": [
+        "How do I prepare to patch drywall?",
+        "What should I do before repairing drywall?",
+        "Steps to get ready for drywall patching",
+        "Preparing for a drywall repair",
+        "What tools do I need for drywall patching?"
+      ],
+      "rationale": "Proper preparation ensures the drywall patch adheres well and lasts long. Skipping steps like cleaning or priming can lead to poor results and additional repairs.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Applying Drywall Compound",
+      "rules": [
+        "MUST apply the drywall compound evenly using a putty knife.",
+        "PROHIBITED from applying too much compound in a single layer.",
+        "MUST allow each layer of compound to dry completely before applying the next.",
+        "WARNING: Avoid leaving air bubbles or gaps in the compound.",
+        "MUST sand the dried compound smoothly between layers.",
+        "PROHIBITED from skipping sanding as it ensures a smooth finish.",
+        "MUST feather the edges of the compound to blend with the surrounding wall.",
+        "WARNING: Do not rush the drying process to avoid cracks."
+      ],
+      "trigger_intent": [
+        "How do I apply drywall compound?",
+        "What's the best way to use joint compound?",
+        "Steps for applying drywall mud",
+        "How to smooth drywall compound",
+        "Tips for applying drywall patch"
+      ],
+      "rationale": "Applying drywall compound correctly ensures a seamless repair. Proper layering, drying, and sanding are crucial for a professional finish.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Sanding Drywall Patch",
+      "rules": [
+        "MUST use fine-grit sandpaper for smoothing the patch.",
+        "PROHIBITED from sanding too aggressively to avoid damaging the drywall.",
+        "MUST sand in a circular motion to blend the patch with the wall.",
+        "WARNING: Avoid inhaling dust by wearing a mask and using proper ventilation.",
+        "MUST wipe away dust with a damp cloth before painting.",
+        "PROHIBITED from skipping dust removal as it affects paint adhesion.",
+        "MUST check the patch by running your hand over it to ensure smoothness.",
+        "WARNING: Do not sand wet or damp compound."
+      ],
+      "trigger_intent": [
+        "How do I sand a drywall patch?",
+        "What's the best way to sand joint compound?",
+        "Tips for smoothing drywall repair",
+        "How to finish a drywall patch",
+        "Steps for sanding drywall mud"
+      ],
+      "rationale": "Sanding is essential for achieving a smooth, seamless finish. Proper technique and safety precautions ensure the patch blends perfectly with the wall.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Priming and Painting Drywall Patch",
+      "rules": [
+        "MUST apply a primer to the patched area before painting.",
+        "PROHIBITED from painting directly over unprimed drywall compound.",
+        "MUST allow the primer to dry completely before applying paint.",
+        "WARNING: Avoid using paint that doesn't match the surrounding wall color.",
+        "MUST apply paint evenly using a roller or brush.",
+        "PROHIBITED from skipping multiple thin coats of paint for better coverage.",
+        "MUST feather the paint edges to blend with the surrounding wall.",
+        "WARNING: Do not rush the drying process between coats."
+      ],
+      "trigger_intent": [
+        "How do I paint a drywall patch?",
+        "Should I prime before painting drywall?",
+        "Steps for painting drywall repair",
+        "How to finish a drywall patch with paint",
+        "Tips for priming and painting drywall"
+      ],
+      "rationale": "Priming and painting correctly ensure the patch is invisible and matches the rest of the wall. Proper preparation and technique prevent uneven finishes or color mismatches.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "cube_name": "Repairing Large Drywall Holes",
+      "rules": [
+        "MUST cut a clean, square or rectangular shape around the damaged area.",
+        "PROHIBITED from patching large holes without installing a backing support.",
+        "MUST secure a piece of wood or drywall behind the hole for support.",
+        "WARNING: Avoid cutting the replacement piece too small or too large.",
+        "MUST attach the replacement drywall piece with screws.",
+        "PROHIBITED from skipping the taping and mudding process for seams.",
+        "MUST apply joint tape over the seams before applying compound.",
+        "WARNING: Do not rush the drying process for compound layers."
+      ],
+      "trigger_intent": [
+        "How do I fix a large hole in drywall?",
+        "What's the best way to repair big drywall damage?",
+        "Steps for patching large drywall holes",
+        "How to replace a damaged drywall section",
+        "Tips for repairing large drywall areas"
+      ],
+      "rationale": "Repairing large drywall holes requires additional steps like cutting, backing, and taping. Proper technique ensures a durable and seamless repair.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Preparing the Room for Painting",
+      "rules": [
+        "MUST remove all furniture or cover it with drop cloths.",
+        "MUST clean the walls to remove dust and grease.",
+        "MUST repair any cracks or holes with spackle.",
+        "MUST apply painter's tape to edges and trim.",
+        "PROHIBITED painting over dirty or damaged surfaces.",
+        "PROHIBITED skipping the primer if the wall is stained or porous.",
+        "WARNING avoid painting in high humidity to prevent slow drying.",
+        "WARNING ensure proper ventilation to avoid inhaling fumes."
+      ],
+      "trigger_intent": [
+        "How do I prep a room for painting?",
+        "What should I do before painting walls?",
+        "Steps to prepare a room for paint",
+        "Can I paint without cleaning the walls?",
+        "Do I need to tape edges before painting?",
+        "How to fix cracks before painting?",
+        "Is primer necessary before painting?"
+      ],
+      "rationale": "Proper preparation ensures a smooth and long-lasting paint job. Skipping steps like cleaning or priming can lead to poor adhesion and uneven results.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Choosing the Right Paint and Tools",
+      "rules": [
+        "MUST select the correct paint type (e.g., latex for walls, oil for trim).",
+        "MUST use high-quality brushes and rollers for even coverage.",
+        "MUST test paint colors on a small area before full application.",
+        "PROHIBITED using interior paint for exterior surfaces.",
+        "PROHIBITED mixing different paint types unless specified.",
+        "WARNING avoid cheap tools as they may shed bristles or lint.",
+        "WARNING check paint labels for VOC levels if health is a concern.",
+        "MUST purchase extra paint for touch-ups."
+      ],
+      "trigger_intent": [
+        "What type of paint should I use?",
+        "How to choose paint for walls?",
+        "Best brushes for painting walls",
+        "Can I use interior paint outside?",
+        "Should I test paint colors first?",
+        "How much extra paint to buy?",
+        "Are expensive rollers worth it?"
+      ],
+      "rationale": "Using the right paint and tools ensures durability and a professional finish. Testing colors and buying extra paint prevents mismatches and shortages.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Painting Techniques for Smooth Results",
+      "rules": [
+        "MUST start painting from the top (ceiling) and work downward.",
+        "MUST use a 'W' or 'M' motion with the roller for even coverage.",
+        "MUST maintain a wet edge to avoid lap marks.",
+        "PROHIBITED overloading the brush or roller with paint.",
+        "PROHIBITED painting in direct sunlight or extreme temperatures.",
+        "WARNING avoid pressing too hard to prevent streaks.",
+        "WARNING do not rush drying time between coats.",
+        "MUST apply at least two thin coats for best results."
+      ],
+      "trigger_intent": [
+        "How to paint walls without streaks?",
+        "Best technique for rolling paint?",
+        "Should I paint the ceiling first?",
+        "How to avoid lap marks when painting?",
+        "Can I paint in hot weather?",
+        "How many coats of paint are needed?",
+        "Why is my paint peeling?"
+      ],
+      "rationale": "Proper techniques prevent streaks, lap marks, and uneven coverage. Thin, multiple coats yield better adhesion and a smoother finish.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Safety and Cleanup After Painting",
+      "rules": [
+        "MUST wear gloves and goggles when handling paint or chemicals.",
+        "MUST dispose of paint waste according to local regulations.",
+        "MUST clean brushes and rollers immediately after use.",
+        "PROHIBITED pouring leftover paint down the drain.",
+        "PROHIBITED leaving paint cans open or unsealed.",
+        "WARNING avoid smoking or open flames near paint fumes.",
+        "WARNING store paint in a cool, dry place away from children.",
+        "MUST label leftover paint with color and date."
+      ],
+      "trigger_intent": [
+        "How to clean paint brushes?",
+        "Can I throw away old paint?",
+        "Safety tips for painting indoors",
+        "How to store leftover paint?",
+        "What PPE is needed for painting?",
+        "Is it safe to paint around kids?",
+        "How to dispose of paint thinner?"
+      ],
+      "rationale": "Safe handling and proper cleanup prevent accidents and environmental harm. Storing paint correctly ensures it remains usable for touch-ups.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Troubleshooting Common Painting Problems",
+      "rules": [
+        "MUST sand glossy surfaces before repainting for better adhesion.",
+        "MUST fix peeling or bubbling paint by scraping and priming first.",
+        "MUST wait for the paint to dry fully before assessing touch-ups.",
+        "PROHIBITED painting over mold or mildew without treating it.",
+        "PROHIBITED ignoring drips or runs; sand them smooth before recoating.",
+        "WARNING avoid painting in cold temperatures to prevent cracking.",
+        "WARNING do not use expired paint as it may not adhere properly.",
+        "MUST address uneven coverage with additional thin coats."
+      ],
+      "trigger_intent": [
+        "Why is my paint peeling off?",
+        "How to fix paint bubbles?",
+        "Can I paint over mold?",
+        "What to do about paint drips?",
+        "Why is my paint cracking?",
+        "How to fix uneven paint coverage?",
+        "Can I use old paint?"
+      ],
+      "rationale": "Addressing issues like peeling, bubbling, or uneven coverage ensures a professional finish. Ignoring problems can lead to costly repairs later.",
+      "cube_id": "cube_exp_untitled"
+    }
+  ],
+  "count": 20
+}

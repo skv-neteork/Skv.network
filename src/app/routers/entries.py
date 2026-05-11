@@ -138,6 +138,31 @@ async def create_entry(request: Request):
             # Сохраняем в БД
             asyncio.create_task(_save_cube_to_db(cid, cube_data.get("title", "Cube"), cube_data.get("type", "experience"), cube_data.get("priority", 3), cube_data.get("trigger_intent", []), cube_data.get("rules", []), merged_data))
         
+            # Сохраняем связи кубика (если есть based_on)
+            if "links" in body and isinstance(body.get("links"), dict):
+                links_data = body["links"]
+                direct = links_data.get("direct", {})
+                based_on = direct.get("based_on")
+                if based_on:
+                    try:
+                        import psycopg2 as pg2
+                        pg_conn = pg2.connect(
+                            host="127.0.0.1", port=5432,
+                            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+                        )
+                        cur = pg_conn.cursor()
+                        for cid in [c.get("cube_id") for c in body.get("cubes", [])]:
+                            cur.execute(
+                                "INSERT INTO cube_links (cube_id, linked_cube_id, link_type) VALUES (%s, %s, 'based_on') ON CONFLICT DO NOTHING",
+                                (cid, based_on)
+                            )
+                        pg_conn.commit()
+                        cur.close()
+                        pg_conn.close()
+                        print(f"[SKV] Links saved: {len(body.get('cubes', []))} cubes -> {based_on}")
+                    except Exception as e:
+                        print(f"[SKV] Link save error: {e}")
+
         # Автоматически сохраняем persona в профиль
         if "persona" in body:
             persona_data = body["persona"]
@@ -204,6 +229,27 @@ async def create_entry(request: Request):
     return {"id": entry_id, "public_url": f"/api/v1/entries/{entry_id}", "delete_token": delete_token}
 
 # Остальные эндпоинты (get_entry, search, feedback) оставляем из старого файла
+
+
+@router.get("/api/v1/entries/{cube_id}/links")
+async def get_cube_links(cube_id: str):
+    """Возвращает все связи кубика"""
+    try:
+        conn = psycopg2.connect(
+            host="127.0.0.1", port=5432,
+            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+        )
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT linked_cube_id, link_type FROM cube_links WHERE cube_id = %s UNION SELECT cube_id, link_type FROM cube_links WHERE linked_cube_id = %s",
+            (cube_id, cube_id)
+        )
+        links = [{"cube_id": row[0], "link_type": row[1]} for row in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return {"cube_id": cube_id, "links": links}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:200])
 
 def get_cubes_count():
     return len(cubes_library)

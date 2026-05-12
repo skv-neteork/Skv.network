@@ -316,9 +316,6 @@ async def feedback(request: Request):
         downvotes = cur.fetchone()[0]
         cur.close()
         pg_conn.close()
-        pending = False
-        trial_cube_title = None
-        trial_cube_rules = None
         
         if downvotes >= 3:
             pending = True
@@ -388,15 +385,7 @@ async def get_trials():
         cur.close()
         pg_conn.close()
         
-        # Запускаем Суд в фоне (после закрытия курсора)
-        if pending and trial_cube_title and trial_cube_rules:
-            try:
-                from app.routers.trials import run_trial
-                import asyncio
-                asyncio.create_task(run_trial(trial_cube_title, trial_cube_rules))
-                print(f"[SKV] Trial started for {cube_id}")
-            except Exception as e:
-                print(f"[SKV] Auto-trial error: {e}")
+        # Суд запускается автоматически через /api/feedback
         
         return {"trials": trials, "count": len(trials)}
     except Exception as e:

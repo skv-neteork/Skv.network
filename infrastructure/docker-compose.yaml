@@ -6,7 +6,6 @@ services:
     expose:
       - "8000"
     volumes:
-      - ./src:/app
       - ./knowledge_library:/knowledge_library
       - ./runtime:/runtime
     environment:

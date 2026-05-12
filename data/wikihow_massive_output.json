@@ -1,183 +1,857 @@
 {
   "cubes": [
     {
-      "name": "Preparation for Fixing a Leaking Faucet",
       "rules": [
         {
           "type": "MUST",
-          "rule": "Turn off the water supply valves under the sink by twisting them clockwise until tight."
+          "rule": "Practice delivery multiple times, recording yourself with a smartphone video app to review pacing and body language."
         },
         {
           "type": "MUST",
-          "rule": "Plug the drain with a rag or stopper to prevent small parts from falling in."
+          "rule": "Speak clearly and at a moderate pace, using a metronome app to maintain rhythm during rehearsals outlined in your speech script."
         },
         {
           "type": "MUST",
-          "rule": "Gather tools including adjustable wrench, screwdriver set, replacement washers or O-rings, and plumber's grease."
+          "rule": "Make eye contact with the audience, practicing this by simulating the crowd with family members or using a mirror for self-review."
         },
         {
           "type": "MUST",
-          "rule": "Identify the faucet type (compression, ball, cartridge, or ceramic disk) by checking the handle mechanism."
+          "rule": "Prepare for nerves by incorporating deep breathing exercises from WikiHow's anxiety tips, timing them before your speech slot."
         },
         {
           "type": "PROHIBITED",
-          "rule": "Do not proceed without turning off the water to avoid flooding."
+          "rule": "Do not drink excessively before speaking; limit intake and use a hydration tracker app to stay sober and focused."
         },
         {
           "type": "PROHIBITED",
-          "rule": "Avoid using excessive force on handles or nuts to prevent stripping threads."
+          "rule": "Avoid reading verbatim from notes; instead, use bullet points on index cards prepared in a note-taking app like OneNote."
         },
         {
           "type": "WARNING",
-          "rule": "Wear safety gloves to protect hands from sharp edges or old grime."
+          "rule": "Be mindful of microphone use; test audio levels with the venue's equipment in advance to prevent feedback issues."
         },
         {
           "type": "WARNING",
-          "rule": "Ensure the area is well-lit; use a flashlight if needed to avoid mistakes."
+          "rule": "Watch for emotional overwhelm; have a backup plan like pausing and sipping water, rehearsed in your practice sessions."
         },
         {
           "type": "MUST",
-          "rule": "Lay down a towel under the faucet to catch any drips and protect the sink surface."
+          "rule": "Adapt to the audience's reactions, noting cues in your rehearsal notes and adjusting humor or pace on the fly."
+        },
+        {
+          "type": "MUST",
+          "rule": "Follow up with thanks to the couple post-speech, planning a short note or message via email or a card app."
         },
         {
           "type": "PROHIBITED",
-          "rule": "Do not ignore leaks from the supply lines; address them separately if present."
+          "rule": "Do not extend beyond the allotted time; set a timer on your phone during delivery to respect the event schedule."
         }
       ],
       "trigger_intent": [
-        "how to prepare to fix a dripping faucet",
-        "steps before repairing leaky tap",
-        "tools needed for faucet leak repair",
-        "safety prep for fixing sink faucet",
-        "identify faucet type for repair",
-        "turn off water for faucet fix",
-        "avoid mistakes in faucet preparation"
+        "delivering a wedding speech",
+        "how to give wedding toast",
+        "overcoming nerves in speech",
+        "wedding speech performance tips",
+        "practicing wedding speech",
+        "public speaking at wedding",
+        "best practices for speech delivery",
+        "handling audience in wedding speech"
       ],
-      "rationale": "Proper preparation ensures safety and prevents further damage during faucet repair. Identifying the faucet type and gathering tools streamlines the process, reducing frustration and errors. This approach, sourced from WikiHow, emphasizes efficiency and precaution to achieve a successful fix.",
+      "rationale": "This cube addresses the delivery aspect of a wedding speech, based on WikiHow's advice for public speaking and performance. It helps users build confidence and ensure smooth execution by detailing rehearsal tools and techniques. Focusing on practical steps like recordings and breathing exercises mitigates common pitfalls for a polished presentation.",
       "cube_id": "cube_exp_untitled"
     },
     {
-      "name": "Fixing a Compression Faucet Leak",
-      "rules": [
-        {
-          "type": "MUST",
-          "rule": "Remove the handle by unscrewing the set screw with a screwdriver and lifting it off."
-        },
-        {
-          "type": "MUST",
-          "rule": "Use an adjustable wrench to loosen and remove the packing nut."
-        },
-        {
-          "type": "MUST",
-          "rule": "Pull out the stem and inspect the rubber washer at the bottom; replace if worn."
-        },
-        {
-          "type": "MUST",
-          "rule": "Apply plumber's grease to the new washer and O-ring before reassembling."
-        },
-        {
-          "type": "MUST",
-          "rule": "Reassemble in reverse order and test by turning on the water slowly."
-        },
-        {
-          "type": "PROHIBITED",
-          "rule": "Do not overtighten the packing nut to avoid damaging the stem."
-        },
-        {
-          "type": "PROHIBITED",
-          "rule": "Avoid using metal tools directly on chrome surfaces; wrap with tape to prevent scratches."
-        },
-        {
-          "type": "WARNING",
-          "rule": "Be cautious of old parts that may be corroded and break easily."
-        },
-        {
-          "type": "WARNING",
-          "rule": "If the seat is damaged, use a seat wrench to replace it, but only if experienced."
-        },
-        {
-          "type": "MUST",
-          "rule": "Clean all parts with a soft cloth and vinegar to remove mineral buildup."
-        },
-        {
-          "type": "PROHIBITED",
-          "rule": "Do not force the stem back in if it doesn't fit smoothly; check for obstructions."
-        }
-      ],
+      "name": "Initial Emotional Support for a Grieving Friend",
+      "rules": {
+        "MUST": [
+          "Listen actively without interrupting, using tools like maintaining eye contact and nodding to show empathy.",
+          "Acknowledge their pain by saying phrases like 'I'm so sorry for your loss' to validate their feelings.",
+          "Offer your presence, such as sitting with them in silence if they don't want to talk.",
+          "Follow up regularly with check-in messages or calls to show ongoing support."
+        ],
+        "PROHIBITED": [
+          "Do not offer unsolicited advice or platitudes like 'Everything happens for a reason,' as it can minimize their grief.",
+          "Avoid comparing their loss to your own experiences, which can shift focus away from them.",
+          "Do not pressure them to 'move on' or stop grieving, as everyone processes loss differently.",
+          "Refrain from judging their emotional reactions, such as crying or anger."
+        ],
+        "WARNING": [
+          "Be cautious about sharing religious or spiritual beliefs unless they initiate it, to avoid imposing your views.",
+          "Watch for signs of complicated grief, like prolonged isolation, and suggest professional help gently if needed.",
+          "Avoid overcommitting your time if it affects your own well-being, as burnout can hinder your support.",
+          "Be mindful of cultural differences in grieving rituals to respect their traditions."
+        ]
+      },
       "trigger_intent": [
-        "repair compression faucet drip",
-        "fix two-handle faucet leak",
-        "replace washer in old faucet",
-        "steps for compression tap repair",
-        "handle removal for leaky faucet",
-        "stem and washer fix in sink",
-        "reassemble compression faucet",
-        "common errors in faucet stem repair"
+        "how to comfort a friend who lost someone",
+        "what to say to a grieving friend",
+        "supporting friend after death in family",
+        "helping friend cope with loss",
+        "emotional support for bereavement",
+        "what not to say to someone grieving",
+        "initial response to friend's grief",
+        "being there for a friend in mourning"
       ],
-      "rationale": "Compression faucets leak due to worn washers, and replacing them is a straightforward fix. This method from WikiHow provides detailed steps to disassemble, inspect, and reassemble safely. Following these rules prevents common pitfalls like overtightening, ensuring a long-lasting repair.",
+      "rationale": "This cube provides guidelines for offering immediate emotional support to a grieving friend, drawing from WikiHow's advice on comforting those in mourning. It emphasizes empathetic listening and presence to help them feel heard and less alone during the initial stages of grief. By avoiding common pitfalls, it ensures support is genuine and non-intrusive, fostering a stronger bond.",
       "cube_id": "cube_exp_untitled"
     },
     {
-      "name": "Fixing a Cartridge or Ball Faucet Leak",
+      "name": "Practical Assistance for a Grieving Friend",
+      "rules": {
+        "MUST": [
+          "Offer specific help like preparing meals or running errands, using tools such as a shared calendar to organize tasks.",
+          "Assist with funeral arrangements if requested, by researching options or accompanying them to meetings.",
+          "Help with daily chores, such as cleaning or childcare, to alleviate immediate burdens.",
+          "Provide resources like grief support groups or books, recommending steps to find local services via online searches."
+        ],
+        "PROHIBITED": [
+          "Do not take over decisions without their input, as it can make them feel powerless.",
+          "Avoid insisting on help if they decline, which might add to their stress.",
+          "Do not share their personal details or story without permission, respecting their privacy.",
+          "Refrain from expecting gratitude or reciprocation during their grief period."
+        ],
+        "WARNING": [
+          "Be careful not to overwhelm them with too many offers at once; prioritize based on their needs.",
+          "Monitor for signs of financial strain and suggest professional advice discreetly if appropriate.",
+          "Avoid practical help that involves their loved one's belongings unless they specifically ask.",
+          "Ensure your assistance doesn't enable avoidance of necessary grieving processes."
+        ]
+      },
+      "trigger_intent": [
+        "practical ways to help grieving friend",
+        "what can I do for friend after loss",
+        "helping with tasks during bereavement",
+        "supporting friend practically in grief",
+        "offering help after death of loved one",
+        "daily assistance for mourning friend",
+        "organizing support for grieving person",
+        "tangible ways to aid in loss"
+      ],
+      "rationale": "Based on WikiHow's practical tips for supporting grievers, this cube focuses on actionable assistance to ease daily life burdens. It helps friends provide targeted help without overstepping, allowing the grieving person to focus on emotional healing. This approach prevents isolation and promotes recovery by addressing immediate needs effectively.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Long-Term Support and Self-Care for Supporting a Grieving Friend",
+      "rules": {
+        "MUST": [
+          "Maintain consistent contact over months, using reminders in your phone to send supportive messages.",
+          "Encourage professional help if grief persists, by suggesting therapists and offering to attend sessions with them.",
+          "Remember anniversaries and milestones, acknowledging them with a call or note to show remembrance.",
+          "Practice self-care, such as setting boundaries and seeking your own support network, to sustain long-term help."
+        ],
+        "PROHIBITED": [
+          "Do not withdraw support abruptly, as it can deepen their sense of loss.",
+          "Avoid forcing social activities if they're not ready, which could lead to resentment.",
+          "Do not gossip about their grief process with others, maintaining confidentiality.",
+          "Refrain from minimizing ongoing grief by saying things like 'You should be over it by now.'"
+        ],
+        "WARNING": [
+          "Be alert for your own emotional fatigue and take breaks to recharge, preventing compassion fatigue.",
+          "Watch for changes in their behavior indicating depression, and urge medical intervention if severe.",
+          "Avoid assuming their grief timeline; be patient as it can last years.",
+          "Consider cultural or personal differences in long-term grieving to provide appropriate support."
+        ]
+      },
+      "trigger_intent": [
+        "long-term support for grieving friend",
+        "helping friend through prolonged grief",
+        "ongoing care after loss",
+        "self-care while supporting mourner",
+        "anniversary support for bereavement",
+        "encouraging therapy for grief",
+        "sustaining friendship during mourning",
+        "avoiding burnout in grief support"
+      ],
+      "rationale": "Drawing from WikiHow's long-term grief support strategies, this cube guides sustained assistance while emphasizing supporter self-care. It ensures friends remain a reliable presence, helping prevent chronic grief issues. By including warnings on personal limits, it promotes healthy, enduring support dynamics.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Reflect on your personal interests, skills, and availability to identify suitable volunteer opportunities.",
+        "MUST: Research local and online volunteer organizations using websites like VolunteerMatch or Idealist.org.",
+        "MUST: Contact potential organizations via email or phone to inquire about volunteer positions and requirements.",
+        "MUST: Prepare necessary documents such as identification, resume, or references before applying.",
+        "MUST: Attend any required orientation or training sessions provided by the organization.",
+        "PROHIBITED: Do not commit to volunteer roles that exceed your available time or physical capabilities to avoid burnout.",
+        "PROHIBITED: Avoid sharing personal financial information unless it's a verified and secure process for background checks.",
+        "WARNING: Be cautious of organizations that ask for upfront fees, as legitimate volunteering should not require payment from volunteers.",
+        "WARNING: Ensure the volunteer work aligns with your values to prevent dissatisfaction or ethical conflicts.",
+        "MUST: Start with short-term commitments to test the fit before taking on long-term roles.",
+        "PROHIBITED: Do not ignore health and safety guidelines provided by the organization during volunteering."
+      ],
+      "trigger_intent_phrases": [
+        "how to start volunteering",
+        "beginner guide to volunteering",
+        "find volunteer opportunities",
+        "steps to become a volunteer",
+        "volunteering for the first time",
+        "how do I volunteer",
+        "starting out as a volunteer",
+        "volunteer signup process"
+      ],
+      "rationale": "This cube provides a structured approach to initiating volunteering based on WikiHow's guide, emphasizing self-assessment and research to ensure a positive experience. It includes specific tools like VolunteerMatch for discovery and steps for application to make the process actionable and safe.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Set clear goals for what you want to achieve through volunteering, such as skill-building or community impact.",
+        "MUST: Use apps like Catchafire or local community boards to search for virtual or in-person volunteer slots.",
+        "MUST: Follow up after initial contact with organizations to express continued interest and ask for next steps.",
+        "MUST: Prepare for interviews by practicing responses to common questions about your motivations and experience.",
+        "MUST: Track your volunteer hours using tools like a personal journal or apps such as Track It Forward.",
+        "PROHIBITED: Do not volunteer for causes that conflict with your personal beliefs to maintain authenticity.",
+        "PROHIBITED: Avoid overcommitting by signing up for multiple roles without assessing your schedule.",
+        "WARNING: Watch out for scams by verifying organizations through sites like Charity Navigator before committing.",
+        "WARNING: Be aware of potential emotional toll in roles like crisis support and seek support if needed.",
+        "MUST: Network with other volunteers during events to build connections and learn best practices.",
+        "PROHIBITED: Do not disregard feedback from supervisors, as it is essential for improvement.",
+        "WARNING: Ensure transportation and logistics are feasible to avoid last-minute cancellations."
+      ],
+      "trigger_intent_phrases": [
+        "preparing to volunteer",
+        "volunteer preparation steps",
+        "how to get ready for volunteering",
+        "volunteering goals and planning",
+        "setting up for volunteer work",
+        "volunteer application tips",
+        "pre-volunteering checklist",
+        "organizing volunteer commitments"
+      ],
+      "rationale": "Focusing on preparation aspects from WikiHow, this cube helps users build a strong foundation by setting goals and using verification tools. It specifies steps like interviews and tracking to ensure commitment and success in volunteering endeavors.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Arrive on time and dressed appropriately for the volunteer activity as specified by the organization.",
+        "MUST: Communicate openly with coordinators about any concerns or adjustments needed during your service.",
+        "MUST: Document your contributions and reflections in a notebook or digital app for personal growth.",
+        "MUST: Seek feedback regularly to improve your performance and impact in the role.",
+        "MUST: Respect confidentiality agreements, especially in sensitive areas like healthcare or counseling.",
+        "PROHIBITED: Do not engage in activities outside your assigned tasks without permission.",
+        "PROHIBITED: Avoid using volunteer time for personal gain, such as promoting your business.",
+        "WARNING: Be mindful of physical limits to prevent injury, and report any hazards immediately.",
+        "WARNING: Watch for signs of volunteer fatigue and take breaks to sustain long-term involvement.",
+        "MUST: Celebrate milestones by sharing positive experiences with the community or on social media responsibly.",
+        "PROHIBITED: Do not share sensitive information about beneficiaries without consent."
+      ],
+      "trigger_intent_phrases": [
+        "during volunteering tips",
+        "how to volunteer effectively",
+        "best practices while volunteering",
+        "volunteering do's and don'ts",
+        "maintaining volunteer commitment",
+        "volunteer etiquette",
+        "ongoing volunteering advice",
+        "improving volunteer experience"
+      ],
+      "rationale": "This cube covers the active phase of volunteering drawn from WikiHow, with rules for conduct and self-care to maximize benefits. It includes specific steps like documentation and feedback to foster a rewarding and ethical volunteering journey.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Reducing Plastic Use in Daily Routines",
+      "rules": [
+        "MUST switch to reusable water bottles made of stainless steel or glass to avoid single-use plastic bottles.",
+        "MUST carry cloth or canvas tote bags for carrying items instead of accepting plastic bags.",
+        "MUST opt for bar soap and shampoo bars over liquid products in plastic containers.",
+        "PROHIBITED: Purchasing beverages in plastic bottles; choose canned or glass alternatives instead.",
+        "PROHIBITED: Using plastic straws; request no straw or use metal/bamboo reusable ones.",
+        "PROHIBITED: Buying produce wrapped in plastic; select loose fruits and vegetables.",
+        "WARNING: Avoid plastic-wrapped snacks; bulk buying with reusable containers reduces waste but check store policies first.",
+        "WARNING: When using coffee pods, ensure they are compostable to minimize plastic impact, though reusable pods are preferable.",
+        "WARNING: Plastic toothbrushes contribute to waste; switch to bamboo ones, but dispose of properly.",
+        "MUST use cloth napkins or handkerchiefs instead of paper towels lined with plastic.",
+        "MUST bring personal containers for takeout to eliminate plastic packaging.",
+        "MUST educate yourself on local recycling rules to ensure plastics are properly sorted and recycled."
+      ],
+      "trigger_intent": [
+        "how to cut down on plastic in everyday life",
+        "tips for reducing daily plastic consumption",
+        "ways to avoid single-use plastics daily",
+        "daily habits to reduce plastic waste",
+        "reducing plastic in routines",
+        "plastic-free daily living",
+        "everyday plastic reduction strategies",
+        "minimizing plastic in daily activities"
+      ],
+      "rationale": "This cube focuses on integrating sustainable habits into daily routines to minimize plastic pollution, drawing from WikiHow's practical steps for personal lifestyle changes. By emphasizing reusable alternatives and prohibitions on common plastic items, it empowers users to make immediate, actionable adjustments. The rules are specific to tools like stainless steel bottles and bamboo straws to provide clear, step-by-step guidance for effective reduction.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Reducing Plastic Use in Shopping and Groceries",
+      "rules": [
+        "MUST bring reusable shopping bags, produce bags, and containers to stores for bulk purchases.",
+        "MUST choose products with minimal or no plastic packaging, such as glass jars or paper wraps.",
+        "MUST shop at bulk stores using your own jars to weigh and fill items like grains and spices.",
+        "PROHIBITED: Accepting plastic bags at checkout; politely decline and use your own.",
+        "PROHIBITED: Buying individually wrapped items; opt for bulk or unwrapped versions.",
+        "PROHIBITED: Using plastic produce bags; use mesh reusable bags instead.",
+        "WARNING: When buying cleaning products, avoid plastic bottles by choosing concentrates or making your own with vinegar and baking soda, but test surfaces first.",
+        "WARNING: Plastic-free shopping apps can help locate stores, but verify their accuracy to avoid misinformation.",
+        "WARNING: Farmers' markets often have less packaging, but bring your own bags to ensure no plastic is used.",
+        "MUST compare labels to select items with recycled content or biodegradable packaging.",
+        "MUST support brands committed to plastic reduction by emailing or choosing their products.",
+        "MUST plan meals to buy only what's needed, reducing excess packaging waste."
+      ],
+      "trigger_intent": [
+        "how to reduce plastic while shopping",
+        "plastic-free grocery tips",
+        "ways to avoid plastic in stores",
+        "shopping without plastic waste",
+        "reducing plastic in groceries",
+        "eco-friendly shopping habits",
+        "minimizing plastic packaging in buys",
+        "sustainable grocery strategies"
+      ],
+      "rationale": "This cube addresses plastic reduction during shopping by promoting preparation with reusable tools and conscious choices, based on WikiHow's guides for eco-friendly purchasing. It provides specific steps like using mesh bags and bulk shopping to make the process straightforward and effective. The rationale encourages long-term habits that not only cut plastic use but also support broader environmental goals.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "name": "Reducing Plastic Use at Home and Waste Management",
+      "rules": [
+        "MUST replace plastic storage containers with glass or metal alternatives for food storage.",
+        "MUST compost organic waste to reduce reliance on plastic trash bags.",
+        "MUST use beeswax wraps or silicone lids instead of plastic cling film.",
+        "PROHIBITED: Throwing away recyclable plastics; sort them according to local guidelines.",
+        "PROHIBITED: Using disposable plastic cutlery; invest in durable bamboo or metal sets.",
+        "PROHIBITED: Buying plastic toys; choose wooden or fabric options for children.",
+        "WARNING: When recycling, rinse plastics thoroughly to avoid contamination, but be aware that not all plastics are recyclable\u2014check symbols.",
+        "WARNING: DIY projects like upcycling plastic bottles into planters can repurpose waste, but prioritize reduction over reuse.",
+        "WARNING: Avoid plastic furniture; opt for sustainable materials like wood, though initial costs may be higher.",
+        "MUST audit your home for plastic items and gradually replace them with alternatives.",
+        "MUST use cloth diapers or menstrual products to cut down on disposable plastics.",
+        "MUST participate in community cleanups to remove plastic waste from environments."
+      ],
+      "trigger_intent": [
+        "how to reduce plastic at home",
+        "home plastic waste reduction",
+        "tips for plastic-free household",
+        "managing plastic waste at home",
+        "reducing home plastic use",
+        "eco-friendly home practices",
+        "plastic minimization in waste",
+        "sustainable home waste strategies"
+      ],
+      "rationale": "This cube targets home environments and waste handling to foster a plastic-minimal lifestyle, inspired by WikiHow's home organization and recycling advice. It specifies tools like beeswax wraps and composting bins for practical implementation, ensuring users can follow step-by-step. By combining must-dos with warnings, it balances encouragement with caution for comprehensive plastic reduction.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
       "rules": [
         {
           "type": "MUST",
-          "rule": "Pry off the decorative cap on the handle and remove the screw underneath with a screwdriver."
+          "description": "Turn off lights when leaving a room to avoid unnecessary energy consumption."
         },
         {
           "type": "MUST",
-          "rule": "Lift off the handle and use pliers to remove the retaining clip or nut."
+          "description": "Use LED bulbs instead of incandescent ones, as they consume up to 75% less energy."
         },
         {
           "type": "MUST",
-          "rule": "Pull out the cartridge or ball assembly and inspect O-rings and seats for wear; replace as needed."
-        },
-        {
-          "type": "MUST",
-          "rule": "Lubricate new parts with plumber's grease and align properly during reinsertion."
-        },
-        {
-          "type": "MUST",
-          "rule": "Reassemble and turn on water to check for leaks, adjusting the cam or cap if necessary."
+          "description": "Install dimmer switches for adjustable lighting levels to reduce power usage."
         },
         {
           "type": "PROHIBITED",
-          "rule": "Do not mix parts from different faucet brands; use exact replacements."
+          "description": "Do not leave lights on in unoccupied rooms, as this wastes electricity."
         },
         {
           "type": "PROHIBITED",
-          "rule": "Avoid bending or damaging the retaining clip during removal."
+          "description": "Avoid using high-wattage bulbs where lower ones suffice."
         },
         {
           "type": "WARNING",
-          "rule": "Water may spurt out when removing the cartridge; have a towel ready."
-        },
-        {
-          "type": "WARNING",
-          "rule": "If the leak persists after repair, the entire faucet may need replacement."
+          "description": "Be cautious with halogen bulbs, as they generate heat and can increase cooling costs."
         },
         {
           "type": "MUST",
-          "rule": "For ball faucets, ensure the ball is seated correctly in the valve body."
+          "description": "Utilize natural daylight by opening curtains during the day."
+        },
+        {
+          "type": "MUST",
+          "description": "Clean light fixtures regularly to maximize light output without increasing bulb wattage."
+        },
+        {
+          "type": "WARNING",
+          "description": "Ensure proper ventilation when using energy-efficient bulbs to prevent overheating."
         },
         {
           "type": "PROHIBITED",
-          "rule": "Do not use excessive force on plastic cartridges to prevent cracking."
+          "description": "Do not overload circuits with multiple high-power lights."
+        },
+        {
+          "type": "MUST",
+          "description": "Use motion-sensor lights for outdoor areas to activate only when needed."
+        }
+      ],
+      "trigger_intents": [
+        "how to reduce lighting electricity",
+        "save energy on home lights",
+        "tips for efficient home lighting",
+        "lower electric bill with lights",
+        "energy-saving light bulbs",
+        "dimming lights to save power",
+        "natural light usage at home",
+        "motion sensors for electricity savings"
+      ],
+      "rationale": "Efficient lighting reduces overall home electricity use by minimizing wasted energy from unnecessary illumination. Switching to LEDs and using natural light can significantly cut costs without sacrificing visibility. Proper maintenance and smart controls ensure long-term savings and safety.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        {
+          "type": "MUST",
+          "description": "Unplug appliances like toasters and chargers when not in use to eliminate standby power drain."
+        },
+        {
+          "type": "MUST",
+          "description": "Choose Energy Star-rated appliances for refrigerators and washers to ensure lower energy consumption."
+        },
+        {
+          "type": "MUST",
+          "description": "Run full loads in dishwashers and washing machines to optimize energy per use."
+        },
+        {
+          "type": "PROHIBITED",
+          "description": "Do not leave appliances on standby mode overnight, as they continue to draw power."
+        },
+        {
+          "type": "PROHIBITED",
+          "description": "Avoid using old, inefficient appliances that consume more electricity."
+        },
+        {
+          "type": "WARNING",
+          "description": "Be aware that overloading appliances can lead to higher energy use and potential hazards."
+        },
+        {
+          "type": "MUST",
+          "description": "Use power strips with switches to easily turn off multiple devices at once."
+        },
+        {
+          "type": "MUST",
+          "description": "Set refrigerators to 37\u00b0F and freezers to 0\u00b0F for optimal efficiency."
+        },
+        {
+          "type": "WARNING",
+          "description": "Regularly defrost freezers to prevent ice buildup, which increases energy demands."
+        },
+        {
+          "type": "PROHIBITED",
+          "description": "Do not place hot food directly into the refrigerator, as it forces the appliance to work harder."
+        },
+        {
+          "type": "MUST",
+          "description": "Clean appliance coils and vents annually to maintain efficiency."
+        }
+      ],
+      "trigger_intents": [
+        "save electricity with appliances",
+        "unplug devices to reduce bill",
+        "energy-efficient kitchen tools",
+        "standby power savings",
+        "optimize fridge energy use",
+        "full load washing tips",
+        "power strips for home savings",
+        "appliance maintenance for efficiency"
+      ],
+      "rationale": "Appliances account for a large portion of home electricity, and managing their use prevents phantom energy loss. Energy Star ratings and proper settings ensure devices operate at peak efficiency. Regular maintenance extends appliance life while minimizing power consumption.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        {
+          "type": "MUST",
+          "description": "Set thermostats to 78\u00b0F in summer and 68\u00b0F in winter for balanced energy use."
+        },
+        {
+          "type": "MUST",
+          "description": "Use programmable thermostats to automatically adjust temperatures when away or asleep."
+        },
+        {
+          "type": "MUST",
+          "description": "Seal windows and doors with weatherstripping to prevent air leaks."
+        },
+        {
+          "type": "PROHIBITED",
+          "description": "Do not set air conditioners below 78\u00b0F, as it exponentially increases energy use."
+        },
+        {
+          "type": "PROHIBITED",
+          "description": "Avoid leaving windows open while running HVAC systems."
+        },
+        {
+          "type": "WARNING",
+          "description": "Change air filters monthly to avoid reduced efficiency and higher bills."
+        },
+        {
+          "type": "MUST",
+          "description": "Use ceiling fans to circulate air, allowing higher thermostat settings in summer."
+        },
+        {
+          "type": "MUST",
+          "description": "Insulate attics and walls to retain heat in winter and cool air in summer."
+        },
+        {
+          "type": "WARNING",
+          "description": "Ensure proper insulation around ducts to prevent energy loss."
+        },
+        {
+          "type": "PROHIBITED",
+          "description": "Do not block vents with furniture, as it disrupts airflow and efficiency."
+        },
+        {
+          "type": "MUST",
+          "description": "Schedule annual HVAC maintenance to keep systems running efficiently."
+        },
+        {
+          "type": "WARNING",
+          "description": "Use shades or blinds to block sunlight in summer, reducing cooling needs."
+        }
+      ],
+      "trigger_intents": [
+        "save on heating and cooling",
+        "thermostat tips for energy savings",
+        "insulate home for electricity reduction",
+        "programmable thermostat benefits",
+        "seal leaks to lower bills",
+        "ceiling fans for efficiency",
+        "HVAC maintenance savings",
+        "window treatments for energy"
+      ],
+      "rationale": "Heating and cooling systems are major electricity consumers, and optimal settings with insulation minimize usage. Programmable controls and seals prevent wasteful operation during unoccupied times. Professional maintenance ensures systems don't overwork, leading to sustained savings.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        {
+          "type": "MUST",
+          "rule": "Select a new pot that is 1-2 inches larger in diameter than the current pot to provide adequate space for root growth without overwhelming the plant."
+        },
+        {
+          "type": "MUST",
+          "rule": "Gather tools including a new pot with drainage holes, fresh potting soil appropriate for the plant type, a trowel or small shovel, pruning shears, and a watering can."
+        },
+        {
+          "type": "MUST",
+          "rule": "Water the plant thoroughly 1-2 days before repotting to make the soil moist and easier to remove from the old pot."
+        },
+        {
+          "type": "MUST",
+          "rule": "Cover the drainage holes in the new pot with a coffee filter, mesh, or small rocks to prevent soil from escaping while allowing water to drain."
+        },
+        {
+          "type": "MUST",
+          "rule": "Gently remove the plant from its old pot by tipping it sideways and tapping the bottom, then sliding it out while supporting the base."
+        },
+        {
+          "type": "MUST",
+          "rule": "Inspect and loosen the roots by gently teasing apart any circling or matted roots with your fingers or pruning shears, trimming any dead or damaged roots."
+        },
+        {
+          "type": "MUST",
+          "rule": "Add a layer of fresh potting soil to the bottom of the new pot, position the plant so the top of the root ball is 1 inch below the rim, and fill around it with more soil, pressing lightly to eliminate air pockets."
+        },
+        {
+          "type": "MUST",
+          "rule": "Water the repotted plant thoroughly until water drains from the bottom, then place it in a location with appropriate light and temperature for its species."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Do not repot a plant during its blooming period or when it is stressed, as this can shock the plant and reduce flowering or cause wilting."
+        },
+        {
+          "type": "PROHIBITED",
+          "rule": "Avoid using garden soil instead of potting mix, as it can contain pests, diseases, or poor drainage properties unsuitable for container plants."
+        },
+        {
+          "type": "WARNING",
+          "rule": "Be cautious not to overwater immediately after repotting, as soggy soil can lead to root rot; monitor soil moisture and water only when the top inch feels dry."
+        },
+        {
+          "type": "WARNING",
+          "rule": "Handle the plant gently to avoid breaking stems or roots, which could introduce infections or stunt growth."
         }
       ],
       "trigger_intent": [
-        "fix single-handle faucet leak",
-        "replace cartridge in dripping tap",
-        "ball faucet repair steps",
-        "O-ring replacement in faucet",
-        "handle and cartridge removal",
-        "reassemble ball valve faucet",
-        "troubleshoot cartridge leak",
-        "avoid damage in faucet cartridge fix"
+        "how to repot a houseplant",
+        "steps for transplanting a plant to a new pot",
+        "guide to repotting indoor plants",
+        "how do I move my plant to a bigger pot",
+        "repotting instructions for beginners",
+        "what tools do I need to repot a plant",
+        "best way to repot a potted plant",
+        "how to change soil in a plant pot"
       ],
-      "rationale": "Cartridge and ball faucets require specific disassembly to access internal seals. WikiHow's guidance ensures users replace worn components accurately without causing further issues. This structured approach minimizes water waste and promotes DIY competence for common household problems.",
+      "rationale": "Repotting a plant is crucial for its health when it outgrows its current container, allowing roots to expand and access fresh nutrients. This cube provides detailed, step-by-step rules based on WikiHow to ensure successful repotting without harming the plant. It emphasizes safety and specificity to help users achieve optimal results for common houseplants.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST choose herbs that thrive indoors such as basil, mint, parsley, or chives, based on your available light and space.",
+        "MUST use pots with drainage holes to prevent waterlogging; select terracotta or plastic containers at least 6 inches deep.",
+        "MUST fill pots with well-draining potting mix specifically formulated for herbs or vegetables, avoiding garden soil to prevent pests.",
+        "MUST plant seeds or seedlings in moist soil, covering seeds lightly with soil and pressing gently; use a spray bottle for initial watering.",
+        "PROHIBITED from overplanting multiple herbs in one small pot, as this leads to competition for nutrients and root crowding.",
+        "WARNING: Avoid placing newly planted herbs in direct, intense sunlight immediately after planting to prevent scorching young leaves.",
+        "MUST label each pot with the herb type and planting date using waterproof markers or tags for easy tracking.",
+        "MUST sterilize used pots with a bleach solution (1 part bleach to 9 parts water) before reuse to eliminate pathogens.",
+        "PROHIBITED from using chemical fertilizers at the planting stage; opt for organic compost if needed.",
+        "WARNING: Ensure the planting area is free from drafts or extreme temperature fluctuations, as herbs are sensitive during germination.",
+        "MUST provide bottom heat using a seedling heat mat if starting seeds in cooler indoor environments below 65\u00b0F."
+      ],
+      "trigger_intent": [
+        "how to start growing herbs indoors",
+        "best way to plant indoor herbs",
+        "selecting pots for indoor herb garden",
+        "planting basil indoors from seeds",
+        "indoor herb planting tips",
+        "choosing herbs for apartment growing",
+        "setting up indoor herb pots",
+        "beginner guide to indoor herb planting"
+      ],
+      "rationale": "This cube focuses on the initial selection and planting phase to ensure a strong foundation for indoor herb growth. By specifying tools like pots, soil, and heat mats, it guides users through actionable steps sourced from WikiHow to avoid common pitfalls. Proper setup increases success rates and encourages sustainable indoor gardening.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST position herbs in a south-facing window or under grow lights providing 6-8 hours of bright, indirect light daily; use full-spectrum LED grow lights for low-light areas.",
+        "MUST water herbs when the top inch of soil feels dry, using room-temperature water and a watering can with a fine spout to avoid disturbing roots.",
+        "MUST fertilize every 4-6 weeks with a diluted, balanced liquid fertilizer (half-strength) during the growing season; apply using a measuring cup for precision.",
+        "PROHIBITED from overwatering, as this causes root rot; always check soil moisture with a finger test before adding water.",
+        "WARNING: Rotate pots every few days to ensure even growth, but avoid moving them frequently to prevent stress on the plants.",
+        "MUST maintain indoor humidity by misting leaves with a spray bottle or placing a pebble tray filled with water nearby.",
+        "MUST prune herbs regularly using clean scissors, cutting back to encourage bushier growth and prevent legginess.",
+        "PROHIBITED from using tap water high in chlorine; let it sit overnight or use filtered water to protect sensitive roots.",
+        "WARNING: Monitor for pests like aphids by inspecting leaves weekly; isolate affected plants immediately to prevent spread.",
+        "MUST ensure temperatures stay between 65-75\u00b0F daytime and above 55\u00b0F at night, using a thermometer to track conditions.",
+        "MUST repot overgrown herbs into larger containers every 6-12 months, gently loosening roots with a trowel during transfer."
+      ],
+      "trigger_intent": [
+        "caring for indoor herbs daily",
+        "watering schedule for indoor basil",
+        "light requirements for growing herbs inside",
+        "fertilizing indoor herb plants",
+        "pruning tips for indoor mint",
+        "maintaining humidity for herbs indoors",
+        "temperature control for indoor herbs",
+        "repotting indoor herb garden"
+      ],
+      "rationale": "This cube covers ongoing care to sustain healthy indoor herb growth after planting. It details specific tools like grow lights, watering cans, and thermometers with step-by-step maintenance from WikiHow sources. Following these rules helps prevent issues like nutrient deficiencies and promotes long-term plant vitality.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST harvest herbs in the morning when oils are concentrated, using sharp scissors to cut stems just above a leaf node.",
+        "MUST identify common issues like yellowing leaves, which may indicate overwatering; adjust by allowing soil to dry out more between waterings.",
+        "PROHIBITED from harvesting more than one-third of the plant at a time to avoid stressing and weakening the herb.",
+        "WARNING: If pests appear, treat with neem oil spray applied using a spray bottle, but test on a small area first to avoid leaf burn.",
+        "MUST dry harvested herbs by hanging bundles upside down in a dark, ventilated area or using a dehydrator on low heat.",
+        "MUST address nutrient deficiencies by testing soil pH with a kit (aim for 6.0-7.0) and amending with organic matter if needed.",
+        "PROHIBITED from ignoring fungal diseases like powdery mildew; remove affected parts immediately with pruning shears.",
+        "WARNING: Avoid chemical pesticides indoors; use insecticidal soap mixed in a spray bottle for safer pest control.",
+        "MUST propagate successful herbs by taking cuttings and rooting them in water or soil using rooting hormone powder for better success.",
+        "MUST store dried herbs in airtight glass jars away from light to preserve flavor; label with harvest date using adhesive labels.",
+        "WARNING: If herbs become leggy from insufficient light, supplement with adjustable grow lights and prune back excessively long stems."
+      ],
+      "trigger_intent": [
+        "harvesting indoor herbs properly",
+        "troubleshooting yellow leaves on herbs",
+        "dealing with pests in indoor herb garden",
+        "drying and storing homegrown herbs",
+        "propagating indoor basil",
+        "fixing leggy indoor herbs",
+        "common problems with indoor mint",
+        "pH testing for herb soil indoors"
+      ],
+      "rationale": "This cube addresses harvesting and problem-solving to maximize yield and resolve issues in indoor herb gardening. It provides targeted steps with tools like scissors, spray bottles, and pH kits based on WikiHow advice. This ensures users can enjoy fresh herbs while effectively managing challenges for continued success.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Turn the bicycle upside down or secure it in a bike stand to access the chain easily and prevent it from rolling.",
+        "MUST: Wear protective gloves to avoid getting grease on your hands and to protect against pinches.",
+        "MUST: Inspect the chain for any damage or twists before attempting to reattach it.",
+        "MUST: Loosen the quick-release lever on the rear wheel if the chain is too tight to maneuver.",
+        "MUST: Thread the chain over the smallest cog on the rear cassette and around the front chainring.",
+        "MUST: Use a stick or screwdriver to guide the chain back onto the derailleur pulleys if it's a multi-speed bike.",
+        "PROHIBITED: Do not force the chain onto the sprockets with excessive pressure, as this can bend the links.",
+        "PROHIBITED: Avoid pedaling the bike backward while the chain is off, to prevent further derailment.",
+        "WARNING: Be cautious of the chain's sharp edges, which can cause cuts if handled roughly.",
+        "WARNING: Ensure the bike is stable to avoid it tipping over and causing injury during the process.",
+        "MUST: Rotate the pedals slowly after reattaching to check if the chain shifts smoothly through gears.",
+        "MUST: Clean any excess grease from the chain and wheels using a rag after fixing."
+      ],
+      "trigger_intents": [
+        "bike chain fell off",
+        "how to put chain back on bike",
+        "fix derailed bicycle chain",
+        "bicycle chain came off sprocket",
+        "reattach slipped bike chain",
+        "quick fix for bike chain off",
+        "chain derailed on bicycle",
+        "how to rechain a bike"
+      ],
+      "rationale": "This cube focuses on reattaching a slipped or derailed bicycle chain, a frequent issue for cyclists. It draws from WikiHow's step-by-step guide to ensure safe and effective reattachment without specialized tools beyond basics like gloves and a stick. The rules emphasize safety and precision to prevent damage to the bike or injury to the user.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Use a chain tool (also called a chain breaker) to push out the pin from the damaged link.",
+        "MUST: Wear safety glasses to protect eyes from flying metal fragments during chain repair.",
+        "MUST: Count the number of links in the chain to ensure proper sizing if replacing sections.",
+        "MUST: Remove the damaged or broken link by aligning the chain tool's pin with the rivet and turning the handle clockwise.",
+        "MUST: Connect the chain ends using a master link or by inserting a new pin with the chain tool.",
+        "MUST: Press the new pin into place firmly but not all the way through, leaving it slightly protruding on one side.",
+        "PROHIBITED: Do not use pliers to force pins, as this can damage the chain plates.",
+        "PROHIBITED: Avoid reusing severely bent or cracked links, as they can cause chain failure.",
+        "WARNING: Handle the chain tool carefully to avoid slipping and injuring your hands.",
+        "WARNING: Ensure the bike is not under tension while repairing to prevent sudden snaps.",
+        "MUST: Test the repaired chain by pedaling gently and checking for stiffness or skipping."
+      ],
+      "trigger_intents": [
+        "fix broken bike chain",
+        "repair snapped bicycle chain",
+        "how to mend a broken chain",
+        "bicycle chain link broken",
+        "replace damaged bike chain link",
+        "use chain tool for repair",
+        "broken chain on bike fix"
+      ],
+      "rationale": "This cube addresses repairing a broken or damaged bicycle chain, which requires specific tools like a chain breaker. Based on WikiHow's detailed instructions, it covers removal and reconnection of links to restore functionality. The rules prioritize safety and accuracy to avoid further breakage or accidents during high-stress repairs.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Check the chain tension by pressing down on the chain midway between the chainring and rear cog; it should have about 1/2 inch of slack.",
+        "MUST: Use an adjustable wrench to loosen the rear axle nuts on a single-speed bike for tension adjustment.",
+        "MUST: Pull the rear wheel backward evenly on both sides to tighten a loose chain.",
+        "MUST: Tighten the axle nuts securely after adjusting, alternating sides to keep the wheel aligned.",
+        "MUST: For derailleur bikes, adjust the limit screws on the rear derailleur using a screwdriver to fine-tune tension.",
+        "PROHIBITED: Do not over-tighten the chain, as this can cause excessive wear on the drivetrain.",
+        "PROHIBITED: Avoid adjusting tension while the bike is upright and under load, to prevent misalignment.",
+        "WARNING: Misaligned wheels from improper adjustment can lead to unstable riding and accidents.",
+        "WARNING: Use caution with tools near moving parts to avoid pinching fingers.",
+        "MUST: Lubricate the chain with bike-specific chain lube after adjustment to reduce friction.",
+        "MUST: Test ride the bike in a safe area to ensure the chain doesn't skip or rub."
+      ],
+      "trigger_intents": [
+        "adjust bicycle chain tension",
+        "fix loose bike chain",
+        "tighten sagging bicycle chain",
+        "bicycle chain too loose",
+        "how to tension bike chain",
+        "adjust chain slack on bike",
+        "fix tight bicycle chain"
+      ],
+      "rationale": "This cube covers adjusting the tension of a bicycle chain, which is essential for smooth operation and preventing slippage. It is derived from WikiHow's methods for both single-speed and multi-speed bikes, specifying tools like wrenches and screwdrivers. The rules help users achieve optimal tension while warning against common errors that could damage components or compromise safety.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Gather necessary tools including tire levers, a new inner tube, a bike pump, and optionally a wrench for non-quick release wheels.",
+        "MUST: Flip the bike upside down or use a bike stand to stabilize it before starting.",
+        "PROHIBITED: Do not attempt to change the tire while the bike is upright or unstable, as this can lead to injury.",
+        "WARNING: Ensure the bike is on a flat, clean surface to avoid dirt entering the tire or tube.",
+        "MUST: Remove the wheel from the bike by loosening the quick release lever or nuts, and detach any brake cables if necessary.",
+        "MUST: Deflate the tire completely by pressing the valve core to release all air.",
+        "PROHIBITED: Do not use sharp objects like screwdrivers instead of tire levers, as they can damage the rim or tube.",
+        "WARNING: Wear gloves to protect hands from grease and potential pinches.",
+        "MUST: Insert tire levers under the tire bead and pry it over the rim, working around to remove one side of the tire.",
+        "MUST: Pull out the old inner tube and inspect the tire for any sharp objects or damage.",
+        "PROHIBITED: Do not reuse a punctured or damaged inner tube without proper patching.",
+        "WARNING: Check the rim tape for wear and replace if necessary to prevent future punctures."
+      ],
+      "trigger_intent": [
+        "how to fix a flat bike tire",
+        "steps to change bicycle tire",
+        "replace inner tube on bike",
+        "bike tire removal guide",
+        "deflate and remove bike tire",
+        "tools for changing bike tire",
+        "wikihow bike tire change",
+        "bicycle wheel detachment"
+      ],
+      "rationale": "This cube covers the initial steps of removing a bike tire and tube based on WikiHow instructions to ensure safe and effective repair. It emphasizes proper tools and precautions to prevent damage or injury. By structuring rules as MUST, PROHIBITED, and WARNING, it guides users clearly through the process.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Partially inflate the new inner tube to give it shape before installation.",
+        "MUST: Insert the new tube into the tire, starting with the valve through the rim hole.",
+        "PROHIBITED: Do not twist or pinch the tube while inserting it into the tire.",
+        "WARNING: Ensure the tube is not caught between the tire bead and rim during seating.",
+        "MUST: Push the tire bead back onto the rim starting opposite the valve, using hands or tire levers carefully.",
+        "MUST: Inflate the tire to the recommended PSI marked on the sidewall, checking for even seating.",
+        "PROHIBITED: Do not overinflate the tire, as this can cause blowouts.",
+        "WARNING: Listen for any unusual sounds or bulges while inflating, and deflate if issues arise.",
+        "MUST: Reattach the wheel to the bike frame, securing the quick release or nuts tightly.",
+        "MUST: Reconnect any brake cables and test the brakes before riding.",
+        "PROHIBITED: Do not ride the bike without verifying the tire is properly seated and inflated."
+      ],
+      "trigger_intent": [
+        "install new bike tire",
+        "how to put on bike inner tube",
+        "inflate bicycle tire after change",
+        "reattach bike wheel",
+        "bike tire installation steps",
+        "check bike tire pressure",
+        "wikihow install bike tire",
+        "secure bike tire on rim"
+      ],
+      "rationale": "This cube focuses on installing and inflating a new bike tire and tube, drawing from WikiHow to complete the repair process. It provides specific steps to avoid common mistakes like pinching the tube. The rules ensure the bike is safe to ride after the change.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Choose a location at least 10 feet away from tents, trees, and overhanging branches to prevent accidental spread of fire.",
+        "MUST: Clear a 10-foot diameter area around the fire pit of all flammable materials like dry grass, leaves, and twigs using a shovel or rake.",
+        "PROHIBITED: Building a campfire in dry, windy conditions or areas with fire bans; always check local regulations via park services or apps like Recreation.gov.",
+        "WARNING: Avoid building fires on peat or root-filled ground as underground roots can ignite and cause hidden fires; inspect the soil with a probe or stick.",
+        "MUST: Use a pre-existing fire ring if available, or dig a shallow pit about 1 foot deep and 2-3 feet wide with a shovel to contain the fire.",
+        "MUST: Gather tinder (dry grass, bark), kindling (small sticks), and fuel wood (larger logs) from the ground, ensuring all are dry; use a hatchet or saw for sizing if needed.",
+        "PROHIBITED: Cutting live trees or branches for firewood; only use dead, downed wood to preserve the environment.",
+        "WARNING: Never use accelerants like gasoline to start the fire, as they can cause explosions; stick to matches, lighters, or fire starters.",
+        "MUST: Arrange tinder in the center, surround with kindling in a teepee or log cabin structure, and light from the bottom using a long match or lighter.",
+        "MUST: Keep a bucket of water, shovel, and dirt nearby for emergency extinguishing; source water from a nearby stream or carry it in.",
+        "WARNING: Supervise children and pets around the fire at all times to prevent burns or accidents; establish a no-play zone around the fire pit."
+      ],
+      "trigger_intent": [
+        "how to start a campfire safely",
+        "steps for building a fire in the woods",
+        "safe way to make a campfire",
+        "campfire building tips",
+        "how do I build a fire outdoors",
+        "guidelines for safe campfire",
+        "building campfire without risks",
+        "campfire safety instructions"
+      ],
+      "rationale": "Building a campfire safely is essential to prevent wildfires and injuries, ensuring enjoyable outdoor experiences. This cube covers site selection, material gathering, and initial building steps based on WikiHow guidelines. Following these rules minimizes environmental impact and personal harm.",
+      "cube_id": "cube_exp_untitled"
+    },
+    {
+      "rules": [
+        "MUST: Add larger fuel wood gradually to the fire once kindling is burning well, using tongs or a poker to arrange logs safely.",
+        "MUST: Maintain the fire by poking and stirring embers with a long stick or fire poker to ensure even burning and prevent collapse.",
+        "PROHIBITED: Leaving the campfire unattended at any time; always have an adult supervisor present.",
+        "WARNING: Avoid adding too much wood at once, as it can cause the fire to become unmanageable or produce excessive smoke; build up slowly.",
+        "MUST: Extinguish the fire by dousing with water from a bucket, stirring ashes with a shovel, and repeating until no heat remains.",
+        "MUST: Feel the ashes with the back of your hand to confirm they are cool before leaving; if hot, add more water and dirt.",
+        "PROHIBITED: Burying the fire without fully extinguishing it, as embers can reignite underground.",
+        "WARNING: In windy conditions, reduce fire size and monitor for flying sparks; use a windbreak made from rocks if necessary.",
+        "MUST: Scatter cooled ashes over a wide area away from the campsite to dispose of them properly, following leave-no-trace principles.",
+        "MUST: Restore the fire site by filling the pit with dirt and covering with natural debris to minimize visual impact.",
+        "WARNING: Never use sand alone to extinguish, as it can insulate heat and cause burns later; always combine with water."
+      ],
+      "trigger_intent": [
+        "how to maintain a safe campfire",
+        "extinguishing campfire properly",
+        "campfire maintenance tips",
+        "safe ways to put out a fire",
+        "managing a campfire safely",
+        "steps to extinguish outdoor fire",
+        "campfire safety during use",
+        "how to handle campfire embers"
+      ],
+      "rationale": "Maintaining and extinguishing a campfire properly prevents accidents and environmental damage after the fire is built. This cube focuses on ongoing management and safe shutdown procedures from WikiHow. Adhering to these ensures no residual risks like wildfires or injuries post-camping.",
       "cube_id": "cube_exp_untitled"
     }
   ],
-  "count": 3
+  "count": 24
 }

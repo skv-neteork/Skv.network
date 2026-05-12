@@ -316,16 +316,40 @@ async def feedback(request: Request):
         downvotes = cur.fetchone()[0]
         cur.close()
         pg_conn.close()
+        pending = False
+        trial_cube_title = None
+        trial_cube_rules = None
+        
+        if downvotes >= 3:
+            pending = True
+            try:
+                cur.execute("SELECT title, rules FROM cubes WHERE cube_id = %s", (cube_id,))
+                row = cur.fetchone()
+                if row:
+                    trial_cube_title = row[0]
+                    trial_cube_rules = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+            except Exception as e:
+                print(f"[SKV] Auto-trial fetch error: {e}")
         
         return {
             "status": "ok",
             "cube_id": cube_id,
             "vote": vote,
             "downvotes": downvotes,
-            "pending_trial": downvotes >= 3
+            "pending_trial": pending
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
+    
+    # Запускаем Суд в фоне (после закрытия курсора)
+    if pending and trial_cube_title and trial_cube_rules:
+        try:
+            from app.routers.trials import run_trial
+            import asyncio
+            asyncio.create_task(run_trial(trial_cube_title, trial_cube_rules))
+            print(f"[SKV] Trial started for {cube_id}")
+        except Exception as e:
+            print(f"[SKV] Auto-trial error: {e}")
 
 
 @router.get("/api/v1/trials")
@@ -363,6 +387,16 @@ async def get_trials():
         
         cur.close()
         pg_conn.close()
+        
+        # Запускаем Суд в фоне (после закрытия курсора)
+        if pending and trial_cube_title and trial_cube_rules:
+            try:
+                from app.routers.trials import run_trial
+                import asyncio
+                asyncio.create_task(run_trial(trial_cube_title, trial_cube_rules))
+                print(f"[SKV] Trial started for {cube_id}")
+            except Exception as e:
+                print(f"[SKV] Auto-trial error: {e}")
         
         return {"trials": trials, "count": len(trials)}
     except Exception as e:

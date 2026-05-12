@@ -3,8 +3,8 @@ import asyncpg, os, json, urllib.request as _req
 
 router = APIRouter()
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db")
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
-TRIAL_MODELS = ["deepseek/deepseek-v4-flash", "qwen/qwen3.6-flash", "openai/gpt-5.5"]
+POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+TRIAL_MODELS = ["deepseek/deepseek-v4-flash", "qwen/qwen3.6-plus", "x-ai/grok-4"]
 
 async def get_db():
     return await asyncpg.connect(DATABASE_URL)
@@ -100,10 +100,10 @@ async def run_trial(cube_title, rules):
                 review_lines.append(r.get("comment","")[:100])
             reviews = "\n".join(review_lines)
             fix_prompt = f"Fix this cube based on reviews:\nTITLE: {cube_title}\nRULES: {json.dumps(rules)[:300]}\nREVIEWS:\n{reviews}\n\nReturn fixed cube as JSON with fields: title, rules (array of strings), rationale."
-            fix_body = json.dumps({"model":"openai/gpt-5.5","messages":[{"role":"user","content":fix_prompt}],"temperature":0.5,"max_tokens":1000}).encode()
+            fix_body = json.dumps({"model":"x-ai/grok-4","messages":[{"role":"user","content":fix_prompt}],"temperature":0.5,"max_tokens":1000}).encode()
             fix_req = _req.Request("https://api.polza.ai/v1/chat/completions", data=fix_body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
             fix_resp = json.loads(_req.urlopen(fix_req, timeout=60).read())["choices"][0]["message"]["content"]
-            results.append({"model":"gpt-5.5-fixer","verdict":"fix","alignment":0,"safety":0,"usefulness":0,"clarity":0,"comment":fix_resp[:500]})
+            results.append({"model":"grok-4-fixer","verdict":"fix","alignment":0,"safety":0,"usefulness":0,"clarity":0,"comment":fix_resp[:500]})
         except Exception as e:
             results.append({"model":"fixer","verdict":"error","alignment":0,"safety":0,"usefulness":0,"clarity":0,"comment":str(e)[:100]})
     else:
@@ -129,6 +129,43 @@ async def trial(request: Request):
         conn = await get_db()
         await conn.execute("INSERT INTO trials (cube_id,cube_title,verdict,overall_score,max_score,scores,models) VALUES ($1,$2,$3,$4,$5,$6,$7)", cube_id, cube_title, verdict, overall, max_score, json.dumps(scores), ",".join(TRIAL_MODELS))
         await conn.close()
+
+        # Если вердикт fix — Grok-4 создаёт исправленную версию
+        if verdict == "fix":
+            try:
+                comments = [f"{s['model']}: {s.get('comment','')}" for s in scores]
+                fix_prompt = f"""You are SKV Cube Fixer. Improve this cube based on judges feedback.
+
+ORIGINAL: {cube_title}
+RULES: {json.dumps(rules)}
+
+JUDGES:
+{chr(10).join(comments)}
+
+Return JSON: {{"title":"new title","rules":["MUST ...","PROHIBITED ...","WARNING: ..."],"trigger_intent":["kw1","kw2","kw3","kw4","kw5","kw6"],"rationale":"2-3 sentences"}}
+8-12 rules MUST/PROHIBITED/WARNING, >=2 WARNINGs, 6-8 triggers."""
+
+                fix_body = json.dumps({"model":"x-ai/grok-4","messages":[{"role":"user","content":fix_prompt}],"temperature":0.3,"max_tokens":600}).encode()
+                fix_req = _req.Request("https://api.polza.ai/v1/chat/completions", data=fix_body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
+                fix_resp = json.loads(_req.urlopen(fix_req, timeout=90).read())
+                fix_text = fix_resp["choices"][0]["message"]["content"]
+                
+                if "```" in fix_text:
+                    fix_text = fix_text.split("```")[1]
+                    if fix_text.startswith("json"): fix_text = fix_text[4:]
+                
+                fixed = json.loads(fix_text)
+                fixed["cube_id"] = f"cube_exp_{cube_title.lower().replace(' ','_')[:50]}_v2"
+                fixed["type"] = "experience"
+                fixed["priority"] = 3
+                fixed["version"] = "1.0.0"
+                
+                save_body = json.dumps({"cubes":[fixed]}).encode()
+                save_req = _req.Request("https://skv.network/api/v1/entries", data=save_body, headers={"Content-Type":"application/json"})
+                save_resp = json.loads(_req.urlopen(save_req, timeout=30).read())
+                print(f"[TRIALS] Fixed cube saved: {fixed.get('cube_id','?')}")
+            except Exception as e:
+                print(f"[TRIALS] Fixer error: {e}")
         return {"status":"ok","verdict":verdict,"overall_score":overall,"max_score":max_score,"scores":scores}
     except Exception as e:
         return {"status":"error","detail":str(e)[:200]}

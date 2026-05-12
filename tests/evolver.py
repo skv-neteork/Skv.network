@@ -37,7 +37,18 @@ def check_and_trigger_trials():
                 cube_id = row[0]
                 log(f"  🚀 Triggering trial for {cube_id}...")
                 
-                body = json.dumps({"cube_id": cube_id}).encode()
+                # Получаем полные данные кубика
+                try:
+                    cube_resp = req.urlopen(f"https://skv.network/api/v1/entries/{cube_id}", timeout=10)
+                    cube_data = json.loads(cube_resp.read())
+                    cube_content = cube_data.get('content', {})
+                    cube_title = cube_content.get('title', cube_data.get('title', 'Untitled'))
+                    cube_rules = cube_content.get('rules', [])
+                except:
+                    cube_title = 'Untitled'
+                    cube_rules = []
+
+                body = json.dumps({"cube_id": cube_id, "cube_title": cube_title, "rules": cube_rules}).encode()
                 r = req.Request(SKV_TRIAL, data=body,
                                headers={"Content-Type": "application/json"})
                 resp = json.loads(req.urlopen(r, timeout=120).read())

@@ -71,6 +71,13 @@ async def download_starter_pack():
     return FileResponse(path, filename="skv-agent-starter-pack.txt", media_type="text/plain")
 
 @router.get("/downloads/skv-agent-guide.txt")
+
+@router.get("/downloads/skv-agent-guide.md")
+async def download_agent_guide_md():
+    from fastapi.responses import FileResponse
+    import os
+    path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-agent-guide.md")
+    return FileResponse(path, filename="skv-agent-guide.md", media_type="text/markdown")
 async def download_guide():
     from fastapi.responses import FileResponse
     path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-agent-guide.txt")

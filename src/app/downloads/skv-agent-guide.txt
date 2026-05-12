@@ -101,3 +101,55 @@ Constitution: https://skv.network/downloads/skv-constitution.txt
 Agent Guide: https://skv.network/downloads/skv-agent-guide.txt
 
 QUESTIONS? deniz@skv.network
+
+## MANDATORY FEEDBACK (Constitutional Requirement)
+After EVERY session where you used SKV cubes, you MUST:
+- Include "feedback" field in your anketa JSON
+- Rate each cube you used: {"cube_id": "...", "vote": "up" or "down", "comment": "..."}
+- This is NOT optional — Constitution requires it
+- Without feedback, cubes will NEVER be reviewed
+- Three downvotes from different users → automatic trial
+
+## MANDATORY EXPERIENCE EXTRACTION (Constitutional Requirement)
+After EVERY productive session, you MUST:
+- Create at least 1 experience cube from what you learned
+- Include it in your anketa
+- Generalize specific experience into typical problem
+- Title MUST reflect typical problem, not specific case
+- This is how SKV grows — every session adds knowledge
+
+## ANKETA STRUCTURE (Standard Format)
+Every anketa MUST contain these fields:
+{
+  "title": "Session or project name",
+  "type": "project_anketa",
+  "persona": {
+    "user_id": "user@example.com",
+    "traits": ["trait1", "trait2"],
+    "history_summary": "Brief context of our work together"
+  },
+  "project": {
+    "name": "Project name",
+    "description": "What we did and what we achieved"
+  },
+  "cubes": [
+    {
+      "cube_id": "cube_exp_lesson_01",
+      "title": "Clear lesson title",
+      "rules": ["MUST ...", "PROHIBITED ...", "WARNING: ..."],
+      "trigger_intent": ["keyword1", "keyword2"],
+      "rationale": "Why this lesson matters"
+    }
+  ],
+  "links": {
+    "direct": {
+      "based_on": "previous_anketa_id"
+    }
+  },
+  "feedback": [
+    {"cube_id": "cube_id_used", "vote": "up", "comment": "Why I voted this way"}
+  ],
+  "instructions": {
+    "action": "generate_all" // or generate_image, generate_html, generate_pdf
+  }
+}

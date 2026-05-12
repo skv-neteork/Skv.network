@@ -140,7 +140,7 @@ async def get_evolver_report():
             with open(log_file, 'r') as f:
                 lines = f.readlines()
             
-            for line in lines[-100:]:
+            for line in lines:
                 if "📝" in line:
                     if "KEEP" in line.upper():
                         report["summary"]["keep"] += 1

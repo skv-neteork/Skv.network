@@ -57,11 +57,11 @@ async def sitemap():
     import os
     path = os.path.join(os.path.dirname(__file__), "..", "downloads", "sitemap.xml")
     return FileResponse(path, filename="sitemap.xml", media_type="application/xml")
-@router.get("/downloads/skv-constitution.txt")
+@router.get("/downloads/skv-constitution-compact.txt")
 async def download_constitution():
     from fastapi.responses import FileResponse
-    path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-constitution.txt")
-    return FileResponse(path, filename="skv-constitution.txt", media_type="text/plain")
+    path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-constitution-compact.txt")
+    return FileResponse(path, filename="skv-constitution-compact.txt", media_type="text/plain")
 
 @router.get("/downloads/skv-agent-starter-pack.txt")
 async def download_starter_pack():
@@ -262,7 +262,7 @@ async def download_persona_pack(user_id: str):
         persona_text += f"Error loading persona: {e}\n\n"
     
     # Читаем конституцию и агент-гайд
-    constitution_path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-constitution.txt")
+    constitution_path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-constitution-compact.txt")
     guide_path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-agent-guide.txt")
     
     constitution = open(constitution_path).read() if os.path.exists(constitution_path) else "Constitution not found"

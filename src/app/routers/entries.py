@@ -338,13 +338,21 @@ async def feedback(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
     
-    # Запускаем Суд в фоне (после закрытия курсора)
-    if pending and trial_cube_title and trial_cube_rules:
+    # Запускаем Суд через HTTP (не зависит от курсора БД)
+    if pending:
         try:
-            from app.routers.trials import run_trial
-            import asyncio
-            asyncio.create_task(run_trial(trial_cube_title, trial_cube_rules))
-            print(f"[SKV] Trial started for {cube_id}")
+            import urllib.request as _req
+            import json as _json
+            cube_resp = _req.urlopen(f"https://skv.network/api/v1/entries/{cube_id}", timeout=10)
+            cube_data = _json.loads(cube_resp.read())
+            cube_content = cube_data.get('content', {})
+            cube_title = cube_content.get('title', cube_data.get('title', ''))
+            cube_rules = cube_content.get('rules', [])
+            if cube_title and cube_rules:
+                trial_body = _json.dumps({"cube_id": cube_id, "cube_title": cube_title, "rules": cube_rules}).encode()
+                trial_req = _req.Request("https://skv.network/api/trial", data=trial_body, headers={"Content-Type": "application/json"})
+                _req.urlopen(trial_req, timeout=120)
+                print(f"[SKV] Trial started for {cube_id}")
         except Exception as e:
             print(f"[SKV] Auto-trial error: {e}")
 

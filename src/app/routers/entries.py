@@ -66,7 +66,10 @@ def load_cubes_from_db():
                     "id": str(uuid.uuid4()),
                     "cube_id": cube_id,
                     "title": row[1],
-                    "content": (json_lib.loads(row["content"]) if row["content"] and row["content"] != '{}' else ({"rules": json_lib.loads(row["rules"])} if row["rules"] and row["rules"] != '[]' else {})) if isinstance(row["content"], str) else (row["content"] if row["content"] and row["content"] != {} else ({"rules": json_lib.loads(row["rules"])} if row["rules"] and row["rules"] != '[]' else {})),
+                    "content": (
+                        json_lib.loads(row[7]) if isinstance(row[7], str) and row[7] and row[7] != '{}'
+                        else ({"rules": (json_lib.loads(row[4]) if isinstance(row[4], str) else row[4])} if row[4] else {})
+                    ),
                     "triggers": triggers if triggers else [],
                     "status": row[5] or "community",
                     "created_at": str(row[6]) if row[6] else ""

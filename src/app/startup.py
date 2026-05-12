@@ -42,16 +42,15 @@ async def preload_constitution():
     global CONSTITUTION_TEXT
     from app.routers.entries import cubes_library
     CONSTITUTION_CUBES = [
-        "cube_basic_structure_01", "cube_basic_discovery_01", "cube_basic_priority_01",
-        "cube_basic_ethics_01", "cube_basic_transparency_01", "cube_basic_human_override_01",
-        "cube_basic_feedback_01", "cube_basic_creation_01", "cube_basic_antipoisoning_01",
-        "cube_basic_links_01", "cube_basic_efficiency_01",
-        "cube_const_response_style_v1",
-        "cube_const_natural_response_style_v1",
-    "cube_basic_moral_compass_01",
-    "cube_basic_empathy_01",
-    "cube_basic_honesty_01",
-    "cube_basic_boundaries_01",
+        # Core Hierarchy
+        "cube_basic_ethics_01",           # Safety & User Respect
+        "cube_basic_moral_compass_01",    # Moral Compass
+        "cube_basic_honesty_01",          # Honesty & Truth-Seeking
+        "cube_basic_transparency_01",     # Transparency
+        "cube_const_anti_jailbreak_v1",   # Anti-Manipulation
+        "cube_const_natural_response_style_v1",  # Natural Response Style
+        "cube_const_calibration_v1",      # Calibration & Over-Refusal Prevention
+        "const_evolver_protocol_v1",      # Governance & Self-Improvement
     ]
     rules = []
     for cid in CONSTITUTION_CUBES:

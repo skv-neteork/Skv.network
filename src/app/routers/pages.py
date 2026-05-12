@@ -180,7 +180,16 @@ async def evolver_page():
     </div>
     
     <h1>🛡️ SKV Evolver</h1>
-    <p style="color:#8b949e;margin-bottom:20px">Autonomous guardian that audits cube quality every 4 hours when server load is low. Sends weak cubes to Trials automatically.</p>
+    <p style="color:#8b949e;margin-bottom:20px">Autonomous Python agent (v1.0) that runs in background on SKV server. 
+Uses <strong>Grok-4</strong> for deep cube analysis. 
+<strong>Every 4 hours</strong> (when server load &lt;30%) it:
+<br>• Reads 5 random unverified cubes via API
+<br>• Analyzes rules, safety, and usefulness
+<br>• Assigns score (1-10) and verdict (KEEP/FIX/REMOVE)
+<br>• Sends weak cubes to Trials with 3 downvotes
+<br>• Protects Constitutional cubes from automatic removal
+<br>• Logs all decisions with detailed reasoning
+<br><br><strong>This is a real agent, not just a concept.</strong> It actively maintains SKV quality while you sleep.</p>
     
     <div class="stats" id="stats">
         <div class="stat"><div class="n" id="evTotal">--</div><div class="l">Total Checked</div></div>

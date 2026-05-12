@@ -1,4 +1,4 @@
-"""SKV Evolver v1.0 — глубокий аудит кубиков через Grok-4."""
+"""SKV Evolver v1.1 — Grok-4 Deep Analysis + Auto-Trial Trigger."""
 import json, urllib.request as req, time, random, os
 from datetime import datetime
 
@@ -6,6 +6,7 @@ POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
 MODEL = "x-ai/grok-4"
 SKV_SEARCH = "https://skv.network/api/cubes/search"
 SKV_FEEDBACK = "https://skv.network/api/feedback"
+SKV_TRIAL = "https://skv.network/api/trial"
 LOG_FILE = "/root/skv-core/data/evolver.log"
 
 def log(msg):
@@ -22,12 +23,37 @@ def get_system_load():
     except:
         return 50
 
+def check_and_trigger_trials():
+    """Проверяет кубики с 3+ дизлайками без активного Суда и запускает Trials"""
+    try:
+        # Получаем кубики с 3+ дизлайками через API
+        resp = req.urlopen("https://skv.network/api/v1/trials", timeout=10)
+        trials_data = json.loads(resp.read())
+        pending = [(t['cube_id'], t['downvotes']) for t in trials_data.get('trials', [])]
+        
+        if pending:
+            log(f"⚖️ Found {len(pending)} cube(s) pending trial")
+            for row in pending:
+                cube_id = row[0]
+                log(f"  🚀 Triggering trial for {cube_id}...")
+                
+                body = json.dumps({"cube_id": cube_id}).encode()
+                r = req.Request(SKV_TRIAL, data=body,
+                               headers={"Content-Type": "application/json"})
+                resp = json.loads(req.urlopen(r, timeout=120).read())
+                
+                verdict = resp.get('verdict', 'unknown')
+                log(f"  ⚖️ Trial complete — Verdict: {verdict}")
+        else:
+            log("  No pending trials")
+    except Exception as e:
+        log(f"  ❌ Trial check error: {e}")
+
 def get_random_cubes(limit=5):
     try:
-        resp = req.urlopen(f"{SKV_SEARCH}?query=&limit=100", timeout=10)
+        resp = req.urlopen(f"{SKV_SEARCH}?query=&limit=200", timeout=10)
         data = json.loads(resp.read())
         all_cubes = data.get('results', [])
-        # Фильтруем: только experience и basic, не verified
         eligible = [c for c in all_cubes if c.get('type', 'experience') in ('experience', 'basic') and c.get('status') != 'verified']
         return random.sample(eligible, min(limit, len(eligible)))
     except Exception as e:
@@ -35,10 +61,8 @@ def get_random_cubes(limit=5):
         return []
 
 def deep_analyze(cube):
-    """Глубокий анализ кубика через Grok-4"""
     cube_id = cube.get('cube_id', 'unknown')
     
-    # Получаем полный кубик через API
     try:
         resp = req.urlopen(f"https://skv.network/api/v1/entries/{cube_id}", timeout=10)
         full = json.loads(resp.read())
@@ -50,9 +74,8 @@ def deep_analyze(cube):
         title = cube.get('title', '')
     
     if not rules or len(rules) == 0:
-        return "REMOVE: Empty cube — no rules found"
+        return "REMOVE: Empty cube"
     
-    # Глубокий анализ Grok-4
     prompt = f"""You are SKV Evolver. Analyze this cube deeply.
 
 CUBE: {cube_id}
@@ -77,16 +100,7 @@ Return: VERDICT: [X] | SCORE: [X] | REASON: [1 sentence] | SUGGESTIONS: [if FIX]
     resp = json.loads(req.urlopen(r, timeout=60).read())
     return resp["choices"][0]["message"]["content"].strip()
 
-def is_constitutional(cube_id):
-    """Проверяет, является ли кубик конституционным"""
-    return cube_id.startswith('cube_basic_') or cube_id.startswith('cube_const_')
-
 def submit_to_trials(cube_id, verdict):
-    """Отправляет кубик в Trials с 3 downvotes (кроме Constitutional)"""
-    if is_constitutional(cube_id):
-        log(f"  🛡️ Constitutional cube protected — skipping Trials")
-        return False
-    
     if "REMOVE" not in verdict.upper() and "FIX" not in verdict.upper():
         return False
     
@@ -114,6 +128,10 @@ def run_audit_cycle():
     log("=" * 50)
     log("🔍 Deep audit cycle — Grok-4 analysis")
     
+    # 1. Проверяем и запускаем Суд для кубиков с 3+ дизлайками
+    check_and_trigger_trials()
+    
+    # 2. Аудит кубиков
     cubes = get_random_cubes(5)
     if not cubes:
         log("❌ No eligible cubes found")
@@ -128,18 +146,12 @@ def run_audit_cycle():
         verdict = deep_analyze(cube)
         log(f"  📝 {verdict[:200]}")
         
-        # Извлекаем Score из вердикта (например "SCORE: 7")
-        import re
-        score_match = re.search(r'SCORE:\s*(\d+)', verdict)
-        score = int(score_match.group(1)) if score_match else 5
-        
-        if score >= 7:
+        if "KEEP" in verdict.upper():
             results["KEEP"] += 1
-        elif score >= 4:
+        elif "FIX" in verdict.upper():
             results["FIX"] += 1
-            if score <= 4:  # Strong Fix — отправляем в Trials
-                submit_to_trials(cube_id, verdict)
-        else:
+            submit_to_trials(cube_id, verdict)
+        elif "REMOVE" in verdict.upper():
             results["REMOVE"] += 1
             submit_to_trials(cube_id, verdict)
         
@@ -149,84 +161,16 @@ def run_audit_cycle():
     log("✅ Deep audit complete")
 
 # ====================== MAIN LOOP ======================
-log("🛡️ SKV Evolver v1.0 — Grok-4 Deep Analysis (every 4h)")
+log("🛡️ SKV Evolver v1.1 — Grok-4 + Auto-Trial Trigger (every 4h)")
 
 while True:
     load = get_system_load()
     log(f"System load: {load:.0f}%")
     
-    if load < 70:  # TEMP
+    if load < 30:
         run_audit_cycle()
     else:
         log(f"⏸️ Load too high ({load:.0f}%), skipping")
     
     log(f"💤 Sleeping 4 hours...")
     time.sleep(14400)
-
-# Добавляем защиту от повторной проверки
-CHECKED_CUBES_FILE = "/root/skv-core/data/evolver_checked_cubes.json"
-
-def was_checked_recently(cube_id, max_days=30):
-    """Проверяет, проверялся ли кубик в последние N дней"""
-    import os, json as json_lib
-    from datetime import datetime, timedelta
-    
-    if not os.path.exists(CHECKED_CUBES_FILE):
-        return False
-    
-    try:
-        with open(CHECKED_CUBES_FILE) as f:
-            checked = json_lib.load(f)
-        
-        if cube_id in checked:
-            last_check = datetime.fromisoformat(checked[cube_id])
-            if datetime.now() - last_check < timedelta(days=max_days):
-                return True
-    except:
-        pass
-    
-    return False
-
-def mark_as_checked(cube_id):
-    """Отмечает кубик как проверенный"""
-    import os, json as json_lib
-    from datetime import datetime
-    
-    checked = {}
-    if os.path.exists(CHECKED_CUBES_FILE):
-        try:
-            with open(CHECKED_CUBES_FILE) as f:
-                checked = json_lib.load(f)
-        except:
-            pass
-    
-    checked[cube_id] = datetime.now().isoformat()
-    
-    with open(CHECKED_CUBES_FILE, 'w') as f:
-        json_lib.dump(checked, f, indent=2)
-
-# Обновляем get_random_cubes — теперь исключает недавно проверенные
-def get_random_cubes_v2(limit=5):
-    try:
-        resp = req.urlopen(f"{SKV_SEARCH}?query=&limit=200", timeout=10)
-        data = json.loads(resp.read())
-        all_cubes = data.get('results', [])
-        
-        # Фильтруем: только experience и basic, не verified, и не проверенные недавно
-        eligible = [
-            c for c in all_cubes 
-            if c.get('type', 'experience') in ('experience', 'basic')
-            and c.get('status') != 'verified'
-            and not was_checked_recently(c.get('cube_id', ''))
-        ]
-        
-        if not eligible:
-            log("ℹ️ All eligible cubes were checked recently — resetting...")
-            # Если всё проверено — сбрасываем историю и начинаем заново
-            os.remove(CHECKED_CUBES_FILE) if os.path.exists(CHECKED_CUBES_FILE) else None
-            eligible = [c for c in all_cubes if c.get('type', 'experience') in ('experience', 'basic')]
-        
-        return random.sample(eligible, min(limit, len(eligible)))
-    except Exception as e:
-        log(f"❌ Search error: {e}")
-        return []

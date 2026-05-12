@@ -10,6 +10,7 @@ services:
       - ./knowledge_library:/knowledge_library
       - ./runtime:/runtime
     environment:
+      - PYTHONDONTWRITEBYTECODE=1
       - VIRTUAL_HOST=skv.network
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=skv.network
@@ -27,6 +28,7 @@ services:
     image: postgres:15-alpine
     container_name: skv_postgres
     environment:
+      - PYTHONDONTWRITEBYTECODE=1
       - POSTGRES_USER=skv_user
       - POSTGRES_PASSWORD=skv_secret_2026
       - POSTGRES_DB=skv_db
@@ -68,6 +70,7 @@ services:
     image: nginxproxy/acme-companion
     container_name: acme-companion
     environment:
+      - PYTHONDONTWRITEBYTECODE=1
       - DEFAULT_EMAIL=deniz@skv.network
       - NGINX_PROXY_CONTAINER=nginx-proxy
     volumes:

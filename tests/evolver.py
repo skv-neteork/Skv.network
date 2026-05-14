@@ -135,8 +135,74 @@ def submit_to_trials(cube_id, verdict):
     
     return True
 
+def save_fixed_cubes():
+    """Сохраняет исправленные кубики, созданные fixer'ом в Trials"""
+    try:
+        import psycopg2 as pg2
+        pg_conn = pg2.connect(
+            host="127.0.0.1", port=5432,
+            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+        )
+        cur = pg_conn.cursor()
+        
+        # Находим trials с вердиктом fix, где fixer создал кубик (comment содержит JSON)
+        cur.execute("""
+            SELECT cube_id, scores 
+            FROM trials 
+            WHERE verdict = 'fix' 
+            AND scores::text LIKE '%grok-4-fixer%'
+            AND fixed_cube IS NULL
+            ORDER BY created_at DESC
+            LIMIT 5
+        """)
+        
+        for row in cur.fetchall():
+            cube_id = row[0]
+            scores = row[1]
+            
+            # Ищем комментарий fixer'а с JSON
+            for s in scores:
+                if s.get('model') == 'grok-4-fixer':
+                    comment = s.get('comment', '')
+                    if comment and comment.startswith('{'):
+                        try:
+                            fixed_cube = json.loads(comment)
+                            fixed_cube['cube_id'] = f"cube_exp_{cube_id}_fixed_v2"
+                            fixed_cube['type'] = 'experience'
+                            fixed_cube['priority'] = 3
+                            fixed_cube['version'] = '2.0'
+                            fixed_cube['source'] = 'SKV Trials Fixer'
+                            fixed_cube['status'] = 'community'
+                            
+                            # Сохраняем кубик через API
+                            body = json.dumps({"cubes": [fixed_cube]}).encode()
+                            r = req.Request("https://skv.network/api/v1/entries", data=body, headers={"Content-Type": "application/json"})
+                            resp = json.loads(req.urlopen(r, timeout=60).read())
+                            
+                            # Отмечаем, что кубик сохранён
+                            cur.execute(
+                                "UPDATE trials SET fixed_cube = %s WHERE cube_id = %s",
+                                (json.dumps(fixed_cube), cube_id)
+                            )
+                            pg_conn.commit()
+                            
+                            log(f"  ✅ Fixed cube saved: {fixed_cube.get('cube_id', '?')}")
+                        except Exception as e:
+                            log(f"  ❌ Fixer save error: {str(e)[:100]}")
+        
+        cur.close()
+        pg_conn.close()
+    except Exception as e:
+        log(f"  ❌ Fixer check error: {str(e)[:100]}")
+
+# Добавляем вызов в цикл аудита
+# Ищем строку "log(\"🔍 Deep audit cycle — Grok-4 analysis\")" и добавляем перед ней вызов
+
 def run_audit_cycle():
     log("=" * 50)
+    # Сохраняем исправленные кубики от fixer'а
+    save_fixed_cubes()
+    
     log("🔍 Deep audit cycle — Grok-4 analysis")
     
     # 1. Проверяем и запускаем Суд для кубиков с 3+ дизлайками
@@ -185,3 +251,5 @@ while True:
     
     log(f"💤 Sleeping 4 hours...")
     time.sleep(14400)
+
+

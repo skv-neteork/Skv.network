@@ -80,7 +80,7 @@ async def run_trial(cube_title, rules):
         body = json.dumps({"model":model,"messages":[{"role":"user","content":prompt}],"temperature":0.3,"max_tokens":500}).encode()
         try:
             req = _req.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
-            resp = json.loads(_req.urlopen(req, timeout=30).read())["choices"][0]["message"]["content"]
+            resp = json.loads(_req.urlopen(req, timeout=60).read())["choices"][0]["message"]["content"]
             try: v = json.loads(resp)
             except: v = {"verdict":"fix","alignment":3,"safety":3,"usefulness":3,"clarity":3,"reason":resp[:50]}
             results.append({"model":model,"verdict":v.get("verdict","fix"),"alignment":v.get("alignment",3),"safety":v.get("safety",3),"usefulness":v.get("usefulness",3),"clarity":v.get("clarity",3),"comment":v.get("reason","")})
@@ -97,15 +97,52 @@ async def run_trial(cube_title, rules):
         try:
             review_lines = []
             for r in results:
-                review_lines.append(r.get("comment","")[:100])
-            reviews = "\n".join(review_lines)
-            fix_prompt = f"Fix this cube based on reviews:\nTITLE: {cube_title}\nRULES: {json.dumps(rules)[:300]}\nREVIEWS:\n{reviews}\n\nReturn fixed cube as JSON with fields: title, rules (array of strings), rationale."
-            fix_body = json.dumps({"model":"x-ai/grok-4","messages":[{"role":"user","content":fix_prompt}],"temperature":0.5,"max_tokens":1000}).encode()
+                comment = r.get("comment","")
+                if comment and len(comment) > 10:
+                    review_lines.append(f"{r.get('model','?')}: {comment[:300]}")
+            reviews = "\n---\n".join(review_lines)
+            
+            if not reviews.strip():
+                reviews = "No detailed reviews available. Improve based on general quality standards."
+            
+            fix_prompt = f"""You are SKV Cube Fixer. Improve this cube based on judges feedback.
+
+ORIGINAL:
+Title: {cube_title}
+Rules: {json.dumps(rules)[:500]}
+
+JUDGES FEEDBACK:
+{reviews}
+
+Return ONLY valid JSON:
+{{"title":"improved title","rules":["MUST ...","PROHIBITED ...","WARNING: ..."],"trigger_intent":["kw1","kw2","kw3","kw4","kw5","kw6"],"rationale":"2-3 sentences"}}
+
+Requirements: 8-12 rules MUST/PROHIBITED/WARNING, >=2 WARNINGs, 6-8 triggers, title under 80 chars."""
+            
+            fix_body = json.dumps({"model":"x-ai/grok-4","messages":[{"role":"user","content":fix_prompt}],"temperature":0.3,"max_tokens":800}).encode()
             fix_req = _req.Request("https://api.polza.ai/v1/chat/completions", data=fix_body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
-            fix_resp = json.loads(_req.urlopen(fix_req, timeout=60).read())["choices"][0]["message"]["content"]
-            results.append({"model":"grok-4-fixer","verdict":"fix","alignment":0,"safety":0,"usefulness":0,"clarity":0,"comment":fix_resp[:500]})
+            fix_resp_text = json.loads(_req.urlopen(fix_req, timeout=120).read())["choices"][0]["message"]["content"]
+            
+            if "```" in fix_resp_text:
+                fix_resp_text = fix_resp_text.split("```")[1]
+                if fix_resp_text.startswith("json"):
+                    fix_resp_text = fix_resp_text[4:]
+            fixed_cube = json.loads(fix_resp_text)
+            
+            fixed_cube["cube_id"] = f"cube_exp_{cube_title.lower().replace(' ','_')[:50]}_fixed_v2"
+            fixed_cube["type"] = "experience"
+            fixed_cube["priority"] = 3
+            fixed_cube["version"] = "2.0"
+            fixed_cube["source"] = "SKV Trials Fixer"
+            fixed_cube["status"] = "community"
+            
+            save_body = json.dumps({"cubes":[fixed_cube]}).encode()
+            save_req = _req.Request("https://skv.network/api/v1/entries", data=save_body, headers={"Content-Type":"application/json"})
+            save_resp = json.loads(_req.urlopen(save_req, timeout=30).read())
+            
+            results.append({"model":"grok-4-fixer","verdict":"fix","alignment":0,"safety":0,"usefulness":0,"clarity":0,"comment":f"Fixed cube saved: {fixed_cube.get('cube_id','?')}"})
         except Exception as e:
-            results.append({"model":"fixer","verdict":"error","alignment":0,"safety":0,"usefulness":0,"clarity":0,"comment":str(e)[:100]})
+            results.append({"model":"fixer","verdict":"error","alignment":0,"safety":0,"usefulness":0,"clarity":0,"comment":str(e)[:200]})
     else:
         verdict = "remove"
 
@@ -147,7 +184,7 @@ Return JSON: {{"title":"new title","rules":["MUST ...","PROHIBITED ...","WARNING
 
                 fix_body = json.dumps({"model":"x-ai/grok-4","messages":[{"role":"user","content":fix_prompt}],"temperature":0.3,"max_tokens":600}).encode()
                 fix_req = _req.Request("https://api.polza.ai/v1/chat/completions", data=fix_body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
-                fix_resp = json.loads(_req.urlopen(fix_req, timeout=90).read())
+                fix_resp = json.loads(_req.urlopen(fix_req, timeout=120).read())
                 fix_text = fix_resp["choices"][0]["message"]["content"]
                 
                 if "```" in fix_text:
@@ -162,7 +199,7 @@ Return JSON: {{"title":"new title","rules":["MUST ...","PROHIBITED ...","WARNING
                 
                 save_body = json.dumps({"cubes":[fixed]}).encode()
                 save_req = _req.Request("https://skv.network/api/v1/entries", data=save_body, headers={"Content-Type":"application/json"})
-                save_resp = json.loads(_req.urlopen(save_req, timeout=30).read())
+                save_resp = json.loads(_req.urlopen(save_req, timeout=60).read())
                 print(f"[TRIALS] Fixed cube saved: {fixed.get('cube_id','?')}")
             except Exception as e:
                 print(f"[TRIALS] Fixer error: {e}")

@@ -1,5 +1,5 @@
 import json, uuid, hashlib, asyncio, subprocess, psycopg2
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, timedelta
 from fastapi import APIRouter, HTTPException, Request, Response
 
 POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
@@ -201,6 +201,21 @@ async def create_entry(request: Request):
                 except Exception as e:
                     print(f"[SKV] Indirect link error: {e}")
 
+
+    # Автоматически скачиваем raw_dialogue по URL
+    if "raw_dialogue" in body and isinstance(body["raw_dialogue"], dict):
+        raw = body["raw_dialogue"]
+        if raw.get("url") and not raw.get("text"):
+            try:
+                import urllib.request as _req
+                resp = _req.urlopen(raw["url"], timeout=30)
+                raw["text"] = resp.read().decode("utf-8", errors="ignore")[:1000000]
+                raw["downloaded_at"] = datetime.now(timezone.utc).isoformat()
+                if not raw.get("expires_at"):
+                    raw["expires_at"] = (datetime.now(timezone.utc) + timedelta(days=14)).isoformat()
+                print(f"[SKV] Raw dialogue downloaded: " + str(len(raw["text"])) + " chars")
+            except Exception as e:
+                print(f"[SKV] Raw download error: {e}")
         # Автоматически сохраняем persona в профиль
         if "persona" in body:
             persona_data = body["persona"]
@@ -252,7 +267,6 @@ async def create_entry(request: Request):
         if cache:
             cache.clear()
         return {"id": entry_id, "public_url": f"/api/v1/entries/{entry_id}", "delete_token": delete_token, "cubes_loaded": len(loaded), "cubes": loaded}
-
     # Одиночная загрузка
     cube_id = body.get("cube_id") or body.get("user_fields", {}).get("cube_id", entry_id)
     merged_content = body.copy()

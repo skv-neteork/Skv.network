@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload — SKV Network</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23f0883e'/><text x='16' y='22' text-anchor='middle' font-family='Arial' font-size='16' font-weight='700' fill='%230d1117'>SKV</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; }
+        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; flex-wrap: wrap; }
+        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; }
+        .nav a:hover { color: #c9d1d9; }
+        .nav a.active { color: #f78166; }
+        .main { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+        h1 { font-size: 28px; font-weight: 600; color: #f0883e; margin-bottom: 8px; }
+        p { font-size: 14px; color: #8b949e; margin-bottom: 20px; }
+        .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 24px; margin-bottom: 20px; }
+        textarea { width: 100%; height: 200px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; padding: 12px; font-family: monospace; font-size: 13px; resize: vertical; }
+        textarea:focus { outline: none; border-color: #f78166; }
+        .drop-zone { border: 2px dashed #30363d; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 12px; cursor: pointer; transition: border-color 0.2s; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: #f78166; background: rgba(247,129,102,0.03); }
+        .model-btn { padding: 10px 18px; border-radius: 24px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 4px; border: 1px solid #30363d; background: #0d1117; color: #8b949e; transition: all 0.2s; user-select: none; }
+        .model-btn:hover { border-color: #8b949e; }
+        .model-btn.selected { color: #fff; }
+        .model-deepseek.selected { background: #1a1a3e; color: #7b8cff; border-color: #7b8cff; }
+        .model-qwen.selected { background: #1a2e1a; color: #3fb950; border-color: #3fb950; }
+        .model-gpt.selected { background: #2e1a2e; color: #d2a8ff; border-color: #d2a8ff; }
+        .model-claude.selected { background: #2e1a1a; color: #f0883e; border-color: #f0883e; }
+        .model-grok.selected { background: #1a2e2e; color: #39d353; border-color: #39d353; }
+        .main-btn { display: block; width: 100%; padding: 14px; text-align: center; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; color: #fff; margin-top: 12px; }
+        .btn-upload { background: #238636; }
+        .btn-upload:disabled { opacity: 0.5; pointer-events: none; }
+        .btn-download { background: #1f6feb; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/upload" class="active">Upload</a>
+        <a href="/trials">Trials</a>
+            <a href="/evolver">Evolver</a>
+        <a href="/.well-known/skv" target="_blank">Discovery</a>
+        <a href="/chat">💬 Chat</a>
+        <a href="/guide">Guide</a>
+        <a href="/profile" id="navProfileLink">Profile</a>
+        
+        <a href="/about">About</a>
+        <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
+    </div>
+    <div class="main">
+        <h1>Upload Project</h1>
+        <p>Select AI models, paste or drop JSON, click Upload.</p>
+
+        <div class="card">
+            <button class="model-btn model-deepseek" data-model="deepseek" onclick="toggleModel('deepseek', this)">DeepSeek 4.0</button>
+            <button class="model-btn model-qwen" data-model="qwen" onclick="toggleModel('qwen', this)">Qwen 3.6</button>
+            <button class="model-btn model-gpt" data-model="gpt" onclick="toggleModel('gpt', this)">ChatGPT 5.5</button>
+            <button class="model-btn model-claude" data-model="claude" onclick="toggleModel('claude', this)">Claude 4</button>
+            <button class="model-btn model-grok" data-model="grok" onclick="toggleModel('grok', this)">Grok 4</button>
+        </div>
+
+        <div class="card">
+            <div class="drop-zone" id="dropZone">
+                <p style="color:#8b949e;font-size:14px;">📂 Drop .json file here or click to choose</p>
+            </div>
+            <textarea id="jsonInput" placeholder='{"cube_id":"my-project","title":"My Project",...}'></textarea>
+
+        <label for="dialogueText" style="display:block;margin-top:16px;color:#c9d1d9;font-size:14px;">Full Dialogue Text (optional — paste or drop .txt/.md file)</label>
+        <textarea id="dialogueText" name="dialogue_text" placeholder="Paste the full conversation in Markdown format...&#10;&#10;## User (14:05)&#10;Hello!&#10;&#10;## Assistant (14:05)&#10;Hi! How can I help?" style="width:100%;height:150px;background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:12px;color:#c9d1d9;font-family:monospace;font-size:13px;resize:vertical;margin-bottom:16px;"></textarea>
+            <button class="main-btn btn-upload" id="uploadBtn" onclick="upload()">Upload</button>
+        </div>
+    </div>
+
+    <script>
+        const selected = new Set();
+        function toggleModel(m, btn) {
+            selected.has(m) ? (selected.delete(m), btn.classList.remove('selected')) : (selected.add(m), btn.classList.add('selected'));
+        }
+
+        // Предотвращаем открытие файла браузером
+        window.addEventListener('dragover', e => e.preventDefault());
+        window.addEventListener('drop', e => e.preventDefault());
+
+        // Drag & drop
+        const dz = document.getElementById('dropZone');
+        dz.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const f = e.target.files[0];
+                if (f) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => { document.getElementById('jsonInput').value = ev.target.result; };
+                    reader.readAsText(f);
+                }
+            };
+            input.click();
+        });
+        dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+        dz.addEventListener('dragleave', () => { dz.classList.remove('dragover'); });
+        dz.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dz.classList.remove('dragover');
+            const f = e.dataTransfer.files[0];
+            if (f && f.name.endsWith('.json')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => { document.getElementById('jsonInput').value = ev.target.result; };
+                reader.readAsText(f);
+            }
+        });
+
+        async function upload() {
+    const input = document.getElementById('jsonInput').value.trim();
+    if (!input) return;
+    
+    let project;
+    try { project = JSON.parse(input); } catch(e) { return; }
+    
+    const btn = document.getElementById('uploadBtn');
+    
+    // Если есть action — выполняем через /api/execute
+    if (project.action) {
+        btn.textContent = 'Executing...';
+        btn.disabled = true;
+        
+        try {
+            const resp = await fetch('/api/execute', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: input
+            });
+            const result = await resp.json();
+            
+            if (result.status === 'success') {
+                const card = document.querySelector('.card:last-of-type');
+                if (result.file_url) {
+                    const url = result.file_url.replace("/downloads/", "/api/execute/file/");
+                    if (project.action === 'generate_image') {
+                        card.innerHTML += `<div style="margin-top:16px;text-align:center">
+                            <img src="${url}" style="max-width:100%;border-radius:8px" alt="Generated">
+                            <p style="color:#3fb950;margin-top:8px">✅ Done! <a href="${url}" download>Download</a></p>
+                        </div>`;
+                    } else {
+                        card.innerHTML += `<div style="margin-top:16px;text-align:center">
+                            <p style="color:#3fb950">✅ Done! <a href="${url}" download>Download</a></p>
+                        </div>`;
+                    }
+                } else if (result.files) {
+                    let html = '<div style="margin-top:16px">';
+                    result.files.forEach(f => {
+                        const url = f.file_url.replace("/downloads/", "/api/execute/file/");
+                        if (f.type === 'image') {
+                            html += `<div style="text-align:center;margin-bottom:16px">
+                                <img src="${url}" style="max-width:100%;border-radius:8px" alt="Generated">
+                                <p style="color:#3fb950">✅ ${f.type} <a href="${url}" download>Download</a></p>
+                            </div>`;
+                        } else {
+                            html += `<div style="text-align:center;margin-bottom:8px">
+                                <p style="color:#3fb950">✅ ${f.type.toUpperCase()} <a href="${url}" download>Download</a></p>
+                            </div>`;
+                        }
+                    });
+                    html += '</div>';
+                    card.innerHTML += html;
+                }
+                document.getElementById('jsonInput').value = '';
+            } else {
+                alert('Error: ' + (result.message || 'Unknown'));
+            }
+        } catch(e) {
+            alert('Error: ' + e.message);
+        }
+        
+        btn.textContent = 'Upload';
+        btn.disabled = false;
+        document.getElementById('jsonInput').value = '';
+        return;
+    }
+    
+    // Если нет action — обычная загрузка кубиков
+    btn.textContent = 'Uploading...';
+    btn.disabled = true;
+    try {
+        // Если вставлен массив — оборачиваем в {"cubes": ...}
+        let payload = input;
+        try {
+            const parsed = JSON.parse(input);
+            if (Array.isArray(parsed)) {
+                payload = JSON.stringify({cubes: parsed});
+            } else if (parsed.persona && !parsed.persona.user_id) {
+                const email = localStorage.getItem('skv_email');
+                if (email) {
+                    parsed.persona.user_id = email;
+                    payload = JSON.stringify(parsed);
+                }
+            }
+        } catch(e) {}
+        
+        const resp = await fetch('/api/v1/entries', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: payload
+        });
+        if (resp.ok) {
+            alert('Cube uploaded! Starting consultation...');
+            
+            // Запускаем консультацию для выбранных моделей
+            const selectedModels = [];
+            document.querySelectorAll('.model-btn.selected').forEach(btn => {
+                const model = btn.getAttribute('data-model');
+                if (model) selectedModels.push(model);
+            });
+            
+            if (selectedModels.length > 0 && project.instructions && project.instructions.prompt) {
+                const consultArea = document.createElement('div');
+                consultArea.style.marginTop = '16px';
+                consultArea.innerHTML = '<h3 style="color:#f0883e">Consultation Results:</h3>';
+                document.querySelector('.card:last-of-type').appendChild(consultArea);
+                
+                // Последовательно отправляем запросы с задержкой 1 сек
+                (async () => {
+                    for (const model of selectedModels) {
+                        try {
+                            const resp = await fetch('/api/consult', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({query: project.instructions.prompt, model: model})
+                            });
+                            if (!resp.ok) {
+                                const text = await resp.text();
+                                throw new Error(text.substring(0, 100));
+                            }
+                            const result = await resp.json();
+                            const answer = result.answer || 'No response';
+                            consultArea.innerHTML += `<div style="margin-top:8px;padding:8px;background:#161b22;border-radius:6px">
+                                <strong style="color:#f0883e">${model.toUpperCase()}:</strong>
+                                <p style="color:#c9d1d9;font-size:13px;margin-top:4px">${answer.substring(0, 300)}</p>
+                            </div>`;
+                        } catch(e) {
+                            consultArea.innerHTML += `<div style="margin-top:8px"><strong style="color:#f0883e">${model.toUpperCase()}:</strong> <span style="color:red">Error: ${e.message}</span></div>`;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                    // Кнопка скачивания результатов
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.textContent = '📥 Скачать результаты консультации';
+                    downloadBtn.style.cssText = 'margin-top:16px;padding:10px 20px;background:#1f6feb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px';
+                    downloadBtn.onclick = () => {
+                        const items = consultArea.querySelectorAll('div > strong');
+                        let text = 'SKV Consultation Results\n' + '='.repeat(30) + '\n\n';
+                        items.forEach(item => {
+                            const model = item.textContent.replace(':', '').trim();
+                            const answerEl = item.nextElementSibling;
+                            const answer = answerEl ? answerEl.textContent.trim() : '';
+                            text += '### ' + model + '\n' + answer + '\n\n';
+                        });
+                        const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'skv_consultation_results.txt';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    };
+                    consultArea.appendChild(downloadBtn);
+                })();
+            }
+            document.getElementById('jsonInput').value = '';
+        } else {
+            alert('Upload failed: ' + resp.status);
+        }
+    } catch(e) {
+        alert('Error: ' + e.message);
+    }
+    btn.textContent = 'Upload';
+    btn.disabled = false;
+}
+
+</script>
+</body>
+</html>

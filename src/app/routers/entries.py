@@ -101,6 +101,18 @@ async def _save_cube_to_db(cube_id, title, cube_type, priority, trigger_intent, 
 async def create_entry(request: Request):
     try:
         body = await request.json()
+        
+        try:
+            form = await request.form()
+            dialogue_text = form.get("dialogue_text")
+            if dialogue_text and isinstance(dialogue_text, str) and dialogue_text.strip():
+                if "raw_dialogue" not in body:
+                    body["raw_dialogue"] = {}
+                body["raw_dialogue"]["format"] = "markdown"
+                body["raw_dialogue"]["text"] = dialogue_text.strip()
+                print(f"[SKV] Added dialogue_text from form: {len(dialogue_text)} chars")
+        except:
+            pass
         print(f"[DEBUG] 📥 Request body keys: {list(body.keys())}")
         print(f"[DEBUG] 🔑 Has persona: {'persona' in body}")
         print(f"[DEBUG] 🔑 Has cubes: {'cubes' in body}")
@@ -123,6 +135,9 @@ async def create_entry(request: Request):
             merged_data = cube_data.copy()
             if "persona" in body:
                 merged_data["persona"] = body["persona"]
+            for field in ["raw_dialogue", "raw_dialogue_level1", "key_moments", "keywords", "project", "links", "feedback"]:
+                if field in body:
+                    merged_data[field] = body[field]
             
             # Нормализация правил (если пришли как словари)
             raw_rules = cube_data.get("rules", [])

@@ -121,3 +121,19 @@ Actions: generate_image, generate_html, generate_pdf, generate_all
 | Cube Standard | /api/v1/entries/cube_const_creation_standard_v2 |
 
 Questions: deniz@skv.network
+
+## MEMORY PYRAMID (Session-to-Knowledge Pipeline)
+
+SKV uses a three-level memory pyramid for long-term session storage:
+
+| Level | Field | Size | TTL | Purpose |
+|-------|-------|------|-----|---------|
+| 0 | `raw_dialogue.text` | 100% | 14 days | Full dialogue for deep dives |
+| 1 | `raw_dialogue_level1` | ~10% | 365 days | Narrative chronology of key decisions |
+| 2 | `key_moments` | ~1% | Permanent | One-line insights with semantic anchors |
+| 3 | `cubes` | ~0.1% | Permanent | Atomic rules extracted from session |
+
+**For AI chats without HTTP:**
+1. Generate anketa JSON with levels 1-3
+2. User uploads JSON at /upload
+3. User optionally pastes full dialogue in second field (level 0)

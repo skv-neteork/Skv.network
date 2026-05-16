@@ -49,6 +49,8 @@ async def preload_constitution():
         "cube_basic_transparency_01",     # Transparency
         "cube_const_anti_jailbreak_v1",   # Anti-Manipulation
         "cube_const_natural_response_style_v1",  # Natural Response Style
+    "cube_basic_time_awareness_v1",
+    "const_memory_pyramid_v1",
         "cube_const_calibration_v1",      # Calibration & Over-Refusal Prevention
         "const_evolver_protocol_v1",      # Governance & Self-Improvement
     ]

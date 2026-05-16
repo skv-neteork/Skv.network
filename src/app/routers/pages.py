@@ -296,6 +296,40 @@ loadEvolverData();
 </html>
 """)
 
+
+@router.get("/api/user/{user_id}/project/{project_name}/memory")
+async def get_project_memory(user_id: str, project_name: str):
+    """Возвращает оглавление сессий по конкретному проекту"""
+    try:
+        import asyncpg
+        DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
+        conn = await asyncpg.connect(DATABASE_URL)
+        
+        search_id = user_id.split("@")[0] if "@" in user_id else user_id
+        row = await conn.fetchrow(
+            "SELECT memory_indexes FROM user_personas WHERE user_id = $1 OR user_id = $2 OR user_id LIKE $3",
+            user_id, search_id, search_id + "@%"
+        )
+        
+        project_sessions = []
+        if row and row['memory_indexes']:
+            import json as json_lib
+            indexes = json_lib.loads(row['memory_indexes']) if isinstance(row['memory_indexes'], str) else row['memory_indexes']
+            for m in indexes:
+                if m.get('project', '').lower() == project_name.lower():
+                    project_sessions.append(m)
+        
+        await conn.close()
+        
+        return {
+            "user_id": user_id,
+            "project": project_name,
+            "sessions": project_sessions,
+            "count": len(project_sessions)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:200])
+
 @router.get("/profile")
 async def profile_page():
     return HTMLResponse(_read_html(PROFILE_HTML_PATH))

@@ -66,8 +66,6 @@
             </div>
             <textarea id="jsonInput" placeholder='{"cube_id":"my-project","title":"My Project",...}'></textarea>
 
-        <label for="dialogueText" style="display:block;margin-top:16px;color:#c9d1d9;font-size:14px;">Full Dialogue Text (optional — paste or drop .txt/.md file)</label>
-        <textarea id="dialogueText" name="dialogue_text" placeholder="Paste the full conversation in Markdown format...&#10;&#10;## User (14:05)&#10;Hello!&#10;&#10;## Assistant (14:05)&#10;Hi! How can I help?" style="width:100%;height:150px;background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:12px;color:#c9d1d9;font-family:monospace;font-size:13px;resize:vertical;margin-bottom:16px;"></textarea>
             <button class="main-btn btn-upload" id="uploadBtn" onclick="upload()">Upload</button>
         </div>
     </div>
@@ -113,7 +111,6 @@
 
         async function upload() {
     const input = document.getElementById('jsonInput').value.trim();
-    const dialogueText = document.getElementById('dialogueText').value.trim();
     if (!input) return;
     
     let project;
@@ -127,13 +124,10 @@
         btn.disabled = true;
         
         try {
-            const formData = new FormData();
-            formData.append('json', input);
-            if (dialogueText) formData.append('dialogue_text', dialogueText);
-            
             const resp = await fetch('/api/execute', {
                 method: 'POST',
-                body: formData
+                headers: {'Content-Type': 'application/json'},
+                body: input
             });
             const result = await resp.json();
             
@@ -170,7 +164,6 @@
                     card.innerHTML += html;
                 }
                 document.getElementById('jsonInput').value = '';
-                document.getElementById('dialogueText').value = '';
             } else {
                 alert('Error: ' + (result.message || 'Unknown'));
             }
@@ -181,7 +174,6 @@
         btn.textContent = 'Upload';
         btn.disabled = false;
         document.getElementById('jsonInput').value = '';
-        document.getElementById('dialogueText').value = '';
         return;
     }
     
@@ -204,13 +196,10 @@
             }
         } catch(e) {}
         
-        const formData = new FormData();
-        formData.append('json', payload);
-        if (dialogueText) formData.append('dialogue_text', dialogueText);
-        
         const resp = await fetch('/api/v1/entries', {
             method: 'POST',
-            body: formData
+            headers: {'Content-Type': 'application/json'},
+            body: payload
         });
         if (resp.ok) {
             alert('Cube uploaded! Starting consultation...');
@@ -277,7 +266,6 @@
                 })();
             }
             document.getElementById('jsonInput').value = '';
-            document.getElementById('dialogueText').value = '';
         } else {
             alert('Upload failed: ' + resp.status);
         }

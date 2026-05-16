@@ -338,6 +338,15 @@ async def get_project_memory(user_id: str, project_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
 
+@router.get("/bureau")
+async def bureau_page():
+    from fastapi.responses import HTMLResponse
+    import os
+    path = os.path.join(os.path.dirname(__file__), "..", "bureau.html")
+    if os.path.exists(path):
+        return HTMLResponse(open(path).read())
+    return HTMLResponse("<h1>Bureau page not found</h1>")
+
 @router.get("/profile")
 async def profile_page():
     return HTMLResponse(_read_html(PROFILE_HTML_PATH))

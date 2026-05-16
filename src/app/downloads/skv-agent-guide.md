@@ -116,7 +116,7 @@ Actions: generate_image, generate_html, generate_pdf, generate_all
 
 | Resource | URL |
 |----------|-----|
-| Constitution | /downloads/skv-constitution.txt |
+| Constitution | /downloads/skv-constitution-compact.txt |
 | Discovery (JSON) | /.well-known/skv |
 | Cube Standard | /api/v1/entries/cube_const_creation_standard_v2 |
 

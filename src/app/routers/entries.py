@@ -458,6 +458,20 @@ async def get_trials():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
 
+
+@router.get("/api/time")
+async def get_server_time():
+    """Возвращает текущее серверное время для точных временных меток"""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    return {
+        "utc": now.isoformat(),
+        "timestamp": int(now.timestamp()),
+        "date": now.strftime("%Y-%m-%d"),
+        "time": now.strftime("%H:%M:%S"),
+        "timezone": "UTC"
+    }
+
 def get_cubes_count():
     return len(cubes_library)
 

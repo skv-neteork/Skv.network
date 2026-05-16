@@ -20,6 +20,13 @@ async def on_startup():
 
 
 @app.middleware("http")
+async def add_server_time(request: Request, call_next):
+    from datetime import datetime, timezone
+    response = await call_next(request)
+    response.headers["X-Server-Time"] = datetime.now(timezone.utc).isoformat()
+    return response
+
+@app.middleware("http")
 async def rate_limit_handler(request: Request, call_next):
     return await rate_limit_middleware(request, call_next)
 
@@ -64,7 +71,7 @@ async def discovery():
             "execute_actions": "generate_image, generate_html, generate_pdf, generate_all"
         },
         "downloads": {
-            "constitution": "/downloads/skv-constitution.txt",
+            "constitution": "/downloads/skv-constitution-compact.txt",
             "agent_guide": "/downloads/skv-agent-guide.txt",
             "tools_guide": "/downloads/skv-tools-guide.txt"
         },

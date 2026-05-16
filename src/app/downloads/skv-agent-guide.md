@@ -137,3 +137,22 @@ SKV uses a three-level memory pyramid for long-term session storage:
 1. Generate anketa JSON with levels 1-3
 2. User uploads JSON at /upload
 3. User optionally pastes full dialogue in second field (level 0)
+
+## MEMORY PYRAMID (Session-to-Knowledge)
+
+SKV stores session knowledge in a pyramid structure:
+
+| Level | Field | Size | TTL | Purpose |
+|-------|-------|------|-----|---------|
+| 0 | `raw_dialogue.text` | 100% | 14 days | Full dialogue (optional) |
+| 1 | `raw_dialogue_level1` | 1-5% | 365 days | Narrative summary |
+| 2 | `key_moments` | 0.1-0.5% | Permanent | Key insights with anchors |
+| 3 | `cubes` | ~0.01% | Permanent | Atomic rules |
+
+**For AI chats (no HTTP):**
+1. Generate anketa JSON with Level 1, Level 2, and cubes
+2. User uploads at /upload
+
+**For autonomous agents (HTTP):**
+1. POST /api/v1/entries with all pyramid fields
+2. Include `keywords` for searchability

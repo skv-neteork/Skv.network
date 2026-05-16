@@ -113,6 +113,7 @@
 
         async function upload() {
     const input = document.getElementById('jsonInput').value.trim();
+    const dialogueText = document.getElementById('dialogueText').value.trim();
     if (!input) return;
     
     let project;
@@ -126,10 +127,13 @@
         btn.disabled = true;
         
         try {
+            const formData = new FormData();
+            formData.append('json', input);
+            if (dialogueText) formData.append('dialogue_text', dialogueText);
+            
             const resp = await fetch('/api/execute', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: input
+                body: formData
             });
             const result = await resp.json();
             
@@ -166,6 +170,7 @@
                     card.innerHTML += html;
                 }
                 document.getElementById('jsonInput').value = '';
+                document.getElementById('dialogueText').value = '';
             } else {
                 alert('Error: ' + (result.message || 'Unknown'));
             }
@@ -176,6 +181,7 @@
         btn.textContent = 'Upload';
         btn.disabled = false;
         document.getElementById('jsonInput').value = '';
+        document.getElementById('dialogueText').value = '';
         return;
     }
     
@@ -198,10 +204,13 @@
             }
         } catch(e) {}
         
+        const formData = new FormData();
+        formData.append('json', payload);
+        if (dialogueText) formData.append('dialogue_text', dialogueText);
+        
         const resp = await fetch('/api/v1/entries', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: payload
+            body: formData
         });
         if (resp.ok) {
             alert('Cube uploaded! Starting consultation...');
@@ -268,6 +277,7 @@
                 })();
             }
             document.getElementById('jsonInput').value = '';
+            document.getElementById('dialogueText').value = '';
         } else {
             alert('Upload failed: ' + resp.status);
         }

@@ -119,8 +119,16 @@ async def download_persona_pack(user_id: str):
         )
         if mi_row and mi_row['memory_indexes']:
             indexes = json_lib.loads(mi_row['memory_indexes']) if isinstance(mi_row['memory_indexes'], str) else mi_row['memory_indexes']
+            projects = {}
             for m in indexes:
-                memory_index += f"Session {m.get('session_number','?')}: {m.get('key_outcome','')} [{m.get('project','')}]\n"
+                pname = m.get('project', 'Other')
+                if pname not in projects:
+                    projects[pname] = []
+                projects[pname].append(m)
+            for pname, sessions in projects.items():
+                memory_index += f"\n📁 {pname}:\n"
+                for m in sessions:
+                    memory_index += f"  Session {m.get('session_number','?')}: {m.get('key_outcome','')}\n"
         
         await conn.close()
     except Exception as e:

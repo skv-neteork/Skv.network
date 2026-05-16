@@ -259,6 +259,8 @@ async def download_persona_pack(user_id: str):
         else:
             persona_text += "No persona data yet. Upload an anketa with persona field to build your portfolio.\n\n"
     except Exception as e:
+        memory_index += f"ERROR: {e}\n"
+        memory_index = f"(Error loading memory: {e})"
         persona_text += f"Error loading persona: {e}\n\n"
     
     # Читаем конституцию и агент-гайд
@@ -269,7 +271,28 @@ async def download_persona_pack(user_id: str):
     guide = open(guide_path).read() if os.path.exists(guide_path) else "Agent Guide not found"
     
     # Собираем итоговый файл
-    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n{'='*50}\n\n{persona_text}---\n\n{constitution}\n\n---\n\n{guide}"
+    # Собираем Memory Index из БД
+    memory_index = "DEBUG: Starting...\n"
+    try:
+        memory_index += "DEBUG: psycopg2 imported\n"
+        import psycopg2 as pg2
+        pg_conn = pg2.connect(host="127.0.0.1", port=5432, dbname="skv_db", user="skv_user", password="skv_secret_2026")
+        cur = pg_conn.cursor()
+        cur.execute("SELECT memory_indexes FROM user_personas WHERE user_id = %s OR user_id = %s", (user_id, user_id.split("@")[0] if "@" in user_id else user_id))
+        memory_index += f"DEBUG: Query done, user_id={user_id}\n"
+        row = cur.fetchone()
+        if row and row[0]:
+            indexes = json_lib.loads(row[0]) if isinstance(row[0], str) else row[0]
+            for m in indexes:
+                memory_index += f"Session {m.get('session_number', '?')}: {m.get('key_outcome', '')} [{m.get('project', '')}]\n"
+        cur.close()
+        pg_conn.close()
+    except Exception as e:
+        memory_index += f"ERROR: {e}\n"
+        print(f"[SKV] Memory index load error: {e}")
+        memory_index = f"(Error loading memory: {e})"
+    
+    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n{'='*50}\n\n{persona_text}\n\nMEMORY INDEX (Session History):\n{memory_index if memory_index else 'No sessions recorded yet.'}\n---\n\n{constitution}\n\n---\n\n{guide}"
     
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse(full_text, headers={"Content-Disposition": f"attachment; filename=skv-pack-{user_id}.txt"})

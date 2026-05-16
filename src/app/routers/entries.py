@@ -293,6 +293,33 @@ async def create_entry(request: Request):
     if cache:
         cache.clear()
     asyncio.create_task(_save_cube_to_db(cube_id, body.get("title", "Cube"), body.get("type", "experience"), body.get("priority", 3), body.get("trigger_intent", []), body.get("rules", []), merged_content))
+    # Обновляем Memory Index в БД
+    if "memory_index" in body:
+        try:
+            mi = body["memory_index"]
+            user_id = body.get("persona", {}).get("user_id", "unknown")
+            if user_id != "unknown":
+                mi_entry = json.dumps([{
+                    "session_title": body.get("title", ""),
+                    "project": mi.get("project", ""),
+                    "session_number": mi.get("session_number", 0),
+                    "key_outcome": mi.get("key_outcome", ""),
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }])
+                import psycopg2 as pg2
+                pg_conn = pg2.connect(host="127.0.0.1", port=5432, dbname="skv_db", user="skv_user", password="skv_secret_2026")
+                cur = pg_conn.cursor()
+                cur.execute(
+                    "UPDATE user_personas SET memory_indexes = COALESCE(memory_indexes, '[]'::jsonb) || %s::jsonb, updated_at = NOW() WHERE user_id = %s",
+                    (mi_entry, user_id)
+                )
+                pg_conn.commit()
+                cur.close()
+                pg_conn.close()
+                print(f"[SKV] Memory index updated for {user_id}")
+        except Exception as e:
+            print(f"[SKV] Memory index error: {e}")
+
     return {"id": entry_id, "public_url": f"/api/v1/entries/{entry_id}", "delete_token": delete_token}
 
 # Остальные эндпоинты (get_entry, search, feedback) оставляем из старого файла

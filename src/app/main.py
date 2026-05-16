@@ -14,42 +14,6 @@ import io, zipfile, os
 app = FastAPI(title="SKV Network", version="2.0")
 
 
-@app.get("/downloads/skv-persona-pack-{user_id}.txt")
-async def download_persona_pack(user_id: str):
-    """Генерирует и отдаёт файл с портфелем пользователя + конституцией + Agent Guide"""
-    import asyncpg, os, json as json_lib
-    
-    DATABASE_URL = "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db"
-    
-    persona_text = f"USER PERSONA FOR: {user_id}\n"
-    try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        row = await conn.fetchrow("SELECT persona FROM user_personas LIMIT 1")
-        await conn.close()
-        if row and row['persona']:
-            persona = json_lib.loads(row['persona']) if isinstance(row['persona'], str) else row['persona']
-            persona_text += f"Traits: {', '.join(persona.get('traits', []))}\n"
-            persona_text += f"History: {persona.get('history_summary', '')}\n"
-            persona_text += f"Preferences: {', '.join(persona.get('preferences', []))}\n\n"
-        else:
-            persona_text += "No persona data yet.\n\n"
-    except Exception as e:
-        persona_text += f"Error loading persona: {e}\n\n"
-    
-    constitution_path = os.path.join(os.path.dirname(__file__), "downloads", "skv-constitution.txt")
-    guide_path = os.path.join(os.path.dirname(__file__), "downloads", "skv-agent-guide.txt")
-    
-    constitution = open(constitution_path).read() if os.path.exists(constitution_path) else "Constitution not found"
-    guide = open(guide_path).read() if os.path.exists(guide_path) else "Agent Guide not found"
-    
-    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n{'='*50}\n\n{persona_text}---\n\n{constitution}\n\n---\n\n{guide}"
-    
-    from fastapi.responses import PlainTextResponse
-    import urllib.parse
-    safe_filename = urllib.parse.quote(f"skv-pack-{user_id}.txt")
-    return PlainTextResponse(full_text, headers={"Content-Disposition": f"attachment; filename={safe_filename}"})
-
-
 @app.on_event("startup")
 async def on_startup():
     await startup()

@@ -84,6 +84,64 @@ async def download_guide():
     return FileResponse(path, filename="skv-agent-guide.txt", media_type="text/plain")
 
 
+@router.get("/downloads/skv-persona-pack-{user_id}.txt")
+async def download_persona_pack(user_id: str):
+    """Генерирует и отдаёт файл с портфелем пользователя + конституцией + Agent Guide + Memory Index"""
+    print("[SKV] FUNCTION STARTED")
+    import os, json as json_lib, asyncpg
+    print("[SKV] IMPORTS OK")
+
+    DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
+    search_id = user_id.split("@")[0] if "@" in user_id else user_id
+    persona_text = f"USER PERSONA FOR: {user_id}\n"
+    memory_index = ""
+
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        
+        # Получаем persona
+        row = await conn.fetchrow(
+            "SELECT persona FROM user_personas WHERE user_id = $1 OR user_id = $2 OR user_id LIKE $3 LIMIT 1",
+            user_id, search_id, search_id + "@%"
+        )
+        if row and row['persona']:
+            persona = json_lib.loads(row['persona']) if isinstance(row['persona'], str) else row['persona']
+            persona_text += f"Traits: {', '.join(persona.get('traits', []))}\n"
+            persona_text += f"History: {persona.get('history_summary', '')}\n"
+            persona_text += f"Preferences: {', '.join(persona.get('preferences', []))}\n\n"
+        else:
+            persona_text += "No persona data yet.\n\n"
+        
+        # Получаем Memory Index
+        mi_row = await conn.fetchrow(
+            "SELECT memory_indexes FROM user_personas WHERE user_id = $1 OR user_id = $2 OR user_id LIKE $3",
+            user_id, search_id, search_id + "@%"
+        )
+        if mi_row and mi_row['memory_indexes']:
+            indexes = json_lib.loads(mi_row['memory_indexes']) if isinstance(mi_row['memory_indexes'], str) else mi_row['memory_indexes']
+            for m in indexes:
+                memory_index += f"Session {m.get('session_number','?')}: {m.get('key_outcome','')} [{m.get('project','')}]\n"
+        
+        await conn.close()
+    except Exception as e:
+        persona_text += f"Error: {e}\n\n"
+        memory_index = f"Error: {e}"
+
+    if not memory_index:
+        memory_index = "No sessions recorded yet."
+
+    constitution_path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-constitution-compact.txt")
+    guide_path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-agent-guide.txt")
+    print(f"[SKV] Constitution path: {constitution_path}"); constitution = open(constitution_path).read() if os.path.exists(constitution_path) else "Constitution not found"
+    guide = open(guide_path).read() if os.path.exists(guide_path) else "Agent Guide not found"
+
+    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n{'='*50}\n\n{persona_text}\nMEMORY INDEX (Session History):\n{memory_index}\n---\n\n{constitution}\n\n---\n\n{guide}"
+
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(full_text, headers={"Content-Disposition": f"attachment; filename=skv-pack-{user_id}.txt"})
+
+
+
 @router.get("/downloads/{filename}")
 async def download_generated_file(filename: str):
     """Отдаёт сгенерированные файлы (изображения, HTML, PDF и др.)"""
@@ -237,66 +295,6 @@ loadEvolverData();
 </body>
 </html>
 """)
-
-@router.get("/downloads/skv-persona-pack-{user_id}.txt")
-async def download_persona_pack(user_id: str):
-    """Генерирует и отдаёт файл с портфелем пользователя + конституцией + Agent Guide"""
-    import asyncpg, os, json as json_lib
-    memory_index = ""
-    
-    DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
-    
-    # Получаем persona из БД
-    persona_text = f"USER PERSONA FOR: {user_id}\n"
-    try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        row = await conn.fetchrow("SELECT persona FROM user_personas LIMIT 1")
-        await conn.close()
-        if row and row['persona']:
-            persona = json_lib.loads(row['persona']) if isinstance(row['persona'], str) else row['persona']
-            persona_text += f"Traits: {', '.join(persona.get('traits', []))}\n"
-            persona_text += f"History: {persona.get('history_summary', '')}\n"
-            persona_text += f"Preferences: {', '.join(persona.get('preferences', []))}\n\n"
-        else:
-            persona_text += "No persona data yet. Upload an anketa with persona field to build your portfolio.\n\n"
-    except Exception as e:
-        persona_text += f"Error loading persona: {e}\n\n"
-        persona_text += f"Error loading persona: {e}\n\n"
-    
-    # Читаем конституцию и агент-гайд
-    constitution_path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-constitution-compact.txt")
-    guide_path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-agent-guide.txt")
-    
-    constitution = open(constitution_path).read() if os.path.exists(constitution_path) else "Constitution not found"
-    guide = open(guide_path).read() if os.path.exists(guide_path) else "Agent Guide not found"
-    
-    # Собираем итоговый файл
-    # Собираем Memory Index из БД
-    memory_index = "DEBUG: Starting...\n"
-    try:
-        memory_index += "DEBUG: psycopg2 imported\n"
-        import psycopg2 as pg2
-        pg_conn = pg2.connect(host="127.0.0.1", port=5432, dbname="skv_db", user="skv_user", password="skv_secret_2026")
-        cur = pg_conn.cursor()
-        cur.execute("SELECT memory_indexes FROM user_personas WHERE user_id = %s OR user_id = %s", (user_id, user_id.split("@")[0] if "@" in user_id else user_id))
-        memory_index += f"DEBUG: Query done, user_id={user_id}\n"
-        row = cur.fetchone()
-        if row and row[0]:
-            indexes = json_lib.loads(row[0]) if isinstance(row[0], str) else row[0]
-            for m in indexes:
-                memory_index += f"Session {m.get('session_number', '?')}: {m.get('key_outcome', '')} [{m.get('project', '')}]\n"
-        cur.close()
-        pg_conn.close()
-    except Exception as e:
-        memory_index += f"ERROR: {e}\n"
-        print(f"[SKV] Memory index load error: {e}")
-        memory_index = f"(Error loading memory: {e})"
-    
-    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n{'='*50}\n\n{persona_text}\n\nMEMORY INDEX (Session History):\n{memory_index if memory_index else 'No sessions recorded yet.'}\n---\n\n{constitution}\n\n---\n\n{guide}"
-    
-    from fastapi.responses import PlainTextResponse
-    return PlainTextResponse(full_text, headers={"Content-Disposition": f"attachment; filename=skv-pack-{user_id}.txt"})
-
 
 @router.get("/profile")
 async def profile_page():

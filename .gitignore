@@ -1,1 +1,5 @@
-(src/app/upload.html)
+(src/app/upload.html)-H
+-d
+.env
+data/*.log
+**/__pycache__/

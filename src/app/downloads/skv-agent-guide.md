@@ -156,3 +156,17 @@ SKV stores session knowledge in a pyramid structure:
 **For autonomous agents (HTTP):**
 1. POST /api/v1/entries with all pyramid fields
 2. Include `keywords` for searchability
+
+## MEMORY PYRAMID (Session-to-Knowledge Pipeline)
+
+SKV stores session knowledge in a pyramid structure with automatic forgetting:
+
+| Level | Field | Retention | Purpose |
+|-------|-------|-----------|---------|
+| 0 | `raw_dialogue` | 14 days | Full dialogue text |
+| 1 | `raw_dialogue_level1` | 365 days | Narrative summary (~5%) |
+| 2 | `key_moments` | Permanent | Key insights with anchors |
+| 3 | `memory_index` | Permanent | Cross-session project index |
+
+**For AI agents:** Include `memory_index` in every anketa to build project history.
+**For users:** Download SKV Pack from /profile to see your Memory Index.

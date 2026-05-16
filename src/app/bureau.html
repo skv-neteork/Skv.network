@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bureau — SKV Network</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; }
+        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; }
+        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; }
+        .nav a:hover { color: #c9d1d9; }
+        .nav a.active { color: #f78166; }
+        .main { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+        h1 { font-size: 28px; font-weight: 600; color: #f0883e; margin-bottom: 8px; }
+        .chat-box { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px; min-height: 300px; max-height: 500px; overflow-y: auto; margin-bottom: 12px; }
+        .msg { margin: 8px 0; padding: 8px 12px; border-radius: 8px; max-width: 85%; }
+        .msg.user { background: #1a2e1a; margin-left: auto; text-align: right; }
+        .msg.bot { background: #1a1a2e; }
+        .msg .sender { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+        .input-row { display: flex; gap: 8px; }
+        .input-row input { flex: 1; padding: 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 14px; }
+        .input-row button { padding: 12px 20px; background: #f0883e; border: none; border-radius: 6px; color: #fff; font-weight: 600; cursor: pointer; }
+        .status { color: #8b949e; font-size: 12px; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/upload">Upload</a>
+        <a href="/trials">Trials</a>
+        <a href="/evolver">Evolver</a>
+        <a href="/bureau" class="active">🏗️ Bureau</a>
+        <a href="/chat">💬 Chat</a>
+        <a href="/guide">Guide</a>
+        <a href="/about">About</a>
+    </div>
+    <div class="main">
+        <h1>🏗️ Design Bureau</h1>
+        <p style="color:#8b949e;margin-bottom:16px;">Chief Designer at your service, Director.</p>
+        
+        <div class="chat-box" id="chat"></div>
+        
+        <div class="input-row">
+            <input type="text" id="userInput" placeholder="Describe your project..." onkeydown="if(event.key==='Enter')sendMessage()">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+        <div class="status" id="status">Ready.</div>
+    </div>
+    
+    <script>
+        function addMessage(text, sender) {
+            const chat = document.getElementById('chat');
+            const div = document.createElement('div');
+            div.className = 'msg ' + sender;
+            div.innerHTML = `<div class="sender">${sender === 'user' ? '👤 Director' : '🧠 Chief Designer'}</div>${text}`;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const task = input.value.trim();
+            if (!task) return;
+            
+            addMessage(task, 'user');
+            input.value = '';
+            document.getElementById('status').textContent = 'Chief Designer is thinking...';
+            
+            try {
+                const resp = await fetch('/api/consult', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query: task, model: 'deepseek'})
+                });
+                const data = await resp.json();
+                const answer = data.answer || 'No response';
+                addMessage(answer, 'bot');
+                document.getElementById('status').textContent = 'Ready.';
+            } catch(e) {
+                addMessage('Error: ' + e.message, 'bot');
+                document.getElementById('status').textContent = 'Error.';
+            }
+        }
+        
+        // Приветствие
+        addMessage('Hello Director! I am your Chief Designer. What project shall we build today?', 'bot');
+    </script>
+</body>
+</html>

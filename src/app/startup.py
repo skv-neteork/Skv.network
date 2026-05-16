@@ -4,7 +4,7 @@ import json
 import uuid
 from app.routers.entries import cubes_library
 
-DATABASE_URL = "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db"
+DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
 
 async def load_cubes_from_postgresql():
     """Загружает кубики из PostgreSQL при старте."""

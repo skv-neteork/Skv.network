@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta, timedelta
 from fastapi import APIRouter, HTTPException, Request, Response
 
 POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
-DATABASE_URL = "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db"
+DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
 
 router = APIRouter()
 entries_db = {}
@@ -51,7 +51,7 @@ def load_cubes_from_db():
     try:
         import psycopg2, json as json_lib
         conn = psycopg2.connect(
-            host="127.0.0.1", port=5432,
+            host="skv_postgres", port=5432,
             dbname="skv_db", user="skv_user", password="skv_secret_2026"
         )
         cur = conn.cursor()
@@ -165,7 +165,7 @@ async def create_entry(request: Request):
                     try:
                         import psycopg2 as pg2
                         pg_conn = pg2.connect(
-                            host="127.0.0.1", port=5432,
+                            host="skv_postgres", port=5432,
                             dbname="skv_db", user="skv_user", password="skv_secret_2026"
                         )
                         cur = pg_conn.cursor()
@@ -186,7 +186,7 @@ async def create_entry(request: Request):
                 try:
                     import psycopg2 as pg2
                     pg_conn = pg2.connect(
-                        host="127.0.0.1", port=5432,
+                        host="skv_postgres", port=5432,
                         dbname="skv_db", user="skv_user", password="skv_secret_2026"
                     )
                     cur = pg_conn.cursor()
@@ -237,7 +237,7 @@ async def create_entry(request: Request):
             user_id = persona_data.get("user_id", "unknown")
             try:
                 pg_conn = psycopg2.connect(
-                    host="127.0.0.1", port=5432,
+                    host="skv_postgres", port=5432,
                     dbname="skv_db", user="skv_user", password="skv_secret_2026"
                 )
                 cur = pg_conn.cursor()
@@ -264,7 +264,7 @@ async def create_entry(request: Request):
                     fb_comment = fb.get("comment", "").replace("'", "''")
                     if fb_cube_id and fb_vote in ("up", "down"):
                         pg_conn = psycopg2.connect(
-                            host="127.0.0.1", port=5432,
+                            host="skv_postgres", port=5432,
                             dbname="skv_db", user="skv_user", password="skv_secret_2026"
                         )
                         cur = pg_conn.cursor()
@@ -307,7 +307,7 @@ async def create_entry(request: Request):
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }])
                 import psycopg2 as pg2
-                pg_conn = pg2.connect(host="127.0.0.1", port=5432, dbname="skv_db", user="skv_user", password="skv_secret_2026")
+                pg_conn = pg2.connect(host="skv_postgres", port=5432, dbname="skv_db", user="skv_user", password="skv_secret_2026")
                 cur = pg_conn.cursor()
                 cur.execute(
                     "UPDATE user_personas SET memory_indexes = COALESCE(memory_indexes, '[]'::jsonb) || %s::jsonb, updated_at = NOW() WHERE user_id = %s",
@@ -330,7 +330,7 @@ async def get_cube_links(cube_id: str):
     """Возвращает все связи кубика"""
     try:
         conn = psycopg2.connect(
-            host="127.0.0.1", port=5432,
+            host="skv_postgres", port=5432,
             dbname="skv_db", user="skv_user", password="skv_secret_2026"
         )
         cur = conn.cursor()
@@ -360,7 +360,7 @@ async def feedback(request: Request):
         
         import psycopg2 as pg2
         pg_conn = pg2.connect(
-            host="127.0.0.1", port=5432,
+            host="skv_postgres", port=5432,
             dbname="skv_db", user="skv_user", password="skv_secret_2026"
         )
         cur = pg_conn.cursor()
@@ -422,7 +422,7 @@ async def get_trials():
     try:
         import psycopg2 as pg2
         pg_conn = pg2.connect(
-            host="127.0.0.1", port=5432,
+            host="skv_postgres", port=5432,
             dbname="skv_db", user="skv_user", password="skv_secret_2026"
         )
         cur = pg_conn.cursor()
@@ -579,7 +579,7 @@ async def search_cubes(query: str = "", response: Response = None):
                 qv = emb_resp["data"][0]["embedding"]
                 
                 # Ищем в Qdrant
-                client = QdrantClient(host="127.0.0.1", port=6333)
+                client = QdrantClient(host="skv_postgres", port=6333)
                 qdrant_results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=10)
                 
                 for r in qdrant_results.points:

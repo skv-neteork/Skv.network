@@ -98,9 +98,9 @@
             const email = localStorage.getItem('skv_email');
             const token = localStorage.getItem('skv_token');
             if (email && token) {
-                document.getElementById('navProfile').textContent = '⚡ Profile';
-                document.getElementById('navStatus').textContent = 'Logged in as ' + email.split('@')[0];
-                document.getElementById('navStatus').style.color = '#3fb950';
+                var navProfile = document.getElementById('navProfile'); if (navProfile) navProfile.textContent = '⚡ Profile';
+                var navStatus = document.getElementById('navStatus'); if (navStatus) navStatus.textContent = 'Logged in as ' + email.split('@')[0];
+                if (navStatus) navStatus.style.color = '#3fb950';
             }
         })();
 

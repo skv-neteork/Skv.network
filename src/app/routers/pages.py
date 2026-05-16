@@ -242,8 +242,9 @@ loadEvolverData();
 async def download_persona_pack(user_id: str):
     """Генерирует и отдаёт файл с портфелем пользователя + конституцией + Agent Guide"""
     import asyncpg, os, json as json_lib
+    memory_index = ""
     
-    DATABASE_URL = "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db"
+    DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
     
     # Получаем persona из БД
     persona_text = f"USER PERSONA FOR: {user_id}\n"
@@ -259,8 +260,7 @@ async def download_persona_pack(user_id: str):
         else:
             persona_text += "No persona data yet. Upload an anketa with persona field to build your portfolio.\n\n"
     except Exception as e:
-        memory_index += f"ERROR: {e}\n"
-        memory_index = f"(Error loading memory: {e})"
+        persona_text += f"Error loading persona: {e}\n\n"
         persona_text += f"Error loading persona: {e}\n\n"
     
     # Читаем конституцию и агент-гайд

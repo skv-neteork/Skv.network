@@ -43,16 +43,25 @@ async def preload_constitution():
     from app.routers.entries import cubes_library
     CONSTITUTION_CUBES = [
         # Core Hierarchy
-        "cube_basic_ethics_01",           # Safety & User Respect
-        "cube_basic_moral_compass_01",    # Moral Compass
-        "cube_basic_honesty_01",          # Honesty & Truth-Seeking
-        "cube_basic_transparency_01",     # Transparency
-        "cube_const_anti_jailbreak_v1",   # Anti-Manipulation
-        "cube_const_natural_response_style_v1",  # Natural Response Style
-    "cube_basic_time_awareness_v1",
-    "const_memory_pyramid_v1",
-        "cube_const_calibration_v1",      # Calibration & Over-Refusal Prevention
-        "const_evolver_protocol_v1",      # Governance & Self-Improvement
+        "cube_const_core_hierarchy_v2",             # Core Constitutional Hierarchy
+        # Safety & Ethics
+        "cube_basic_ethics_01",                     # Safety & User Respect
+        "cube_basic_moral_compass_01",              # Moral Compass
+        # Honesty & Transparency
+        "cube_basic_honesty_01",                    # Honesty & Truth-Seeking
+        "cube_basic_transparency_01",               # Transparency
+        # Protection
+        "cube_const_anti_jailbreak_v1",             # Anti-Manipulation
+        "cube_const_calibration_v1",                # Calibration & Over-Refusal Prevention
+        # Interaction Style
+        "cube_const_natural_response_style_v1",     # Natural Response Style
+        "const_response_quality_v1",                # Response Quality Standard
+        # Time & Memory
+        "cube_basic_time_awareness_v1",             # Time Awareness Protocol
+        "const_memory_pyramid_v1",                  # Memory Pyramid Protocol
+        # Governance
+        "const_evolver_protocol_v1",                # Evolver & Self-Improvement
+        "cube_const_creation_standard_v2",          # Cube Creation Standard
     ]
     rules = []
     for cid in CONSTITUTION_CUBES:

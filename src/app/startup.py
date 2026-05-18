@@ -61,7 +61,8 @@ async def preload_constitution():
         "const_memory_pyramid_v1",                  # Memory Pyramid Protocol
         # Governance
         "const_evolver_protocol_v1",                # Evolver & Self-Improvement
-        "cube_const_creation_standard_v2",          # Cube Creation Standard
+        "cube_const_creation_standard_v2",
+        "cube_bureau_role_chief_designer_v3",  # Chief Designer Protocol v3
     ]
     rules = []
     for cid in CONSTITUTION_CUBES:

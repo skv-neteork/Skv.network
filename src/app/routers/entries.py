@@ -495,7 +495,7 @@ def score_keyword_match(query: str, cube: dict) -> float:
         return 0.0
     
     title = cube.get("title", "")
-    triggers = cube.get("trigger_intent", [])
+    triggers = cube.get("triggers", cube.get("trigger_intent", []))
     cube_text = f"{title} {' '.join(triggers)}".lower()
     c_words = tokenize(cube_text)
     
@@ -526,7 +526,7 @@ def score_keyword_match(query: str, cube: dict) -> float:
         return 0.0
     
     title = cube.get("title", "").lower()
-    triggers = [t.lower() for t in cube.get("trigger_intent", [])]
+    triggers = [t.lower() for t in cube.get("triggers", cube.get("trigger_intent", []))]
     all_text = f"{title} {' '.join(triggers)}"
     
     # Сильные совпадения
@@ -575,7 +575,7 @@ async def search_cubes(query: str = "", response: Response = None):
         
         # Если keyword дал хороший результат
         if kw_candidates and kw_candidates[0][0] >= 0.7:
-            for s, cube_id, cube in kw_candidates[:5]:
+            for s, cube_id, cube in kw_candidates[:50]:
                 results.append({"id": cube["id"], "cube_id": cube_id, "title": cube.get("title", ""), "triggers": cube.get("triggers", [])})
         
         # Если keyword-поиск не нашёл ничего — пробуем Qdrant

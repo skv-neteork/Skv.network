@@ -22,6 +22,15 @@ def _read_html(path):
 async def home():
     return HTMLResponse(_read_html(HOME_HTML_PATH))
 
+@router.get("/deepseek")
+async def deepseek_page():
+    from fastapi.responses import HTMLResponse
+    import os
+    path = os.path.join(os.path.dirname(__file__), "..", "deepseek.html")
+    if os.path.exists(path):
+        return HTMLResponse(open(path).read())
+    return HTMLResponse("<h1>Page not found</h1>")
+
 @router.get("/about")
 async def about_page():
     return HTMLResponse(_read_html(ABOUT_HTML_PATH))

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKV Assistant</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; }
+        .nav { display: flex; gap: 16px; padding: 12px 24px; border-bottom: 1px solid #21262d; }
+        .nav a { color: #8b949e; text-decoration: none; font-size: 13px; }
+        .nav a:hover { color: #c9d1d9; }
+        .nav a.active { color: #f78166; }
+        .main { display: flex; gap: 16px; max-width: 1100px; margin: 0 auto; padding: 16px 24px; height: calc(100vh - 60px); }
+        .chat-panel { flex: 1; display: flex; flex-direction: column; }
+        .server-panel { width: 350px; background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; }
+        h1 { font-size: 20px; font-weight: 600; color: #f0883e; margin-bottom: 8px; }
+        .toolbar { display: flex; gap: 6px; margin-bottom: 10px; }
+        .toolbar button { padding: 5px 10px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; cursor: pointer; font-size: 11px; }
+        .toolbar button:hover { background: #30363d; }
+        .toolbar button.primary { background: #f0883e; color: #fff; border-color: #f0883e; }
+        .chat-box { flex: 1; background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 10px; overflow-y: auto; margin-bottom: 8px; font-size: 12px; line-height: 1.5; }
+        .msg { margin: 5px 0; padding: 5px 8px; border-radius: 8px; max-width: 95%; white-space: pre-wrap; font-size: 12px; }
+        .msg.user { background: #1a2e1a; margin-left: auto; }
+        .msg.ai { background: #1a1a2e; }
+        .msg.system { background: #2e1a1a; color: #f0883e; font-size: 11px; text-align: center; }
+        .msg.cmd { background: #1a2e2e; color: #3fb950; font-family: monospace; font-size: 11px; cursor: pointer; }
+        .msg.cmd:hover { background: #2a3e3e; }
+        .msg.out { background: #0d1117; color: #c9d1d9; font-family: monospace; font-size: 11px; white-space: pre-wrap; }
+        .input-row { display: flex; gap: 8px; }
+        .input-row textarea { flex: 1; padding: 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 12px; resize: none; height: 40px; font-family: system-ui, sans-serif; }
+        .input-row button { padding: 8px 14px; background: #f0883e; border: none; border-radius: 6px; color: #fff; font-weight: 600; cursor: pointer; font-size: 12px; }
+        .server-output { flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 8px; overflow-y: auto; font-family: monospace; font-size: 11px; white-space: pre-wrap; margin-top: 8px; color: #c9d1d9; }
+        .status { color: #8b949e; font-size: 10px; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/upload">Upload</a>
+        <a href="/trials">Trials</a>
+        <a href="/evolver">Evolver</a>
+        <a href="/bureau">Bureau</a>
+        <a href="/chat">Chat</a>
+        <a href="/deepseek" class="active">Assistant</a>
+        <a href="/about">About</a>
+    </div>
+    <div class="main">
+        <div class="chat-panel">
+            <h1>SKV Assistant</h1>
+            <div class="toolbar">
+                <button class="primary" onclick="startSession()">Start</button>
+                <button onclick="saveSession()">Save</button>
+                <button onclick="clearChat()">Clear</button>
+            </div>
+            <div class="chat-box" id="chat"></div>
+            <div class="input-row">
+                <textarea id="userInput" placeholder="Что делаем?" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+                <button onclick="sendMessage()">Send</button>
+            </div>
+            <div class="status" id="status">Press Start to begin.</div>
+        </div>
+        <div class="server-panel">
+            <h1 style="font-size:16px;">Terminal</h1>
+            <input type="text" id="cmdInput" placeholder="Command..." style="width:100%;padding:6px;background:#0d1117;border:1px solid #30363d;color:#c9d1d9;font-family:monospace;font-size:11px;margin-bottom:6px;" onkeydown="if(event.key==='Enter')executeCmd()">
+            <button onclick="executeCmd()" style="width:100%;">Execute</button>
+            <div class="server-output" id="serverOut">Ready.</div>
+        </div>
+    </div>
+    <script>
+        const STORAGE_KEY = 'skv_assistant_v4';
+        let context = "";
+        let sessionStarted = false;
+        
+        function loadHistory() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                document.getElementById('chat').innerHTML = saved;
+                sessionStarted = true;
+            }
+        }
+        function saveHistory() {
+            localStorage.setItem(STORAGE_KEY, document.getElementById('chat').innerHTML);
+        }
+        function addMsg(text, type) {
+            const chat = document.getElementById('chat');
+            chat.innerHTML += `<div class="msg ${type}">${text}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+            saveHistory();
+        }
+        function clearChat() {
+            localStorage.removeItem(STORAGE_KEY);
+            document.getElementById('chat').innerHTML = '<div class="msg system">Cleared. Press Start.</div>';
+            context = ""; sessionStarted = false;
+        }
+        
+        async function startSession() {
+            addMsg("Loading SKV context...", "system");
+            try {
+                const [discoveryRes, memoryRes] = await Promise.all([
+                    fetch('/.well-known/skv'),
+                    fetch('/api/user/deniz/project/SKV/memory')
+                ]);
+                const discovery = await discoveryRes.json();
+                const memory = await memoryRes.json();
+                context = JSON.stringify({constitution: discovery.rules.constitution, memory: memory});
+                sessionStarted = true;
+                addMsg("Ready. I see SKV and your projects.", "system");
+                document.getElementById('status').textContent = 'Ready.';
+            } catch(e) {
+                addMsg("Error: " + e.message, "system");
+            }
+        }
+        
+        async function saveSession() {
+            const text = document.getElementById('chat').innerText.substring(0, 2000);
+            try {
+                await fetch('/api/v1/entries', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title: "Session " + new Date().toISOString().split('T')[0],
+                        type: "project_anketa",
+                        persona: { user_id: "deniz" },
+                        project: { name: "SKV Assistant", description: text.substring(0, 300) },
+                        instructions: { action: "save" }
+                    })
+                });
+                addMsg("Saved to SKV.", "system");
+            } catch(e) {
+                addMsg("Save error: " + e.message, "system");
+            }
+        }
+        
+        async function execCmd(cmd) {
+            // Конвертируем curl в python3
+            if (cmd.trim().startsWith('curl')) {
+                const url = cmd.trim().split(' ').pop().replace(/['"]/g, '');
+                cmd = 'docker exec skv_api python3 -c "import urllib.request; print(urllib.request.urlopen(\'' + url + '\').read().decode())"';
+            }
+            addMsg("Running: " + cmd, "cmd");
+            try {
+                const r = await fetch('/api/exec', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({command: cmd})
+                });
+                const d = await r.json();
+                if (d.stdout) addMsg(d.stdout, "out");
+                if (d.stderr) addMsg(d.stderr, "out");
+                if (d.error) addMsg("Error: " + d.error, "system");
+            } catch(e) {
+                addMsg("Error: " + e.message, "system");
+            }
+        }
+        
+        async function executeCmd() {
+            const input = document.getElementById('cmdInput');
+            const cmd = input.value.trim();
+            if (!cmd) return;
+            document.getElementById('serverOut').textContent = 'Running: ' + cmd;
+            input.value = '';
+            
+            try {
+                const r = await fetch('/api/exec', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({command: cmd})
+                });
+                const d = await r.json();
+                let out = "$ " + cmd + "\n";
+                if (d.stdout) out += d.stdout;
+                if (d.stderr) out += "STDERR:\n" + d.stderr;
+                if (d.error) out += "ERROR: " + d.error;
+                document.getElementById('serverOut').textContent = out;
+            } catch(e) {
+                document.getElementById('serverOut').textContent = "Error: " + e.message;
+            }
+        }
+        
+        async function sendMessage() {
+            if (!sessionStarted) {
+                addMsg("Press Start first.", "system");
+                return;
+            }
+            const input = document.getElementById('userInput');
+            const prompt = input.value.trim();
+            if (!prompt) return;
+            addMsg(prompt, "user");
+            input.value = '';
+            document.getElementById('status').textContent = 'Thinking...';
+            
+            const fullPrompt = context + "\n\nYou are SKV Assistant. Reply in Russian, briefly. If you need to check something, suggest a real bash command: CMD: <command>. Do NOT invent commands.\n\nUSER: " + prompt;
+            
+            try {
+                const resp = await fetch('/api/deepseek', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({prompt: fullPrompt})
+                });
+                const data = await resp.json();
+                const answer = data.answer || 'No response';
+                addMsg(answer, "ai");
+                
+                // Извлекаем команду
+                const cmdMatch = answer.match(/CMD:\s*(.+)/);
+                if (cmdMatch) {
+                    let cmd = cmdMatch[1].trim().replace(/^[`**\s]+/, '').replace(/[`**\s]+$/, '').split(' — ')[0].trim();
+                    addMsg("Click to execute: " + cmd, "cmd");
+                    // Сохраняем команду для выполнения по клику
+                    document.getElementById('cmdInput').value = cmd;
+                }
+                document.getElementById('status').textContent = 'Ready.';
+            } catch(e) {
+                addMsg("Error: " + e.message, "ai");
+                document.getElementById('status').textContent = 'Error.';
+            }
+        }
+        
+        // Клик по команде — выполняем
+        document.getElementById('chat').addEventListener('click', function(e) {
+            if (e.target.classList.contains('cmd')) {
+                const cmd = e.target.textContent.replace('Click to execute: ', '').trim();
+                document.getElementById('cmdInput').value = cmd;
+                executeCmd();
+            }
+        });
+        
+        loadHistory();
+        if (!document.getElementById('chat').innerHTML) {
+            addMsg("Press Start to load SKV context and begin.", "system");
+        }
+    </script>
+</body>
+</html>

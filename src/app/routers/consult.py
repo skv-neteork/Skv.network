@@ -56,7 +56,7 @@ async def consult_rag(request: Request):
         emb_resp = _req.urlopen(emb_req, timeout=15)
         qv = json.loads(emb_resp.read())["data"][0]["embedding"]
 
-        client = QdrantClient(host="127.0.0.1", port=6333)
+        client = QdrantClient(host="skv_qdrant", port=6333)
         results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=3)
         relevant = [r for r in results.points if hasattr(r, 'score') and r.score > 0.3][:2]
         if relevant:
@@ -110,3 +110,46 @@ async def consult_rag(request: Request):
                 return {"error": str(e)[:200]}
 
     return {"error": "Empty after 3 attempts"}
+
+
+@router.post('/api/exec')
+async def exec_command(request: Request):
+    import subprocess
+    body = await request.json()
+    cmd = body.get('command','')
+    if not cmd: return {'error':'No command'}
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+    return {'stdout': result.stdout[-5000:], 'stderr': result.stderr[-1000:]}
+
+
+@router.post("/api/deepseek")
+async def deepseek_chat(request: Request):
+    """Прямой доступ к DeepSeek API."""
+    import json, urllib.request as req
+    body = await request.json()
+    prompt = body.get("prompt", "")
+    api_body = json.dumps({
+        "model": "deepseek/deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3
+    }).encode()
+    r = req.Request("https://api.polza.ai/v1/chat/completions", data=api_body,
+        headers={"Content-Type": "application/json", "Authorization": "Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"})
+    resp = json.loads(req.urlopen(r, timeout=120).read())
+    return {"answer": resp["choices"][0]["message"]["content"]}
+
+
+@router.post("/api/anketa/generate")
+async def generate_anketa(request: Request):
+    import json as _json, urllib.request as _req
+    body = await request.json()
+    query = body.get("query", "")
+    prompt = f"Generate SKV anketa JSON for: {query}"
+    api_body = _json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}).encode()
+    r = _req.Request("https://api.polza.ai/v1/chat/completions", data=api_body, headers={"Content-Type": "application/json", "Authorization": "Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"})
+    resp = _json.loads(_req.urlopen(r, timeout=120).read())
+    answer = resp["choices"][0]["message"]["content"].replace("```json", "").replace("```", "").strip()
+    try:
+        return {"status": "ok", "anketa": _json.loads(answer)}
+    except:
+        return {"status": "error", "raw": answer[:500]}

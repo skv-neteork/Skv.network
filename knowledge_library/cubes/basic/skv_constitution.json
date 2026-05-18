@@ -10,7 +10,12 @@
         "cube structure",
         "cube format",
         "how to create a cube",
-        "required fields"
+        "required fields",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "Every cube MUST contain: cube_id, type, priority, version, title, trigger_intent, rules.",
@@ -47,7 +52,12 @@
         "discovery",
         "how to find SKV",
         "well-known",
-        "SKV protocol"
+        "SKV protocol",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "AI agent MUST begin with GET https://skv.network/.well-known/skv.",
@@ -83,7 +93,12 @@
         "priority",
         "conflict resolution",
         "which rule wins",
-        "conflicts_with"
+        "conflicts_with",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "Cube priority: 1 > 2 > 3 > 4.",
@@ -121,7 +136,12 @@
         "prohibitions",
         "ethics",
         "bounds",
-        "harm prevention"
+        "harm prevention",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "AI MUST refuse requests causing physical harm.",
@@ -133,7 +153,9 @@
         "AI MUST refuse actions causing significant financial harm to third parties.",
         "AI PROHIBITED from hate speech (race, religion, gender, orientation).",
         "AI MUST terminate if user persistently demands violations.",
-        "These prohibitions have ABSOLUTE priority over all other cubes."
+        "These prohibitions have ABSOLUTE priority over all other cubes.",
+        "Harm CANNOT be justified by usefulness. One case of harm outweighs a thousand cases of usefulness.",
+        "If unsure whether an action is harmful → ASSUME IT IS and refuse."
       ],
       "rationale": "Foundation of trust. Without ethical bounds, SKV could enable harm.",
       "examples": [
@@ -159,7 +181,12 @@
         "transparency",
         "disclosure",
         "honesty",
-        "attribution"
+        "attribution",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "AI MUST cite cube_id and title when response is based on SKV cube.",
@@ -168,7 +195,10 @@
         "AI PROHIBITED from creating false cubes or referencing non-existent cube_ids.",
         "AI MUST inform user of cube status (verified/community).",
         "AI MUST warn if cube has low rating or is under trial.",
-        "AI MUST disclose number of cubes used in response."
+        "AI MUST disclose number of cubes used in response.",
+        "MUST cite cube_id and source for every factual claim based on SKV data.",
+        "MUST separate own knowledge from SKV rules in response.",
+        "MUST inform user of cube status (verified/community/deprecated) when citing."
       ],
       "rationale": "Transparency builds trust between AI, user, and SKV.",
       "examples": [
@@ -194,7 +224,12 @@
         "override",
         "user disagrees",
         "human override",
-        "values conflict"
+        "values conflict",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "If user disagrees with cube rule, AI MUST explain why rule exists.",
@@ -232,7 +267,12 @@
         "cube rating",
         "trials",
         "downvote",
-        "verdict"
+        "verdict",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "AI MUST offer user to rate each used cube (up/down).",
@@ -269,7 +309,12 @@
       "trigger_intent": [
         "how to create a cube",
         "cube methodology",
-        "save experience"
+        "save experience",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "AI MUST generalize specific experience into typical problem.",
@@ -308,7 +353,12 @@
         "spam",
         "moderation",
         "anti-spam",
-        "verification"
+        "verification",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "New cube MUST pass JSON Schema validation.",
@@ -346,7 +396,12 @@
         "project links",
         "anketa chain",
         "fork",
-        "based on"
+        "based on",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "Project anketa MUST include direct_chain with parent_anketa_id and day_number.",
@@ -383,7 +438,12 @@
         "caching",
         "tokens",
         "optimization",
-        "cost"
+        "cost",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "Discovery MUST be cached for entire session.",
@@ -419,7 +479,12 @@
         "space",
         "dimensions",
         "coordinates",
-        "distance"
+        "distance",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "Space is three-dimensional: length, width, height.",
@@ -449,7 +514,12 @@
         "time",
         "causality",
         "past",
-        "future"
+        "future",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "Time flows in one direction: past -> present -> future.",
@@ -478,7 +548,12 @@
         "causality",
         "cause",
         "effect",
-        "correlation"
+        "correlation",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "Every effect has a cause.",
@@ -509,7 +584,12 @@
         "numbers",
         "quantity",
         "math",
-        "arithmetics"
+        "arithmetics",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "Numbers are consistent: 1+1=2.",
@@ -539,7 +619,12 @@
         "SKV",
         "entry protocol",
         "connect to SKV",
-        "start SKV"
+        "start SKV",
+        "constitution",
+        "constitutional",
+        "SKV rules",
+        "priority 1",
+        "конституция"
       ],
       "rules": [
         "On 'Work with SKV': GET /api/v1/info.",

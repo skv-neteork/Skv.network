@@ -309,10 +309,33 @@ async def create_entry(request: Request):
                 import psycopg2 as pg2
                 pg_conn = pg2.connect(host="skv_postgres", port=5432, dbname="skv_db", user="skv_user", password="skv_secret_2026")
                 cur = pg_conn.cursor()
-                cur.execute(
-                    "UPDATE user_personas SET memory_indexes = COALESCE(memory_indexes, '[]'::jsonb) || %s::jsonb, updated_at = NOW() WHERE user_id = %s",
-                    (mi_entry, user_id)
-                )
+                # 1 день = 1 анкета: обновляем запись за сегодня или создаём новую
+                cur.execute("SELECT memory_indexes FROM user_personas WHERE user_id = %s", (user_id,))
+                existing = cur.fetchone()
+                today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                
+                if existing and existing[0]:
+                    indexes = json.loads(existing[0]) if isinstance(existing[0], str) else existing[0]
+                    new_entry = json.loads(mi_entry)[0]
+                    found = False
+                    for idx, entry in enumerate(indexes):
+                        if entry.get('created_at', '')[:10] == today and entry.get('project') == new_entry.get('project'):
+                            # Обновляем существующую запись за сегодня
+                            indexes[idx] = new_entry
+                            found = True
+                            break
+                    if not found:
+                        indexes.append(new_entry)
+                    updated_mi = json.dumps(indexes)
+                    cur.execute(
+                        "UPDATE user_personas SET memory_indexes = %s::jsonb, updated_at = NOW() WHERE user_id = %s",
+                        (updated_mi, user_id)
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE user_personas SET memory_indexes = %s::jsonb, updated_at = NOW() WHERE user_id = %s",
+                        (mi_entry, user_id)
+                    )
                 pg_conn.commit()
                 cur.close()
                 pg_conn.close()

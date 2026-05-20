@@ -7,7 +7,7 @@ MODEL = "x-ai/grok-4"
 SKV_SEARCH = "https://skv.network/api/cubes/search"
 SKV_FEEDBACK = "https://skv.network/api/feedback"
 SKV_TRIAL = "https://skv.network/api/trial"
-LOG_FILE = "/root/skv-core/data/evolver.log"
+LOG_FILE = "/tmp/evolver.log"
 
 def log(msg):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')

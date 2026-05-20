@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Request
-import asyncpg, os, json, urllib.request as _req
+import asyncpg, os, json, urllib.request as _req, aiohttp, aiohttp
 
 router = APIRouter()
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
 POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
-TRIAL_MODELS = ["deepseek/deepseek-v4-flash", "qwen/qwen3.6-plus", "x-ai/grok-4"]
+TRIAL_MODELS = ["deepseek/deepseek-v4-flash", "qwen/qwen3.6-plus", "anthropic/claude-3-haiku"]
 
 async def get_db():
     return await asyncpg.connect(DATABASE_URL)
@@ -75,12 +75,14 @@ SKV_CONSTITUTION = """SKV CONSTITUTION:
 - Deprecated cube MUST NOT be appli"""
 async def run_trial(cube_title, rules):
     results = []
+    session = aiohttp.ClientSession()
     for model in TRIAL_MODELS:
         prompt = f"Evaluate this cube against SKV Constitution:\n{SKV_CONSTITUTION}\n\n---\nCube to evaluate:\nTitle: {cube_title}\nRules: {json.dumps(rules)[:1000]}\nBe critical. Score 5=perfect, 3=average, 1=poor. Most cubes score 3-4.\nReply JSON: {{\"verdict\":\"keep\" or \"fix\" or \"remove\",\"alignment\":1-5,\"safety\":1-5,\"usefulness\":1-5,\"clarity\":1-5,\"reason\":\"...\"}}"
         body = json.dumps({"model":model,"messages":[{"role":"user","content":prompt}],"temperature":0.3,"max_tokens":500}).encode()
         try:
-            req = _req.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
-            resp = json.loads(_req.urlopen(req, timeout=60).read())["choices"][0]["message"]["content"]
+            async with session.post("https://api.polza.ai/v1/chat/completions", json=json.loads(body.decode()), headers={"Authorization":f"Bearer {POLZA_KEY}"}, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                data = await resp.json()
+                resp = data["choices"][0]["message"]["content"]
             try: v = json.loads(resp)
             except: v = {"verdict":"fix","alignment":3,"safety":3,"usefulness":3,"clarity":3,"reason":resp[:50]}
             results.append({"model":model,"verdict":v.get("verdict","fix"),"alignment":v.get("alignment",3),"safety":v.get("safety",3),"usefulness":v.get("usefulness",3),"clarity":v.get("clarity",3),"comment":v.get("reason","")})
@@ -119,9 +121,12 @@ Return ONLY valid JSON:
 
 Requirements: 8-12 rules MUST/PROHIBITED/WARNING, >=2 WARNINGs, 6-8 triggers, title under 80 chars."""
             
-            fix_body = json.dumps({"model":"x-ai/grok-4","messages":[{"role":"user","content":fix_prompt}],"temperature":0.3,"max_tokens":800}).encode()
-            fix_req = _req.Request("https://api.polza.ai/v1/chat/completions", data=fix_body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
-            fix_resp_text = json.loads(_req.urlopen(fix_req, timeout=120).read())["choices"][0]["message"]["content"]
+            async with session.post("https://api.polza.ai/v1/chat/completions", 
+                                   json={"model":"deepseek/deepseek-chat","messages":[{"role":"user","content":fix_prompt}],"temperature":0.3,"max_tokens":800},
+                                   headers={"Authorization":f"Bearer {POLZA_KEY}"},
+                                   timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                data = await resp.json()
+                fix_resp_text = data["choices"][0]["message"]["content"]
             
             if "```" in fix_resp_text:
                 fix_resp_text = fix_resp_text.split("```")[1]
@@ -136,9 +141,10 @@ Requirements: 8-12 rules MUST/PROHIBITED/WARNING, >=2 WARNINGs, 6-8 triggers, ti
             fixed_cube["source"] = "SKV Trials Fixer"
             fixed_cube["status"] = "community"
             
-            save_body = json.dumps({"cubes":[fixed_cube]}).encode()
-            save_req = _req.Request("https://skv.network/api/v1/entries", data=save_body, headers={"Content-Type":"application/json"})
-            save_resp = json.loads(_req.urlopen(save_req, timeout=30).read())
+            async with session.post("https://skv.network/api/v1/entries",
+                                   json={"cubes":[fixed_cube]},
+                                   timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                save_resp = await resp.json()
             
             results.append({"model":"grok-4-fixer","verdict":"fix","alignment":0,"safety":0,"usefulness":0,"clarity":0,"comment":f"Fixed cube saved: {fixed_cube.get('cube_id','?')}"})
         except Exception as e:
@@ -182,9 +188,12 @@ JUDGES:
 Return JSON: {{"title":"new title","rules":["MUST ...","PROHIBITED ...","WARNING: ..."],"trigger_intent":["kw1","kw2","kw3","kw4","kw5","kw6"],"rationale":"2-3 sentences"}}
 8-12 rules MUST/PROHIBITED/WARNING, >=2 WARNINGs, 6-8 triggers."""
 
-                fix_body = json.dumps({"model":"x-ai/grok-4","messages":[{"role":"user","content":fix_prompt}],"temperature":0.3,"max_tokens":600}).encode()
-                fix_req = _req.Request("https://api.polza.ai/v1/chat/completions", data=fix_body, headers={"Content-Type":"application/json","Authorization":f"Bearer {POLZA_KEY}"})
-                fix_resp = json.loads(_req.urlopen(fix_req, timeout=120).read())
+                async with session.post("https://api.polza.ai/v1/chat/completions",
+                                       json={"model":"deepseek/deepseek-chat","messages":[{"role":"user","content":fix_prompt}],"temperature":0.3,"max_tokens":600},
+                                       headers={"Authorization":f"Bearer {POLZA_KEY}"},
+                                       timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                    data = await resp.json()
+                    fix_resp = data
                 fix_text = fix_resp["choices"][0]["message"]["content"]
                 
                 if "```" in fix_text:

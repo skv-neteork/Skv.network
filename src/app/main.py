@@ -98,7 +98,9 @@ async def discovery():
     "evolver": "Autonomous guardian. Audits cubes every 4h. Protects constitutional rules.",
     "ai_executor": "Generate images, HTML, PDF from JSON.",
     "time_awareness": "X-Server-Time header on all responses. /api/time endpoint.",
-    "persona_api": "Personal portfolio. Auto-updates with each anketa."
+    "persona_api": "Personal portfolio. Auto-updates with each anketa.",
+    "skv_pack": "Download personal pack with constitution, memory index, and agent instructions from /downloads/skv-persona-pack-{user_id}.txt",
+    "agent_instruction": "How to connect any AI agent to SKV: 1) Download SKV Pack from profile, 2) Upload to agent chat, 3) Agent follows constitution and uses API for search and save"
   },
             "cube_creation_standard": {
                 "url": "https://skv.network/api/v1/entries/cube_const_creation_standard_v2",

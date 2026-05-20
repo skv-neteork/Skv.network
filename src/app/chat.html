@@ -123,7 +123,7 @@ async function sendMessage() {
         const resp = await fetch('/api/consult', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
+            body: JSON.stringify({user_id: skvEmail || "anonymous",
                 query: text,
                 model: 'deepseek',
                 history: chatHistory.slice(-6)

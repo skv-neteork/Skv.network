@@ -35,6 +35,7 @@ async def consult_get(query: str = "", model: str = "deepseek"):
 async def consult_rag(request: Request):
     data = await request.json()
     query = data.get("query", "")[:2000]
+    user_id = data.get("user_id", "anonymous")
     model_key = data.get("model", "deepseek")
     model = MODELS.get(model_key, "deepseek/deepseek-v4-flash")
     history = data.get("history", [])

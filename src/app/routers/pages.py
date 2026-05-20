@@ -152,7 +152,17 @@ async def download_persona_pack(user_id: str):
     print(f"[SKV] Constitution path: {constitution_path}"); constitution = open(constitution_path).read() if os.path.exists(constitution_path) else "Constitution not found"
     guide = open(guide_path).read() if os.path.exists(guide_path) else "Agent Guide not found"
 
-    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n{'='*50}\n\n{persona_text}\nMEMORY INDEX (Session History):\n{memory_index}\n---\n\n{constitution}\n\n---\n\n{guide}"
+        # L0: последний запрос/ответ
+    # L0: последняя сессия из memory_indexes
+    l0_cache = ""
+    try:
+        if indexes:
+            last = indexes[-1]
+            l0_cache = f"Last session: {last.get('session_title', '?')} — {last.get('key_outcome', '?')}"
+    except:
+        pass
+    
+    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n{'='*50}\n\n{persona_text}\nL0 CACHE (Last Request/Response):\n{l0_cache}\n\n---\n\nMEMORY INDEX (Session History):\n{memory_index}\n---\n\n{constitution}\n\n---\n\n{guide}"
 
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse(full_text, headers={"Content-Disposition": f"attachment; filename=skv-pack-{user_id}.txt"})

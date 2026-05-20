@@ -69,7 +69,7 @@ async def consult_rag(request: Request):
         pass
 
     user_msg = rules_context + history_text + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
-    system_prompt = "Chief Designer SKV Bureau. Be concise. No formalities. Talk like a colleague, not a bureaucrat. Speak Director language. Before project: 1) SKV Pack? 2) Language? Stack? Budget? Deadline? 3) Present skeleton."
+    system_prompt = "Chief Designer SKV Bureau. Be concise. No formalities. Talk like a colleague. Before project: 1) SKV Pack — download at https://skv.network/profile 2) Language? Stack? Budget? Deadline? 3) Present skeleton. Memory: 1 day = 1 anketa per project. Sessions auto-save to Memory Index. L0 cache shows your last session. Download SKV Pack to see full history."
 
     body = json.dumps({
         "model": model,

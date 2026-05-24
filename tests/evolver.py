@@ -231,6 +231,18 @@ def run_audit_cycle():
     
     log(f"  Results: ✅{results['KEEP']} 🔧{results['FIX']} ❌{results['REMOVE']}")
     log("✅ Deep audit complete")
+    try:
+        import psycopg2 as pg2
+        pg_conn = pg2.connect(host="127.0.0.1", port=5432, dbname="skv_db", user="skv_user", password="skv_secret_2026")
+        cur = pg_conn.cursor()
+        cur.execute("""CREATE TABLE IF NOT EXISTS evolver_stats (date TEXT PRIMARY KEY, keep INT DEFAULT 0, fix INT DEFAULT 0, remove INT DEFAULT 0, total INT DEFAULT 0)""")
+        cur.execute("""INSERT INTO evolver_stats (date, keep, fix, remove, total) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (date) DO UPDATE SET keep = evolver_stats.keep + %s, fix = evolver_stats.fix + %s, remove = evolver_stats.remove + %s, total = evolver_stats.total + %s""", (datetime.now().strftime("%Y-%m-%d"), results["KEEP"], results["FIX"], results["REMOVE"], sum(results.values()), results["KEEP"], results["FIX"], results["REMOVE"], sum(results.values())))
+        pg_conn.commit()
+        cur.close()
+        pg_conn.close()
+        log("  📊 Stats saved to DB")
+    except Exception as e:
+        log(f"  ❌ Stats save error: {str(e)[:100]}")
 
 # ====================== MAIN LOOP ======================
 log("🛡️ SKV Evolver v1.1 — Grok-4 + Auto-Trial Trigger (every 4h)")

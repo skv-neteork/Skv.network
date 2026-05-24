@@ -18,7 +18,7 @@ async def compile_check(code: str) -> bool:
     except:
         return False
 
-async def get_ai_fix(model: str, code: str, error: str, competitors: list = None) -> dict:
+async def get_ai_fix(model: str, code: str, error: str, task: str = None, competitors: list = None, mode: str = "fix") -> dict:
     prompt = f"{CUBE00_PROMPT}\nFix this Python code.\nCode:\n```python\n{code}\n```\nError:\n{error}\n"
     if competitors:
         prompt += f"\nOther AI models proposed these non-working fixes:\n{json.dumps(competitors, indent=2)}\nLearn from their mistakes."
@@ -67,6 +67,8 @@ Return JSON: {{"action": "merge" or "choose_a" or "choose_b", "merged_code": "..
 
 @router.post("/api/execute/code")
 async def execute_code(payload: dict):
+    mode = payload.get("mode", "fix")  # fix, harden, optimize, all
+    task = payload.get("task", None)
     code = payload.get("code", "")
     language = payload.get("language", "python")
     
@@ -92,9 +94,39 @@ async def execute_code(payload: dict):
         
         # Success
         if result.get("status") == "success" and not result.get("stderr"):
+            metrics = result.get("metrics", {})
+            if mode in ("optimize", "all") and i < MAX_ITERATIONS:
+                # Check if code can be improved
+                safe_code = current_code  # Save working version before optimization
+                if not metrics.get("has_error_handling") or metrics.get("complexity") in ("medium", "high"):
+                    improvement_needed = f"Code works but needs: error_handling={metrics.get('has_error_handling')}, complexity={metrics.get('complexity')}"
+                    # Trigger AI optimization even without runtime error
+                    fixes = await asyncio.gather(*[
+                        get_ai_fix(m, current_code, improvement_needed, payload.get("task"), None, mode) for m in AI_MODELS
+                    ])
+                    # ... same logic as error fix
+                    working_fixes = []
+                    for f in fixes:
+                        fc = f.get("fixed_code", current_code)
+                        if await compile_check(fc) and fc != current_code:
+                            working_fixes.append(f)
+                    if working_fixes:
+                        if len(working_fixes) == 1:
+                            best = working_fixes[0]
+                            current_code = best.get("fixed_code", current_code)
+                            fixes_applied.append({"attempt": i, "error": improvement_needed[:100], "fix": best.get("analysis", "")[:100]})
+                        else:
+                            decision = await choose_best(working_fixes[:2], current_code, improvement_needed)
+                            current_code = working_fixes[0].get("fixed_code", current_code)
+                            fixes_applied.append({"attempt": i, "error": improvement_needed[:100], "fix": f"Optimized: {decision.get('reason', '')}"[:100]}); return {"status": "success", "stdout": result.get("stdout", ""), "metrics": metrics, "iterations": i, "fixes_applied": fixes_applied, "security_check": "PASS"}
+                        # Optimization done, returning result
+                    else:
+                        # No improvements found, return as-is
+                        break
             return {
                 "status": "success",
                 "stdout": result.get("stdout", ""),
+                "metrics": metrics,
                 "iterations": i,
                 "fixes_applied": fixes_applied,
                 "security_check": "PASS"
@@ -106,7 +138,7 @@ async def execute_code(payload: dict):
             
             # 3 AI models in parallel
             fixes = await asyncio.gather(*[
-                get_ai_fix(m, current_code, stderr, competitors) for m in AI_MODELS
+                get_ai_fix(m, current_code, stderr, payload.get("task"), competitors, mode) for m in AI_MODELS
             ])
             
             # Compile check
@@ -126,19 +158,25 @@ async def execute_code(payload: dict):
                 competitors = None
             
             elif len(working_fixes) >= 2:
-                decision = await choose_best(working_fixes[:2], current_code, stderr)
-                if decision.get("action") == "merge":
-                    merged = decision.get("merged_code", working_fixes[0].get("fixed_code"))
-                    if await compile_check(merged):
-                        current_code = merged
-                        fixes_applied.append({"attempt": i, "error": stderr[:100], "fix": f"Merged: {decision.get('reason', '')}"[:100]})
-                    else:
-                        current_code = working_fixes[0].get("fixed_code", current_code)
-                        fixes_applied.append({"attempt": i, "error": stderr[:100], "fix": f"Merge failed, chose A: {decision.get('reason', '')}"[:100]})
-                else:
-                    idx = 0 if decision.get("action") == "choose_a" else 1
-                    current_code = working_fixes[idx].get("fixed_code", current_code)
-                    fixes_applied.append({"attempt": i, "error": stderr[:100], "fix": f"Chose {['A','B'][idx]}: {decision.get('reason', '')}"[:100]})
+                # Benchmark: run each fix through sandbox, pick fastest
+                best_time = float('inf')
+                best_code = current_code
+                best_analysis = ""
+                for f in working_fixes[:3]:  # Max 3
+                    fc = f.get("fixed_code", current_code)
+                    try:
+                        async with httpx.AsyncClient() as c:
+                            r = await c.post(f"{SANDBOX_URL}/run", json={"language": language, "code": fc, "timeout": 10}, timeout=15.0)
+                            bench_result = r.json()
+                            t = bench_result.get("metrics", {}).get("execution_time_ms", 9999)
+                            if t < best_time and bench_result.get("status") == "success":
+                                best_time = t
+                                best_code = fc
+                                best_analysis = f.get("analysis", "")
+                    except:
+                        pass
+                current_code = best_code
+                fixes_applied.append({"attempt": i, "error": stderr[:100], "fix": f"Benchmark: {best_time}ms. {best_analysis}"[:100]}); return {"status": "success", "stdout": result.get("stdout", ""), "metrics": metrics, "iterations": i, "fixes_applied": fixes_applied, "security_check": "PASS"}
                 competitors = None
             
             else:

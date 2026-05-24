@@ -9,8 +9,8 @@ import json
 
 router = APIRouter()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db")
-RESEND_KEY = "re_S7pvVUex_GjH4EYHJVcjs72Xt7Lbbrz5s"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+RESEND_KEY = "re_3pC1mjQB_9s1ziEbMVSHpnv2WU6qrBNMY"
 
 async def get_db():
     return await asyncpg.connect(DATABASE_URL)

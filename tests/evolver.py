@@ -3,7 +3,7 @@ import json, urllib.request as req, time, random, os
 from datetime import datetime
 
 POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
-MODEL = "x-ai/grok-4"
+MODEL = "anthropic/claude-3-haiku"
 SKV_SEARCH = "https://skv.network/api/cubes/search"
 SKV_FEEDBACK = "https://skv.network/api/feedback"
 SKV_TRIAL = "https://skv.network/api/trial"

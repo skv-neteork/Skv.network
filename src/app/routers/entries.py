@@ -292,12 +292,16 @@ async def create_entry(request: Request):
     delete_tokens[delete_token] = entry_id
     if cache:
         cache.clear()
-    asyncio.create_task(_save_cube_to_db(cube_id, body.get("title", "Cube"), body.get("type", "experience"), body.get("priority", 3), body.get("trigger_intent", []), body.get("rules", []), merged_content))
-    # Обновляем Memory Index в БД
+    # Обновляем Memory Index в БД (ДО return)
+    print(f"[DEBUG] body keys: {list(body.keys()) if isinstance(body, dict) else type(body)}")
     if "memory_index" in body:
         try:
             mi = body["memory_index"]
             user_id = body.get("persona", {}).get("user_id", "unknown")
+            print(f"[DEBUG] user_id from persona: {user_id}")
+            print(f"[DEBUG] user_id from persona: {user_id}")
+            print(f"[DEBUG] user_id from persona: {user_id}")
+            # DEBUG removed
             if user_id != "unknown":
                 mi_entry = json.dumps([{
                     "session_title": body.get("title", ""),

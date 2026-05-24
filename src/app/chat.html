@@ -36,7 +36,9 @@ body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; 
 <div class="sidebar">
 <h2>🧩 SKV Chat</h2>
 <p class="status" id="loginStatus">Not logged in</p>
-<button onclick="clearChat()">🗑️ Clear Chat</button>
+            <div id="projectsList" style="margin-bottom:12px;font-size:12px;color:#8b949e"></div>
+<button onclick="saveSession()" style="background:#238636;color:#fff;border:1px solid #2ea043;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px;width:100%;text-align:left;margin-bottom:8px">💾 Save Session</button>
+                <button onclick="clearChat()" style="background:#21262d;color:#c9d1d9;border:1px solid #30363d;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px;width:100%;text-align:left">🗑️ Clear Chat</button>
 <a href="/">← Back to Home</a>
 <a href="/profile">👤 Profile</a>
 <a href="/guide">📘 Agent Guide</a>
@@ -65,6 +67,7 @@ const historyKey = 'skv_chat_' + (skvEmail || 'anonymous');
 let chatHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
 
 if (isLoggedIn) {
+    loadProjects();
     document.getElementById('loginStatus').textContent = '✓ Logged in as ' + skvEmail.split('@')[0];
     document.getElementById('loginStatus').className = 'status logged';
 }
@@ -91,6 +94,18 @@ function renderMessage(role, content, cubes) {
     }
     const div = document.createElement('div');
     div.className = 'msg msg-' + (role === 'user' ? 'user' : 'ai');
+        
+        const retryBtn = document.createElement("button");
+        retryBtn.textContent = "Retry";
+        retryBtn.style.cssText = "margin-top:8px;margin-left:8px;padding:4px 10px;background:#21262d;border:1px solid #30363d;border-radius:4px;color:#8b949e;cursor:pointer;font-size:11px";
+        retryBtn.onclick = () => { document.getElementById("userInput").value = content; sendMessage(); };
+        div.appendChild(retryBtn);
+        
+        const copyBtn = document.createElement("button");
+        copyBtn.textContent = "Copy";
+        copyBtn.style.cssText = "margin-top:8px;padding:4px 10px;background:#21262d;border:1px solid #30363d;border-radius:4px;color:#8b949e;cursor:pointer;font-size:11px";
+        copyBtn.onclick = () => { navigator.clipboard.writeText(content); copyBtn.textContent = "Copied!"; setTimeout(() => copyBtn.textContent = "Copy", 1000); };
+        div.appendChild(copyBtn);
     div.textContent = content;
     if (cubes && cubes.length > 0) {
         const cdiv = document.createElement('div');
@@ -100,6 +115,26 @@ function renderMessage(role, content, cubes) {
     }
     chatArea.appendChild(div);
     chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+async function loadProjects() {
+    if (!skvEmail) return;
+    try {
+        const resp = await fetch("/api/user/" + encodeURIComponent(skvEmail) + "/project/SKV/memory");
+        const data = await resp.json();
+        const sessions = data.sessions || [];
+        const projects = {};
+        sessions.forEach(s => {
+            const p = s.project || "Other";
+            if (!projects[p]) projects[p] = [];
+            projects[p].push(s);
+        });
+        let html = "<b>Projects:</b><br>";
+        for (const [pname, ss] of Object.entries(projects).slice(0, 10)) {
+            html += "• " + pname + " (" + ss.length + ")<br>";
+        }
+        document.getElementById("projectsList").innerHTML = html;
+    } catch(e) {}
 }
 
 async function sendMessage() {
@@ -150,6 +185,37 @@ async function sendMessage() {
     chatArea.scrollTop = chatArea.scrollHeight;
 }
 
+function saveSession() {
+    const btn = document.querySelector("button[onclick=saveSession]") || event.target;
+    btn.textContent = "Saving...";
+    btn.style.background = "#f0883e";
+    
+    const history = chatHistory.map(m => "**" + m.role + "**: " + m.content).join("\n\n");
+    const prompt = "Analyze this dialogue and create an SKV anketa. Extract: 1) level1_summary (5% compression — key decisions and outcomes), 2) key_moments (array of {anchor, insight}), 3) cubes (MUST include at least 1 experience cube with MUST/PROHIBITED/WARNING rules, 6-8 trigger_intent, rationale), 4) feedback (MUST rate ALL SKV cubes used in dialogue with vote and comment). Return ONLY JSON with: title, type:'project_anketa', persona:{user_id:'" + (skvEmail || "anonymous") + "', traits:[], history_summary:''}, project:{name:'General Chat', description:''}, memory_index:{project:'General Chat', session_number:1, key_outcome:''}, cubes:[], feedback:[]. No markdown, ONLY JSON.\n\nDIALOGUE:\n" + history.substring(0, 8000);
+    
+    fetch("/api/consult", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({query: prompt, model: "deepseek"})
+    }).then(r => r.json()).then(data => {
+        const anketaText = data.answer || "";
+        let anketa;
+        try {
+            anketa = JSON.parse(anketaText.replace(/```json|```/g, "").trim());
+        } catch(e) {
+            anketa = {title:"Chat Session",type:"project_anketa",persona:{user_id:skvEmail||"anonymous"},project:{name:"General Chat"},memory_index:{project:"General Chat",session_number:Date.now(),key_outcome:history.substring(0,80)},cubes:[],feedback:[]};
+        }
+        return fetch("/api/v1/entries", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(anketa)});
+    }).then(r => r.json()).then(() => {
+        btn.textContent = "Saved!";
+        btn.style.background = "#1b3a1b";
+        setTimeout(() => { btn.textContent = "Save Session"; btn.style.background = "#238636"; }, 2000);
+    }).catch(() => {
+        btn.textContent = "Error";
+        btn.style.background = "#3a1b1b";
+        setTimeout(() => { btn.textContent = "Save Session"; btn.style.background = "#238636"; }, 2000);
+    });
+}
 function clearChat() {
     chatHistory = [];
     localStorage.removeItem(historyKey);

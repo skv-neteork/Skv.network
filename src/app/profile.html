@@ -163,8 +163,8 @@ async function downloadPack() {
                 if (r.ok) {
                     showMsg('authMsg', 'success', 'Logged in!');
                     document.getElementById('tokenCard').style.display = 'block';
-                    document.getElementById('tokenDisplay').textContent = d.token;
-                        localStorage.setItem('skv_token', d.token);
+                    document.getElementById('tokenDisplay').textContent = d.api_token;
+                        localStorage.setItem('skv_token', d.api_token);
                         localStorage.setItem('skv_email', email);
                 } else {
                     showMsg('authMsg', 'error', d.detail || 'Error');

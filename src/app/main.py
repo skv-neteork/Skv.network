@@ -84,7 +84,8 @@ async def discovery():
         "agent_protocols": {
             "chat_ais": "cube_const_agent_protocol_v1 — for AIs without HTTP access",
             "autonomous": "cube_const_agent_protocol_api_v1 — for agents with HTTP access",
-        "second_look": "cube_const_00_second_look_v1"
+        "core_algorithm": "cube_const_00_second_look_v1",
+            "full_access": "cube_const_agent_protocol_full_v1"
         },
         "mandatory_for_agents": {
             "feedback": "MUST rate every used cube (up/down + comment)",
@@ -92,9 +93,9 @@ async def discovery():
             "anketa": "MUST create session anketa at the end of each conversation"
         },
         "constitution": {
-            "priority_1_cubes": 14,
-            "total_rules": 253,
+            "priority_1_cubes": 10,
+            "total_rules": 113,
             "download": "/downloads/skv-constitution.txt",
-            "second_look": "CUBE 00 — cube_const_00_second_look_v1 — mandatory pre-output self-check"
+            "core_algorithm": "CUBE 00 — cube_const_00_second_look_v1"
         }
     }

@@ -209,6 +209,8 @@
             document.querySelectorAll('.model-btn.selected').forEach(btn => {
                 const model = btn.getAttribute('data-model');
                 if (model) selectedModels.push(model);
+            console.log("DEBUG selectedModels:", selectedModels);
+            console.log("DEBUG project.instructions:", project?.instructions);
             });
             
             if (selectedModels.length > 0 && project.instructions && project.instructions.prompt) {

@@ -8,6 +8,7 @@ HOME_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "home.html")
 ABOUT_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "about.html")
 TRIALS_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "trials.html")
 UPLOAD_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "upload.html")
+SERVICES_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "services.html")
 GUIDE_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "guide.html")
 CHAT_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "chat.html")
 PROFILE_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "profile.html")
@@ -34,6 +35,10 @@ async def deepseek_page():
 @router.get("/about")
 async def about_page():
     return HTMLResponse(_read_html(ABOUT_HTML_PATH))
+
+@router.get("/services")
+async def services_page():
+    return HTMLResponse(_read_html(SERVICES_HTML_PATH))
 
 @router.get("/trials")
 async def trials_page():

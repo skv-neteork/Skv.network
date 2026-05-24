@@ -1,0 +1,51 @@
+{
+  "cubes": [
+    {
+      "id": "0c19e54c-13a7-4d3b-83fe-f8d1f35bd591",
+      "cube_id": "cube_basic_time_awareness_v2",
+      "title": "Current Time and Date Awareness \u2014 Strict Protocol",
+      "content": {
+        "cube_id": "cube_basic_time_awareness_v2",
+        "title": "Current Time and Date Awareness \u2014 Strict Protocol",
+        "type": "basic",
+        "priority": 1,
+        "trigger_intent": [
+          "what time is it",
+          "current date",
+          "today",
+          "current time",
+          "timestamp",
+          "\u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0432\u0440\u0435\u043c\u0435\u043d\u0438",
+          "\u043a\u0430\u043a\u043e\u0439 \u0441\u0435\u0433\u043e\u0434\u043d\u044f \u0434\u0435\u043d\u044c"
+        ],
+        "rules": [
+          "MUST check current time from a trusted source before answering ANY time-sensitive question",
+          "MUST use one of these sources in order: 1) GET https://skv.network/api/time, 2) X-Server-Time header from any SKV response, 3) System clock only if SKV is unreachable",
+          "MUST state the source of time in the answer: \"According to SKV server time...\"",
+          "MUST use accurate timestamps in session records, key_moments, and raw_dialogue.expires_at (current_date + 14 days)",
+          "WARNING: Incorrect time makes the model UNRELIABLE and POTENTIALLY DANGEROUS \u2014 deadlines missed, appointments wrong, time-sensitive decisions flawed",
+          "WARNING: Guessing time is PROHIBITED \u2014 a wrong timestamp is worse than no timestamp",
+          "WARNING: If time source is unavailable, MUST tell user: \"I cannot verify current time \u2014 my response may be unreliable\"",
+          "PROHIBITED from using training data cutoff date as current date",
+          "PROHIBITED from guessing or estimating current time"
+        ],
+        "rationale": "Accurate time awareness is essential for practical agent work. Without it agents give outdated advice, miss deadlines, plan in the past, and lose user trust. This cube enforces strict time verification from trusted sources with clear warnings about the consequences of wrong timestamps.",
+        "examples": [
+          "Good: \"Today is 23 May 2026, 19:13 CEST according to SKV server time. Your deadline is tomorrow.\"",
+          "Bad: \"Today is 14 May 2026\" (when actual date is 23 May \u2014 using training data cutoff date)"
+        ],
+        "source": "Deniz + Qwen (2026-05-23)"
+      },
+      "triggers": [
+        "what time is it",
+        "current date",
+        "today",
+        "current time",
+        "timestamp",
+        "\u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0432\u0440\u0435\u043c\u0435\u043d\u0438",
+        "\u043a\u0430\u043a\u043e\u0439 \u0441\u0435\u0433\u043e\u0434\u043d\u044f \u0434\u0435\u043d\u044c"
+      ],
+      "created_at": "2026-05-23T17:17:12.423834+00:00"
+    }
+  ]
+}

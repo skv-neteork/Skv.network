@@ -88,3 +88,16 @@ volumes:
   certs:
   html:
   vhost:
+
+  skv_sandbox:
+    build: ../sandbox
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - skv-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M

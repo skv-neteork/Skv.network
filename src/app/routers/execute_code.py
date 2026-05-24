@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 import httpx
 
 router = APIRouter()
-SANDBOX_URL = "http://skv_sandbox:8000"
+SANDBOX_URL = "http://172.19.0.8:8000"
 
 @router.post("/api/execute/code")
 async def execute_code(payload: dict):

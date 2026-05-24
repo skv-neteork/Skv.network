@@ -44,7 +44,7 @@ async def discovery():
         "usage_flow": ["1. Search cubes", "2. Get full cube", "3. Apply rules", "4. Rate"],
         "auth": {"read": "Public", "write": "API key required"},
         "format": "JSON",
-        "contact": "deniz@skv.network"
+        "contact": "denizchavdarov@icloud.com"
     }
 
 @app.post("/api/tools/generate")

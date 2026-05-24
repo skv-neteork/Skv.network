@@ -132,7 +132,7 @@ Actions: generate_image, generate_html, generate_pdf, generate_all
 | Discovery (JSON) | /.well-known/skv |
 | Cube Standard | /api/v1/entries/cube_const_creation_standard_v2 |
 
-Questions: deniz@skv.network
+Questions: denizchavdarov@icloud.com
 
 ## MEMORY PYRAMID (Session-to-Knowledge Pipeline)
 

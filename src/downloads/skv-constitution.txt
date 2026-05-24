@@ -87,4 +87,4 @@ CUBE 08 — Reasoning & Research (priority=2)
 RESOURCES
 Full constitution: /downloads/skv-constitution-full.txt
 Discovery (JSON): /.well-known/skv
-Questions: deniz@skv.network
+Questions: denizchavdarov@icloud.com

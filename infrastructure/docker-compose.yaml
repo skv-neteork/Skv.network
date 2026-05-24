@@ -14,7 +14,7 @@ services:
       - VIRTUAL_HOST=skv.network
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=skv.network
-      - LETSENCRYPT_EMAIL=deniz@skv.network
+      - LETSENCRYPT_EMAIL=denizchavdarov@icloud.com
       - DATABASE_URL=postgresql://skv_user:skv_secret_2026@postgres:5432/skv_db
       - QDRANT_URL=http://qdrant:6333
       - REDIS_URL=redis://redis:6379
@@ -71,7 +71,7 @@ services:
     container_name: acme-companion
     environment:
       - PYTHONDONTWRITEBYTECODE=1
-      - DEFAULT_EMAIL=deniz@skv.network
+      - DEFAULT_EMAIL=denizchavdarov@icloud.com
       - NGINX_PROXY_CONTAINER=nginx-proxy
     volumes:
       - certs:/etc/nginx/certs

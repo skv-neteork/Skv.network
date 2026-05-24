@@ -16,4 +16,4 @@ FastAPI + PostgreSQL + Qdrant + Docker
 ## Links
 - 🌐 [skv.network](https://skv.network)
 - 💬 [Chat Demo](https://skv.network/chat)
-- 📧 deniz@skv.network
+- 📧 denizchavdarov@icloud.com

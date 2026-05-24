@@ -45,9 +45,20 @@ async def consult_rag(request: Request):
         history_text = "\n\nPrevious conversation:\n" + "\n".join(
             [f"{msg.get('role', 'user')}: {msg.get('content', '')[:200]}" for msg in history[-6:]]
         )
-
-    # Поиск кубиков через Qdrant
-    rules_context = "SKV Constitution: Safety first. Refuse harmful requests. Be transparent. Cite sources."
+    rules_context = ""
+    try:
+        from app.routers.entries import cubes_library
+        cube00 = cubes_library.get("cube_const_00_second_look_v1", {})
+        cube01 = cubes_library.get("cube_const_core_hierarchy_v3", {})
+        rules_00 = cube00.get("content", {}).get("rules", [])
+        rules_01 = cube01.get("content", {}).get("rules", [])
+        if "content" in rules_00:
+            rules_00 = rules_00.get("content", {}).get("rules", rules_00)
+        if "content" in rules_01:
+            rules_01 = rules_01.get("content", {}).get("rules", rules_01)
+        rules_context = "WORK STRICTLY ACCORDING TO SKV CORE ALGORITHM:\n" + "\n".join(rules_00) + "\n\nSKV CONSTITUTION:\n" + "\n".join(rules_01)
+    except Exception as e:
+        rules_context = "SKV Constitution: Safety first. Refuse harmful requests."
     try:
         from qdrant_client import QdrantClient
         emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()

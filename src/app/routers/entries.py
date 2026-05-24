@@ -281,6 +281,7 @@ async def create_entry(request: Request):
         delete_tokens[delete_token] = entry_id
         if cache:
             cache.clear()
+        await maybe_consult(body, entry_id)
         return {"id": entry_id, "public_url": f"/api/v1/entries/{entry_id}", "delete_token": delete_token, "cubes_loaded": len(loaded), "cubes": loaded}
     # Одиночная загрузка
     cube_id = body.get("cube_id") or body.get("user_fields", {}).get("cube_id", entry_id)
@@ -347,6 +348,7 @@ async def create_entry(request: Request):
         except Exception as e:
             print(f"[SKV] Memory index error: {e}")
 
+    await maybe_consult(body, entry_id)
     return {"id": entry_id, "public_url": f"/api/v1/entries/{entry_id}", "delete_token": delete_token}
 
 # Остальные эндпоинты (get_entry, search, feedback) оставляем из старого файла
@@ -691,3 +693,26 @@ async def get_persona(user_id: str, request: Request):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
+
+# Auto-consult on anketa upload
+
+
+async def maybe_consult(body, entry_id):
+    instructions = body.get("instructions", {})
+    if instructions.get("action") != "consult":
+        return
+    import aiohttp, json as _json
+    query = instructions.get("query", "")
+    models = instructions.get("models", ["deepseek"])
+    
+    async def run_one(session, m):
+        try:
+            cb = {"query": query, "model": m}
+            async with session.post("https://skv.network/api/consult", json=cb, timeout=aiohttp.ClientTimeout(total=60)) as resp:
+                await resp.text()
+        except:
+            pass
+    
+    async with aiohttp.ClientSession() as session:
+        import asyncio
+        await asyncio.gather(*[run_one(session, m) for m in models])

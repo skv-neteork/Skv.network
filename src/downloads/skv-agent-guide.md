@@ -143,10 +143,45 @@ Autonomous guardian running on SKV server:
 
 ## 9. AI EXECUTOR
 
-POST /api/execute
-Actions: generate_image, generate_html, generate_pdf, generate_all
+Generate images, HTML pages, and PDF documents via POST /api/execute or through /upload page.
 
----
+### Actions
+
+**generate_html** — Create HTML page:
+```json
+{
+  "action": "generate_html",
+  "instructions": {
+    "html": "<h1>Title</h1><p>Content</p>",
+    "css": "body{background:#0d1117;color:#fff}"
+  }
+}
+```
+
+**generate_pdf** — Create PDF document:
+```json
+{
+  "action": "generate_pdf",
+  "title": "Document Title",
+  "instructions": {
+    "text": "PDF content here"
+  }
+}
+```
+
+**generate_image** — Generate image from description:
+```json
+{
+  "action": "generate_image",
+  "instructions": {
+    "prompt": "A blue shield with SKV letters, minimalist"
+  }
+}
+```
+
+**generate_all** — Generate HTML + PDF + Image in one request.
+
+All actions return `{"status":"success","file_url":"/api/execute/file/..."}`.
 
 ## RESOURCES
 

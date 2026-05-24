@@ -110,32 +110,29 @@ Return: VERDICT: [X] | SCORE: [X] | REASON: [1 sentence] | SUGGESTIONS: [if FIX]
     
     resp = json.loads(req.urlopen(r, timeout=60).read())
     return resp["choices"][0]["message"]["content"].strip()
-
-def submit_to_trials(cube_id, verdict):
-    if "REMOVE" not in verdict.upper() and "FIX" not in verdict.upper():
-        return False
     
-    voters = [
-        {"token": "evolver_token_001"},
-        {"token": "evolver_token_002"},
-        {"token": "bc2dc116"},
-    ]
-    
-    for voter in voters:
-        try:
-            body = json.dumps({
-                "cube_id": cube_id,
-                "vote": "down",
-                "comment": f"Evolver: {verdict[:100]}"
-            }).encode()
-            req.urlopen(req.Request(SKV_FEEDBACK, data=body, 
-                       headers={"Content-Type": "application/json"}), timeout=10)
-        except:
-            pass
-    
-    return True
 
 def save_fixed_cubes():
+    pass
+
+def delete_cube(cube_id):
+    """Удаляет куб из PostgreSQL при вердикте REMOVE"""
+    try:
+        import psycopg2 as pg2
+        pg_conn = pg2.connect(
+            host="127.0.0.1", port=5432,
+            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+        )
+        cur = pg_conn.cursor()
+        cur.execute("DELETE FROM cubes WHERE cube_id = %s", (cube_id,))
+        pg_conn.commit()
+        cur.close()
+        pg_conn.close()
+        log(f"  🗑️ Deleted cube: {cube_id}")
+        return True
+    except Exception as e:
+        log(f"  ❌ Delete error: {str(e)[:100]}")
+        return False
     """Сохраняет исправленные кубики, созданные fixer'ом в Trials"""
     try:
         import psycopg2 as pg2
@@ -196,7 +193,6 @@ def save_fixed_cubes():
         log(f"  ❌ Fixer check error: {str(e)[:100]}")
 
 # Добавляем вызов в цикл аудита
-# Ищем строку "log(\"🔍 Deep audit cycle — Grok-4 analysis\")" и добавляем перед ней вызов
 
 def run_audit_cycle():
     log("=" * 50)
@@ -230,8 +226,7 @@ def run_audit_cycle():
             submit_to_trials(cube_id, verdict)
         elif "REMOVE" in verdict.upper():
             results["REMOVE"] += 1
-            submit_to_trials(cube_id, verdict)
-        
+            delete_cube(cube_id)
         time.sleep(0.5)
     
     log(f"  Results: ✅{results['KEEP']} 🔧{results['FIX']} ❌{results['REMOVE']}")

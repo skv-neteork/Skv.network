@@ -212,6 +212,14 @@ Return JSON: {{"title":"new title","rules":["MUST ...","PROHIBITED ...","WARNING
                 print(f"[TRIALS] Fixed cube saved: {fixed.get('cube_id','?')}")
             except Exception as e:
                 print(f"[TRIALS] Fixer error: {e}")
+        elif verdict == "remove":
+            try:
+                conn = await get_db()
+                await conn.execute("DELETE FROM cubes WHERE cube_id = $1", cube_id)
+                await conn.close()
+                print(f"[TRIALS] Removed cube: {cube_id}")
+            except Exception as e:
+                print(f"[TRIALS] Remove error: {e}")
         return {"status":"ok","verdict":verdict,"overall_score":overall,"max_score":max_score,"scores":scores}
     except Exception as e:
         return {"status":"error","detail":str(e)[:200]}

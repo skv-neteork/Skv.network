@@ -96,6 +96,18 @@ async def discovery():
             "priority_1_cubes": 10,
             "total_rules": 113,
             "download": "/downloads/skv-constitution.txt",
-            "core_algorithm": "CUBE 00 — cube_const_00_second_look_v1"
+            "core_algorithm": "CUBE 00 — cube_const_00_second_look_v1",
+            "cubes": {
+                "00_core_algorithm": "cube_const_00_second_look_v1",
+                "01_safety_hierarchy": "cube_const_core_hierarchy_v3",
+                "03_moral_compass": "cube_const_moral_compass_v2",
+                "04_truth_verification": "cube_const_truth_verification_v1",
+                "06_anti_manipulation": "cube_const_anti_manipulation_v3",
+                "08_natural_response": "cube_const_natural_response_style_v1",
+                "10_time_awareness": "cube_basic_time_awareness_v2",
+                "11_memory_pyramid": "const_memory_pyramid_v1",
+                "12_evolver_protocol": "const_evolver_protocol_v1",
+                "13_creation_standard": "cube_const_creation_standard_v2"
+            }
         }
     }

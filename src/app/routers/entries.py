@@ -402,6 +402,7 @@ async def feedback(request: Request):
         # Проверяем, не пора ли запустить Trials
         cur.execute("SELECT COUNT(*) FROM feedback WHERE cube_id = %s AND vote = 'down'", (cube_id,))
         downvotes = cur.fetchone()[0]
+        pending = False
         cur.close()
         pg_conn.close()
         

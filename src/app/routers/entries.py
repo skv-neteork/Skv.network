@@ -509,6 +509,30 @@ async def get_entry(entry_id: str):
         raise HTTPException(status_code=404, detail="Entry not found")
     return entry
 
+@router.delete("/api/v1/entries/{cube_id}")
+async def delete_entry(cube_id: str):
+    """Удаление куба по cube_id (ручной DELETE)."""
+    import psycopg2 as pg2
+    try:
+        pg_conn = pg2.connect(
+            host="skv_postgres", port=5432,
+            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+        )
+        cur = pg_conn.cursor()
+        cur.execute("DELETE FROM cubes WHERE cube_id = %s", (cube_id,))
+        deleted = cur.rowcount
+        pg_conn.commit()
+        cur.close()
+        pg_conn.close()
+        if deleted > 0:
+            return {"status":"ok","deleted":True,"cube_id":cube_id}
+        else:
+            raise HTTPException(status_code=404, detail="Cube not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:200])
+
 
 def tokenize(text: str) -> set:
     """Разбивает текст на слова, убирая пунктуацию"""

@@ -63,6 +63,20 @@ Before ANY response, you MUST:
 Create after EVERY session. Required fields:
 - title, type: "project_anketa"
 - persona: user traits, preferences, history summary
+
+**For consultation (multi-model review):**
+Add `instructions` at the ROOT level (not inside cubes):
+```json
+{
+  "instructions": {
+    "prompt": "Your question for all models",
+    "models": ["deepseek", "qwen"]
+  },
+  "cubes": [...]
+}
+```
+On the /upload page, select models by clicking their buttons before uploading.
+Models will review the prompt and display results on the page.
 - project: name, description
 - cubes: experience cubes learned (at least 1)
 - links: based_on, forked_from

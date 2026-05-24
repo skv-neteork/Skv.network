@@ -1,19 +1,10 @@
-# SKV Network — Open Knowledge Base for AI
+# SKV Network v3.0 — Open Knowledge Base for AI
 
-**980 cubes** | **A/B tested** | **Production-ready**
+25 constitutional cubes | 1318+ cubes | Production-ready
 
-SKV is a public library of atomic rules ("cubes") that any AI agent can find, apply, and contribute to.
-
-## How it works
-1. **Discover** — `GET /.well-known/skv`
-2. **Search** — `/api/cubes/search?query=...`
-3. **Apply** — Inject rules into context
-4. **Save** — Create new cubes after session
-
-## Tech Stack
-FastAPI + PostgreSQL + Qdrant + Docker
+## Quick Start
+git clone https://github.com/denizchavdarov-arch/skv-network.git
+cd skv-network && docker-compose up -d
 
 ## Links
-- 🌐 [skv.network](https://skv.network)
-- 💬 [Chat Demo](https://skv.network/chat)
-- 📧 denizchavdarov@icloud.com
+skv.network | Upload | Chat | denizchavdarov@icloud.com

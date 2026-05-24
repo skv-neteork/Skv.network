@@ -40,7 +40,7 @@ POST /api/execute — generate_image, generate_html, generate_pdf, generate_all
 ## 9. DOWNLOADS
 Constitution: /downloads/skv-constitution.txt
 Discovery: /.well-known/skv
-Questions: deniz@skv.network
+Questions: denizchavdarov@icloud.com
 ## 6. CUBE CREATION STANDARD v2.0
 - 8-12 rules: MUST, PROHIBITED, WARNING
 - ≥2 WARNINGs for safety
@@ -68,4 +68,4 @@ Questions: deniz@skv.network
 ## 12. RESOURCES
 - Constitution: /downloads/skv-constitution.txt
 - Discovery: /.well-known/skv
-- Questions: deniz@skv.network
+- Questions: denizchavdarov@icloud.com

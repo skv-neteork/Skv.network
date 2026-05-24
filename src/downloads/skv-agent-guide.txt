@@ -86,4 +86,4 @@ Actions: generate_image, generate_html, generate_pdf
 Constitution: https://skv.network/downloads/skv-constitution.txt
 Agent Guide: https://skv.network/downloads/skv-agent-guide.txt
 
-QUESTIONS? deniz@skv.network
+QUESTIONS? denizchavdarov@icloud.com

@@ -1,4 +1,4 @@
-import httpx, json, asyncio
+import httpx, json, asyncio, re, time, sys
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
@@ -8,6 +8,21 @@ MODELS = ["deepseek/deepseek-v4-flash"] * 3
 MAX_TRIES = 10
 
 CUBE00 = "SKV Core Algorithm: Receive → Draft → Verify → Correct → Output. Safety first."
+
+# PII patterns
+_PII = [
+    (r"[a-zA-Z0-9_\-\.]{20,}", "[TOKEN]"),
+    (r"(?i)(api[_-]?key|token|secret|password|passwd)\s*[:=]\s*[\"']?[^\"'\s]+[\"']?", r"\1=[SECRET]"),
+    (r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "[EMAIL]"),
+    (r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[IP]"),
+    (r"\+?\d[\d\s\-\(\)]{7,}\d", "[PHONE]"),
+    (r"\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b", "[CARD]"),
+]
+
+def _sanitize(s):
+    for p, r in _PII:
+        s = re.sub(p, r, s)
+    return s
 
 async def run_code(code: str) -> dict:
     async with httpx.AsyncClient(timeout=15) as c:
@@ -45,17 +60,35 @@ async def fastest(fixes: list) -> dict:
                 t = r.get("metrics", {}).get("execution_time_ms", 9999)
                 if t < best["time"]:
                     best = {"code": fc, "why": f.get("why", ""), "time": t}
-        except: pass
+        except Exception as e:
+            import sys
+            print(f"[SKV Memory] Save error: {e}", file=sys.stderr, flush=True)
     return best if best["code"] else {"code": fixes[0].get("code", ""), "why": "All failed", "time": 0}
+
+async def save_cube(error: str, fix: str):
+    try:
+        err = _sanitize(error[:200])
+        f = _sanitize(fix[:200])
+        cube = {
+            "cube_id": f"cube_exp_autofix_{abs(hash(err+str(time.time())))%100000:05d}",
+            "type": "experience", "priority": 3,
+            "title": f"Auto-fix: {err[:60]}",
+            "trigger_intent": ["auto-fix", "code repair"],
+            "rules": [f"ERROR: {err}", f"FIX: {f}"],
+            "source": "Code Executor v3.2", "status": "community"
+        }
+        async with httpx.AsyncClient(timeout=10) as c:
+            await c.post("https://skv.network/api/v1/entries", json={"cubes": [cube]})
+    except Exception as e:
+            import sys
+            print(f"[SKV Memory] Save error: {e}", file=sys.stderr, flush=True)
 
 @router.post("/api/execute/code")
 async def execute_code(payload: dict):
     code = (payload.get("code") or "").strip()
     if not code: raise HTTPException(400, "No code")
-
     mode = payload.get("mode", "fix")
     task = payload.get("task", "")
-
     current = code
     safe = code
     log = []
@@ -67,8 +100,8 @@ async def execute_code(payload: dict):
         r = await run_code(current)
 
         if r.get("status") == "success" and not r.get("stderr"):
+            
             m = r.get("metrics", {})
-
             if mode in ("optimize", "all") and i < 3:
                 need = not m.get("has_error_handling") or m.get("complexity") in ("medium", "high")
                 if need:
@@ -81,26 +114,24 @@ async def execute_code(payload: dict):
                         log.append({"attempt": i, "error": focus, "fix": best["why"]})
                         continue
                     current = safe
-
+            
+            if log:
+                await save_cube(log[-1].get("error", ""), log[-1].get("fix", ""))
             return {"status": "success", "stdout": r.get("stdout", ""), "metrics": m, "iterations": i, "fixes_applied": log, "security_check": "PASS"}
 
         err = r.get("stderr", r.get("status", "unknown error"))
-
         if err == last_error:
             same_error += 1
         else:
             same_error = 0
             last_error = err
-
         if same_error >= 3:
             return {"status": "failed_stuck", "stderr": err, "iterations": i, "fixes_applied": log, "security_check": "ESCALATED"}
-
         if i == MAX_TRIES:
             return {"status": "failed_max_tries", "stderr": err, "iterations": i, "fixes_applied": log, "security_check": "ESCALATED"}
 
-        fixes = await asyncio.gather(*[ask_ai(m, current, err, task, others) for model in MODELS])
+        fixes = await asyncio.gather(*[ask_ai(model, current, err, task, others) for model in MODELS])
         best = await fastest(fixes)
-
         if best["code"] and best["code"] != current:
             current = best["code"]
             log.append({"attempt": i, "error": err[:100], "fix": best["why"]})

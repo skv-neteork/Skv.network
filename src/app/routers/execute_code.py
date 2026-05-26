@@ -73,7 +73,7 @@ async def execute_code(payload: dict):
                 need = not m.get("has_error_handling") or m.get("complexity") in ("medium", "high")
                 if need:
                     focus = "Add error handling" if not m.get("has_error_handling") else "Improve performance"
-                    fixes = await asyncio.gather(*[ask_ai(m, current, focus, task, others) for m in MODELS])
+                    fixes = await asyncio.gather(*[ask_ai(model, current, focus, task, others) for model in MODELS])
                     best = await fastest(fixes)
                     if best["code"] and best["code"] != current:
                         safe = current
@@ -98,7 +98,7 @@ async def execute_code(payload: dict):
         if i == MAX_TRIES:
             return {"status": "failed_max_tries", "stderr": err, "iterations": i, "fixes_applied": log, "security_check": "ESCALATED"}
 
-        fixes = await asyncio.gather(*[ask_ai(m, current, err, task, others) for m in MODELS])
+        fixes = await asyncio.gather(*[ask_ai(m, current, err, task, others) for model in MODELS])
         best = await fastest(fixes)
 
         if best["code"] and best["code"] != current:

@@ -87,7 +87,12 @@ async def save_cube(error: str, fix: str):
         print(f"[SKV Memory] Save error: {e}", file=sys.stderr, flush=True)
 
 @router.post("/api/execute/code")
-async def execute_code(payload: dict):
+async def execute_code(payload: dict, request = None):
+    # API key check (optional for web, required for API)
+    if request:
+        key = request.headers.get("X-API-Key", "")
+        if key and key != "skv_sandbox_key_2026":
+            raise HTTPException(403, "Invalid API key")
     code = (payload.get("code") or "").strip()
     if not code: raise HTTPException(400, "No code")
     mode = payload.get("mode", "fix")

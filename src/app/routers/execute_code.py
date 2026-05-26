@@ -7,16 +7,14 @@ POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
 MODELS = ["deepseek/deepseek-v4-flash"] * 3
 MAX_TRIES = 10
 
-CUBE00 = "SKV Core Algorithm: Receive → Draft → Verify → Correct → Output. Safety first."
+CUBE00 = "SKV Core Algorithm: Receive -> Draft -> Verify -> Correct -> Output. Safety first."
 
-# PII patterns
 _PII = [
     (r"[a-zA-Z0-9_\-\.]{20,}", "[TOKEN]"),
     (r"(?i)(api[_-]?key|token|secret|password|passwd)\s*[:=]\s*[\"']?[^\"'\s]+[\"']?", r"\1=[SECRET]"),
     (r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "[EMAIL]"),
     (r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[IP]"),
     (r"\+?\d[\d\s\-\(\)]{7,}\d", "[PHONE]"),
-    (r"\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b", "[CARD]"),
 ]
 
 def _sanitize(s):
@@ -36,7 +34,7 @@ async def compiles(code: str) -> bool:
 async def ask_ai(model: str, code: str, error: str, task: str, others: list = None) -> dict:
     prompt = f"{CUBE00}\nFix this Python code.\nTask: {task or 'Make it work.'}\nCode:\n```python\n{code}\n```\nError:\n{error}\n"
     if others:
-        prompt += f"\nOther attempts that failed:\n{json.dumps(others, indent=2)}\nLearn from them."
+        prompt += f"\nOther attempts:\n{json.dumps(others, indent=2)}\nLearn from them."
     prompt += "\nReturn JSON: {\"code\": \"...\", \"why\": \"...\"}"
     async with httpx.AsyncClient(timeout=20) as c:
         try:
@@ -60,13 +58,12 @@ async def fastest(fixes: list) -> dict:
                 t = r.get("metrics", {}).get("execution_time_ms", 9999)
                 if t < best["time"]:
                     best = {"code": fc, "why": f.get("why", ""), "time": t}
-        except Exception as e:
-            import sys
-            print(f"[SKV Memory] Save error: {e}", file=sys.stderr, flush=True)
+        except: pass
     return best if best["code"] else {"code": fixes[0].get("code", ""), "why": "All failed", "time": 0}
 
 async def save_cube(error: str, fix: str):
     try:
+        import urllib.request as _req
         err = _sanitize(error[:200])
         f = _sanitize(fix[:200])
         cube = {
@@ -75,13 +72,12 @@ async def save_cube(error: str, fix: str):
             "title": f"Auto-fix: {err[:60]}",
             "trigger_intent": ["auto-fix", "code repair"],
             "rules": [f"ERROR: {err}", f"FIX: {f}"],
-            "source": "Code Executor v3.2", "status": "community"
+            "source": "Code Executor v3.3", "status": "community"
         }
-        async with httpx.AsyncClient(timeout=10) as c:
-            await c.post("https://skv.network/api/v1/entries", json={"cubes": [cube]})
+        body = json.dumps({"cubes": [cube]}).encode()
+        _req.urlopen(_req.Request("https://skv.network/api/v1/entries", data=body, headers={"Content-Type": "application/json"}), timeout=10)
     except Exception as e:
-            import sys
-            print(f"[SKV Memory] Save error: {e}", file=sys.stderr, flush=True)
+        print(f"[SKV Memory] Save error: {e}", file=sys.stderr, flush=True)
 
 @router.post("/api/execute/code")
 async def execute_code(payload: dict):
@@ -100,12 +96,13 @@ async def execute_code(payload: dict):
         r = await run_code(current)
 
         if r.get("status") == "success" and not r.get("stderr"):
-            
             m = r.get("metrics", {})
+            # Optimize if needed (mode=optimize or all)
             if mode in ("optimize", "all") and i < 3:
-                need = not m.get("has_error_handling") or m.get("complexity") in ("medium", "high")
+                lines = len(current.split("\n"))
+                need = lines > 3 and (not m.get("has_error_handling") or m.get("complexity") in ("medium", "high"))
                 if need:
-                    focus = "Add error handling" if not m.get("has_error_handling") else "Improve performance"
+                    focus = "Add error handling" if not m.get("has_error_handling") else "Improve performance and code quality"
                     fixes = await asyncio.gather(*[ask_ai(model, current, focus, task, others) for model in MODELS])
                     best = await fastest(fixes)
                     if best["code"] and best["code"] != current:
@@ -114,7 +111,6 @@ async def execute_code(payload: dict):
                         log.append({"attempt": i, "error": focus, "fix": best["why"]})
                         continue
                     current = safe
-            
             if log:
                 await save_cube(log[-1].get("error", ""), log[-1].get("fix", ""))
             return {"status": "success", "stdout": r.get("stdout", ""), "metrics": m, "iterations": i, "fixes_applied": log, "security_check": "PASS"}
@@ -138,6 +134,5 @@ async def execute_code(payload: dict):
             others = None
         else:
             others = [{"code": f.get("code", ""), "why": f.get("why", "")} for f in fixes if f.get("code") != current][:3]
-            log.append({"attempt": i, "error": err[:100], "fix": "All fixes failed — sharing with AI"})
-
+            log.append({"attempt": i, "error": err[:100], "fix": "All fixes failed"})
     return {"status": "failed_max_tries", "iterations": MAX_TRIES, "fixes_applied": log, "security_check": "ESCALATED"}

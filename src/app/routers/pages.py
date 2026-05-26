@@ -10,6 +10,7 @@ TRIALS_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "trials.html")
 UPLOAD_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "upload.html")
 SERVICES_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "services.html")
 SANDBOX_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "sandbox.html")
+SANDBOX_ABOUT_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "sandbox_about.html")
 GUIDE_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "guide.html")
 CHAT_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "chat.html")
 PROFILE_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "profile.html")
@@ -42,6 +43,10 @@ async def about_page():
 @router.get("/sandbox")
 async def sandbox_page():
     return HTMLResponse(_read_html(SANDBOX_HTML_PATH))
+
+@router.get("/sandbox/about")
+async def sandbox_about_page():
+    return HTMLResponse(_read_html(SANDBOX_ABOUT_HTML_PATH))
 async def services_page():
     return HTMLResponse(_read_html(SERVICES_HTML_PATH))
 

@@ -63,19 +63,26 @@ async def fastest(fixes: list) -> dict:
 
 async def save_cube(error: str, fix: str):
     try:
-        import urllib.request as _req
+        from app.routers.entries import create_entry
         err = _sanitize(error[:200])
         f = _sanitize(fix[:200])
-        cube = {
-            "cube_id": f"cube_exp_autofix_{abs(hash(err+str(time.time())))%100000:05d}",
-            "type": "experience", "priority": 3,
-            "title": f"Auto-fix: {err[:60]}",
-            "trigger_intent": ["auto-fix", "code repair"],
-            "rules": [f"ERROR: {err}", f"FIX: {f}"],
-            "source": "Code Executor v3.3", "status": "community"
+        cid = f"cube_exp_autofix_{abs(hash(err+str(time.time())))%100000:05d}"
+        body = {
+            "cubes": [{
+                "cube_id": cid,
+                "type": "experience",
+                "priority": 3,
+                "title": f"Auto-fix: {err[:60]}",
+                "trigger_intent": ["auto-fix", "code repair"],
+                "rules": [f"ERROR: {err}", f"FIX: {f}"],
+                "source": "Code Executor v3.3",
+                "status": "community"
+            }]
         }
-        body = json.dumps({"cubes": [cube]}).encode()
-        _req.urlopen(_req.Request("https://skv.network/api/v1/entries", data=body, headers={"Content-Type": "application/json"}), timeout=10)
+        # Create fake Request-like object
+        class FakeReq:
+            async def json(self): return body
+        await create_entry(FakeReq())
     except Exception as e:
         print(f"[SKV Memory] Save error: {e}", file=sys.stderr, flush=True)
 

@@ -102,7 +102,7 @@ async def execute_code(payload: dict):
                 lines = len(current.split("\n"))
                 need = lines > 3 and (not m.get("has_error_handling") or m.get("complexity") in ("medium", "high"))
                 if need:
-                    focus = "Add error handling" if not m.get("has_error_handling") else "Improve performance and code quality"
+                    focus = "Improve performance and code quality. Optimize algorithm complexity. Add error handling if needed."
                     fixes = await asyncio.gather(*[ask_ai(model, current, focus, task, others) for model in MODELS])
                     best = await fastest(fixes)
                     if best["code"] and best["code"] != current:

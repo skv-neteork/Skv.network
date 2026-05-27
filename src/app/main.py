@@ -11,6 +11,7 @@ from app.routers.exports import router as exports_router
 from app.routers.execute import router as execute_router
 from app.routers.execute_code import router as code_executor_router
 from app.routers.constructor import router as constructor_router
+from app.routers.bureau import router as bureau_router
 import io, zipfile, os
 
 app = FastAPI(title="SKV Network", version="2.0")
@@ -41,6 +42,7 @@ app.include_router(consult_router)
 app.include_router(exports_router)
 app.include_router(code_executor_router)
 app.include_router(constructor_router)
+app.include_router(bureau_router)
 app.include_router(execute_router)
 
 @app.get("/api/v1/info")

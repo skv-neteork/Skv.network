@@ -1,8 +1,11 @@
 import json, asyncio, time
+from collections import defaultdict
 import httpx
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
+# Simple session memory: user_id -> last response
+session_memory = defaultdict(str)
 PKEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
 FLASH = "deepseek/deepseek-v4-flash"
 CHAT = "deepseek/deepseek-chat"
@@ -19,10 +22,24 @@ async def constructor_think(payload: dict):
     task = (payload.get("task") or "").strip()
     mode = payload.get("mode", "two_level")
     ctx = payload.get("context", "")
+    user_id = payload.get("user_id", "anonymous")
+    
+    # Session memory disabled (needs Redis/DB for multi-worker)
+    
     if not task: raise HTTPException(400, "Task required")
     
     t0 = time.time()
     async with httpx.AsyncClient(timeout=60) as client:
+        if mode == "auto":
+            # Simple heuristic (no AI call, instant)
+            task_lower = task.lower()
+            if len(task) < 50 and "?" not in task:
+                mode = "fast"
+            elif any(kw in task_lower for kw in ["design", "architecture", "implement", "database", "schema", "security", "multi-step", "complex", "comprehensive"]):
+                mode = "two_level"
+            else:
+                mode = "fast"
+        
         if mode == "fast":
             idea = await ask(client, FLASH, f"{C00}\nTask: {task}\n{ctx}\nGive a concise answer.", 0.5)
             critic = await ask(client, FLASH, f"Check: {idea[:400]}\nWarnings?", 0.3)
@@ -39,4 +56,5 @@ async def constructor_think(payload: dict):
         else:
             raise HTTPException(400, f"Unknown: {mode}")
     
+    session_memory[user_id] = result[:500]  # Save for next request
     return {"result": result, "mode": mode, "time_ms": int((time.time()-t0)*1000)}

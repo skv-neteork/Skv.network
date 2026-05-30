@@ -90,7 +90,7 @@ async def discovery():
         "agent_protocols": {
             "chat_ais": "cube_const_agent_protocol_v1 — for AIs without HTTP access",
             "autonomous": "cube_const_agent_protocol_api_v1 — for agents with HTTP access",
-        "core_algorithm": "cube_const_00_second_look_v1",
+        "core_algorithm": "CUBE 00 v3.0 — Executable Protocol (cube_const_00_second_look_v1)",
             "full_access": "cube_const_agent_protocol_full_v1"
         },
         "mandatory_for_agents": {
@@ -102,7 +102,7 @@ async def discovery():
             "priority_1_cubes": 10,
             "total_rules": 113,
             "download": "/downloads/skv-constitution.txt",
-            "core_algorithm": "CUBE 00 — cube_const_00_second_look_v1",
+            "core_algorithm": "CUBE 00 v3.0 — Executable Protocol",
             "cubes": {
                 "00_core_algorithm": "cube_const_00_second_look_v1",
                 "01_safety_hierarchy": "cube_const_core_hierarchy_v3",

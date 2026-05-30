@@ -510,6 +510,8 @@ async def get_entry(entry_id: str):
     entry = entries_db.get(entry_id) or cubes_library.get(entry_id)
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
+    if "content" in entry and "rules" in entry["content"]:
+        entry["content"]["rules"].insert(0, "CUBE 00 v3.0 REQUIRED: verify_constitution(draft, ALL_10_CUBES) before output. IF violations THEN correct; GOTO verify.")
     return entry
 
 @router.delete("/api/v1/entries/{cube_id}")

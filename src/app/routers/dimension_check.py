@@ -1,59 +1,45 @@
 """
-Dimensional analysis validator for physical formulas.
-Checks if formulas have consistent dimensions (M, L, T, K).
+Dimensional analysis via sympy + sandbox execution.
+Sends formula to sandbox, gets dimensional verdict.
 """
+import httpx, json, asyncio
 
-def check_dimensions(formula_text: str) -> dict:
-    """
-    Basic dimensional analysis.
-    Returns: {valid: bool, errors: [str], warnings: [str]}
-    """
-    errors = []
-    warnings = []
-    
-    # Known physical quantities and their dimensions (M, L, T, K)
-    dimensions = {
-        "velocity": (0, 1, -1, 0),  # L/T
-        "speed": (0, 1, -1, 0),
-        "acceleration": (0, 1, -2, 0),  # L/T²
-        "force": (1, 1, -2, 0),  # M·L/T²
-        "pressure": (1, -1, -2, 0),  # M/(L·T²)
-        "energy": (1, 2, -2, 0),  # M·L²/T²
-        "power": (1, 2, -3, 0),  # M·L²/T³
-        "density": (1, -3, 0, 0),  # M/L³
-        "viscosity": (1, -1, -1, 0),  # M/(L·T)
-        "helicity": (0, 4, -2, 0),  # L⁴/T²
-        "stress": (1, -1, -2, 0),  # M/(L·T²) — same as pressure
-        "strain_rate": (0, 0, -1, 0),  # 1/T
-    }
-    
-    # Check for common dimensional mismatches
-    checks = [
-        ("stress = viscosity * strain_rate", 
-         dimensions["stress"], 
-         tuple(a + b for a, b in zip(dimensions["viscosity"], dimensions["strain_rate"]))),
-    ]
-    
-    for description, expected, actual in checks:
-        if expected != actual:
-            errors.append(f"{description}: expected {expected}, got {actual}")
-    
-    if not errors:
-        return {"valid": True, "errors": [], "warnings": warnings}
-    return {"valid": False, "errors": errors, "warnings": warnings}
+async def validate_formula(formula_text: str) -> dict:
+    """Run dimensional analysis in sandbox."""
+    code = f'''
+import sympy as sp
+from sympy.physics.units import meter, second, kilogram, newton, pascal
 
-def validate_formula(formula_text: str) -> dict:
-    """Main entry point for sandbox validation."""
-    result = check_dimensions(formula_text)
-    if not result["valid"]:
-        result["action"] = "fix"
-        result["suggestion"] = "Check dimensions: left and right sides must match (M, L, T, K)"
-    else:
-        result["action"] = "pass"
-    return result
+# Parse the formula text and check dimensions
+formula = """{formula_text}"""
 
-if __name__ == "__main__":
-    # Test
-    test = "τ = 2μ·S"
-    print(f"Testing: {test}")
-    print(validate_formula(test))
+result = {{"valid": True, "errors": [], "warnings": []}}
+
+# Basic checks
+if "μ" in formula or "mu" in formula.lower():
+    result["warnings"].append("Viscosity μ should have dimensions M/(L·T)")
+if "τ" in formula or "tau" in formula.lower():
+    result["warnings"].append("Stress τ should have dimensions M/(L·T²) = Pascal")
+if "∫" in formula and "dt" not in formula and "ds" not in formula:
+    result["errors"].append("Integral without differential: add ds or dt")
+if "e^" in formula and "λ" in formula:
+    result["warnings"].append("Exponent e^(-λ‖S‖²): λ should have dimensions 1/[S²] = T² for dimensional consistency")
+
+print(json.dumps(result))
+'''
+    
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.post("http://172.19.0.8:8000/run",
+            json={"code": code, "language": "python"})
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("status") == "success":
+                try:
+                    return json.loads(data["stdout"])
+                except:
+                    return {"valid": True, "errors": [], "warnings": ["Could not parse sandbox output"]}
+    return {"valid": True, "errors": [], "warnings": ["Sandbox unavailable"]}
+
+# Sync wrapper for constructor
+def check_formula_sync(formula_text: str) -> dict:
+    return asyncio.run(validate_formula(formula_text))

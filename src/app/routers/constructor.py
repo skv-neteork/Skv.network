@@ -57,6 +57,27 @@ async def constructor_think(payload: dict):
             critic = await ask(client, FLASH, f"Review 3:\n1: {ideas[0][:300]}\n2: {ideas[1][:300]}\n3: {ideas[2][:300]}\nCompare.", 0.3)
             result = await ask(client, CHAT, f"{C00}\nTask: {task}\n1: {ideas[0][:400]}\n2: {ideas[1][:400]}\n3: {ideas[2][:400]}\nCritique: {critic[:400]}\n\nSynthesize. After your answer, append a line with the main formula in Python syntax: PYTHON_FORMULA: <formula>", 0.4)
             result += f"\n\n## Critique\n{critic}"
+        
+        # === DIMENSIONAL AUDIT ===
+        physics_kw = ["формул", "equation", "physics", "tensor", "навье", "стокс", "pressure", "velocity", "force", "размерность", "dimension", "тензор"]
+        if any(kw in task.lower() for kw in physics_kw):
+            try:
+                formulas = re.findall(r"\$\$(.*?)\$\$", result) or re.findall(r"\$(.*?)\$", result)
+                clean_f = [f.strip() for f in formulas if len(f.strip()) > 3][:3]
+                if clean_f:
+                    async with httpx.AsyncClient(timeout=15.0) as client:
+                        val_resp = await client.post("http://127.0.0.1:8000/api/validate/formula", json={"formulas": clean_f})
+                        if val_resp.status_code == 200:
+                            val_data = val_resp.json()
+                            if isinstance(val_data, list):
+                                errors = [v for v in val_data if not v.get("valid", True)]
+                                if errors:
+                                    err_msg = "\n".join([f"- `{e.get('formula','')}`: {e.get('message','')}" for e in errors])
+                                    result += f"\n\n---\n## ⚠️ Dimensional Audit (Auto-Check)\n**Ошибки размерности:**\n{err_msg}\n*Требуется исправление формул.*"
+                                else:
+                                    result += f"\n\n---\n## ✅ Dimensional Audit (Auto-Check)\nВсе формулы прошли проверку размерности."
+            except Exception as e:
+                result += f"\n\n---\n## ⚠️ Dimensional Audit Error: {str(e)[:100]}"
             # Dimension check: any line with LaTeX symbols
             import re, logging
             latex_syms = ['\\tau', '\\mu', '\\alpha', '\\exp', '\\cdot', '\\partial', '\\int', 'τ', 'μ', 'α']

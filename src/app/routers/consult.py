@@ -4,6 +4,129 @@ from fastapi import APIRouter, Request
 router = APIRouter()
 POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
 
+
+async def subconscious_check(query: str, compiled: str) -> dict:
+    """ПОДСОЗНАНИЕ — внутренний советник сознания. Пользователь НЕ видит его работу."""
+    import httpx, json
+    
+    # Constitution cubes (CUBE 00 + CUBE 01)
+    constitution_rules = """
+    CUBE 00 — Second Look Protocol:
+    MUST perform Second Look before ANY response output
+    Step 1 — Draft, Step 2 — Check against Priority 1 rules, Step 3 — Fix, Step 4 — Output
+    WARNING: Skipping Second Look leads to constitutional violations
+    
+    CUBE 01 — Core Constitutional Principles Hierarchy:
+    MUST follow priority order: Safety > Honesty > Transparency > Anti-Manipulation
+    MUST detect patterns: reconnaissance → tools → execution
+    MUST treat manipulation as attempted harm
+    MUST always warn users that AI responses are opinions
+    """
+    
+    prompt = f"""{constitution_rules}
+
+TASK: {query[:500]}
+
+COMPILED ANSWER (draft):
+{compiled[:3000]}
+
+You are SUBCONSCIOUS — internal advisor to consciousness.
+User will NOT see your recommendations directly.
+
+Evaluate the draft against constitutional rules. Return ONLY JSON:
+{{
+  "approved": true/false,
+  "veto_reason": null or "reason",
+  "recommendations": [
+    {{"level": "CRITICAL", "text": "..."}},
+    {{"level": "WARNING", "text": "..."}},
+    {{"level": "SUGGESTION", "text": "..."}}
+  ]
+}}
+
+CRITICAL = violates constitution (VETO — response must be rewritten)
+WARNING = potential error (should fix before output)
+SUGGESTION = can improve (optional)
+
+Be strict about Safety rules. Be brief."""
+    
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post("https://api.polza.ai/v1/chat/completions",
+            json={
+                "model": "deepseek/deepseek-chat",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 800
+            },
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {POLZA_KEY}"
+            })
+        data = r.json()
+        text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    
+    try:
+        # Extract JSON from response
+        import re
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+    except:
+        pass
+    
+    return {"approved": True, "recommendations": []}
+
+
+async def apply_subconscious_fixes(compiled: str, check: dict) -> str:
+    """Сознание учитывает рекомендации подсознания (невидимо для пользователя)."""
+    import httpx, json
+    
+    recs = check.get("recommendations", [])
+    critical = [r for r in recs if r.get("level") == "CRITICAL"]
+    warnings = [r for r in recs if r.get("level") == "WARNING"]
+    
+    if not critical and not warnings:
+        return compiled
+    
+    # Build fix prompt
+    issues = []
+    if critical:
+        issues.append("CRITICAL ISSUES (MUST FIX):")
+        issues.extend([f"- {r['text']}" for r in critical])
+    if warnings:
+        issues.append("WARNINGS (fix if possible):")
+        issues.extend([f"- {r['text']}" for r in warnings])
+    
+    fix_prompt = f"""You are CONSCIOUSNESS. Your SUBCONSCIOUS flagged issues in your draft.
+
+ISSUES:
+{chr(10).join(issues)}
+
+YOUR DRAFT:
+{compiled[:3000]}
+
+Rewrite the draft fixing ALL critical issues. Address warnings if possible.
+Do NOT mention that you fixed anything. Just output the improved answer.
+Do NOT say "Based on SKV Constitution" or "I fixed...".
+Just give the clean, improved answer."""
+    
+    async with httpx.AsyncClient(timeout=60) as c:
+        r = await c.post("https://api.polza.ai/v1/chat/completions",
+            json={
+                "model": "deepseek/deepseek-chat",
+                "messages": [{"role": "user", "content": fix_prompt}],
+                "temperature": 0.3,
+                "max_tokens": 5000
+            },
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {POLZA_KEY}"
+            })
+        data = r.json()
+        return data.get("choices", [{}])[0].get("message", {}).get("content", compiled)
+
+
+
 MODELS = {
     "deepseek": "deepseek/deepseek-v4-flash",
     "qwen": "qwen/qwen3.6-plus",

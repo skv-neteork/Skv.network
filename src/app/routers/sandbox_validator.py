@@ -1,52 +1,73 @@
-"""
-Sandbox-based dimensional analysis.
-Runs PhysicalQuantity validation in isolated Docker container.
-"""
-import httpx, json, asyncio
+"""Sandbox validation — runs code in Docker sandbox, auto-fix cycle."""
+import re, httpx, json, time, asyncio
 
 SANDBOX_URL = "http://172.19.0.8:8000"
+MAX_SANDBOX_ITERATIONS = 5
 
-async def validate_dimensions(latex_formulas: list, task_context: str = "") -> dict:
-    """Send formulas to sandbox for dimensional analysis."""
+async def validate_code_in_sandbox(code: str, expected_output: str = None, timeout: int = 30) -> dict:
+    """Send Python code to sandbox, return result."""
+    sandbox_payload = {"code": code, "language": "python", "timeout": timeout}
+    start = time.time()
+    try:
+        async with httpx.AsyncClient(timeout=timeout + 10) as client:
+            resp = await client.post(f"{SANDBOX_URL}/run", json=sandbox_payload)
+            result = resp.json()
+        elapsed_ms = int((time.time() - start) * 1000)
+        if result.get("status") == "success":
+            output = result.get("stdout", "")
+            error = result.get("stderr", "")
+            if expected_output and expected_output.strip() not in output:
+                return {"success": False, "output": output, "error": f"Expected '{expected_output}' not found", "execution_time_ms": elapsed_ms}
+            return {"success": True, "output": output, "error": error if error else None, "execution_time_ms": elapsed_ms}
+        else:
+            return {"success": False, "output": result.get("stdout", ""), "error": result.get("stderr", "Unknown error"), "execution_time_ms": elapsed_ms}
+    except Exception as e:
+        return {"success": False, "output": "", "error": f"Sandbox error: {str(e)}", "execution_time_ms": int((time.time() - start) * 1000)}
+
+def extract_python_code(text: str) -> list:
+    """Extract ```python ... ``` blocks from text."""
+    return [m.strip() for m in re.findall(r'```python\s*\n(.*?)```', text, re.DOTALL) if m.strip()]
+
+async def validate_with_sandbox(hypothesis_text: str, task_description: str = "") -> dict:
+    """Extract code, run in sandbox, auto-fix up to 5 iterations."""
+    code_blocks = extract_python_code(hypothesis_text)
+    if not code_blocks:
+        return {"validated": True, "reason": "No code to validate", "iterations": 0, "code_blocks": []}
     
-    code = f'''
-import sys
-sys.path.insert(0, "/app/validators")
-from physical_quantity import PhysicalQuantity, DimensionalityError
-from dimensions import LaTeXDimensionValidator
-import json
-
-symbols = {{
-    "u": PhysicalQuantity(2.0, m=1, kg=0, s=-1),
-    "omega": PhysicalQuantity(4.0, m=0, kg=0, s=-1),
-    "mu": PhysicalQuantity(0.001, m=-1, kg=1, s=-1),
-    "dV": PhysicalQuantity(1.0, m=3, kg=0, s=0),
-    "S_ij": PhysicalQuantity(5.0, m=0, kg=0, s=-1),
-    "H": PhysicalQuantity(8.0, m=3, kg=0, s=-2),
-    "nu": PhysicalQuantity(0.001, m=2, kg=0, s=-1),
-}}
-
-validator = LaTeXDimensionValidator(symbols)
-formulas = {json.dumps(latex_formulas)}
-results = []
-
-for f in formulas:
-    ok, res, msg = validator.validate(f)
-    results.append({{
-        "formula": f,
-        "valid": ok,
-        "result": str(res) if ok else None,
-        "message": msg
-    }})
-
-print(json.dumps(results))
-'''
+    results = []
+    for i, code in enumerate(code_blocks):
+        sandbox_result = await validate_code_in_sandbox(code)
+        iteration = {"block_index": i, "code": code, "attempts": [sandbox_result]}
+        current_code = code
+        attempt = 0
+        
+        while not sandbox_result["success"] and attempt < MAX_SANDBOX_ITERATIONS:
+            attempt += 1
+            fix_prompt = f"Fix this Python code that failed in sandbox.\nError: {sandbox_result['error']}\nOutput: {sandbox_result['output'][:500]}\n\nOriginal code:\n```python\n{current_code}\n```\nReturn ONLY the fixed code in ```python``` block."
+            try:
+                async with httpx.AsyncClient(timeout=60) as client:
+                    fix_resp = await client.post("https://api.polza.ai/v1/chat/completions",
+                        headers={"Authorization": f"Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"},
+                        json={"model": "deepseek/deepseek-v4-flash", "messages": [{"role": "user", "content": fix_prompt}], "max_tokens": 2000})
+                    fixed_text = fix_resp.json()["choices"][0]["message"]["content"]
+                fixed_blocks = extract_python_code(fixed_text)
+                if fixed_blocks:
+                    current_code = fixed_blocks[0]
+                    sandbox_result = await validate_code_in_sandbox(current_code)
+                    iteration["attempts"].append(sandbox_result)
+                else:
+                    break
+            except:
+                break
+        
+        iteration["final_success"] = sandbox_result["success"]
+        iteration["total_attempts"] = len(iteration["attempts"])
+        results.append(iteration)
     
-    async with httpx.AsyncClient(timeout=15) as c:
-        r = await c.post(f"{SANDBOX_URL}/run",
-            json={"code": code, "language": "python"})
-        if r.status_code == 200:
-            data = r.json()
-            if data.get("status") == "success":
-                return json.loads(data["stdout"])
-    return [{"valid": False, "message": "Sandbox unavailable"}]
+    all_passed = all(r["final_success"] for r in results)
+    return {
+        "validated": all_passed,
+        "reason": "All blocks passed" if all_passed else f"{sum(1 for r in results if not r['final_success'])} blocks failed",
+        "iterations": sum(r["total_attempts"] for r in results),
+        "code_blocks": results
+    }

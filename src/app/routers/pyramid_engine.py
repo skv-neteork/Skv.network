@@ -84,15 +84,18 @@ async def run_pyramid(task: str, max_iterations: int = 5) -> dict:
         logs.append(f"F3 (Simple): {f3_res[:200]}")
 
         # Critic evaluation
+        f1_sb = "PASS" if has_code(f1_res) and "PASS" in str(f1_res) else ("NO CODE" if not has_code(f1_res) else "FAIL")
+        f2_sb = "PASS" if has_code(f2_res) and "PASS" in str(f2_res) else ("NO CODE" if not has_code(f2_res) else "FAIL")
+        f3_sb = "PASS" if has_code(f3_res) and "PASS" in str(f3_res) else ("NO CODE" if not has_code(f3_res) else "FAIL")
         critic_prompt = f"""{PROMPT_CRITIC}
 
-CREATIVE AGENT:
+CREATIVE AGENT (sandbox: {f1_sb}):
 {f1_res}
 
-LOGIC AGENT:
+LOGIC AGENT (sandbox: {f2_sb}):
 {f2_res}
 
-SIMPLE AGENT:
+SIMPLE AGENT (sandbox: {f3_sb}):
 {f3_res}
 
 ORIGINAL TASK: {task}"""
@@ -111,6 +114,11 @@ ORIGINAL TASK: {task}"""
 
         logs.append(f"Critic: satisfied={critic_json.get('satisfied')}, guidance={critic_json.get('guidance', '')[:200]}")
 
+        all_failed = all(sb == "FAIL" for sb in [f1_sb, f2_sb, f3_sb])
+        if all_failed:
+            critic_json["satisfied"] = False
+            critic_json["next_iteration"] = True
+            critic_json["guidance"] = "ALL agents failed sandbox! Fix imports, syntax, decorators."
         if critic_json.get("satisfied") or not critic_json.get("next_iteration", True):
             logger.info("Critic satisfied. Generating final answer.")
             break

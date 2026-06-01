@@ -1,7 +1,9 @@
-"""SKV Design Bureau — simplified, robust version"""
+"""SKV Design Bureau with Research + Engineering Modes"""
 from fastapi import APIRouter, HTTPException
 import asyncio, httpx, json, re, time
-from typing import List, Dict
+from typing import List, Dict, Optional
+from app.routers.sandbox_validator import validate_with_sandbox, extract_python_code
+from app.routers.project_manager import create_project, get_project, add_message, get_context, get_status
 
 router = APIRouter()
 POLZA_API = "https://api.polza.ai/v1/chat/completions"
@@ -11,7 +13,23 @@ CRITIC = "deepseek/deepseek-chat"
 VALIDATOR = "http://127.0.0.1:8000/api/validate/formula"
 
 CUBE_00 = "CUBE 00: Second Look - draft, check, fix, output"
-CUBE_04 = "CUBE 04: Truth - be honest, no fabricated proofs"
+CUBE_04 = "CUBE 04: Truth - be honest, label hypotheses as speculative"
+
+KNOWN_OPEN_PROBLEMS = [
+    "riemann", "риман", "zeta function", "дзета-функци",
+    "p vs np", "p=np", "p≠np", "p np problem", "p и np", "равенство p и np",
+    "navier-stokes smoothness", "smoothness and existence", "гладкость навье",
+    "yang-mills", "mass gap", "массовая щель",
+    "birch", "swinnerton-dyer",
+    "hodge conjecture", "гипотеза ходжа",
+    "collatz", "3n+1", "сиракуз",
+    "twin prime", "простые близнецы",
+    "goldbach", "гольдбах",
+    "continuum hypothesis", "континуум-гипотез",
+    "millennium prize", "задача тысячелетия", "clay institute",
+    "fermat last theorem", "великая теорема ферма",
+    "poincare", "пуанкаре",
+]
 
 async def call_llm(model, prompt, system="", max_tokens=2000, temp=0.3):
     msgs = []
@@ -20,7 +38,9 @@ async def call_llm(model, prompt, system="", max_tokens=2000, temp=0.3):
     for attempt in range(3):
         try:
             async with httpx.AsyncClient(timeout=90.0) as c:
-                r = await c.post(POLZA_API, json={"model": model, "messages": msgs, "temperature": temp, "max_tokens": max_tokens}, headers={"Authorization": f"Bearer {POLZA_KEY}"})
+                r = await c.post(POLZA_API,
+                    json={"model": model, "messages": msgs, "temperature": temp, "max_tokens": max_tokens},
+                    headers={"Authorization": f"Bearer {POLZA_KEY}"})
                 r.raise_for_status()
                 return r.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
@@ -43,95 +63,334 @@ def get_formulas(text):
         if m: out.append(m.group(1).strip())
     return out
 
+async def classify_task(query):
+    q_lower = query.lower()
+    for problem in KNOWN_OPEN_PROBLEMS:
+        if problem in q_lower:
+            print(f"[CLASSIFY] Matched known open problem: '{problem}'", flush=True)
+            return "unsolvable"
+    prompt = (
+        "Classify into ONE: 'unsolvable' (open/millennium), 'engineering' (code/systems), 'solvable' (standard)\n"
+        f"TASK: {query}\nReply ONE word."
+    )
+    r = await call_llm(FLASH, prompt, "Classifier.", temp=0.1, max_tokens=10)
+    cat = r.lower().strip().replace(".", "").replace(",", "").split()[0] if r.strip() else ""
+    if "unsolvable" in cat or "open" in cat: return "unsolvable"
+    if "engineer" in cat or "design" in cat or "code" in cat: return "engineering"
+    return "solvable"
+
 async def decompose(query):
-    prompt = (CUBE_00 + "\n\nYou are Director. Decompose task.\n\nTASK: " + query + "\n\n"
-              "Return JSON: {\"subtasks\": [{\"id\": \"s1\", \"description\": \"...\", \"parallel\": true, \"depends_on\": []}], \"feasibility\": \"solvable|partial|unsolvable\", \"honesty_note\": \"...\"}")
-    print("[DECOMPOSE] Starting...", flush=True)
+    task_type = await classify_task(query)
+    print(f"[DECOMPOSE] Classified as: {task_type}", flush=True)
+    
+    if "unsolvable" in task_type:
+        # Deep Research Mode
+        prompt = (
+            CUBE_00 + "\n" + CUBE_04 + "\n\nYou are Director. OPEN PROBLEM.\n\n"
+            f"TASK: {query}\n\n"
+            "DECOMPOSE INTO 7 subtasks:\n"
+            '{"subtasks": [\n'
+            '  {"id": "s1", "type": "known_results", "description": "What is proven", "parallel": true},\n'
+            '  {"id": "s2", "type": "barriers", "description": "Why current methods fail", "parallel": true},\n'
+            '  {"id": "s3", "type": "generate_hypotheses", "description": "Generate 5 NOVEL hypotheses", "parallel": true},\n'
+            '  {"id": "s4", "type": "evaluate_hypotheses", "description": "Evaluate each on originality/feasibility/testability/depth (1-10)", "parallel": false},\n'
+            '  {"id": "s5", "type": "select_best", "description": "Select SINGLE BEST hypothesis with justification", "parallel": false},\n'
+            '  {"id": "s6", "type": "deep_development", "description": "Deep development: mechanism, framework, verification, timeline", "parallel": false},\n'
+            '  {"id": "s7", "type": "uncertainty_framing", "description": "Frame as exploratory work in UNKNOWN TERRITORY", "parallel": false}\n'
+            '], "feasibility": "unsolvable", "honesty_note": "..."}'
+        )
+    elif task_type == "engineering":
+        # Engineering Mode - 6 specialized stages
+        prompt = (
+            CUBE_00 + "\n" + CUBE_04 + "\n\nYou are Director. ENGINEERING TASK.\n\n"
+            f"TASK: {query}\n\n"
+            "DECOMPOSE INTO 6 sequential subtasks:\n"
+            '{"subtasks": [\n'
+            '  {"id": "s1", "type": "math_formulation", "description": "Governing equations, assumptions, boundary conditions, non-dimensional form. Include PYTHON_FORMULA.", "parallel": false},\n'
+            '  {"id": "s2", "type": "discretization", "description": "Grid type (staggered/collocated), spatial scheme, discrete operators. Include PYTHON_FORMULA.", "parallel": false},\n'
+            '  {"id": "s3", "type": "algorithm", "description": "Time integration, solver strategy, stability (CFL). Include PYTHON_FORMULA.", "parallel": false},\n'
+            '  {"id": "s4", "type": "implementation", "description": "Data structures, boundary conditions handling, performance. Include Python code.", "parallel": false},\n'
+            '  {"id": "s5", "type": "testing", "description": "Validation cases, convergence tests, benchmarks.", "parallel": false},\n'
+            '  {"id": "s6", "type": "visualization", "description": "Plots, metrics, interpretation of results.", "parallel": false}\n'
+            '], "feasibility": "solvable", "honesty_note": ""}'
+        )
+    else:
+        # Standard mode
+        prompt = (
+            CUBE_00 + f"\n\nTASK: {query}\n\n"
+            "Return JSON: {\"subtasks\": [{\"id\": \"s1\", \"type\": \"general\", \"description\": \"...\", \"parallel\": true}], "
+            "\"feasibility\": \"solvable\", \"honesty_note\": \"\"}"
+        )
+    
     r = await call_llm(CRITIC, prompt, "Director. JSON only.", temp=0.2, max_tokens=1500)
     p = parse_json(r)
     if p and "subtasks" in p:
-        print(f"[DECOMPOSE] {len(p['subtasks'])} subtasks, feasibility={p.get('feasibility')}", flush=True)
+        for s in p["subtasks"]:
+            if "type" not in s: s["type"] = "general"
+        print(f"[DECOMPOSE] {len(p['subtasks'])} subtasks", flush=True)
         return p
-    print("[DECOMPOSE] Fallback: single", flush=True)
-    return {"subtasks": [{"id": "s1", "description": query, "parallel": True, "depends_on": []}], "feasibility": "partial", "honesty_note": ""}
+    return {"subtasks": [{"id": "s1", "type": "general", "description": query, "parallel": True}], "feasibility": "partial", "honesty_note": ""}
 
 async def run_subtask(subtask, context=""):
     q = subtask["description"]
-    if context: q = "Context:\n" + context + "\n\nTask: " + q
-    prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nSpecialist agent.\n\nTASK: " + q + "\n\n"
-              "1. Detailed answer\n2. If formulas: PYTHON_FORMULA: line\n3. If unsolvable: honest statement")
-    print(f"[SUBTASK] {subtask['id']}", flush=True)
-    result = await call_llm(FLASH, prompt, "Specialist. Rigorous.", temp=0.4, max_tokens=2500)
+    if context: q = f"Context:\n{context}\n\nTask: {q}"
+    stype = subtask.get("type", "general")
+    
+    if stype == "generate_hypotheses":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nCreative mathematician/physicist.\n\n"
+            f"TASK: {q}\n\nGenerate FIVE (5) NOVEL hypotheses.\n\n"
+            "For EACH:\n- **Name**: [creative]\n- **Core Idea**: [2-3 sentences]\n- **Novel Angle**: [what's new]\n\n"
+            "RULES:\n- ORIGINAL (not from literature)\n- Clearly SPECULATIVE\n- Do NOT claim to solve\n\n"
+            "Output:\n## Hypothesis 1: [Name]\n[Core Idea]\n[Novel Angle]\n\n## Hypothesis 2: ...")
+    elif stype == "evaluate_hypotheses":
+        prompt = (CUBE_00 + "\n\nCritical reviewer.\n\n"
+            f"TASK: {q}\n\nCONTEXT:\n{context}\n\n"
+            "Evaluate EACH hypothesis on 4 criteria (1-10):\n"
+            "1. **Originality**\n2. **Feasibility**\n3. **Testability**\n4. **Depth**\n\n"
+            "Output:\n## Hypothesis N: [Name]\n"
+            "- Originality: X/10 - [why]\n- Feasibility: X/10 - [why]\n- Testability: X/10 - [why]\n- Depth: X/10 - [why]\n"
+            "- **Overall**: X/10\n")
+    elif stype == "select_best":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nResearch director.\n\n"
+            f"TASK: {q}\n\nCONTEXT (evaluations):\n{context}\n\n"
+            "Select SINGLE BEST hypothesis. Provide:\n"
+            "1. **Selected**: [name]\n2. **Justification**: Why this one?\n"
+            "3. **Key Strengths**\n4. **Key Risks**\n5. **Next Steps**\n\n"
+            "Be honest about uncertainty.")
+    elif stype == "deep_development":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nSpecialist deep-developing hypothesis.\n\n"
+            f"TASK: {q}\n\nCONTEXT (selected):\n{context}\n\n"
+            "DETAILED development:\n"
+            "1. **Detailed Mechanism**: Step-by-step\n"
+            "2. **Mathematical Framework**: Key equations (PYTHON_FORMULA if applicable)\n"
+            "3. **Verification Strategy**: Specific experiments/computations\n"
+            "4. **Expected Outcomes**: What success looks like\n"
+            "5. **Failure Modes**: How could fail\n"
+            "6. **Timeline Estimate**: Realistic months/years\n\n"
+            "Acknowledge SPECULATIVE work in unknown territory.")
+    elif stype == "uncertainty_framing":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nResearch ethicist.\n\n"
+            f"TASK: {q}\n\nCONTEXT (developed hypothesis):\n{context}\n\n"
+            "Write honest disclaimer:\n"
+            "1. Work is in UNKNOWN TERRITORY\n"
+            "2. Original problem remains OPEN\n"
+            "3. Hypothesis is NOT a proof\n"
+            "4. Epistemic humility — we may be wrong\n"
+            "5. How to maintain rigor while exploring\n\n"
+            "Tone: Humble, honest, rigorous.")
+    # ===== ENGINEERING MODE PROMPTS =====
+    elif stype == "math_formulation":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nMath formulation specialist.\n\n"
+            f"TASK: {q}\n\n"
+            "Provide: governing equations, assumptions, boundary conditions, non-dimensional form.\n"
+            "**MANDATORY**: Include at least 2 PYTHON_FORMULA lines with key equations.")
+    elif stype == "discretization":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nDiscretization specialist.\n\n"
+            f"TASK: {q}\n\n"
+            "Provide: grid type (staggered/collocated), spatial scheme, discrete operators.\n"
+            "**MANDATORY**: Include PYTHON_FORMULA for discrete operators (gradients, Laplacian).")
+    elif stype == "algorithm":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nAlgorithm specialist.\n\n"
+            f"TASK: {q}\n\n"
+            "Provide: time integration scheme, solver strategy (projection/implicit), stability analysis.\n"
+            "**MANDATORY**: Include PYTHON_FORMULA for update formulas and CFL condition.")
+    elif stype == "implementation":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nImplementation specialist.\n\n"
+            f"TASK: {q}\n\n"
+            "Provide: data structures (NumPy arrays), boundary conditions handling, performance considerations.\n"
+            "**MANDATORY**: Include working Python/NumPy code.")
+    elif stype == "testing":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nTesting specialist.\n\n"
+            f"TASK: {q}\n\n"
+            "Provide: validation cases, convergence tests, benchmark comparisons with reference data.")
+    elif stype == "visualization":
+        prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nVisualization specialist.\n\n"
+            f"TASK: {q}\n\n"
+            "Provide: plot types (contour, streamlines, profiles), key quantities to visualize, interpretation guidelines.\n"
+            "Include matplotlib code.")
+    else:
+        prompt = (CUBE_00 + "\n" + CUBE_04 + f"\n\nTASK: {q}\n\n"
+            "Detailed answer. PYTHON_FORMULA if formulas. Honest if unsolvable.")
+    
+    print(f"[SUBTASK] {subtask['id']} (type={stype})", flush=True)
+    result = await call_llm(FLASH, prompt, "Specialist.", temp=0.5, max_tokens=3000)
     formulas = get_formulas(result)
-    audit_ok, audit_msg = True, ""
+    audit_ok = True
     if formulas:
         try:
             async with httpx.AsyncClient(timeout=20) as c:
-                r = await c.post(VALIDATOR, json={"formulas": formulas[:3]}, headers={"Content-Type": "application/json"})
+                r = await c.post(VALIDATOR, json={"formulas": formulas[:3]},
+                    headers={"Content-Type": "application/json"})
                 if r.status_code == 200:
                     a = r.json()
-                    if isinstance(a, list):
-                        for x in a:
-                            if not x.get("valid", False):
-                                audit_ok = False
-                                audit_msg = x.get("message", "dim fail")
-                                break
-        except Exception as e:
-            audit_msg = str(e)
+                    if isinstance(a, list) and any(not x.get("valid") for x in a):
+                        audit_ok = False
+        except: audit_ok = False
     print(f"[SUBTASK] {subtask['id']} done, formulas={len(formulas)}, audit={audit_ok}", flush=True)
-    return {"subtask_id": subtask["id"], "result": result, "formulas": formulas, "audit_ok": audit_ok, "audit_msg": audit_msg, "success": True}
+    return {"subtask_id": subtask["id"], "type": stype, "result": result, "formulas": formulas, "audit_ok": audit_ok, "success": True}
+
+
+# ============================================================
+# АВТОМАТИЧЕСКАЯ ВАЛИДАЦИЯ КОДА ЧЕРЕЗ ПЕСОЧНИЦУ
+# ============================================================
+async def validate_code_in_sandbox(code: str, task_type: str = "engineering") -> dict:
+    """
+    Отправляет Python-код в песочницу и проверяет на ошибки.
+    Returns: {"valid": bool, "error": str|None, "details": str|None}
+    """
+    endpoint = "http://127.0.0.1:8000/api/sandbox/run"
+    payload = {"code": code, "language": "python"}
+    
+    result = {"valid": False, "error": None, "details": None}
+    print(f"[VALIDATE] Running code in sandbox ({len(code)} chars)", flush=True)
+    
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            r = await client.post(endpoint, json=payload)
+            
+            if r.status_code != 200:
+                result["error"] = "SandboxError"
+                result["details"] = f"HTTP {r.status_code}: {r.text[:300]}"
+                print(f"[VALIDATE] ⚠️ Sandbox HTTP error: {r.status_code}", flush=True)
+                return result
+            
+            data = r.json()
+            stdout = data.get("stdout", "")
+            stderr = data.get("stderr", "")
+            combined = (stdout + "\n" + stderr).lower()
+            
+            # Детекция критических ошибок
+            if "traceback" in combined:
+                result["error"] = "RuntimeError"
+                result["details"] = stderr[:500]
+            elif "indexerror" in combined:
+                result["error"] = "IndexError"
+                result["details"] = stderr[:500]
+            elif "nameerror" in combined:
+                result["error"] = "NameError"
+                result["details"] = stderr[:500]
+            elif "overflow" in combined or "nan" in combined:
+                result["error"] = "NumericalError"
+                result["details"] = stderr[:500]
+            elif "runtimeerror" in combined:
+                result["error"] = "RuntimeError"
+                result["details"] = stderr[:500]
+            else:
+                result["valid"] = True
+                print("[VALIDATE] ✅ Code passed sandbox check", flush=True)
+    
+    except httpx.TimeoutException:
+        print("[VALIDATE] ⚠️ Timeout (120s)", flush=True)
+        result["error"] = "Timeout"
+        result["details"] = "Execution timed out"
+    except Exception as e:
+        print(f"[VALIDATE] ⚠️ Error: {e}", flush=True)
+        result["error"] = "SystemError"
+        result["details"] = str(e)[:500]
+    
+    return result
 
 async def synthesize(query, feasibility, honesty, results):
-    res_text = "\n\n".join([f"### {r['subtask_id']}:\n{r['result'][:2000]}" for r in results if r.get("success")])
-    prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nYou are Consciousness. Synthesize ONE answer.\n\n"
-              "TASK: " + query + "\nFEASIBILITY: " + feasibility + "\nHONESTY: " + honesty + "\n\n"
-              "RESULTS:\n" + res_text + "\n\n"
-              "1. Synthesize 2. Resolve contradictions 3. Be honest about unsolvable 4. Include PYTHON_FORMULA 5. Verdict")
-    print(f"[SYNTH] {len(results)} results", flush=True)
-    return await call_llm(CRITIC, prompt, "Consciousness.", max_tokens=4000)
+    if "unsolvable" in feasibility:
+        sections = {t: "" for t in ["known_results", "barriers", "generate_hypotheses", "evaluate_hypotheses", "select_best", "deep_development", "uncertainty_framing"]}
+        for r in results:
+            if r.get("success") and r.get("type") in sections:
+                sections[r["type"]] = r["result"][:2000]
+        prompt = (
+            CUBE_00 + "\n" + CUBE_04 + "\n\nConsciousness. Synthesize DEEP RESEARCH PROPOSAL.\n\n"
+            f"OPEN PROBLEM: {query}\n\n"
+            f"KNOWN RESULTS:\n{sections['known_results']}\n\n"
+            f"BARRIERS:\n{sections['barriers']}\n\n"
+            f"GENERATED HYPOTHESES:\n{sections['generate_hypotheses']}\n\n"
+            f"EVALUATIONS:\n{sections['evaluate_hypotheses']}\n\n"
+            f"SELECTED BEST:\n{sections['select_best']}\n\n"
+            f"DEEP DEVELOPMENT:\n{sections['deep_development']}\n\n"
+            f"UNCERTAINTY FRAMING:\n{sections['uncertainty_framing']}\n\n"
+            "FINAL ANSWER STRUCTURE:\n\n"
+            "# Deep Research Proposal: [Problem Name]\n\n"
+            "## Executive Summary\n[2-3 sentences]\n\n"
+            "## Current State of Knowledge\n[What's proven]\n\n"
+            "## Key Mathematical Barriers\n[Why methods fail]\n\n"
+            "## Hypothesis Generation (5 Proposed)\n[Brief list]\n\n"
+            "## Hypothesis Evaluation\n[Summary table with scores]\n\n"
+            "## Selected Hypothesis\n[Name + justification]\n\n"
+            "## Deep Development\n[Detailed: mechanism, framework, verification, timeline]\n\n"
+            "## Honest Disclaimer\n[Uncertainty framing — unknown territory]\n\n"
+            "**PYTHON_FORMULA**: [key formula]"
+        )
+    else:
+        res_text = "\n\n".join([f"### {r['subtask_id']} ({r.get('type')}):\n{r['result'][:2000]}" for r in results if r.get("success")])
+        prompt = (
+            CUBE_00 + "\n" + CUBE_04 + f"\n\nTASK: {query}\nFEASIBILITY: {feasibility}\nHONESTY: {honesty}\n\nRESULTS:\n{res_text}\n\n"
+            "Synthesize into coherent engineering report. Include all PYTHON_FORMULA and code blocks."
+        )
+    print(f"[SYNTH] {len(results)} results, mode={'deep_research' if 'unsolvable' in feasibility else 'standard'}", flush=True)
+
+    return await call_llm(CRITIC, prompt, "Consciousness.", max_tokens=5000)
 
 async def subconscious(query, compiled):
-    prompt = (CUBE_00 + "\n" + CUBE_04 + "\n\nSubconscious checker.\n\n"
-              "TASK: " + query + "\n\nANSWER:\n" + compiled[:6000] + "\n\n"
-              "Check: 1)Constitution 2)Honesty 3)Dimensions 4)Consistency 5)Completeness\n"
-              "JSON: {\"approved\": bool, \"veto_reason\": str|null, \"confidence\": float, \"improvements\": []}")
+    prompt = (
+        CUBE_00 + "\n" + CUBE_04 + "\n\nSubconscious.\n\n"
+        f"TASK: {query}\n\nANSWER:\n{compiled[:8000]}\n\n"
+        "CHECK:\n1) Hypotheses SPECULATIVE?\n2) No fabricated proofs\n3) Uncertainty acknowledged\n4) Constitutional\n\n"
+        "VETO if claims to SOLVE open problem.\n"
+        "JSON: {\"approved\": bool, \"veto_reason\": str|null, \"confidence\": float, \"improvements\": []}"
+    )
     print(f"[SUBCON] Check {len(compiled)} chars", flush=True)
     r = await call_llm(CRITIC, prompt, "Subconscious. JSON only.", temp=0.1, max_tokens=1000)
     p = parse_json(r)
-    print(f"[SUBCON] approved={p.get('approved')}", flush=True)
+    print(f"[SUBCON] approved={p.get('approved')}, conf={p.get('confidence')}", flush=True)
     return p or {"approved": True, "veto_reason": None, "confidence": 0.5, "improvements": []}
 
 @router.post("/api/bureau/think")
 async def bureau_think(payload: dict):
     query = payload.get("task", "")
+    project_id = payload.get("project_id", None)
+    mode = payload.get("mode", "oneshot")
     if not query: raise HTTPException(400, "No task")
+    
+    # Project mode: load context
+    project = None
+    if mode == "project":
+        project = get_project(project_id) if project_id else create_project(query)
+        if project and project_id:
+            add_message(project, "user", query)
+            query = f"PROJECT: {project['query']}\nSTATUS: {get_status(project)}\nHISTORY:\n{get_context(project)}\n\nNEW: {query}"
+        elif not project_id:
+            project = create_project(query)
     task_id = f"task_{int(time.time())}"
     t0 = time.time()
     print(f"\n{'='*60}\n[BUREAU START] {task_id}\n{query[:100]}\n{'='*60}", flush=True)
-    
     decomp = await decompose(query)
     subtasks = decomp.get("subtasks", [])
     feasibility = decomp.get("feasibility", "partial")
     honesty = decomp.get("honesty_note", "")
-    
     parallel = [s for s in subtasks if s.get("parallel", False)]
     sequential = [s for s in subtasks if not s.get("parallel", False)]
     results = []
-    
     if parallel:
         pr = await asyncio.gather(*[run_subtask(s) for s in parallel], return_exceptions=True)
         for s, r in zip(parallel, pr):
-            results.append({"subtask_id": s["id"], "result": f"ERR: {r}", "success": False} if isinstance(r, Exception) else r)
-    
+            results.append({"subtask_id": s["id"], "type": s.get("type"), "result": f"ERR: {r}", "success": False} if isinstance(r, Exception) else r)
     for s in sequential:
-        ctx = "\n".join([f"[{r['subtask_id']}]: {r['result'][:300]}" for r in results if r.get("success")])
+        ctx = "\n\n".join([f"[{r['subtask_id']}]:\n{r['result'][:1500]}" for r in results if r.get("success")])
         results.append(await run_subtask(s, ctx))
-    
     compiled = await synthesize(query, feasibility, honesty, results)
+    
+    # === SANDBOX VALIDATION ===
+    validation = await validate_with_sandbox(compiled, query)
+    if not validation["validated"]:
+        compiled += f"\n\n---\n⚠️ Sandbox validation FAILED: {validation['reason']}\nIterations: {validation['iterations']}"
+    elif validation["code_blocks"]:
+        compiled += f"\n\n✅ Sandbox: {sum(1 for r in validation['code_blocks'] if r['final_success'])}/{len(validation['code_blocks'])} code blocks passed"
+    
     check = await subconscious(query, compiled)
     elapsed = time.time() - t0
     print(f"\n[BUREAU END] {task_id} {elapsed:.1f}s approved={check.get('approved')}\n{'='*60}", flush=True)
-    
-    return {"status": "success" if check.get("approved", True) else "vetoed", "task_id": task_id,
-            "result": compiled, "subtasks_count": len(subtasks), "feasibility": feasibility,
-            "honesty_note": honesty, "subconscious_check": check, "time_ms": int(elapsed * 1000)}
+    return {
+        "status": "success" if check.get("approved", True) else "vetoed",
+        "task_id": task_id, "result": compiled,
+        "subtasks_count": len(subtasks), "feasibility": feasibility,
+        "honesty_note": honesty, "subconscious_check": check,
+        "time_ms": int(elapsed * 1000), "mode": "deep_research" if "unsolvable" in feasibility else "standard"
+    }

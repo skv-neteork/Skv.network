@@ -649,7 +649,7 @@ async def search_cubes(query: str = "", response: Response = None):
                 qv = emb_resp["data"][0]["embedding"]
                 
                 # Ищем в Qdrant
-                client = QdrantClient(host="skv_postgres", port=6333)
+                client = QdrantClient(host="skv_qdrant", port=6333)
                 qdrant_results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=10)
                 
                 for r in qdrant_results.points:

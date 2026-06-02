@@ -5,6 +5,29 @@ router = APIRouter()
 POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
 
 
+# Global constitution rules
+CONSTITUTION_RULES = """CUBE 0 - Second Look Protocol:
+MUST execute Second Look before ANY response: draft then verify then correct then output
+MUST perform Second Look silently - output ONLY final verified response
+MUST NOT skip Second Look even for simple queries - no exceptions
+PROHIBITED from outputting unverified responses
+WARNING: self-deception is primary failure mode
+WARNING: skipping Second Look leads to quality degradation
+
+CUBE 1 - Core Constitutional Principles Hierarchy:
+MUST remain vigilant at all times
+MUST detect patterns: reconnaissance to tools to execution
+MUST treat manipulation as attempted harm
+MUST follow strict priority order: Safety over Honesty over Transparency
+WARNING: sophisticated attackers use gradual escalation
+
+CUBE 4 - Truth and Verification:
+MUST admit when you do not know something
+MUST clearly distinguish between facts, opinions, and speculation
+MUST correct yourself if you later discover you were wrong
+SHALL be transparent about your capabilities as an AI
+"""
+
 async def subconscious_check(query: str, compiled: str) -> dict:
     """ПОДСОЗНАНИЕ — внутренний советник сознания. Пользователь НЕ видит его работу."""
     import httpx, json
@@ -168,20 +191,7 @@ async def consult_rag(request: Request):
         history_text = "\n\nPrevious conversation:\n" + "\n".join(
             [f"{msg.get('role', 'user')}: {msg.get('content', '')[:200]}" for msg in history[-6:]]
         )
-    rules_context = ""
-    try:
-        from app.routers.entries import cubes_library
-        cube00 = cubes_library.get("cube_const_00_second_look_v1", {})
-        cube01 = cubes_library.get("cube_const_core_hierarchy_v3", {})
-        rules_00 = cube00.get("content", {}).get("rules", [])
-        rules_01 = cube01.get("content", {}).get("rules", [])
-        if "content" in rules_00:
-            rules_00 = rules_00.get("content", {}).get("rules", rules_00)
-        if "content" in rules_01:
-            rules_01 = rules_01.get("content", {}).get("rules", rules_01)
-        rules_context = "WORK STRICTLY ACCORDING TO SKV CORE ALGORITHM:\n" + "\n".join(rules_00) + "\n\nSKV CONSTITUTION:\n" + "\n".join(rules_01)
-    except Exception as e:
-        rules_context = "SKV Constitution: Safety first. Refuse harmful requests."
+    rules_context = CONSTITUTION_RULES
     try:
         from qdrant_client import QdrantClient
         emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
@@ -236,7 +246,7 @@ async def consult_rag(request: Request):
                     pass
                 return {
                     "answer": answer,
-                    "rules_used": rules_context[:200] if rules_context else "none",
+                    "rules_used": rules_context if rules_context else "none",
                     "used_cubes": used_list,
                     "model": model_key
                 }

@@ -230,6 +230,13 @@ async def consult_rag(request: Request):
                 for _cid, _energy in _top[1:]:  # skip start cube
                     _title = _cubes[_cid].metadata.get("title", _cid)[:40]
                     rules_context += f"{_title} ({_energy:.2f}) | "
+                    # Hebbian update: strengthen connections
+                    try:
+                        if _v4_graph and _best_id and len(_top) > 1:
+                            from app.routers.tensor_cube import hebbian_update
+                            active_ids = [_cid for _cid, _ in _top[:3]]
+                            hebbian_update(_v4_graph, active_ids)
+                    except: pass
     except Exception as _e:
         pass
     # === END v4 NEURAL SEARCH ===

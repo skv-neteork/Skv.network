@@ -1,0 +1,40 @@
+"""V4 Auth Middleware — извлекает user_id из API токена."""
+from fastapi import Request, HTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+import asyncpg
+
+DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres/skv_db"
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Пропускаем публичные эндпоинты
+        public_paths = ["/api/time", "/api/v1/info", "/api/consult", "/api/cubes", "/.well-known", "/docs", "/openapi.json"]
+        if any(request.url.path.startswith(p) for p in public_paths):
+            return await call_next(request)
+        
+        # Извлекаем токен
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if not token:
+            # Для персональных эндпоинтов — токен обязателен
+            if "/api/v4/sessions" in request.url.path or "/api/v4/users" in request.url.path:
+                raise HTTPException(status_code=401, detail="API token required")
+            return await call_next(request)
+        
+        # Проверяем токен в БД
+        try:
+            conn = await asyncpg.connect(DATABASE_URL)
+            user = await conn.fetchrow("SELECT id FROM users WHERE api_token = $1", token)
+            await conn.close()
+            
+            if user:
+                request.state.user_id = str(user["id"])
+            else:
+                raise HTTPException(status_code=401, detail="Invalid token")
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[AUTH] DB error: {e}", flush=True)
+            # Если БД недоступна — разрешаем с user_id из тела запроса
+            pass
+        
+        return await call_next(request)

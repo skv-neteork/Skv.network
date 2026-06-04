@@ -43,3 +43,4 @@ def run_hebbian_cycle():
         print(f"[V4] Hebbian error: {e}", flush=True)
 
 run_hebbian_cycle()
+

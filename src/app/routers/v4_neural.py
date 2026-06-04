@@ -8,7 +8,7 @@ def run_decay_cycle():
         _graph = get_graph()
         if _graph:
             for _cube in _graph.values():
-                if hasattr(_cube, 'decay_connections'):
+                if hasattr(_cube, 'decay_connections') and not _cube.metadata.get('constitutional'):
                     _cube.decay_connections()
             print(f"[V4] Decay applied to {len(_graph)} cubes", flush=True)
     except Exception as e:
@@ -24,7 +24,9 @@ def run_neural_cycle() -> str:
         print(f"[V4] Neural cycle on {len(_graph)} cubes", flush=True)
         
         # Hebbian update на активных кубах
-        active_ids = list(_graph.keys())[:5]
+        # Не трогаем конституционные кубы
+        non_const = [cid for cid, cb in _graph.items() if not cb.metadata.get('constitutional')]
+        active_ids = (non_const or list(_graph.keys()))[:5]
         hebbian_update(_graph, active_ids)
         print(f"[V4] Hebbian updated {len(active_ids)} cubes", flush=True)
         

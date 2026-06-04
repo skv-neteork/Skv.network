@@ -19,3 +19,27 @@ def get_graph():
             _conns = sum(len(_c.connections) for _c in _v4_graph.values())
             print(f"[V4] Loaded from JSON: {len(_v4_graph)} cubes, {_conns} connections", flush=True)
     return _v4_graph
+
+import threading, time, json, os
+
+def auto_save_loop(interval_sec=3600):
+    """Save graph to JSON every hour."""
+    while True:
+        time.sleep(interval_sec)
+        try:
+            _path = os.path.join(os.path.dirname(__file__), 'v4_graph.json')
+            _data = {}
+            for _cid, _cube in _v4_graph.items():
+                _data[_cid] = {'vector': _cube.vector.tolist(), 'connections': _cube.connections, 'metadata': _cube.metadata}
+            with open(_path, 'w') as _f:
+                json.dump(_data, _f)
+            print(f"[V4] Graph saved: {len(_v4_graph)} cubes", flush=True)
+            
+            # Decay all connections
+            for _cube in _v4_graph.values():
+                _cube.decay_connections()
+        except Exception as _e:
+            print(f"[V4] Save error: {_e}", flush=True)
+
+# Start auto-save in background
+threading.Thread(target=auto_save_loop, daemon=True).start()

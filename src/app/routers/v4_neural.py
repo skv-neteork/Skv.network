@@ -9,8 +9,18 @@ def run_decay_cycle():
         if _graph:
             for _cube in _graph.values():
                 if hasattr(_cube, 'decay_connections') and not _cube.metadata.get('constitutional'):
-                    _cube.decay_connections()
-            print(f"[V4] Decay applied to {len(_graph)} cubes", flush=True)
+                    # Adaptive rate: usage_count越高, decay越慢
+                    usage = _cube.metadata.get('usage_count', 0)
+                    if usage > 100:
+                        rate = 0.999   # почти не забывает (0.1% за цикл)
+                    elif usage > 10:
+                        rate = 0.99    # нормально (1% за цикл)
+                    elif usage > 0:
+                        rate = 0.95    # быстро забывает (5% за цикл)
+                    else:
+                        rate = 0.9     # очень быстро (10% за цикл) — мусор
+                    _cube.decay_connections(rate=rate)
+            print(f"[V4] Adaptive Decay applied to {len(_graph)} cubes", flush=True)
     except Exception as e:
         print(f"[V4] Decay error: {e}", flush=True)
 

@@ -242,15 +242,12 @@ async def consult_rag(request: Request):
     # === END v4 NEURAL SEARCH ===
     # V4 Hybrid Search: Qdrant → TensorCube
     qv = get_embedding_cached(query)
-    try:
-        from app.routers.v4_search import hybrid_search
-        _hybrid_results = hybrid_search(qv)
-        if _hybrid_results:
-            rules_context += " | v4 Hybrid: "
-            for _r in _hybrid_results[:3]:
-                rules_context += f"{_r['title']} ({_r['energy']}) | "
-    except Exception as e:
-        pass
+    from app.routers.v4_search import hybrid_search
+    _hybrid_results = hybrid_search(qv)
+    if _hybrid_results:
+        rules_context += " | v4 Hybrid: "
+        for _r in _hybrid_results[:3]:
+            rules_context += f"{_r['title']} ({_r['energy']}) | "
 
     user_msg = rules_context + history_text + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
     system_prompt = f"Chief Designer SKV Bureau. Current user: {user_id}. Be concise. No formalities. Talk like a colleague. Before project: 1) SKV Pack — download at https://skv.network/profile 2) Language? Stack? Budget? Deadline? 3) Present skeleton. Memory: 1 day = 1 anketa per project. Sessions auto-save to Memory Index. L0 cache shows your last session. Download SKV Pack to see full history."

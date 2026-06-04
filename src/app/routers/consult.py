@@ -240,18 +240,15 @@ async def consult_rag(request: Request):
     except Exception as _e:
         pass
     # === END v4 NEURAL SEARCH ===
+    # V4 Hybrid Search: Qdrant → TensorCube
+    qv = get_embedding_cached(query)
     try:
-        from qdrant_client import QdrantClient
-        qv = get_embedding_cached(query)
-
-        client = QdrantClient(host="skv_qdrant", port=6333)
-        results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=3)
-        relevant = [r for r in results.points if hasattr(r, 'score') and r.score > 0.3][:2]
-        if relevant:
-            rules = [r.payload["title"] + ": " + r.payload.get("text", "") for r in relevant]
-            rules_context += " | Found: " + " | ".join(rules)
-        else:
-            relevant = []
+        from app.routers.v4_search import hybrid_search
+        _hybrid_results = hybrid_search(qv)
+        if _hybrid_results:
+            rules_context += " | v4 Hybrid: "
+            for _r in _hybrid_results[:3]:
+                rules_context += f"{_r['title']} ({_r['energy']}) | "
     except Exception as e:
         pass
 

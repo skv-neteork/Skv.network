@@ -58,6 +58,43 @@ async def call_llm(model: str, prompt: str, system: str = "", max_tokens: int = 
     return "ERROR: all retries failed"
 
 
+
+class VetoError(Exception):
+    """Critical algorithmic flaw detected."""
+    pass
+
+def validate_agent_response(response, agent_name):
+    """Check for common issues before Critic evaluation."""
+    issues = []
+    
+    # Check for stubs
+    stubs = ['TODO', 'pass', '...', 'script from above', 'implement later']
+    for stub in stubs:
+        if stub in response:
+            issues.append(f"STUB: found '{stub}'")
+    
+    # Check for Python syntax errors in code blocks
+    import re
+    code_blocks = re.findall(r'```python\s*\n(.*?)```', response, re.DOTALL)
+    for i, code in enumerate(code_blocks):
+        try:
+            compile(code, f'<{agent_name}_block_{i}>', 'exec')
+        except SyntaxError as e:
+            issues.append(f"SYNTAX: {str(e)[:100]}")
+    
+    # Compute completeness score
+    completeness = 1.0
+    if issues:
+        completeness = max(0.0, 1.0 - len(issues) * 0.2)
+    
+    return {
+        'valid': len(issues) == 0,
+        'issues': issues,
+        'completeness': completeness,
+        'stability': 1.0 if len(issues) == 0 else 0.5
+    }
+
+
 async def run_pyramid(task: str, max_iterations: int = 5) -> dict:
     """Run iterative pyramid: 3 Flash agents + Critic loop"""
     start_time = time.time()
@@ -83,6 +120,19 @@ async def run_pyramid(task: str, max_iterations: int = 5) -> dict:
         logs.append(f"F2 (Logic): {f2_res[:200]}")
         logs.append(f"F3 (Simple): {f3_res[:200]}")
 
+        # Validate agents before Critic
+        f1_check = validate_agent_response(f1_res, "Creative")
+        f2_check = validate_agent_response(f2_res, "Logic")
+        f3_check = validate_agent_response(f3_res, "Simple")
+        
+        all_valid = f1_check['valid'] and f2_check['valid'] and f3_check['valid']
+        if not all_valid:
+            issues = []
+            if not f1_check['valid']: issues.extend(f1_check['issues'])
+            if not f2_check['valid']: issues.extend(f2_check['issues'])
+            if not f3_check['valid']: issues.extend(f3_check['issues'])
+            print(f"[CRITIC] Issues: {issues}", flush=True)
+        
         # Critic evaluation
         f1_sb = "PASS" if has_code(f1_res) and "PASS" in str(f1_res) else ("NO CODE" if not has_code(f1_res) else "FAIL")
         f2_sb = "PASS" if has_code(f2_res) and "PASS" in str(f2_res) else ("NO CODE" if not has_code(f2_res) else "FAIL")

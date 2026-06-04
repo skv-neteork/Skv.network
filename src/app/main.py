@@ -7,6 +7,7 @@ from app.routers.trials import router as trials_router
 from app.routers.task_queue import router as task_queue_router
 from app.routers.auth import router as auth_router
 from app.routers.consult import router as consult_router
+from app.routers.tensor_api import router as tensor_router
 from app.routers.exports import router as exports_router
 from app.routers.execute import router as execute_router
 from app.routers.execute_code import router as code_executor_router
@@ -41,6 +42,7 @@ app.include_router(trials_router)
 app.include_router(task_queue_router)
 app.include_router(auth_router)
 app.include_router(consult_router)
+app.include_router(tensor_router)
 app.include_router(exports_router)
 app.include_router(code_executor_router)
 app.include_router(constructor_router)

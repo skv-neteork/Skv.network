@@ -1,0 +1,114 @@
+"""SKV v4.0 — TensorCube: Neural Knowledge Unit"""
+import numpy as np
+from typing import Dict, Optional, Set
+from datetime import datetime
+import uuid
+
+class TensorCube:
+    """Core semantic memory unit for SKV v4.0 neural graph."""
+    
+    def __init__(self, cube_id: str = None, vector: np.ndarray = None, metadata: Optional[Dict] = None):
+        self.cube_id = cube_id or str(uuid.uuid4())[:8]
+        if vector is None:
+            self.vector = np.random.randn(1536).astype(np.float32)
+        else:
+            self.vector = np.array(vector, dtype=np.float32)
+        self.vector = self._normalize(self.vector)
+        self.connections: Dict[str, float] = {}
+        self.metadata = {
+            'usage_count': 0, 'success_count': 0, 'stability': 0.5,
+            'created_at': datetime.now().isoformat(),
+            'last_accessed': datetime.now().isoformat()
+        }
+        if metadata: self.metadata.update(metadata)
+    
+    def _normalize(self, v: np.ndarray) -> np.ndarray:
+        norm = np.linalg.norm(v)
+        return v / norm if norm > 1e-12 else np.random.randn(1536).astype(np.float32) / np.sqrt(1536)
+    
+    def update_embedding(self, new_vector: np.ndarray, lr: float = 0.1, decay: float = 0.01) -> None:
+        new_vector = np.array(new_vector, dtype=np.float32)
+        self.vector = self._normalize((1 - decay) * self.vector + lr * new_vector)
+        self.metadata['usage_count'] += 1
+        self.metadata['last_accessed'] = datetime.now().isoformat()
+        change = np.linalg.norm(new_vector - self.vector)
+        self.metadata['stability'] = 0.9 * self.metadata['stability'] + 0.1 * (1.0 - min(change, 1.0))
+    
+    def add_connection(self, cube_id: str, strength: float = 0.5) -> None:
+        self.connections[cube_id] = max(0.0, min(1.0, strength))
+    
+    def strengthen_connection(self, cube_id: str, delta: float = 0.1) -> None:
+        current = self.connections.get(cube_id, 0.0)
+        self.connections[cube_id] = min(1.0, current + delta)
+    
+    def decay_connections(self, rate: float = 0.99, threshold: float = 0.01) -> int:
+        pruned, to_remove = 0, []
+        for cid, strength in self.connections.items():
+            ns = strength * rate
+            if ns < threshold: to_remove.append(cid); pruned += 1
+            else: self.connections[cid] = ns
+        for cid in to_remove: del self.connections[cid]
+        return pruned
+    
+    def get_top_connections(self, n: int = 5) -> list:
+        return sorted(self.connections.items(), key=lambda x: -x[1])[:n]
+    
+    def fitness(self) -> float:
+        return self.metadata['usage_count'] * self.metadata['stability']
+    
+    def to_dict(self) -> dict:
+        return {'cube_id': self.cube_id, 'vector': self.vector.tolist(), 'connections': self.connections, 'metadata': self.metadata}
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> 'TensorCube':
+        cube = cls(cube_id=data['cube_id'], vector=np.array(data['vector'], dtype=np.float32), metadata=data.get('metadata', {}))
+        cube.connections = data.get('connections', {})
+        return cube
+    
+    def __repr__(self) -> str:
+        return f"TensorCube({self.cube_id}, connections={len(self.connections)}, used={self.metadata['usage_count']}x)"
+
+
+def spread_activation(start_cube: TensorCube, get_cube_fn: callable, energy: float = 1.0, max_depth: int = 3, decay: float = 0.85, threshold: float = 0.1) -> Dict[str, float]:
+    activated = {start_cube.cube_id: energy}
+    visited: Set[str] = set()
+    frontier = [(start_cube, energy)]
+    for _ in range(max_depth):
+        new_frontier = []
+        for cube, curr_e in frontier:
+            if cube.cube_id in visited: continue
+            visited.add(cube.cube_id)
+            for nid, strength in cube.connections.items():
+                if strength < threshold: continue
+                new_e = curr_e * strength * decay
+                if nid not in activated or new_e > activated[nid]:
+                    activated[nid] = new_e
+                    try:
+                        nc = get_cube_fn(nid)
+                        if nc: new_frontier.append((nc, new_e))
+                    except: pass
+        frontier = new_frontier
+    return activated
+
+
+def hebbian_update(cubes: Dict[str, TensorCube], active_ids: list, lr: float = 0.1, decay: float = 0.99) -> None:
+    for i, id1 in enumerate(active_ids):
+        if id1 not in cubes: continue
+        for id2 in active_ids[i+1:]:
+            if id2 not in cubes: continue
+            cubes[id1].strengthen_connection(id2, lr)
+            cubes[id2].strengthen_connection(id1, lr)
+    for cube in cubes.values(): cube.decay_connections(rate=decay)
+
+
+def evolve_cubes(parent1: TensorCube, parent2: TensorCube, mutation_rate: float = 0.1) -> TensorCube:
+    child_vector = (parent1.vector + parent2.vector) / 2.0
+    if np.random.random() < mutation_rate:
+        child_vector += np.random.normal(0, 0.05, 1536).astype(np.float32)
+    child = TensorCube(vector=child_vector)
+    all_conns = set(parent1.connections.keys()) | set(parent2.connections.keys())
+    for cid in all_conns:
+        s1, s2 = parent1.connections.get(cid, 0.0), parent2.connections.get(cid, 0.0)
+        child.connections[cid] = (s1 + s2) / 2.0
+    child.metadata['stability'] = (parent1.metadata['stability'] + parent2.metadata['stability']) / 2.0
+    return child

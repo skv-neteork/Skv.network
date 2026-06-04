@@ -22,6 +22,9 @@ app = FastAPI(title="SKV Network", version="2.0")
 
 @app.on_event("startup")
 async def on_startup():
+    from app.routers.v4_graph import get_graph, _v4_graph
+    get_graph()
+    print(f"[V4] Graph loaded at startup: {len(_v4_graph)} cubes", flush=True)
     await startup()
 
 

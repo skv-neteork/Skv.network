@@ -225,7 +225,7 @@ async def run_subtask(subtask, context=""):
         _q_vec = _np.array(_emb_resp["data"][0]["embedding"], dtype=_np.float32)
         
         # Find closest cubes from global graph
-        from app.routers.consult import _v4_graph
+        from app.routers.v4_graph import _v4_graph
         if _v4_graph:
             _best_id, _best_sim = None, -1.0
             for _cid, _cube in _v4_graph.items():

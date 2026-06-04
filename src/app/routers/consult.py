@@ -1,6 +1,7 @@
 import json, urllib.request as _req, time as _time
 from fastapi import APIRouter, Request
 from app.routers.tensor_cube import TensorCube, spread_activation
+from app.routers.v4_middleware import get_embedding_cached
 import numpy as np
 
 router = APIRouter()
@@ -234,12 +235,7 @@ async def consult_rag(request: Request):
     # === END v4 NEURAL SEARCH ===
     try:
         from qdrant_client import QdrantClient
-        emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
-        emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
-            "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
-        })
-        emb_resp = _req.urlopen(emb_req, timeout=15)
-        qv = json.loads(emb_resp.read())["data"][0]["embedding"]
+        qv = get_embedding_cached(query)
 
         client = QdrantClient(host="skv_qdrant", port=6333)
         results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=3)

@@ -20,12 +20,55 @@ import io, zipfile, os
 app = FastAPI(title="SKV Network", version="2.0")
 
 
-@app.on_event("startup")
-async def on_startup():
+from contextlib import asynccontextmanager
+import asyncio
+
+@asynccontextmanager
+async def lifespan(app):
+    # Startup: загружаем граф и запускаем Hebbian + Decay + Auto-save
     from app.routers.v4_graph import get_graph, _v4_graph
+    from app.routers.v4_neural import run_hebbian_cycle, run_decay_cycle
+    
     get_graph()
-    print(f"[V4] Graph loaded at startup: {len(_v4_graph)} cubes", flush=True)
+    print(f"[V4] Graph loaded: {len(_v4_graph)} cubes, {sum(len(c.connections) for c in _v4_graph.values())} connections", flush=True)
+    
+    # Фоновая задача: Hebbian каждые 30 секунд, Decay каждые 5 минут, Auto-save каждые 30 минут
+    async def neuro_loop():
+        import time, json, os
+        last_decay = time.time()
+        last_save = time.time()
+        while True:
+            await asyncio.sleep(30)
+            try:
+                # Hebbian
+                run_hebbian_cycle()
+                
+                # Decay раз в 5 минут
+                if time.time() - last_decay > 300:
+                    run_decay_cycle()
+                    last_decay = time.time()
+                
+                # Auto-save раз в 30 минут
+                if time.time() - last_save > 1800:
+                    _path = os.path.join(os.path.dirname(__file__), 'routers', 'v4_graph.json')
+                    _tmp = _path + '.tmp'
+                    _data = {}
+                    for _cid, _cube in _v4_graph.items():
+                        _data[_cid] = {'vector': _cube.vector.tolist(), 'connections': _cube.connections, 'metadata': _cube.metadata}
+                    with open(_tmp, 'w') as _f:
+                        json.dump(_data, _f)
+                    os.replace(_tmp, _path)
+                    print(f"[V4] Graph auto-saved: {len(_v4_graph)} cubes", flush=True)
+                    last_save = time.time()
+            except Exception as _e:
+                print(f"[V4] Neuro loop error: {_e}", flush=True)
+    
+    _task = asyncio.create_task(neuro_loop())
     await startup()
+    yield
+    _task.cancel()
+
+app = FastAPI(title="SKV Network", version="4.0", lifespan=lifespan)
 
 
 @app.middleware("http")

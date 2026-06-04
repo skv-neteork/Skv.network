@@ -33,3 +33,8 @@ def run_neural_cycle() -> str:
     except Exception as e:
         print(f"[V4] Neural error: {e}", flush=True)
         return ""
+
+# Alias для lifespan
+def run_hebbian_cycle():
+    """Вызов Hebbian learning — используется в lifespan main.py."""
+    run_neural_cycle()

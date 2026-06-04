@@ -2,6 +2,18 @@
 from app.routers.v4_graph import get_graph
 from app.routers.tensor_cube import hebbian_update
 
+def run_decay_cycle():
+    """Ослабляет неиспользуемые связи."""
+    try:
+        _graph = get_graph()
+        if _graph:
+            for _cube in _graph.values():
+                if hasattr(_cube, 'decay_connections'):
+                    _cube.decay_connections()
+            print(f"[V4] Decay applied to {len(_graph)} cubes", flush=True)
+    except Exception as e:
+        print(f"[V4] Decay error: {e}", flush=True)
+
 def run_neural_cycle() -> str:
     """Запускает spreading activation и Hebbian update. Возвращает контекст для LLM."""
     try:

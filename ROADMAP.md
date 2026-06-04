@@ -12,7 +12,7 @@
 - [x] /api/v1/info (1197 cubes)
 
 ## 🔥 Срочно
-- [ ] **Adaptive Decay** — умное забывание на основе usage_count
+- [x] **Adaptive Decay** — умное забывание ✅ на основе usage_count
 - [ ] **Персональная память проектов** — user_id + project, бесконечный контекст
 - [ ] **Обновить конституционные кубы** — тексты под v4 TensorCube
 
@@ -22,6 +22,8 @@
 - [ ] **Восстановить Trials + Evolver**
 
 ## 📦 Масштабирование (когда > 10 000 кубов)
+- [x] **Hybrid Search** (Qdrant → TensorCube) ✅
+- [x] **"Сон" графа** (consolidation cycle) ✅
 - [ ] Hierarchical Topology (meta-узлы)
 - [ ] Qdrant int8 (квантование)
 - [ ] RocksDB (холодное хранение)

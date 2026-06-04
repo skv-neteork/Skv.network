@@ -64,6 +64,25 @@ async def lifespan(app):
                 print(f"[V4] Neuro loop error: {_e}", flush=True)
     
     _task = asyncio.create_task(neuro_loop())
+
+    async def consolidation_cycle():
+        """Ночной цикл: pruning мёртвых кубов."""
+        while True:
+            await asyncio.sleep(3600)
+            try:
+                from app.routers.v4_graph import _v4_graph
+                pruned = 0
+                for _cid, _cube in list(_v4_graph.items()):
+                    if _cube.metadata.get("constitutional"):
+                        continue
+                    if _cube.metadata.get("usage_count", 0) == 0 and _cube.metadata.get("stability", 0.5) < 0.1:
+                        del _v4_graph[_cid]
+                        pruned += 1
+                if pruned:
+                    print(f"[V4] Pruned {pruned} dead cubes", flush=True)
+            except Exception as _e:
+                print(f"[V4] Consolidation error: {_e}", flush=True)
+    asyncio.create_task(consolidation_cycle())
     await startup()
     yield
     _task.cancel()

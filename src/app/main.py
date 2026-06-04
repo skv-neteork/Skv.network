@@ -56,12 +56,15 @@ app.include_router(execute_router)
 
 @app.get("/api/v1/info")
 async def api_info():
-    from app.routers.entries import cubes_library
+    from app.routers.v4_graph import _v4_graph
     return {
         "service": "SKV Network",
-        "version": "2.0",
-        "status": "running",
-        "cubes_count": len(cubes_library)
+        "version": "4.0",
+        "status": "production",
+        "cubes_count": len(_v4_graph),
+        "connections": sum(len(cube.connections) for cube in _v4_graph.values()),
+        "graph_loaded": len(_v4_graph) > 0,
+        "cache_enabled": True
     }
 @app.get("/.well-known/skv")
 async def discovery():

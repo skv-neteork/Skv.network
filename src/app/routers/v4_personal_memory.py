@@ -126,3 +126,57 @@ async def list_projects(user_id: str):
                 "last_active": data[-1].get("timestamp", 0) if data else 0
             })
     return {"projects": sorted(projects, key=lambda x: -x['last_active'])}
+
+# ========== CUBE CREATION API ==========
+class CubeCreate(BaseModel):
+    title: str
+    text: str
+    user_id: str = "anonymous"
+    shared: bool = False  # опубликовать в общий граф?
+
+@router.post("/api/v4/cubes")
+async def create_cube(data: CubeCreate):
+    """Создаёт новый куб с авто-эмбеддингом через Polza API."""
+    try:
+        from app.routers.v4_middleware import get_embedding_cached
+        from app.routers.v4_graph import get_graph
+        from app.routers.tensor_cube import TensorCube
+        import numpy as np, uuid, time
+        
+        # Генерируем эмбеддинг
+        embedding = get_embedding_cached(data.text)
+        
+        # Создаём куб
+        cube_id = f"cube_{uuid.uuid4().hex[:12]}"
+        tc = TensorCube(cube_id, np.array(embedding, dtype=np.float32))
+        tc.metadata = {
+            "title": data.title,
+            "text": data.text[:500],
+            "user_id": data.user_id,
+            "shared": data.shared,
+            "usage_count": 0,
+            "stability": 0.5,
+            "created_at": time.time()
+        }
+        
+        # Добавляем в граф
+        _graph = get_graph()
+        _graph[cube_id] = tc
+        
+        # Связываем с похожими кубами через cosine similarity
+        for existing_id, existing_cube in list(_graph.items())[:50]:
+            if existing_id != cube_id:
+                sim = float(np.dot(tc.vector, existing_cube.vector))
+                if sim > 0.7:
+                    tc.add_connection(existing_id, sim)
+                    existing_cube.add_connection(cube_id, sim)
+        
+        return {
+            "status": "created",
+            "cube_id": cube_id,
+            "title": data.title,
+            "connections": len(tc.connections),
+            "total_cubes": len(_graph)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -27,3 +27,19 @@ async def v4_stats():
 async def clear_cache():
     _embedding_cache.clear()
     return {'cleared': True}
+
+# Автоматический Hebbian cycle при импорте
+from app.routers.v4_graph import get_graph
+from app.routers.tensor_cube import hebbian_update
+
+def run_hebbian_cycle():
+    try:
+        _graph = get_graph()
+        if _graph:
+            active_ids = list(_graph.keys())[:5]
+            hebbian_update(_graph, active_ids)
+            print(f"[V4] Hebbian updated {len(active_ids)} cubes", flush=True)
+    except Exception as e:
+        print(f"[V4] Hebbian error: {e}", flush=True)
+
+run_hebbian_cycle()

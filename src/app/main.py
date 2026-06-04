@@ -6,6 +6,7 @@ from app.routers.pages import router as pages_router
 from app.routers.trials import router as trials_router
 from app.routers.task_queue import router as task_queue_router
 from app.routers.auth import router as auth_router
+from app.routers.v4_personal_memory import router as pm_router
 from app.routers.consult import router as consult_router
 from app.routers.tensor_api import router as tensor_router
 from app.routers.exports import router as exports_router
@@ -106,6 +107,7 @@ app.include_router(entries_router)
 app.include_router(trials_router)
 app.include_router(task_queue_router)
 app.include_router(auth_router)
+app.include_router(pm_router)
 app.include_router(consult_router)
 app.include_router(tensor_router)
 app.include_router(exports_router)

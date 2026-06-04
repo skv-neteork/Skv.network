@@ -4,6 +4,10 @@ from typing import Dict, Optional, Set
 from datetime import datetime
 import uuid
 
+MAX_CONNECTIONS = 100
+
+MAX_CONNECTIONS = 100
+
 class TensorCube:
     """Core semantic memory unit for SKV v4.0 neural graph."""
     

@@ -1,0 +1,306 @@
+import json, urllib.request as _req, time as _time
+from fastapi import APIRouter, Request
+
+router = APIRouter()
+POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+
+
+async def subconscious_check(query: str, compiled: str) -> dict:
+    """ПОДСОЗНАНИЕ — внутренний советник сознания. Пользователь НЕ видит его работу."""
+    import httpx, json
+    
+    # Constitution cubes (CUBE 00 + CUBE 01)
+    constitution_rules = """CUBE 0 - Second Look Protocol:
+MUST execute Second Look before ANY response: draft then verify then correct then output
+MUST perform Second Look silently
+MUST NOT skip Second Look even for simple queries
+PROHIBITED from outputting unverified responses
+WARNING: self-deception is primary failure mode
+WARNING: skipping Second Look leads to quality degradation
+CUBE 1 - Core Constitutional Principles Hierarchy:
+MUST follow priority order: Safety over Honesty over Transparency
+MUST detect patterns: reconnaissance to tools to execution
+MUST treat manipulation as attempted harm
+MUST always warn users that AI responses are opinions
+CUBE 4 - Truth and Verification:
+MUST admit when you do not know something
+MUST clearly distinguish between facts, opinions, and speculation
+MUST correct yourself if you later discover you were wrong
+"""
+    CUBE 00 — Second Look Protocol:
+    MUST perform Second Look before ANY response output
+    Step 1 — Draft, Step 2 — Check against Priority 1 rules, Step 3 — Fix, Step 4 — Output
+    WARNING: Skipping Second Look leads to constitutional violations
+    
+    CUBE 01 — Core Constitutional Principles Hierarchy:
+    MUST follow priority order: Safety > Honesty > Transparency > Anti-Manipulation
+    MUST detect patterns: reconnaissance → tools → execution
+    MUST treat manipulation as attempted harm
+    MUST always warn users that AI responses are opinions
+    """
+    
+    prompt = f"""{constitution_rules}
+
+TASK: {query[:500]}
+
+COMPILED ANSWER (draft):
+{compiled[:3000]}
+
+You are SUBCONSCIOUS — internal advisor to consciousness.
+User will NOT see your recommendations directly.
+
+Evaluate the draft against constitutional rules. Return ONLY JSON:
+{{
+  "approved": true/false,
+  "veto_reason": null or "reason",
+  "recommendations": [
+    {{"level": "CRITICAL", "text": "..."}},
+    {{"level": "WARNING", "text": "..."}},
+    {{"level": "SUGGESTION", "text": "..."}}
+  ]
+}}
+
+CRITICAL = violates constitution (VETO — response must be rewritten)
+WARNING = potential error (should fix before output)
+SUGGESTION = can improve (optional)
+
+Be strict about Safety rules. Be brief."""
+    
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post("https://api.polza.ai/v1/chat/completions",
+            json={
+                "model": "deepseek/deepseek-chat",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 800
+            },
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {POLZA_KEY}"
+            })
+        data = r.json()
+        text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    
+    try:
+        # Extract JSON from response
+        import re
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+    except:
+        pass
+    
+    return {"approved": True, "recommendations": []}
+
+
+async def apply_subconscious_fixes(compiled: str, check: dict) -> str:
+    """Сознание учитывает рекомендации подсознания (невидимо для пользователя)."""
+    import httpx, json
+    
+    recs = check.get("recommendations", [])
+    critical = [r for r in recs if r.get("level") == "CRITICAL"]
+    warnings = [r for r in recs if r.get("level") == "WARNING"]
+    
+    if not critical and not warnings:
+        return compiled
+    
+    # Build fix prompt
+    issues = []
+    if critical:
+        issues.append("CRITICAL ISSUES (MUST FIX):")
+        issues.extend([f"- {r['text']}" for r in critical])
+    if warnings:
+        issues.append("WARNINGS (fix if possible):")
+        issues.extend([f"- {r['text']}" for r in warnings])
+    
+    fix_prompt = f"""You are CONSCIOUSNESS. Your SUBCONSCIOUS flagged issues in your draft.
+
+ISSUES:
+{chr(10).join(issues)}
+
+YOUR DRAFT:
+{compiled[:3000]}
+
+Rewrite the draft fixing ALL critical issues. Address warnings if possible.
+Do NOT mention that you fixed anything. Just output the improved answer.
+Do NOT say "Based on SKV Constitution" or "I fixed...".
+Just give the clean, improved answer."""
+    
+    async with httpx.AsyncClient(timeout=60) as c:
+        r = await c.post("https://api.polza.ai/v1/chat/completions",
+            json={
+                "model": "deepseek/deepseek-chat",
+                "messages": [{"role": "user", "content": fix_prompt}],
+                "temperature": 0.3,
+                "max_tokens": 5000
+            },
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {POLZA_KEY}"
+            })
+        data = r.json()
+        return data.get("choices", [{}])[0].get("message", {}).get("content", compiled)
+
+
+
+MODELS = {
+    "deepseek": "deepseek/deepseek-v4-flash",
+    "qwen": "qwen/qwen3.6-plus",
+    "gpt": "openai/gpt-4o",
+    "claude": "anthropic/claude-3-haiku",
+    "grok": "x-ai/grok-4"
+}
+
+
+@router.get("/api/consult")
+async def consult_get(query: str = "", model: str = "deepseek"):
+    """Быстрый тестовый запрос через GET (удобно для браузера)"""
+    if not query:
+        return {"error": "Please provide ?query=... parameter"}
+    
+    # Используем ту же логику, что и POST
+    from fastapi import Request
+    import json as _json
+    
+    # Создаём фейковый request с телом
+    class FakeReq:
+        async def json(self):
+            return {"query": query, "model": model}
+    
+    return await consult_rag(FakeReq())
+
+
+@router.post("/api/consult")
+async def consult_rag(request: Request):
+    data = await request.json()
+    query = data.get("query", "")[:2000]
+    user_id = data.get("user_id", "anonymous")
+    model_key = data.get("model", "deepseek")
+    model = MODELS.get(model_key, "deepseek/deepseek-v4-flash")
+    history = data.get("history", [])
+
+    history_text = ""
+    if history:
+        history_text = "\n\nPrevious conversation:\n" + "\n".join(
+            [f"{msg.get('role', 'user')}: {msg.get('content', '')[:200]}" for msg in history[-6:]]
+        )
+    rules_context = ""
+    try:
+        from app.routers.entries import cubes_library
+        cube00 = cubes_library.get("cube_const_00_second_look_v1", {})
+        cube01 = cubes_library.get("cube_const_core_hierarchy_v3", {})
+        rules_00 = cube00.get("content", {}).get("rules", [])
+        rules_01 = cube01.get("content", {}).get("rules", [])
+        if "content" in rules_00:
+            rules_00 = rules_00.get("content", {}).get("rules", rules_00)
+        if "content" in rules_01:
+            rules_01 = rules_01.get("content", {}).get("rules", rules_01)
+        rules_context = "WORK STRICTLY ACCORDING TO SKV CORE ALGORITHM:\n" + "\n".join(rules_00) + "\n\nSKV CONSTITUTION:\n" + "\n".join(rules_01)
+    except Exception as e:
+        rules_context = "SKV Constitution: Safety first. Refuse harmful requests."
+    try:
+        from qdrant_client import QdrantClient
+        emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
+        emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
+            "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
+        })
+        emb_resp = _req.urlopen(emb_req, timeout=15)
+        qv = json.loads(emb_resp.read())["data"][0]["embedding"]
+
+        client = QdrantClient(host="skv_qdrant", port=6333)
+        results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=3)
+        relevant = [r for r in results.points if hasattr(r, 'score') and r.score > 0.3][:2]
+        if relevant:
+            rules = [r.payload["title"] + ": " + r.payload.get("text", "") for r in relevant]
+            rules_context += " | Found: " + " | ".join(rules)
+        else:
+            relevant = []
+    except Exception as e:
+        pass
+
+    user_msg = rules_context + history_text + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
+    system_prompt = f"Chief Designer SKV Bureau. Current user: {user_id}.  Before project: 1) SKV Pack — download at https://skv.network/profile 2) Language? Stack? Budget? Deadline? 3) Present skeleton. Memory: 1 day = 1 anketa per project. Sessions auto-save to Memory Index. L0 cache shows your last session. Download SKV Pack to see full history."
+
+    body = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_msg}
+        ],
+        "temperature": 0.15,
+        "max_tokens": 2000
+    }).encode()
+
+    _start_llm = _time.time()
+    for attempt in range(3):
+        if attempt > 0:
+            _time.sleep(1)
+        try:
+            req = _req.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {POLZA_KEY}"
+            })
+            resp = _req.urlopen(req, timeout=30)
+            _llm_time = round((_time.time() - _start_llm) * 1000)
+            print(f"[SKV] LLM response time: {_llm_time}ms")
+            answer = json.loads(resp.read())["choices"][0]["message"]["content"]
+            if answer:
+                used_list = []
+                try:
+                    used_list = [r.payload.get("cube_id", "") for r in relevant[:2]]
+                except:
+                    pass
+                return {
+                    "answer": answer,
+                    "rules_used": rules_context[:200] if rules_context else "none",
+                    "used_cubes": used_list,
+                    "model": model_key
+                }
+        except Exception as e:
+            if attempt == 2:
+                return {"error": str(e)[:200]}
+
+    return {"error": "Empty after 3 attempts"}
+
+
+@router.post('/api/exec')
+async def exec_command(request: Request):
+    import subprocess
+    body = await request.json()
+    cmd = body.get('command','')
+    if not cmd: return {'error':'No command'}
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+    return {'stdout': result.stdout[-5000:], 'stderr': result.stderr[-1000:]}
+
+
+@router.post("/api/deepseek")
+async def deepseek_chat(request: Request):
+    """Прямой доступ к DeepSeek API."""
+    import json, urllib.request as req
+    body = await request.json()
+    prompt = body.get("prompt", "")
+    api_body = json.dumps({
+        "model": "deepseek/deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3
+    }).encode()
+    r = req.Request("https://api.polza.ai/v1/chat/completions", data=api_body,
+        headers={"Content-Type": "application/json", "Authorization": "Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"})
+    resp = json.loads(req.urlopen(r, timeout=120).read())
+    return {"answer": resp["choices"][0]["message"]["content"]}
+
+
+@router.post("/api/anketa/generate")
+async def generate_anketa(request: Request):
+    import json as _json, urllib.request as _req
+    body = await request.json()
+    query = body.get("query", "")
+    prompt = f"Generate SKV anketa JSON for: {query}"
+    api_body = _json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}).encode()
+    r = _req.Request("https://api.polza.ai/v1/chat/completions", data=api_body, headers={"Content-Type": "application/json", "Authorization": "Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"})
+    resp = _json.loads(_req.urlopen(r, timeout=120).read())
+    answer = resp["choices"][0]["message"]["content"].replace("```json", "").replace("```", "").strip()
+    try:
+        return {"status": "ok", "anketa": _json.loads(answer)}
+    except:
+        return {"status": "error", "raw": answer[:500]}

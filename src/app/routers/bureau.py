@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException
 import asyncio, httpx, json, re, time
 from typing import List, Dict, Optional
+from app.routers.tensor_cube import TensorCube, spread_activation, hebbian_update
 from app.routers.sandbox_validator import validate_with_sandbox, extract_python_code
 from app.routers.project_manager import create_project, get_project, add_message, get_context, get_status
 
@@ -213,6 +214,39 @@ async def run_subtask(subtask, context=""):
             "Detailed answer. PYTHON_FORMULA if formulas. Honest if unsolvable.")
     
     print(f"[SUBTASK] {subtask['id']} (type={stype})", flush=True)
+    # === SKV v4.0 NEURAL CONTEXT ===
+    try:
+        import numpy as _np, httpx as _hx
+        # Get query embedding
+        _emb_body = _js.dumps({"model": "text-embedding-3-small", "input": q[:500]}).encode()
+        _emb_req = __import__('urllib.request').request.Request("https://api.polza.ai/v1/embeddings", 
+            data=_emb_body, headers={"Content-Type": "application/json", "Authorization": "Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"})
+        _emb_resp = _js.loads(__import__('urllib.request').request.urlopen(_emb_req, timeout=10).read())
+        _q_vec = _np.array(_emb_resp["data"][0]["embedding"], dtype=_np.float32)
+        
+        # Find closest cubes from global graph
+        from app.routers.consult import _v4_graph
+        if _v4_graph:
+            _best_id, _best_sim = None, -1.0
+            for _cid, _cube in _v4_graph.items():
+                _sim = float(_np.dot(_q_vec, _cube.vector))
+                if _sim > _best_sim:
+                    _best_id, _best_sim = _cid, _sim
+            
+            if _best_id and _best_sim > 0.4:
+                _activated = spread_activation(_v4_graph[_best_id], lambda _id: _v4_graph.get(_id), max_depth=2)
+                _top = sorted(_activated.items(), key=lambda _x: -_x[1])[:5]
+                if _top:
+                    _v4_context = "\n[Neural knowledge: "
+                    for _cid, _energy in _top:
+                        _title = _v4_graph[_cid].metadata.get("title", _cid)[:50]
+                        _v4_context += f"{_title} | "
+                    _v4_context += "]\n"
+                    q = _v4_context + q
+    except Exception as _e:
+        pass
+    # === END v4 NEURAL CONTEXT ===
+    
     result = await call_llm(FLASH, prompt, "Specialist.", temp=0.5, max_tokens=3000)
     formulas = get_formulas(result)
     audit_ok = True

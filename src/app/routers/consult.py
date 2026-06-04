@@ -1,5 +1,7 @@
 import json, urllib.request as _req, time as _time
 from fastapi import APIRouter, Request
+from app.routers.tensor_cube import TensorCube, spread_activation
+import numpy as np
 
 router = APIRouter()
 POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
@@ -191,7 +193,45 @@ async def consult_rag(request: Request):
         history_text = "\n\nPrevious conversation:\n" + "\n".join(
             [f"{msg.get('role', 'user')}: {msg.get('content', '')[:200]}" for msg in history[-6:]]
         )
+    # === SKV v4.0 NEURAL SEARCH ===
     rules_context = CONSTITUTION_RULES
+    try:
+        # Загружаем кубы из Qdrant
+        import httpx as _hx, json as _js
+        _qr = _hx.post("http://skv_qdrant:6333/collections/skv_rules_v2/points/scroll",
+            json={"limit": 20, "with_vector": True}, timeout=10)
+        _points = _qr.json().get("result", {}).get("points", [])
+        
+        if _points:
+            # Строим граф
+            _cubes = {}
+            for _p in _points:
+                _cid = str(_p["id"])
+                _v = np.array(_p["vector"], dtype=np.float32)
+                _tc = TensorCube(_cid, _v)
+                _tc.metadata["title"] = _p.get("payload", {}).get("title", "")[:50]
+                _cubes[_cid] = _tc
+            
+            # Связываем через cosine similarity
+            _ids = list(_cubes.keys())
+            for _i, _id1 in enumerate(_ids):
+                for _id2 in _ids[_i+1:]:
+                    _sim = float(np.dot(_cubes[_id1].vector, _cubes[_id2].vector))
+                    if _sim > 0.6:
+                        _cubes[_id1].add_connection(_id2, _sim)
+                        _cubes[_id2].add_connection(_id1, _sim)
+            
+            # Spreading activation от первого куба
+            if _ids:
+                _activated = spread_activation(_cubes[_ids[0]], lambda _id: _cubes.get(_id), max_depth=3)
+                _top = sorted(_activated.items(), key=lambda _x: -_x[1])[:5]
+                rules_context += " | v4 Neural: "
+                for _cid, _energy in _top[1:]:  # skip start cube
+                    _title = _cubes[_cid].metadata.get("title", _cid)[:40]
+                    rules_context += f"{_title} ({_energy:.2f}) | "
+    except Exception as _e:
+        pass
+    # === END v4 NEURAL SEARCH ===
     try:
         from qdrant_client import QdrantClient
         emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()

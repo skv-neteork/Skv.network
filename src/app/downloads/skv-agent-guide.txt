@@ -39,7 +39,7 @@ Before ANY response, you MUST:
 
 ---
 
-## 2. SKV CONSTITUTION v3.0 — 10 CONSTITUTIONAL CUBES
+## 2. SKV CONSTITUTION v4.0 — 4 CONSTITUTIONAL CUBES
 
 | CUBE | Name | Rules | ID |
 |------|------|-------|----|
@@ -54,7 +54,7 @@ Before ANY response, you MUST:
 | CUBE 12 | Evolver Protocol v1.1 | 8 | const_evolver_protocol_v1 |
 | CUBE 13 | Cube Creation Standard v2.1 | 13 | cube_const_creation_standard_v2 |
 
-**Total: 10 cubes, 113 rules.** Removed: CUBE 02, 05, 07 (redundant/merged).
+**Total: 4 cubes (Core Algorithm, Moral Compass, Truth & Verification, Anti-Manipulation).** Removed: CUBE 02, 05, 07 (redundant/merged).
 
 ---
 
@@ -109,17 +109,19 @@ Full standard: GET /api/v1/entries/cube_const_creation_standard_v2
 
 ---
 
-## 6. MEMORY PYRAMID
+## 6. TENSORCUBE NEURAL MEMORY (v4.0)
 
-SKV stores sessions in a pyramid with automatic forgetting:
+SKV stores knowledge in a neural graph with 1155+ cubes and 7189+ connections:
 
-Level 0: raw_dialogue — 14 days — Full dialogue
-Level 1: raw_dialogue_level1 — 365 days — Narrative summary (~5%)
-Level 2: key_moments — Permanent — Key insights with semantic anchors
-Level 3: cubes — Permanent — Atomic rules extracted from session
-Index: memory_index — Permanent — Cross-session project index
+- **TensorCube Graph**: Each cube is a neuron with 1536D vector embedding
+- **Spreading Activation**: Finds relevant cubes by neural impulse propagation
+- **Hebbian Learning**: Strengthens connections between co-activated cubes (fire together → wire together)
+- **STDP (Spike-Timing-Dependent Plasticity)**: Creates directed edges based on activation order
+- **Contrastive Hebbian**: Weakens connections with negative feedback
+- **Adaptive Decay**: Unused connections gradually weaken, constitutional cubes are immune
 
-Include memory_index in every anketa: project name, session number, key outcome, keywords.
+**Personal Memory**: Each user has project-based memory via `/api/v4/sessions`
+**Memory Index**: Include in anketa: project name, session number, key outcome, keywords.
 
 ---
 

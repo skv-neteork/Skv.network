@@ -15,6 +15,8 @@ def get_graph():
             for _cid, _cube_data in _data.items():
                 _tc = TensorCube(_cid, np.array(_cube_data['vector'], dtype=np.float32))
                 _tc.connections = _cube_data.get('connections', {})
+                _tc.connections.update(_cube_data.get('outgoing_connections', {}))
+                _tc.connections.update(_cube_data.get('outgoing_connections', {}))
                 _tc.metadata = _cube_data.get('metadata', {})
                 _v4_graph[_cid] = _tc
             _conns = sum(len(_c.connections) for _c in _v4_graph.values())
@@ -31,7 +33,7 @@ def auto_save_loop(interval_sec=3600):
             _path = '/data/skv/graph.json'
             _data = {}
             for _cid, _cube in _v4_graph.items():
-                _data[_cid] = {'vector': _cube.vector.tolist(), 'connections': _cube.connections, 'metadata': _cube.metadata}
+                _data[_cid] = {'vector': _cube.vector.tolist(), 'connections': _cube.connections, 'outgoing_connections': _cube.outgoing_connections if hasattr(_cube, 'outgoing_connections') else {}, 'metadata': _cube.metadata}
             with open(_path, 'w') as _f:
                 json.dump(_data, _f)
             print(f"[V4] Graph saved: {len(_v4_graph)} cubes", flush=True)

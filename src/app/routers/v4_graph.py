@@ -37,6 +37,7 @@ def auto_save_loop(interval_sec=3600):
             with open(_path, 'w') as _f:
                 json.dump(_data, _f)
             print(f"[V4] Graph saved: {len(_v4_graph)} cubes", flush=True)
+            print(f"[V4] Graph saved: {len(_v4_graph)} cubes", flush=True)
             
             # Decay all connections
             for _cube in _v4_graph.values():

@@ -196,3 +196,7 @@ async def discovery():
             }
         }
     }
+@app.get("/api/v4/graph/stats")
+async def graph_stats():
+    from app.routers.v4_graph import _v4_graph
+    return {"nodes": len(_v4_graph), "edges": sum(len(c.connections) for c in _v4_graph.values()), "status": "live"}

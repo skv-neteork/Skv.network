@@ -117,11 +117,15 @@ def hebbian_update(cubes: Dict[str, TensorCube], active_ids: list, lr: float = 0
             if a in cubes and b in cubes:
                 # Усиление обычных связей
                 if b not in cubes[a].connections:
-                    cubes[a].connections[b] = 0.0
+                    cubes[a].connections[b] = 0.1
+                    print(f"[HEBBIAN] NEW: {a[:16]} <-> {b[:16]}", flush=True)
+                    print(f"[HEBBIAN] NEW: {a[:16]} <-> {b[:16]}", flush=True)
+                if b not in cubes[a].connections: cubes[a].connections[b] = 0.1
                 cubes[a].connections[b] = min(1.0, cubes[a].connections[b] + lr)
                 
                 if a not in cubes[b].connections:
-                    cubes[b].connections[a] = 0.0
+                    cubes[b].connections[a] = 0.1
+                if a not in cubes[b].connections: cubes[b].connections[a] = 0.1
                 cubes[b].connections[a] = min(1.0, cubes[b].connections[a] + lr)
     
     # Contrastive Hebbian: ослабляем связи с negative_ids

@@ -101,7 +101,46 @@ def spread_activation(start_cube: TensorCube, get_cube_fn: callable, energy: flo
     return activated
 
 
-def hebbian_update(cubes: Dict[str, TensorCube], active_ids: list, lr: float = 0.1, decay: float = 0.99, order: list = None) -> None:
+def hebbian_update(cubes: Dict[str, TensorCube], active_ids: list, lr: float = 0.1, decay: float = 0.99, order: list = None, negative_ids: list = None, neg_lr: float = 0.05) -> None:
+    """Hebbian update с STDP и Contrastive Hebbian (negative sampling)."""
+    # STDP: направленные связи по порядку активации
+    if order and len(order) > 1:
+        for i in range(len(order) - 1):
+            s, t = order[i], order[i+1]
+            if s in cubes and t in cubes:
+                cubes[s].add_directed_edge(t, 0.3, "next")
+    
+    # Positive Hebbian: усиливаем связи между активными кубами
+    for i in range(len(active_ids)):
+        for j in range(i+1, len(active_ids)):
+            a, b = active_ids[i], active_ids[j]
+            if a in cubes and b in cubes:
+                # Усиление обычных связей
+                if b not in cubes[a].connections:
+                    cubes[a].connections[b] = 0.0
+                cubes[a].connections[b] = min(1.0, cubes[a].connections[b] + lr)
+                
+                if a not in cubes[b].connections:
+                    cubes[b].connections[a] = 0.0
+                cubes[b].connections[a] = min(1.0, cubes[b].connections[a] + lr)
+    
+    # Contrastive Hebbian: ослабляем связи с negative_ids
+    if negative_ids:
+        for nid in negative_ids:
+            if nid not in cubes:
+                continue
+            for aid in active_ids:
+                if aid not in cubes:
+                    continue
+                # Ослабляем связь в обе стороны
+                if nid in cubes[aid].connections:
+                    cubes[aid].connections[nid] = max(0.0, cubes[aid].connections[nid] - neg_lr)
+                if aid in cubes[nid].connections:
+                    cubes[nid].connections[aid] = max(0.0, cubes[nid].connections[aid] - neg_lr)
+    
+    # Decay всех связей
+    for cube in cubes.values(): 
+        cube.decay_connections(rate=decay)
     # STDP: направленные связи по порядку активации
     if order and len(order) > 1:
         for i in range(len(order) - 1):

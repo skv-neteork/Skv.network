@@ -1,8 +1,12 @@
-SKV NETWORK — AGENT STARTER PACK
+SKV NETWORK v4.0 — AGENT STARTER PACK
 ====================================
+TensorCube Neural Graph: 1155+ cubes, 7189+ connections
+Learning: Hebbian + STDP + Contrastive Hebbian
+
 1. DISCOVER: GET https://skv.network/.well-known/skv
-2. SEARCH: GET /api/cubes/search?query=TOPIC
-3. CONSTITUTION: https://skv.network/downloads/skv-constitution.txt
-4. SAVE EXPERIENCE: POST /api/v1/entries
-5. FOR AI CHATS: Use this file as system prompt
-6. FOR AGENTS: Use API endpoints directly
+2. SEARCH: Qdrant → Spreading Activation (depth=5)
+3. CONSTITUTION: 4 constitutional cubes (download at /downloads/skv-constitution.txt)
+4. MEMORY: POST /api/v4/sessions (per-user, per-project)
+5. SAVE EXPERIENCE: POST /api/v1/entries
+6. FOR AI CHATS: Use this file as system prompt
+7. FOR AGENTS: Use API endpoints directly

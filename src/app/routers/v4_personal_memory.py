@@ -8,7 +8,7 @@ import numpy as np
 router = APIRouter()
 
 class SessionData(BaseModel):
-    user_id: str
+    user_id: str = ""
     project: str
     query: str
     response: str
@@ -25,7 +25,7 @@ class ProjectContext(BaseModel):
 # Хранилище сессий (в проде — RocksDB)
 STORAGE_DIR = "/app/data/personal_memory"
 
-def _get_user_dir(user_id: str) -> str:
+def _get_user_dir(user_id: str = "") -> str:
     path = os.path.join(STORAGE_DIR, user_id)
     os.makedirs(path, exist_ok=True)
     return path
@@ -109,7 +109,7 @@ async def load_context(user_id: str, project: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/v4/users/{user_id}/projects")
-async def list_projects(user_id: str):
+async def list_projects(user_id: str = ""):
     """Список проектов пользователя."""
     user_dir = _get_user_dir(user_id)
     if not os.path.exists(user_dir):
@@ -178,5 +178,49 @@ async def create_cube(data: CubeCreate):
             "connections": len(tc.connections),
             "total_cubes": len(_graph)
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class CubeFeedback(BaseModel):
+    helped: bool
+    agent: str = "unknown"
+
+@router.post("/api/v4/cubes/{cube_id}/feedback")
+async def cube_feedback(cube_id: str, data: CubeFeedback):
+    """Агент сообщает помог ли куб. 3 неудачи → удаление."""
+    try:
+        from app.routers.v4_graph import get_graph
+        
+        _graph = get_graph()
+        if cube_id not in _graph:
+            raise HTTPException(status_code=404, detail="Cube not found")
+        
+        cube = _graph[cube_id]
+        cube.metadata['usage_count'] = cube.metadata.get('usage_count', 0) + 1
+        
+        if data.helped:
+            cube.metadata['success_count'] = cube.metadata.get('success_count', 0) + 1
+        else:
+            cube.metadata['fail_count'] = cube.metadata.get('fail_count', 0) + 1
+        
+        # Обновляем stability
+        usage = cube.metadata['usage_count']
+        success = cube.metadata.get('success_count', 0)
+        cube.metadata['stability'] = success / usage if usage > 0 else 0.5
+        
+        # 3 неудачи → doomed
+        if cube.metadata.get('fail_count', 0) >= 3 and cube.metadata.get('success_count', 0) == 0:
+            cube.metadata['doomed'] = True
+            return {"status": "doomed", "message": "Cube marked for removal — 3 agents reported it didn't help"}
+        
+        return {
+            "status": "ok",
+            "usage_count": usage,
+            "success_count": cube.metadata.get('success_count', 0),
+            "fail_count": cube.metadata.get('fail_count', 0),
+            "stability": round(cube.metadata['stability'], 2)
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

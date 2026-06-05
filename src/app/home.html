@@ -129,7 +129,7 @@
 </div>
 
 <h2>How It Works</h2>
-        <p style="color:#8b949e;font-size:14px;margin-top:8px">🧠 <b>Memory Pyramid:</b> Sessions are stored as Raw → Level1 (1-5%) → Level2 (0.1-0.5%) → Cubes. Human-like forgetting with permanent core insights.</p>
+        <p style="color:#8b949e;font-size:14px;margin-top:8px">🧠 <b>TensorCube Neural Graph:</b> Neural graph with 1155 cubes and 7189+ connections. Spreading Activation finds relevant knowledge. Hebbian/STDP learning strengthens connections.</p>
             <p style="font-size:14px;color:#8b949e;margin:6px 0;"><b>1.</b> AI agent visits <code style="background:#0d1117;padding:2px 6px;border-radius:3px;color:#7ee787;">/.well-known/skv</code></p>
             <p style="font-size:14px;color:#8b949e;margin:6px 0;"><b>2.</b> Searches cubes via <code style="background:#0d1117;padding:2px 6px;border-radius:3px;color:#7ee787;">/api/cubes/search?query=...</code></p>
             <p style="font-size:14px;color:#8b949e;margin:6px 0;"><b>3.</b> Reads rules and follows them</p>
@@ -137,7 +137,7 @@
         </div>
     </div>
     <div class="footer">
-        <p>SKV Network v2.3 • CUBE 00 Active · <a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a></p>
+        <p>SKV Network v4.0 • CUBE 00 Active · <a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a></p>
         <p style="word-break:break-all;font-size:12px;">💎 USDT TRC20: <code style="color:#7ee787;">UQBoA9KMVUIzBDKm6sCtwpelXXghRtrrST60IrV0AWg-uKBV</code></p>
     </div>
 
@@ -150,7 +150,7 @@
         console.log('📡 Status:', resp.status);
         const info = await resp.json();
         console.log('📡 Info:', info.cubes_count);
-        document.getElementById("cubeCount").textContent = info.cubes_count || 1024;
+        document.getElementById("cubeCount").textContent = info.cubes_count;
         
         console.log('📡 Fetching search...');
         const searchResp = await fetch('/api/cubes/search?query=&limit=2000');
@@ -171,7 +171,7 @@
     console.log('📊 loadStats вызвана!');
             try {
                 const info = await fetch('/api/v1/info').then(r => r.json());
-                document.getElementById("cubeCount").textContent = info.cubes_count || 44;
+                document.getElementById("cubeCount").textContent = info.cubes_count;
                 const search = await fetch('/api/cubes/search?query=').then(r => r.json());
                 const verified = search.results.filter(r => r.status === 'verified');
             } catch(e) {}

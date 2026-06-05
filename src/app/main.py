@@ -138,7 +138,7 @@ async def discovery():
     """Discovery endpoint — machine-readable manifest v3.1."""
     return {
         "service": "SKV Network",
-        "version": "3.1",
+        "version": "4.0",
         "status": "production",
         "description": "Open constitutional knowledge base and shared long-term memory for AI agents.",
         "why_skv": {

@@ -263,6 +263,7 @@ async def consult_rag(request: Request):
     from app.routers.v4_search import hybrid_search
     _hybrid_results = hybrid_search(qv)
     if _hybrid_results:
+        print(f"[HYBRID] Results: {len(_hybrid_results)} cubes", flush=True)
         # Hebbian learning: связываем кубы из hybrid_search
         try:
             from app.routers.v4_graph import _v4_graph

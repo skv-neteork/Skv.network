@@ -158,6 +158,17 @@ def hebbian_update(cubes: Dict[str, TensorCube], active_ids: list, lr: float = 0
             cubes[id1].strengthen_connection(id2, lr)
             cubes[id2].strengthen_connection(id1, lr)
     for cube in cubes.values(): cube.decay_connections(rate=decay)
+    
+    # Авто-сохранение графа после обучения
+    try:
+        import json
+        _data = {}
+        for _cid, _c in cubes.items():
+            _data[_cid] = {'vector': _c.vector.tolist(), 'connections': _c.connections, 'outgoing_connections': _c.directed_edges.get('next', {}), 'metadata': _c.metadata}
+        with open('/data/skv/graph.json', 'w') as _f:
+            json.dump(_data, _f)
+    except:
+        pass
 
 
 def evolve_cubes(parent1: TensorCube, parent2: TensorCube, mutation_rate: float = 0.1) -> TensorCube:

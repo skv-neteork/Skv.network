@@ -197,48 +197,42 @@ async def consult_rag(request: Request):
     # === SKV v4.0 NEURAL SEARCH ===
     rules_context = CONSTITUTION_RULES
     try:
-        # Загружаем кубы из Qdrant
-        import httpx as _hx, json as _js
-        _qr = _hx.post("http://skv_qdrant:6333/collections/skv_rules_v2/points/scroll",
-            json={"limit": 20, "with_vector": True}, timeout=10)
-        _points = _qr.json().get("result", {}).get("points", [])
+        # Используем предзагруженный граф _v4_graph
+        from app.routers.v4_graph import _v4_graph, get_graph
+        get_graph()  # гарантированно загружаем граф
         
-        if _points:
-            # Строим граф
-            _cubes = {}
-            for _p in _points:
-                _cid = str(_p["id"])
-                _v = np.array(_p["vector"], dtype=np.float32)
-                _tc = TensorCube(_cid, _v)
-                _tc.metadata["title"] = _p.get("payload", {}).get("title", "")[:50]
-                _cubes[_cid] = _tc
-            
-            # Связываем через cosine similarity
+        if _v4_graph:
+            _cubes = _v4_graph  # используем граф напрямую
             _ids = list(_cubes.keys())
-            for _i, _id1 in enumerate(_ids):
-                for _id2 in _ids[_i+1:]:
-                    _sim = float(np.dot(_cubes[_id1].vector, _cubes[_id2].vector))
-                    if _sim > 0.6:
-                        _cubes[_id1].add_connection(_id2, _sim)
-                        _cubes[_id2].add_connection(_id1, _sim)
             
             # Spreading activation от первого куба
             if _ids:
                 _activated = spread_activation(_cubes[_ids[0]], lambda _id: _cubes.get(_id), max_depth=3)
                 _top = sorted(_activated.items(), key=lambda _x: -_x[1])[:5]
+                _best_id = _top[0][0] if _top else None
                 rules_context += " | v4 Neural: "
                 for _cid, _energy in _top[1:]:  # skip start cube
                     _title = _cubes[_cid].metadata.get("title", _cid)[:40]
                     rules_context += f"{_title} ({_energy:.2f}) | "
                     # Hebbian update: strengthen connections
-                    try:
-                        if _v4_graph and _best_id and len(_top) > 1:
-                            from app.routers.tensor_cube import hebbian_update
-                            active_ids = [_cid for _cid, _ in _top[:3]]
-                            hebbian_update(_v4_graph, active_ids)
-                    except: pass
+                    pass  # Hebbian moved outside try/except
     except Exception as _e:
         pass
+    
+    # Hebbian + STDP update (after neural search, guaranteed execution)
+    try:
+        from app.routers.v4_graph import _v4_graph, get_graph
+        get_graph()  # гарантированно загружаем граф
+        print(f"[V4-DEBUG] _top={len(_top) if _top else 0}, _v4_graph={len(_v4_graph)}", flush=True)
+        if _v4_graph and _top and len(_top) > 1:
+            from app.routers.tensor_cube import hebbian_update
+            _best_id = _top[0][0]
+            active_ids = [cid for cid, _ in _top[:3]]
+            print(f"[V4-HEBBIAN] active_ids={active_ids}", flush=True)
+            hebbian_update(_v4_graph, active_ids, order=active_ids)
+    except Exception as _he:
+        print(f"[V4-HEBBIAN] Error: {_he}", flush=True)
+    
     # === END v4 NEURAL SEARCH ===
     # V4 Hybrid Search: Qdrant → TensorCube
     qv = get_embedding_cached(query)

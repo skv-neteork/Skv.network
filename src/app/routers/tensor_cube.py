@@ -25,6 +25,7 @@ class TensorCube:
             'last_accessed': datetime.now().isoformat()
         }
         if metadata: self.metadata.update(metadata)
+        self.directed_edges = {"next": {}, "triggered_by": {}}
     
     def _normalize(self, v: np.ndarray) -> np.ndarray:
         norm = np.linalg.norm(v)
@@ -53,6 +54,11 @@ class TensorCube:
             else: self.connections[cid] = ns
         for cid in to_remove: del self.connections[cid]
         return pruned
+    
+    def add_directed_edge(self, target_id: str, weight: float = 0.3, rel_type: str = "next"):
+        if rel_type not in self.directed_edges:
+            self.directed_edges[rel_type] = {}
+        self.directed_edges[rel_type][target_id] = weight
     
     def get_top_connections(self, n: int = 5) -> list:
         return sorted(self.connections.items(), key=lambda x: -x[1])[:n]
@@ -95,7 +101,13 @@ def spread_activation(start_cube: TensorCube, get_cube_fn: callable, energy: flo
     return activated
 
 
-def hebbian_update(cubes: Dict[str, TensorCube], active_ids: list, lr: float = 0.1, decay: float = 0.99) -> None:
+def hebbian_update(cubes: Dict[str, TensorCube], active_ids: list, lr: float = 0.1, decay: float = 0.99, order: list = None) -> None:
+    # STDP: направленные связи по порядку активации
+    if order and len(order) > 1:
+        for i in range(len(order) - 1):
+            s, t = order[i], order[i+1]
+            if s in cubes and t in cubes:
+                cubes[s].add_directed_edge(t, 0.3, "next")
     for i, id1 in enumerate(active_ids):
         if id1 not in cubes: continue
         for id2 in active_ids[i+1:]:

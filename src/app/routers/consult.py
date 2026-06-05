@@ -185,6 +185,7 @@ async def consult_rag(request: Request):
     data = await request.json()
     query = data.get("query", "")[:2000]
     user_id = data.get("user_id", "anonymous")
+    is_admin = (user_id == "denizchavdarov@gmail.com" or user_id == "deniz" or user_id == "admin")
     model_key = data.get("model", "deepseek")
     model = MODELS.get(model_key, "deepseek/deepseek-v4-flash")
     history = data.get("history", [])
@@ -204,7 +205,17 @@ async def consult_rag(request: Request):
         pass
     
     # === SKV v4.0 NEURAL SEARCH ===
-    rules_context = CONSTITUTION_RULES
+    # Загружаем конституционные кубы из графа
+    rules_context = ""
+    try:
+        from app.routers.v4_graph import _v4_graph
+        for _cid, _c in _v4_graph.items():
+            if _c.metadata.get('is_constitutional'):
+                rules_context += f"CUBE {_c.metadata.get('constitutional_number','?')}: {_c.metadata.get('title','')[:80]}\n"
+                for _rule in _c.metadata.get('rules', [])[:3]:
+                    rules_context += f"  {_rule}\n"
+    except:
+        rules_context = "SKV Constitution: Safety first. Be helpful and honest."
     try:
         # Используем предзагруженный граф _v4_graph
         from app.routers.v4_graph import _v4_graph, get_graph

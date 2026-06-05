@@ -3,7 +3,7 @@ import numpy as np
 from app.routers.v4_graph import get_graph
 from app.routers.tensor_cube import spread_activation
 
-def hybrid_search(query_vector, top_k=50, max_depth=2):
+def hybrid_search(query_vector, top_k=50, max_depth=5):
     try:
         from qdrant_client import QdrantClient
         client = QdrantClient(host="skv_qdrant", port=6333)
@@ -17,7 +17,7 @@ def hybrid_search(query_vector, top_k=50, max_depth=2):
         if not _graph:
             return []
         
-        candidate_ids = [str(r.id) for r in results.points if hasattr(r, 'score') and r.score > 0.3]
+        candidate_ids = [str(r.id) for r in results.points if hasattr(r, 'score') and r.score > 0.2]
         if not candidate_ids:
             return []
         

@@ -8,7 +8,7 @@ _v4_graph = {}
 def get_graph():
     global _v4_graph
     if not _v4_graph:
-        _path = os.path.join(os.path.dirname(__file__), 'v4_graph.json')
+        _path = '/data/skv/graph.json'
         if os.path.exists(_path):
             with open(_path, 'r') as _f:
                 _data = json.load(_f)
@@ -28,7 +28,7 @@ def auto_save_loop(interval_sec=3600):
     while True:
         time.sleep(interval_sec)
         try:
-            _path = os.path.join(os.path.dirname(__file__), 'v4_graph.json')
+            _path = '/data/skv/graph.json'
             _data = {}
             for _cid, _cube in _v4_graph.items():
                 _data[_cid] = {'vector': _cube.vector.tolist(), 'connections': _cube.connections, 'metadata': _cube.metadata}

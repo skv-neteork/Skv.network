@@ -194,6 +194,15 @@ async def consult_rag(request: Request):
         history_text = "\n\nPrevious conversation:\n" + "\n".join(
             [f"{msg.get('role', 'user')}: {msg.get('content', '')[:200]}" for msg in history[-6:]]
         )
+    # === SKV v4.0 HYBRID SEARCH (Qdrant + TensorCube) ===
+    _hybrid_results = []
+    try:
+        from app.routers.v4_search import hybrid_search
+        qv = get_embedding_cached(query)
+        _hybrid_results = hybrid_search(qv)
+    except Exception as _e:
+        pass
+    
     # === SKV v4.0 NEURAL SEARCH ===
     rules_context = CONSTITUTION_RULES
     try:
@@ -233,12 +242,42 @@ async def consult_rag(request: Request):
     except Exception as _he:
         print(f"[V4-HEBBIAN] Error: {_he}", flush=True)
     
+    # Hebbian + STDP with hybrid_search results
+    try:
+        if _hybrid_results:
+            from app.routers.v4_graph import _v4_graph
+            from app.routers.tensor_cube import hebbian_update
+            _hids = [r['id'] for r in _hybrid_results[:5] if r['id'] in _v4_graph]
+            if len(_hids) > 1:
+                _before = sum(len(c.connections) for c in _v4_graph.values())
+                hebbian_update(_v4_graph, _hids, order=_hids)
+                _after = sum(len(c.connections) for c in _v4_graph.values())
+                if _after > _before:
+                    print(f"[HEBBIAN] NEW! {_before} -> {_after} edges", flush=True)
+    except Exception as _he:
+        pass
+    
     # === END v4 NEURAL SEARCH ===
     # V4 Hybrid Search: Qdrant → TensorCube
     qv = get_embedding_cached(query)
     from app.routers.v4_search import hybrid_search
     _hybrid_results = hybrid_search(qv)
     if _hybrid_results:
+        # Hebbian learning: связываем кубы из hybrid_search
+        try:
+            from app.routers.v4_graph import _v4_graph
+            from app.routers.tensor_cube import hebbian_update
+            _hids = [r['id'] for r in _hybrid_results[:5] if r['id'] in _v4_graph]
+            if len(_hids) > 1:
+                _before = sum(len(c.connections) for c in _v4_graph.values())
+                hebbian_update(_v4_graph, _hids, order=_hids)
+                _after = sum(len(c.connections) for c in _v4_graph.values())
+                if _after > _before:
+                    print(f"[HEBBIAN] NEW EDGES: {_before} -> {_after}", flush=True)
+        except Exception as _he:
+            print(f"[HEBBIAN] Error: {_he}", flush=True)
+        print(f'[HYBRID] Results: {len(_hybrid_results) if _hybrid_results else 0} cubes', flush=True)
+        
         rules_context += " | v4 Hybrid: "
         for _r in _hybrid_results[:3]:
             rules_context += f"{_r['title']} ({_r['energy']}) | "

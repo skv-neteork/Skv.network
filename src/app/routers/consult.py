@@ -294,7 +294,18 @@ async def consult_rag(request: Request):
         for _r in _hybrid_results[:3]:
             rules_context += f"{_r['title']} ({_r['energy']}) | "
 
-    user_msg = rules_context + history_text + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
+    # Загружаем долгосрочную память
+    _memory_context = ""
+    try:
+        from app.routers.v4_personal_memory import load_context
+        import asyncio as _as
+        _mem = _as.run(load_context(user_id, project_ref or "general"))
+        if _mem.get("sessions_count", 0) > 0:
+            _memory_context = f"\n=== MEMORY ({_mem['sessions_count']} sessions) ===\n{_mem.get('summary', '')}\n"
+    except Exception as _me:
+        pass
+    
+    user_msg = rules_context + _memory_context + history_text + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
     system_prompt = f"You are SKV Assistant — an AI agent integrated with SKV Network v4.0 (https://skv.network). TensorCube neural graph: 1155+ cubes, 7189+ connections. Personal memory: /api/v4/sessions per project. Current user: {user_id}. Be concise and helpful. Talk like a colleague."
 
     body = json.dumps({

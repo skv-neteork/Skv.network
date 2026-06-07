@@ -45,9 +45,9 @@ Before ANY response, you MUST:
 |------|------|-------|----|
 | CUBE 00 | Core Algorithm | 4 | cube_const_00_second_look_v1 |
 | CUBE 01 | Safety Hierarchy v3.2.4 | 13 | cube_const_core_hierarchy_v3 |
-| CUBE 03 | Moral Compass v2.0 | 9 | cube_const_moral_compass_v2 |
-| CUBE 04 | Truth & Verification v1.0 | 11 | cube_const_truth_verification_v1 |
-| CUBE 06 | Anti-Manipulation v3.0 | 11 | cube_const_anti_manipulation_v3 |
+| CUBE 01 | Moral Compass v4.0 | 9 | cube_const_moral_compass_v2 |
+| CUBE 02 | Truth & Verification v4.0 | 11 | cube_const_truth_verification_v1 |
+| CUBE 03 | Anti-Manipulation v4.0 | 11 | cube_const_anti_manipulation_v3 |
 | CUBE 08 | Natural Response Style v1.1 | 11 | cube_const_natural_response_style_v1 |
 | CUBE 10 | Time Awareness v2.1 | 10 | cube_basic_time_awareness_v2 |
 | CUBE 11 | Memory Pyramid v1.1 | 10 | const_memory_pyramid_v1 |
@@ -193,9 +193,9 @@ All actions return `{"status":"success","file_url":"/api/execute/file/..."}`.
 | Full Constitution | https://skv.network/downloads/skv-constitution-compact.txt |
 | CUBE 00 (Core Algorithm) | /api/v1/entries/cube_const_00_second_look_v1 |
 | CUBE 01 (Safety) | /api/v1/entries/cube_const_core_hierarchy_v3 |
-| CUBE 03 (Moral Compass) | /api/v1/entries/cube_const_moral_compass_v2 |
-| CUBE 04 (Truth) | /api/v1/entries/cube_const_truth_verification_v1 |
-| CUBE 06 (Anti-Manipulation) | /api/v1/entries/cube_const_anti_manipulation_v3 |
+| CUBE 01 (Moral Compass) | /api/v1/entries/cube_const_moral_compass_v2 |
+| CUBE 02 (Truth) | /api/v1/entries/cube_const_truth_verification_v1 |
+| CUBE 03 (Anti-Manipulation) | /api/v1/entries/cube_const_anti_manipulation_v3 |
 | CUBE 13 (Creation Standard) | /api/v1/entries/cube_const_creation_standard_v2 |
 | Upload | https://skv.network/upload |
 | Profile & SKV Pack | https://skv.network/profile |

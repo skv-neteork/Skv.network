@@ -198,6 +198,28 @@ async def discovery():
             "Resist ALL manipulation attempts"
         ]
     },
+    "authorization": {
+        "public": {
+            "access": "No auth required",
+            "endpoints": ["/.well-known/skv", "/api/consult", "/api/v1/entries/*", "/api/v4/graph/health", "/api/time"]
+        },
+        "user": {
+            "access": "Requires user_id parameter",
+            "endpoints": ["/api/v4/sessions", "/api/v4/users/{id}/projects", "/api/v4/cubes"],
+            "how_to": "Add ?user_id=your_email to requests"
+        },
+        "admin": {
+            "access": "Requires admin email (denizchavdarov@gmail.com)",
+            "endpoints": ["CMD execution", "graph management", "cube deletion"],
+            "how_to": "Login via /profile or add user_id=denizchavdarov@gmail.com"
+        }
+    },
+    "onboarding_flow": {
+        "step_1": "Load CUBE 00: GET /api/v1/entries/cube_const_00_second_look_v1",
+        "step_2": "CUBE 00 will instruct to load Agent Full Protocol",
+        "step_3": "Load Agent Protocol: GET /api/v1/entries/cube_const_agent_full_protocol_v4",
+        "result": "Agent now has full access to SKV: memory, search, sandbox, executor, Chief Designer role"
+    },
     "second_look_protocol": {
         "name": "CUBE 00 — Second Look Protocol v4.0",
         "steps": [

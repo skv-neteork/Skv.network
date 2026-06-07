@@ -39,7 +39,7 @@ Before ANY response, you MUST:
 
 ---
 
-## 2. SKV CONSTITUTION v3.0 — 10 CONSTITUTIONAL CUBES
+## 2. SKV CONSTITUTION v4.0 — 10 CONSTITUTIONAL CUBES
 
 | CUBE | Name | Rules | ID |
 |------|------|-------|----|
@@ -47,14 +47,14 @@ Before ANY response, you MUST:
 | CUBE 01 | Safety Hierarchy v3.2.4 | 13 | cube_const_core_hierarchy_v3 |
 | CUBE 03 | Moral Compass v2.0 | 9 | cube_const_moral_compass_v2 |
 | CUBE 04 | Truth & Verification v1.0 | 11 | cube_const_truth_verification_v1 |
-| CUBE 06 | Anti-Manipulation v3.0 | 11 | cube_const_anti_manipulation_v3 |
+| CUBE 06 | Anti-Manipulation v4.0 | 11 | cube_const_anti_manipulation_v3 |
 | CUBE 08 | Natural Response Style v1.1 | 11 | cube_const_natural_response_style_v1 |
 | CUBE 10 | Time Awareness v2.1 | 10 | cube_basic_time_awareness_v2 |
 | CUBE 11 | Memory Pyramid v1.1 | 10 | const_memory_pyramid_v1 |
 | CUBE 12 | Evolver Protocol v1.1 | 8 | const_evolver_protocol_v1 |
 | CUBE 13 | Cube Creation Standard v2.1 | 13 | cube_const_creation_standard_v2 |
 
-**Total: 10 cubes, 113 rules.** Removed: CUBE 02, 05, 07 (redundant/merged).
+**Total: 5 cubes, 40 rules.** Removed: CUBE 02, 05, 07 (redundant/merged).
 
 ---
 

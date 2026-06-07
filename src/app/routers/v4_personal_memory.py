@@ -1,5 +1,5 @@
 """V4 Personal Memory — персональная память проектов для пользователей."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional, List
 import json, os, time
@@ -134,7 +134,26 @@ class CubeCreate(BaseModel):
     user_id: str = "anonymous"
     shared: bool = False  # опубликовать в общий граф?
 
+_cube_creation_count = {}
+
 @router.post("/api/v4/cubes")
+async def create_cube(request: Request):
+    # Spam защита: не более 10 кубов в час на пользователя
+    user_id = request.query_params.get('user_id', 'anonymous')
+    now = __import__('time').time()
+    
+    if user_id in _cube_creation_count:
+        count, timestamp = _cube_creation_count[user_id]
+        if now - timestamp < 3600 and count >= 10:
+            return {"error": "Rate limit: max 10 cubes per hour"}
+        elif now - timestamp >= 3600:
+            _cube_creation_count[user_id] = (1, now)
+        else:
+            _cube_creation_count[user_id] = (count + 1, timestamp)
+    else:
+        _cube_creation_count[user_id] = (1, now)
+    
+    # Оригинальный код создания куба
 async def create_cube(data: CubeCreate):
     """Создаёт новый куб с авто-эмбеддингом через Polza API."""
     try:

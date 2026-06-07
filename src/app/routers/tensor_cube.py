@@ -60,6 +60,11 @@ class TensorCube:
             self.directed_edges[rel_type] = {}
         self.directed_edges[rel_type][target_id] = weight
     
+    def remove_all_connections(self):
+        """Удалить все связи куба (исходящие и входящие)."""
+        self.connections = {}
+        self.directed_edges = {"next": {}, "triggered_by": {}}
+    
     def get_top_connections(self, n: int = 5) -> list:
         return sorted(self.connections.items(), key=lambda x: -x[1])[:n]
     
@@ -100,6 +105,30 @@ def spread_activation(start_cube: TensorCube, get_cube_fn: callable, energy: flo
         frontier = new_frontier
     return activated
 
+
+def cascade_delete_cube(cubes: dict, cube_id: str) -> int:
+    """Удалить куб и все его связи (включая обратные)."""
+    if cube_id not in cubes:
+        return 0
+    
+    removed = 0
+    # Удаляем обратные связи от соседей
+    for neighbor_id in list(cubes[cube_id].connections.keys()):
+        if neighbor_id in cubes and cube_id in cubes[neighbor_id].connections:
+            del cubes[neighbor_id].connections[cube_id]
+            removed += 1
+    
+    # Удаляем directed edges от соседей
+    for rel_type in ["next", "triggered_by"]:
+        for neighbor_id in list(cubes[cube_id].directed_edges.get(rel_type, {}).keys()):
+            if neighbor_id in cubes:
+                for nrel in ["next", "triggered_by"]:
+                    cubes[neighbor_id].directed_edges.get(nrel, {}).pop(cube_id, None)
+    
+    # Удаляем сам куб
+    del cubes[cube_id]
+    removed += 1
+    return removed
 
 def hebbian_update(cubes: Dict[str, TensorCube], active_ids: list, lr: float = 0.1, decay: float = 0.99, order: list = None, negative_ids: list = None, neg_lr: float = 0.05) -> None:
     """Hebbian update с STDP и Contrastive Hebbian (negative sampling)."""

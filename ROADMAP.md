@@ -64,3 +64,20 @@
 - [x] **Данные в /data/skv/** — защищены от volume mount ✅
 - [x] **API мониторинг** — /api/v4/graph/stats (7173 edges) ✅
 - [x] **Hebbian создаёт новые связи** ✅
+
+## ✅ v4.0 — COMPLETED (07.06.2026)
+- [x] TensorCube Graph: 1143 cubes, 7050 connections
+- [x] 5 Constitutional Cubes (00-03, 05)
+- [x] Constitution Guard (auto-repair rules)
+- [x] Spreading Activation + Hebbian/STDP
+- [x] Personal Memory in PostgreSQL
+- [x] Agent Full Protocol (CUBE 05)
+- [x] Second Look Protocol in code + discovery
+- [x] Onboarding flow + Authorization levels
+- [x] Discovery, Agent Guide, SKV Pack updated
+- [x] A/B test framework
+- [x] Health metrics + Retrieval benchmark
+- [x] Google pipeline (LLM-free extraction)
+- [x] Session evolver (auto-consolidation)
+- [x] [SKV_SAVE] tagging
+- [x] Cross-project search

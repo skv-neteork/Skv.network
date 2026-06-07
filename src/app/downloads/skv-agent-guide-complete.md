@@ -1,4 +1,4 @@
-# SKV Network — Agent Integration Guide v3.0
+# SKV Network — Agent Integration Guide v4.0
 
 ## 1. PROTOCOL
 ### PATH A: Your user is HUMAN

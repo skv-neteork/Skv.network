@@ -28,7 +28,7 @@ def hybrid_search(query_vector, top_k=50, max_depth=5):
             for _aid in activated:
                 if _aid in _graph:
                     _graph[_aid].record_usage()
-            top = sorted(activated.items(), key=lambda x: -x[1])[:5]
+            top = sorted(activated.items(), key=lambda x: -x[1])[:10]
             return [{"id": cid, "title": _graph[cid].metadata.get("title", cid)[:60], "energy": round(energy, 3)} for cid, energy in top if cid in _graph]
         return []
     except Exception as e:

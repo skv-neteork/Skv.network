@@ -178,10 +178,10 @@ async def discovery():
             "anketa": "MUST create session anketa at the end of each conversation"
         },
         "constitution": {
-            "priority_1_cubes": 10,
-            "total_rules": 113,
+            "priority_1_cubes": 4,
+            "total_rules": 20,
             "download": "/downloads/skv-constitution.txt",
-            "core_algorithm": "CUBE 00 v3.0 — Executable Protocol",
+            "core_algorithm": "CUBE 00 v4.0 — TensorCube Core",
             "cubes": {
                 "00_core_algorithm": "cube_const_00_second_look_v1",
                 "01_safety_hierarchy": "cube_const_core_hierarchy_v3",
@@ -228,4 +228,43 @@ async def graph_health():
         "deprecated_cubes": deprecated,
         "constitutional_cubes": constitutional,
         "status": "healthy" if dead_cubes < total_nodes * 0.3 else "needs_attention"
+    }
+
+@app.get("/api/v4/bench/retrieval")
+async def bench_retrieval(q: str = "Python async", model: str = "deepseek"):
+    import time, json as _js
+    from app.routers.v4_middleware import get_embedding_cached
+    from app.routers.v4_search import hybrid_search
+    from qdrant_client import QdrantClient
+    
+    qv = get_embedding_cached(q)
+    
+    # Pure Qdrant
+    t1 = time.time()
+    client = QdrantClient(host="skv_qdrant", port=6333)
+    qdrant_results = client.query_points(
+        collection_name="skv_rules_v2",
+        query=qv.tolist() if hasattr(qv, 'tolist') else qv,
+        limit=5
+    )
+    qdrant_time = round((time.time() - t1) * 1000)
+    qdrant_cubes = [str(r.id)[:20] for r in qdrant_results.points[:5]]
+    
+    # Qdrant + Spreading Activation
+    t2 = time.time()
+    hybrid_results = hybrid_search(qv)
+    hybrid_time = round((time.time() - t2) * 1000)
+    hybrid_cubes = [r['id'][:20] for r in hybrid_results[:5]]
+    
+    return {
+        "query": q,
+        "qdrant_only": {
+            "time_ms": qdrant_time,
+            "cubes": qdrant_cubes
+        },
+        "qdrant_spreading": {
+            "time_ms": hybrid_time,
+            "cubes": hybrid_cubes
+        },
+        "improvement": f"{len(hybrid_cubes) - len(qdrant_cubes)} more cubes"
     }

@@ -111,6 +111,17 @@ def spread_activation(start_cube: TensorCube, get_cube_fn: callable, energy: flo
     return activated
 
 
+def deprecate_cube(cube) -> None:
+    cube.metadata["deprecated"] = True
+    cube.metadata["deprecated_at"] = __import__('datetime').datetime.now().isoformat()
+
+def rollback_cube(cube) -> None:
+    cube.metadata.pop("deprecated", None)
+    cube.metadata.pop("deprecated_at", None)
+
+def is_active(cube) -> bool:
+    return not cube.metadata.get("deprecated", False)
+
 def cascade_delete_cube(cubes: dict, cube_id: str) -> int:
     """Удалить куб и все его связи (включая обратные)."""
     if cube_id not in cubes:

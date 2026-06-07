@@ -31,6 +31,11 @@ class TensorCube:
         norm = np.linalg.norm(v)
         return v / norm if norm > 1e-12 else np.random.randn(1536).astype(np.float32) / np.sqrt(1536)
     
+    def record_usage(self):
+        """Записать использование куба."""
+        self.metadata['usage_count'] += 1
+        self.metadata['last_accessed'] = __import__('datetime').datetime.now().isoformat()
+    
     def update_embedding(self, new_vector: np.ndarray, lr: float = 0.1, decay: float = 0.01) -> None:
         new_vector = np.array(new_vector, dtype=np.float32)
         self.vector = self._normalize((1 - decay) * self.vector + lr * new_vector)

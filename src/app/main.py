@@ -200,3 +200,32 @@ async def discovery():
 async def graph_stats():
     from app.routers.v4_graph import _v4_graph
     return {"nodes": len(_v4_graph), "edges": sum(len(c.connections) for c in _v4_graph.values()), "status": "live"}
+
+@app.get("/api/v4/graph/health")
+async def graph_health():
+    from app.routers.v4_graph import _v4_graph
+    
+    total_nodes = len(_v4_graph)
+    total_edges = sum(len(c.connections) for c in _v4_graph.values())
+    avg_degree = round(total_edges / total_nodes, 1) if total_nodes > 0 else 0
+    
+    dead_cubes = sum(1 for c in _v4_graph.values() if c.metadata.get('usage_count', 0) == 0)
+    orphaned = 0
+    for cid, c in _v4_graph.items():
+        for nid in list(c.connections.keys()):
+            if nid not in _v4_graph:
+                orphaned += 1
+    
+    deprecated = sum(1 for c in _v4_graph.values() if c.metadata.get('deprecated', False))
+    constitutional = sum(1 for c in _v4_graph.values() if c.metadata.get('is_constitutional', False))
+    
+    return {
+        "nodes": total_nodes,
+        "edges": total_edges,
+        "avg_degree": avg_degree,
+        "dead_cubes": dead_cubes,
+        "orphaned_connections": orphaned,
+        "deprecated_cubes": deprecated,
+        "constitutional_cubes": constitutional,
+        "status": "healthy" if dead_cubes < total_nodes * 0.3 else "needs_attention"
+    }

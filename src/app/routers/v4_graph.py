@@ -22,6 +22,14 @@ def get_graph():
                 _v4_graph[_cid] = _tc
             _conns = sum(len(_c.connections) for _c in _v4_graph.values())
             print(f"[V4] Loaded from JSON: {len(_v4_graph)} cubes, {_conns} connections", flush=True)
+    # Validate constitutional cubes
+    try:
+        from app.routers.constitution_guard import validate_and_repair
+        _repaired = validate_and_repair(_v4_graph)
+        if _repaired > 0:
+            print(f"[GUARD] Repaired {_repaired} constitutional cubes", flush=True)
+    except Exception as _ge:
+        pass
     return _v4_graph
 
 import threading, time, json, os

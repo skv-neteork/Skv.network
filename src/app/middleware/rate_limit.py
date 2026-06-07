@@ -1,9 +1,9 @@
 import time as _time
 
 RATE_LIMITS = {
-    "/api/consult": (20, 60),
+    "/api/consult": (60, 60),
     "/api/tools/generate": (5, 60),
-    "/api/v1/entries": (10, 60),
+    "/api/v1/entries": (100, 60),
     "/api/v2/entries": (10, 60),
 }
 

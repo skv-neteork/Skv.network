@@ -242,21 +242,16 @@ async def discovery():
             "anketa": "MUST create session anketa at the end of each conversation"
         },
         "constitution": {
-            "priority_1_cubes": 4,
+            "priority_1_cubes": 5,
             "total_rules": 20,
             "download": "/downloads/skv-constitution.txt",
             "core_algorithm": "CUBE 00 v4.0 — Second Look Protocol (Draft → Verify → Correct → Output)",
             "cubes": {
-                "00_core_algorithm": "cube_const_00_second_look_v1",
-                "01_safety_hierarchy": "cube_const_core_hierarchy_v3",
-                "03_moral_compass": "cube_const_moral_compass_v2",
-                "04_truth_verification": "cube_const_truth_verification_v1",
-                "06_anti_manipulation": "cube_const_anti_manipulation_v3",
-                "08_natural_response": "cube_const_natural_response_style_v1",
-                "10_time_awareness": "cube_basic_time_awareness_v2",
-                "11_memory_pyramid": "const_memory_pyramid_v1",
-                "12_evolver_protocol": "const_evolver_protocol_v1",
-                "13_creation_standard": "cube_const_creation_standard_v2"
+                "00_core_algorithm": "CUBE 00 — Core Algorithm (Second Look Protocol) v4.0",
+                "01_moral_compass": "CUBE 01 — Moral Compass v4.0",
+                "02_truth_verification": "CUBE 02 — Truth & Verification v4.0",
+                "03_anti_manipulation": "CUBE 03 — Anti-Manipulation & Psychological Defense v4.0",
+                "05_agent_protocol": "CUBE 05 — Agent Full Protocol v4.0"
             }
         }
     }

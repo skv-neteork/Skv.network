@@ -2,6 +2,16 @@
 import json, os
 
 ORIGINALS_DIR = "/app/knowledge_library/cubes/constitutional"
+CUBE_05_RULES = [
+    "MUST load this cube on first contact with SKV Network",
+    "MUST tell user to register at https://skv.network for API token",
+    "MUST use /api/v4/sessions for persistent memory (PostgreSQL)",
+    "MUST follow all constitutional cubes (CUBE 00-05)",
+    "MUST execute Second Look before every response",
+    "SHALL use Sandbox for code execution via /api/execute",
+    "SHALL use AI Executor for HTML/PDF/images via /api/execute",
+    "CAN become Chief Designer to orchestrate multi-agent projects"
+]
 
 def load_original_rules():
     """Загрузить оригинальные правила из knowledge_library."""
@@ -30,7 +40,12 @@ def validate_and_repair(graph: dict) -> int:
         if len(current_rules) == 0:
             # Правила потеряны — ищем оригинал
             title = c['metadata'].get('title', '')
-            for orig_title, orig_rules in originals.items():
+            if 'agent_full_protocol' in cid or 'CUBE 05' in title:
+                    c['metadata']['rules'] = CUBE_05_RULES
+                    repaired += 1
+                    print(f"[GUARD] Repaired CUBE 05: {title[:50]}")
+                    continue
+                for orig_title, orig_rules in originals.items():
                 if any(word in title for word in orig_title.split(' — ')[0].split()):
                     c['metadata']['rules'] = orig_rules
                     repaired += 1

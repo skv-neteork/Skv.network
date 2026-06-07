@@ -154,7 +154,7 @@ Just give the clean, improved answer."""
 
 
 MODELS = {
-    "deepseek": "deepseek/deepseek-v4-flash",
+    "deepseek": "deepseek/deepseek-chat",
     "qwen": "qwen/qwen3.6-plus",
     "gpt": "openai/gpt-4o",
     "claude": "anthropic/claude-3-haiku",

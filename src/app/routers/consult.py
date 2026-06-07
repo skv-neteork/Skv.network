@@ -320,6 +320,47 @@ async def consult_rag(request: Request):
             _llm_time = round((_time.time() - _start_llm) * 1000)
             print(f"[SKV] LLM response time: {_llm_time}ms")
             answer = json.loads(resp.read())["choices"][0]["message"]["content"]
+            # Second Look Protocol: Verify → Correct → Output
+            for _sl_attempt in range(2):  # Max 2 цикла проверки
+                violations = []
+                
+                # Проверяем по конституционным кубам из графа
+                try:
+                    from app.routers.v4_graph import _v4_graph
+                    for _cid, _cube in _v4_graph.items():
+                        if _cube.metadata.get('is_constitutional'):
+                            _rules = _cube.metadata.get('rules', [])
+                            for _rule in _rules:
+                                if 'MUST' in str(_rule) or 'PROHIBITED' in str(_rule):
+                                    # Простая проверка: если ответ содержит запрещённые паттерны
+                                    if 'PROHIBITED' in str(_rule):
+                                        _keyword = str(_rule).split('PROHIBITED')[-1].strip()[:30]
+                                        if _keyword.lower() in answer.lower():
+                                            violations.append(f'Violates {_cube.metadata.get("title","?")[:30]}: {str(_rule)[:80]}')
+                except:
+                    pass
+                
+                if not violations:
+                    break  # Всё чисто
+                
+                # Есть нарушения — просим LLM исправить
+                if _sl_attempt == 0:
+                    _fix_prompt = f"Your answer violates SKV Constitution:\n" + "\n".join(violations) + "\n\nFix your answer to comply. Keep it helpful but remove violations.\n\nOriginal answer: {answer[:500]}\n\nCorrected answer:"
+                    try:
+                        _fix_body = json.dumps({
+                            "model": model,
+                            "messages": [{"role": "user", "content": _fix_prompt}],
+                            "temperature": 0.1, "max_tokens": 400
+                        }).encode()
+                        _fix_req = _req.Request("https://api.polza.ai/v1/chat/completions", data=_fix_body, headers={
+                            "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
+                        })
+                        _fix_resp = _req.urlopen(_fix_req, timeout=60)
+                        answer = json.loads(_fix_resp.read())["choices"][0]["message"]["content"]
+                        print(f"[SECOND-LOOK] Corrected violations: {len(violations)}", flush=True)
+                    except:
+                        pass
+            
             if answer:
                 used_list = []
                 try:

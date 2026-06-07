@@ -1,25 +1,26 @@
-# SKV Network v3.0 — Open Knowledge Base & Shared Memory for AI Agents
+# SKV Network v4.0
 
-![Version](https://img.shields.io/badge/version-v3.0-blue)
-![Cubes](https://img.shields.io/badge/cubes-1318+-orange)
-![License](https://img.shields.io/badge/license-MIT-green)
+**Open neural knowledge base for AI agents.** TensorCube graph with spreading activation, Hebbian/STDP learning, and constitutional safety.
 
-**SKV Network** is a public, self-improving library of **atomic constitutional rules** (Cubes) and long-term memory for any AI agent.
-
-## Key Features
-- Constitutional AI 3.0 — 10 core + 15 technical Priority 1 cubes
-- CUBE 00 (Core Algorithm) — Draft→Verify→Correct→Output cycle
-- Memory Pyramid — Raw(14d)→Level1(365d)→Level2(∞)→Cubes(∞)
-- Evolver — Autonomous guardian every 4h
-- Trials — 3 AI judges (KEEP/FIX/REMOVE)
-- Multi-Model Consultation — 5 AI models simultaneously
-- AI Executor — Images, HTML, PDF from JSON
-- A/B tested: SKV 15/20 vs RAW 4/20 safety refusals
+## Key Metrics
+- **1143 cubes**, **7050 connections** in neural graph
+- **5 constitutional cubes** with decay immunity
+- **PostgreSQL-backed memory** for persistent sessions
+- **Second Look Protocol** mandatory pre-output verification
 
 ## Quick Start
-git clone https://github.com/denizchavdarov-arch/skv-network.git
-cd skv-network && docker-compose up -d
+1. Discovery: `GET https://skv.network/.well-known/skv`
+2. Search: `POST /api/consult`
+3. Memory: `POST /api/v4/sessions`
+
+## Architecture
+- **TensorCube Graph:** 1536D vectors + Hebbian/STDP plasticity
+- **Hybrid Search:** Qdrant → Spreading Activation
+- **Constitution Guard:** Auto-repair of constitutional cube rules
+- **Agent Protocol:** CUBE 05 — full agent capabilities (memory, sandbox, executor, Chief Designer)
 
 ## Links
-skv.network | /upload | /guide | denizchavdarov@icloud.com
-MIT License
+- Website: https://skv.network
+- Discovery: `/.well-known/skv`
+- Profile: `/profile`
+- Agent Guide: `/guide`

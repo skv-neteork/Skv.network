@@ -17,6 +17,7 @@ def get_graph():
                 _tc.connections = _cube_data.get('connections', {})
                 _tc.connections.update(_cube_data.get('outgoing_connections', {}))
                 _tc.connections.update(_cube_data.get('outgoing_connections', {}))
+                _tc.connections.update(_cube_data.get('outgoing_connections', {}))
                 _tc.metadata = _cube_data.get('metadata', {})
                 _v4_graph[_cid] = _tc
             _conns = sum(len(_c.connections) for _c in _v4_graph.values())

@@ -35,9 +35,14 @@ def auto_save_loop(interval_sec=3600):
             _data = {}
             for _cid, _cube in _v4_graph.items():
                 _data[_cid] = {'vector': _cube.vector.tolist(), 'connections': _cube.connections, 'outgoing_connections': _cube.outgoing_connections if hasattr(_cube, 'outgoing_connections') else {}, 'metadata': _cube.metadata}
-            with open(_path, 'w') as _f:
-                json.dump(_data, _f)
-            print(f"[V4] Graph saved: {len(_v4_graph)} cubes", flush=True)
+            # Защита от сброса: не сохранять если связей < 100
+            _total_edges = sum(len(_c.get('connections', {})) + len(_c.get('outgoing_connections', {})) for _c in _data.values())
+            if _total_edges < 100:
+                print(f"[V4] AUTO-SAVE SKIPPED: only {_total_edges} edges, disk protected", flush=True)
+            else:
+                with open(_path, 'w') as _f:
+                    json.dump(_data, _f)
+                print(f"[V4] Graph saved: {len(_v4_graph)} cubes, {_total_edges} edges", flush=True)
             print(f"[V4] Graph saved: {len(_v4_graph)} cubes", flush=True)
             
             # Decay all connections

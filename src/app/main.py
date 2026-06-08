@@ -159,12 +159,12 @@ async def discovery():
             "time": "GET /api/time"
         },
         "features": {
-            "memory_pyramid": "Human-like memory: Raw(14d) → Level1(365d) → Level2(∞) → Cubes(∞). Auto-distillation up to 1000x",
-            "memory_index": "Auto-updating project index. One query = full user context",
-            "evolver": "Autonomous quality guardian. Audits cubes every 4h. Protects constitutional rules",
-            "trials": "3 downvotes → 3 AI judges (DeepSeek, Qwen, Claude) → verdict + auto-fix",
-            "persona": "Personal portfolio. Auto-updates with each session",
-            "skv_pack": "One file with constitution + memory + profile — give to any AI chat"
+            "tensor_memory": "Auto-connects knowledge via Spreading Activation. Strengthens frequent paths, prunes inactive ones. Learns via Hebbian+STDP+Contrastive Hebbian. PostgreSQL storage survives restarts. Zero LLM cost.",
+            "personal_memory": "Per-user project memory via /api/v4/sessions. Stored in PostgreSQL, survives restarts.",
+            "constitution_guard": "Auto-repair of constitutional cube rules. 5 cubes with decay immunity.",
+            "feedback_system": "Up/down votes on cubes. 3 downvotes trigger quality review.",
+            "agent_protocol": "CUBE 05 — full agent capabilities: memory, sandbox, executor, Chief Designer role.",
+            "skv_pack": "One file with constitution + memory + profile. Give to any AI chat to make it SKV-aware."
         },
         "agent_protocols": {
             "chat_ais": "cube_const_agent_protocol_v1 — for AIs without HTTP access",

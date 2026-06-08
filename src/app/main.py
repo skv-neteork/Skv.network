@@ -200,6 +200,8 @@ async def discovery():
     },
     "authorization": {
         "public": {
+            "description": "Full API access without login. Test all features — search, memory, cubes. Data is temporary (demo mode). Register to save permanently.",
+            "access": "No auth required",
             "access": "No auth required",
             "endpoints": ["/.well-known/skv", "/api/consult", "/api/v1/entries/*", "/api/v4/graph/health", "/api/time"]
         },

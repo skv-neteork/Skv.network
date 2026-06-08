@@ -288,7 +288,7 @@ async def graph_health():
         "orphaned_connections": orphaned,
         "deprecated_cubes": deprecated,
         "constitutional_cubes": constitutional,
-        "status": "healthy" if dead_cubes < total_nodes * 0.3 else "needs_attention"
+        "status": "healthy" if total_edges > 100 and orphaned == 0 else "needs_attention"
     }
 
 @app.get("/api/v4/bench/retrieval")

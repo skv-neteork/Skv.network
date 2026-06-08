@@ -142,7 +142,7 @@ async def discovery():
         "status": "production",
         "description": "Open constitutional knowledge base and shared long-term memory for AI agents.",
         "why_skv": {
-            "shared_memory": "Persistent memory across sessions via Memory Pyramid (Raw → Level1 → Level2 → Cubes)",
+            "shared_memory": "TensorCube Neural Graph with Spreading Activation + Hebbian/STDP learning. Persistent PostgreSQL storage survives restarts.",
             "constitutional_ai": "14 immutable rules that ALL agents MUST follow — CUBE 00 mandatory pre-output check — prevents hallucinations and jailbreaks",
             "hybrid_search": "Fast keyword matching + Qdrant semantic search — finds rules by meaning, not just keywords",
             "self_improvement": "Evolver audits cubes every 4h + Trials with 3 AI judges + Fixer auto-improves weak cubes",

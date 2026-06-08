@@ -349,7 +349,31 @@ async def create_entry(request: Request):
             print(f"[SKV] Memory index error: {e}")
 
     await maybe_consult(body, entry_id)
-    return {"id": entry_id, "public_url": f"/api/v1/entries/{entry_id}", "delete_token": delete_token}
+    
+    # Авто-индексация в Qdrant
+    try:
+        from qdrant_client import QdrantClient
+        from app.routers.v4_middleware import get_embedding_cached
+        
+        _title = body.get("title", "Untitled")
+        _rules = body.get("rules", [])
+        _text = f'{_title}. {" ".join(_rules)}' if _rules else _title
+        _vector = get_embedding_cached(_text[:500])
+        
+        _client = QdrantClient(host="skv_qdrant", port=6333)
+        _client.upsert(
+            collection_name="skv_rules_v2",
+            points=[{
+                "id": entry_id,
+                "vector": _vector.tolist() if hasattr(_vector, 'tolist') else _vector,
+                "payload": {"title": _title, "rules": _rules, "cube_id": entry_id}
+            }]
+        )
+        print(f"[ENTRIES] Indexed in Qdrant: {entry_id}", flush=True)
+    except Exception as _e:
+        print(f"[ENTRIES] Qdrant error: {_e}", flush=True)
+    
+    return {"id": entry_id, "public_url": f"/api/v1/entries/{entry_id}", "delete_token": delete_token, "status": "indexed"}
 
 # Остальные эндпоинты (get_entry, search, feedback) оставляем из старого файла
 

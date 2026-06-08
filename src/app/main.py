@@ -25,6 +25,13 @@ app = FastAPI(title="SKV Network", version="2.0")
 from contextlib import asynccontextmanager
 import asyncio
 
+background_tasks = set()
+
+def start_bg_task(coro):
+    task = asyncio.create_task(coro)
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
+
 @asynccontextmanager
 async def lifespan(app):
     # Startup: загружаем граф и запускаем Hebbian + Decay + Auto-save
@@ -86,6 +93,20 @@ async def lifespan(app):
                 print(f"[V4] Consolidation error: {_e}", flush=True)
     asyncio.create_task(consolidation_cycle())
     await startup()
+    # Запускаем session evolver и sleep cycle
+    try:
+        from app.routers.session_evolver import run_session_evolver
+        start_bg_task(run_session_evolver())
+        print("[EVOLVER] Started", flush=True)
+    except Exception as e:
+        print(f"[EVOLVER] {e}", flush=True)
+    try:
+        from app.routers.sleep_cycle import run_sleep_cycle
+        start_bg_task(run_sleep_cycle())
+        print("[SLEEP] Started", flush=True)
+    except Exception as e:
+        print(f"[SLEEP] {e}", flush=True)
+    
     yield
     _task.cancel()
 

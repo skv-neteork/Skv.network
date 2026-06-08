@@ -60,6 +60,11 @@ class TensorCube:
         for cid in to_remove: del self.connections[cid]
         return pruned
     
+    def add_connection(self, cube_id: str, weight: float = 0.3):
+        """Добавить связь с временной меткой."""
+        self.connections[cube_id] = weight
+        self.connection_timestamps[cube_id] = __import__('time').time()
+    
     def add_directed_edge(self, target_id: str, weight: float = 0.3, rel_type: str = "next"):
         if rel_type not in self.directed_edges:
             self.directed_edges[rel_type] = {}

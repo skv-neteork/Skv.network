@@ -123,6 +123,26 @@ async def create_entry(request: Request):
     delete_token = f"skv_del_{uuid.uuid4().hex[:24]}"
     entries_db[entry_id] = {"id": entry_id, "created_at": datetime.now(timezone.utc).isoformat(), "data": body}
 
+    # Сохраняем в PostgreSQL
+    try:
+        import asyncpg, json as _json
+        _title = body.get("title", "Untitled")
+        _type = body.get("type", "experience")
+        _priority = body.get("priority", 3)
+        _rules = body.get("rules", [])
+        _triggers = body.get("trigger_intent", body.get("triggers", []))
+        _content = body.get("content", {})
+        
+        conn = await asyncpg.connect(DATABASE_URL)
+        await conn.execute(
+            "INSERT INTO cubes (cube_id, title, type, priority, version, trigger_intent, rules, content, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (cube_id) DO UPDATE SET title=$2, type=$3, priority=$4, trigger_intent=$6, rules=$7, content=$8, status=$9, updated_at=NOW()",
+            entry_id, _title, _type, _priority, "1.0.0", _json.dumps(_triggers), _json.dumps(_rules), _json.dumps(_content), "active"
+        )
+        await conn.close()
+        print(f"[ENTRIES] Saved to PostgreSQL: {entry_id}", flush=True)
+    except Exception as _e:
+        print(f"[ENTRIES] DB save error: {_e}", flush=True)
+
     # Массовая загрузка кубиков
     if "cubes" in body and isinstance(body["cubes"], list):
         loaded = []

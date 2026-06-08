@@ -11,7 +11,9 @@ from typing import Optional, Dict, List
 class SKVAgent:
     """AI Agent connected to SKV Network with memory, cubes, and constitution."""
     
-    def __init__(self, user_id: str, project: str = "default", base_url: str = "https://skv.network"):
+    def __init__(self, user_id: str, token: str = None, project: str = "default", base_url: str = "https://skv.network"):
+        self.token = token
+        self.headers = {"Authorization": f"Bearer {token}"} if token else {}
         self.user_id = user_id
         self.project = project
         self.base_url = base_url
@@ -21,7 +23,7 @@ class SKVAgent:
     def connect(self) -> Dict:
         """Connect to SKV and load constitution + memory."""
         # 1. Discovery
-        r = requests.get(f"{self.base_url}/.well-known/skv", timeout=10)
+        r = requests.get(f"{self.base_url}/.well-known/skv", headers=self.headers, timeout=10)
         self.constitution = r.json()
         
         # 2. Load memory

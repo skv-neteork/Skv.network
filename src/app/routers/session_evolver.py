@@ -1,9 +1,10 @@
-"""Auto-consolidation: сжатие длинных сессий в кубы опыта."""
-import json, os, asyncio
-from datetime import datetime, timezone
+"""Session Evolver v4.1 — Realtime consolidation every 10 messages."""
 
-async def consolidate_session(user_id: str, project: str, max_messages: int = 50):
-    """Сжать сессию в куб опыта если она превысила лимит."""
+import os, json, time, asyncio
+import numpy as np
+
+async def consolidate_session(user_id: str, project: str):
+    """Сжать сессию в куб опыта при достижении 10 сообщений."""
     memory_path = f"/app/app/runtime/memory/{user_id}/{project}.json"
     
     if not os.path.exists(memory_path):
@@ -13,72 +14,62 @@ async def consolidate_session(user_id: str, project: str, max_messages: int = 50
         data = json.load(f)
     
     sessions = data.get("sessions", [])
-    if len(sessions) < max_messages:
+    if len(sessions) < 10:
         return None
     
-    # Собираем все запросы и ответы
+    # Берём последние 10 сообщений
+    recent = sessions[-10:]
+    
+    # Собираем диалог
     dialogue = "\n".join([
         f"Q: {s.get('query','')}\nA: {s.get('response','')[:200]}"
-        for s in sessions[-max_messages:]
+        for s in recent
     ])
     
-    # Создаём куб опыта из сессии
-    cube = {
-        "cube_id": f"session_{user_id}_{project}_{int(datetime.now().timestamp())}",
-        "type": "experience",
-        "priority": 2,
-        "title": f"Session: {project} — {datetime.now().strftime('%Y-%m-%d')}",
-        "trigger_intent": [project, user_id],
-        "rules": [
-            f"MUST consider previous context from {len(sessions)} sessions",
-            f"MUST reference key decisions from project {project}"
-        ],
-        "rationale": f"Auto-consolidated from {len(sessions)} sessions in project {project}",
-        "source": "session_evolver",
-        "metadata": {
-            "cube_type": "EPISODIC",
-            "session_count": len(sessions),
-            "consolidated_at": datetime.now(timezone.utc).isoformat()
-        }
-    }
-    
-    # Сохраняем куб в граф
+    # Создаём вектор из диалога
     try:
-        from app.routers.v4_graph import _v4_graph, get_graph
-        from app.routers.tensor_cube import TensorCube
-        import numpy as np
-        
-        get_graph()
-        
-        # Создаём вектор из текста диалога
         from app.routers.v4_middleware import get_embedding_cached
         vector = get_embedding_cached(dialogue[:500])
-        
-        tc = TensorCube(cube["cube_id"], vector, metadata=cube["metadata"])
-        tc.metadata["title"] = cube["title"]
-        tc.metadata["rules"] = cube["rules"]
-        tc.metadata["cube_type"] = "EPISODIC"
-        
-        _v4_graph[cube["cube_id"]] = tc
-        
-        # Оставляем последние 10 сообщений, остальное заменяем ссылкой на куб
-        data["sessions"] = sessions[-10:]
-        data["consolidated_cube"] = cube["cube_id"]
-        
-        with open(memory_path, 'w') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        print(f"[EVOLVER] Session consolidated: {project} → {cube['cube_id'][:20]}", flush=True)
-        return cube["cube_id"]
-        
-    except Exception as e:
-        print(f"[EVOLVER] Consolidation error: {e}", flush=True)
-        return None
+    except:
+        vector = [0.1] * 1536
+    
+    # Создаём куб опыта
+    from app.routers.v4_graph import _v4_graph, get_graph
+    from app.routers.tensor_cube import TensorCube
+    
+    get_graph()
+    
+    cube_id = f"evolved_{user_id}_{project}_{int(time.time())}"
+    tc = TensorCube(cube_id, np.array(vector, dtype=np.float32), metadata={
+        "title": f"Session: {project} — {len(sessions)} messages",
+        "rules": [
+            f"MUST consider context from {len(sessions)} previous messages",
+            f"MUST reference project: {project}"
+        ],
+        "cube_type": "EPISODIC",
+        "importance": min(1.0, len(sessions) / 50),  # Emotional tagging
+        "source": "realtime-evolver",
+        "consolidated_at": time.time(),
+        "message_count": len(sessions)
+    })
+    
+    _v4_graph[cube_id] = tc
+    
+    # Оставляем последние 5 сообщений, остальное — в кубе
+    data["sessions"] = sessions[-5:]
+    data["consolidated_cubes"] = data.get("consolidated_cubes", [])
+    data["consolidated_cubes"].append(cube_id)
+    
+    with open(memory_path, 'w') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    
+    print(f"[EVOLVER] Realtime consolidation: {project} → {cube_id[:20]} ({len(sessions)} msgs)", flush=True)
+    return cube_id
 
 async def run_session_evolver():
-    """Фоновый воркер: проверяет сессии раз в час."""
+    """Фоновый воркер — проверяет сессии каждые 60 секунд."""
     while True:
-        await asyncio.sleep(3600)
+        await asyncio.sleep(60)
         try:
             memory_dir = "/app/app/runtime/memory"
             if not os.path.exists(memory_dir):
@@ -94,4 +85,4 @@ async def run_session_evolver():
                         project = fname.replace('.json', '')
                         await consolidate_session(user_id, project)
         except Exception as e:
-            print(f"[EVOLVER] Cycle error: {e}", flush=True)
+            print(f"[EVOLVER] Error: {e}", flush=True)

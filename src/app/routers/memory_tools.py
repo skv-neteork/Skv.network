@@ -1,0 +1,79 @@
+"""Memory Tools API — агент сам управляет памятью (как Letta)."""
+
+from fastapi import APIRouter, HTTPException
+import json, os, time
+
+router = APIRouter(prefix="/api/v4/memory", tags=["memory_tools"])
+
+@router.post("/save")
+async def core_memory_save(request: dict):
+    """Агент решает: 'Это важно, сохранить в ядро'."""
+    user_id = request.get("user_id", "anonymous")
+    content = request.get("content", "")
+    importance = request.get("importance", 0.8)
+    
+    # Сохраняем как важный куб
+    from app.routers.v4_graph import _v4_graph, get_graph
+    from app.routers.tensor_cube import TensorCube
+    from app.routers.v4_middleware import get_embedding_cached
+    import numpy as np
+    
+    get_graph()
+    
+    cube_id = f"core_{user_id}_{int(time.time())}"
+    vector = get_embedding_cached(content[:500])
+    
+    tc = TensorCube(cube_id, np.array(vector, dtype=np.float32), metadata={
+        "title": content[:80],
+        "rules": [content],
+        "importance": importance,
+        "cube_type": "OBJECT",
+        "source": "agent-self-save",
+        "pinned": True
+    })
+    
+    _v4_graph[cube_id] = tc
+    return {"status": "saved", "cube_id": cube_id}
+
+@router.post("/update")
+async def core_memory_update(request: dict):
+    """Агент решает: 'Этот факт устарел, обновить'."""
+    cube_id = request.get("cube_id", "")
+    new_content = request.get("content", "")
+    
+    from app.routers.v4_graph import _v4_graph, get_graph
+    get_graph()
+    
+    if cube_id not in _v4_graph:
+        raise HTTPException(status_code=404, detail="Cube not found")
+    
+    # Обновляем куб (reconsolidation)
+    cube = _v4_graph[cube_id]
+    cube.metadata["rules"] = [new_content]
+    cube.metadata["updated_at"] = time.time()
+    cube.metadata["update_count"] = cube.metadata.get("update_count", 0) + 1
+    
+    return {"status": "updated", "cube_id": cube_id}
+
+@router.post("/forget")
+async def core_memory_forget(request: dict):
+    """Агент решает: 'Это больше не актуально, забыть'."""
+    cube_id = request.get("cube_id", "")
+    
+    from app.routers.v4_graph import _v4_graph, get_graph
+    from app.routers.tensor_cube import cascade_delete_cube
+    get_graph()
+    
+    if cube_id not in _v4_graph:
+        raise HTTPException(status_code=404, detail="Cube not found")
+    
+    cascade_delete_cube(_v4_graph, cube_id)
+    return {"status": "forgotten", "cube_id": cube_id}
+
+@router.get("/search")
+async def core_memory_search(user_id: str, query: str):
+    """Агент ищет в своей памяти."""
+    from app.routers.v4_personal_memory import load_context
+    
+    memory = await load_context(user_id, query)
+    return memory

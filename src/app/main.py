@@ -109,6 +109,27 @@ async def lifespan(app):
         print(f"[SLEEP] {e}", flush=True)
 
     
+    # Сохраняем граф перед остановкой
+    try:
+        from app.routers.v4_graph import _v4_graph
+        import json
+        _data = {}
+        for _cid, _c in _v4_graph.items():
+            _data[_cid] = {
+                'vector': _c.vector.tolist() if hasattr(_c.vector, 'tolist') else _c.vector,
+                'connections': _c.connections,
+                'metadata': _c.metadata
+            }
+        _total = sum(len(_c.get('connections', {})) for _c in _data.values())
+        if _total > 1000:
+            with open('/data/skv/graph.json', 'w') as _f:
+                json.dump(_data, _f)
+            print(f"[SHUTDOWN] Graph saved: {len(_data)} cubes, {_total} edges", flush=True)
+        else:
+            print(f"[SHUTDOWN] Graph NOT saved: only {_total} edges (protection)", flush=True)
+    except Exception as _e:
+        print(f"[SHUTDOWN] Save error: {_e}", flush=True)
+    
     yield
     _task.cancel()
 

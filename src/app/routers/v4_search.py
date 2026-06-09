@@ -25,7 +25,11 @@ def hybrid_search(query_vector, top_k=50, max_depth=5):
         if best_id in _graph:
             activated = spread_activation(_graph[best_id], lambda cid: _graph.get(cid), max_depth=max_depth)
             # Записываем использование всех активированных кубов
+            # Реконсолидация активированных кубов
+            from app.routers.reconsolidation import reconsolidate_cube
             for _aid in activated:
+                if _aid in _graph:
+                    reconsolidate_cube(_graph[_aid])
                 if _aid in _graph:
                     _graph[_aid].record_usage()
             top = sorted(activated.items(), key=lambda x: -x[1])[:10]

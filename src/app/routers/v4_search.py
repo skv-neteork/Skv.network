@@ -23,7 +23,19 @@ def hybrid_search(query_vector, top_k=50, max_depth=5):
         
         best_id = candidate_ids[0]
         if best_id in _graph:
-            activated = spread_activation(_graph[best_id], lambda cid: _graph.get(cid), max_depth=max_depth)
+            # Учитываем слой куба при spreading activation
+            start_cube = _graph[best_id]
+            start_layer = start_cube.get("metadata", {}).get("layer", "global")
+            
+            # Приоритет: user > project > global
+            layer_boost = {"user": 1.5, "project": 1.2, "global": 1.0}
+            boost = layer_boost.get(start_layer, 1.0)
+            
+            activated = spread_activation(start_cube, lambda cid: _graph.get(cid), max_depth=max_depth)
+            # Применяем boost к активированным кубам из того же слоя
+            for aid in activated:
+                if _graph[aid].get("metadata", {}).get("layer") == start_layer:
+                    activated[aid] *= boost
             # Записываем использование всех активированных кубов
             # Реконсолидация активированных кубов
             from app.routers.reconsolidation import reconsolidate_cube

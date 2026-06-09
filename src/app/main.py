@@ -114,6 +114,21 @@ async def lifespan(app):
 
 app = FastAPI(title="SKV Network", version="4.0", lifespan=lifespan)
 
+@app.on_event("startup")
+async def start_background_services():
+    """Запуск фоновых сервисов (обходит баг lifespan)."""
+    try:
+        start_bg_task(run_session_evolver())
+        print("[EVOLVER] Started via startup event", flush=True)
+    except Exception as e:
+        print(f"[EVOLVER] {e}", flush=True)
+    try:
+        from app.routers.sleep_cycle import run_sleep_cycle
+        start_bg_task(run_sleep_cycle())
+        print("[SLEEP] Started via startup event", flush=True)
+    except Exception as e:
+        print(f"[SLEEP] {e}", flush=True)
+
 
 @app.middleware("http")
 async def add_server_time(request: Request, call_next):

@@ -7,7 +7,7 @@ import asyncpg
 import json
 from datetime import datetime, timezone
 
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+DATABASE_URL = "postgresql://skv_user:***REMOVED***@skv_postgres:5432/skv_db"
 
 async def _get_conn():
     return await asyncpg.connect(DATABASE_URL)

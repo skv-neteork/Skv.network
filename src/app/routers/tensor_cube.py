@@ -219,6 +219,22 @@ def hebbian_update(cubes: Dict[str, TensorCube], active_ids: list, lr: float = 0
             cubes[id2].strengthen_connection(id1, lr)
     for cube in cubes.values(): cube.decay_connections(rate=decay)
     
+    # Инкрементальное сохранение — только изменённые связи
+    try:
+        import json, os
+        _path = '/data/skv/graph.json'
+        if os.path.exists(_path):
+            with open(_path) as _f:
+                _data = json.load(_f)
+            # Обновляем только те кубы которые изменились
+            for _cid in active_ids:
+                if _cid in _data:
+                    _data[_cid]['connections'] = cubes[_cid].connections
+            with open(_path, 'w') as _f:
+                json.dump(_data, _f)
+    except:
+        pass
+    
     # Авто-сохранение графа после обучения
     try:
         import json

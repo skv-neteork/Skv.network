@@ -1,9 +1,10 @@
+import os
 from fastapi import APIRouter, Request
 import asyncpg, os, json, urllib.request as _req, aiohttp, aiohttp
 
 router = APIRouter()
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:***REMOVED***@skv_postgres:5432/skv_db")
-POLZA_KEY = "***REMOVED***"
+POLZA_KEY = os.environ.get("POLZA_KEY", "")
 TRIAL_MODELS = ["deepseek/deepseek-v4-flash", "qwen/qwen3.6-plus", "anthropic/claude-3-haiku"]
 
 async def get_db():

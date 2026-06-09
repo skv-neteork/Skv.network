@@ -1,3 +1,4 @@
+import os
 """Export endpoints: Markdown, PPTX, and Cube Extraction."""
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse, FileResponse
@@ -7,7 +8,7 @@ import urllib.request as _req
 
 router = APIRouter()
 
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = os.environ.get("POLZA_KEY", "")
 
 @router.get("/api/export/markdown/{cube_id}")
 async def export_markdown(cube_id: str):

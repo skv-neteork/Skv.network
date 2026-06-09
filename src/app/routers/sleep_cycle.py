@@ -68,6 +68,14 @@ async def nightly_sleep_cycle():
     with open('/data/skv/graph.json', 'w') as f:
         json.dump(data, f)
     
+    # 5. HIERARCHICAL CLUSTERING
+    try:
+        from app.routers.hierarchical import apply_hierarchical_clustering
+        meta_count = apply_hierarchical_clustering()
+        stats["clustered"] = meta_count
+    except Exception as e:
+        print(f"[SLEEP] Clustering error: {e}", flush=True)
+    
     print(f"[SLEEP] Cycle complete: replayed={stats['replayed']}, pruned={stats['pruned']}, "
           f"reconsolidated={stats['reconsolidated']}", flush=True)
     return stats

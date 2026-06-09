@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Evolver — SKV Network v4.5</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: system-ui; background: #0d1117; color: #c9d1d9; max-width: 800px; margin: 0 auto; padding: 20px; }
+        a { color: #8b949e; text-decoration: none; }
+        a.active { color: #f78166; font-weight: bold; }
+        h1 { color: #f0883e; }
+        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; margin-bottom: 20px; }
+        .metric { background: #161b22; padding: 10px; margin: 5px 0; border-radius: 4px; }
+        .healthy { color: #7ee787; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/upload">Upload</a>
+        <a href="/trials">Trials</a>
+        <a href="/evolver" class="active">Evolver</a>
+        <a href="/guide">Guide</a>
+        <a href="/about">About</a>
+    </div>
+    
+    <h1>🛡️ Evolver — Autonomous Guardian v4.5</h1>
+    <p>Runs continuously: session consolidation (60s) + sleep cycle (12h at idle).</p>
+    
+    <h2>Current Graph State</h2>
+    <div id="health">Loading...</div>
+    
+    <h2>Active Services</h2>
+    <ul>
+        <li>🔄 <b>Session Evolver:</b> Consolidates sessions into experience cubes (10+ messages)</li>
+        <li>🌙 <b>Sleep Cycle:</b> Nightly replay, pruning, reconsolidation (CPU < 30%)</li>
+        <li>🛡️ <b>Constitution Guard:</b> Auto-repair constitutional cube rules</li>
+    </ul>
+    
+    <script>
+        fetch('/api/v4/graph/health').then(r => r.json()).then(h => {
+            document.getElementById('health').innerHTML = 
+                `<div class="metric"><span class="${h.status==='healthy'?'healthy':''}">${h.status}</span> | ${h.nodes} nodes | ${h.edges} edges | ${h.constitutional_cubes} constitutional</div>`;
+        });
+    </script>
+</body>
+</html>

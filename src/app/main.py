@@ -391,3 +391,22 @@ async def bench_retrieval(q: str = "Python async", model: str = "deepseek"):
 @app.get("/privacy")
 async def privacy():
     return {"policy": "SKV Network collects minimal data. Email used as user_id. No tracking cookies. No third-party sharing. Contact: denizchavdarov@icloud.com"}
+
+
+@app.get("/sitemap.xml")
+async def sitemap():
+    urls = [
+        {"loc": "https://skv.network/", "priority": "1.0"},
+        {"loc": "https://skv.network/guide", "priority": "0.9"},
+        {"loc": "https://skv.network/about", "priority": "0.8"},
+        {"loc": "https://skv.network/profile", "priority": "0.8"},
+        {"loc": "https://skv.network/upload", "priority": "0.7"},
+        {"loc": "https://skv.network/chat", "priority": "0.9"},
+        {"loc": "https://skv.network/privacy", "priority": "0.3"},
+    ]
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    for url in urls:
+        xml += f'  <url><loc>{url["loc"]}</loc><priority>{url["priority"]}</priority></url>\n'
+    xml += '</urlset>'
+    from fastapi.responses import Response
+    return Response(content=xml, media_type="application/xml")

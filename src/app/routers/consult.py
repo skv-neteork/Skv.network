@@ -184,7 +184,9 @@ async def consult_get(query: str = "", model: str = "deepseek"):
 @router.post("/api/consult")
 async def consult_rag(request: Request):
     data = await request.json()
-    query = data.get("query", "")[:2000]
+    query = data.get("query", "")
+    if not query:
+        return {"error": "query parameter is required", "example": {"query": "your question here"}}
     user_id = data.get("user_id", "")
     if not user_id or user_id == "anonymous":
         user_id = "demo_" + str(int(__import__("time").time()))
@@ -315,6 +317,19 @@ async def consult_rag(request: Request):
         if _mem.get("sessions_count", 0) > 0:
             _memory_context = f"\n=== MEMORY ({_mem['sessions_count']} sessions) ===\n{_mem.get('summary', '')}\n"
     except Exception as _me:
+        pass
+    
+    # Загружаем память проекта
+    _memory_context = ""
+    try:
+        import httpx
+        _mem_url = f"http://127.0.0.1:8000/api/v4/users/{user_id}/projects/{project_ref or 'general'}/context"
+        _mem_resp = httpx.get(_mem_url, timeout=3)
+        if _mem_resp.status_code == 200:
+            _mem = _mem_resp.json()
+            if _mem.get("sessions_count", 0) > 0:
+                _memory_context = f"\n=== PROJECT MEMORY ({_mem['sessions_count']} sessions) ===\n{_mem.get('summary', '')}\n"
+    except:
         pass
     
     user_msg = rules_context + _memory_context + history_text + "\n\nQuestion: " + query + "\n\nAnswer helpfully."

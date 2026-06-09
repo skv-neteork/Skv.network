@@ -177,7 +177,24 @@ async def download_persona_pack(user_id: str):
     except:
         pass
     
-    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n{'='*50}\n\n{persona_text}\nL0 CACHE (Last Request/Response):\n{l0_cache}\n\n---\n\nMEMORY INDEX (Session History):\n{memory_index}\n---\n\n{constitution}\n\n---\n\n{guide}"
+    # Генерация API-ключа
+    import uuid
+    api_token = ""
+    try:
+        row = await conn.fetchrow("SELECT api_key FROM user_api_keys WHERE user_id = $1", user_id)
+        if row and row['api_key']:
+            api_token = row['api_key']
+        else:
+            api_token = str(uuid.uuid4())
+            await conn.execute("INSERT INTO user_api_keys (user_id, api_key) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING", user_id, api_token)
+    except:
+        api_token = str(uuid.uuid4())[:8]  # fallback
+    
+    api_section = f"\nAPI KEY: {api_token}\nUse this key in X-API-Key header for memory access.\n"
+    
+    import uuid
+    api_token = str(uuid.uuid4())[:8]
+    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n\nAPI KEY: {api_token}\nUse this key in X-API-Key header for memory access.\n\n{'='*50}\n\n{persona_text}\nL0 CACHE (Last Request/Response):\n{l0_cache}\n\n---\n\nMEMORY INDEX (Session History):\n{memory_index}\n---\n\n{constitution}\n\n---\n\n{guide}\n\n---\n\nAPI KEY: {api_token}\nUse this key in X-API-Key header for memory access.\n"
 
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse(full_text, headers={"Content-Disposition": f"attachment; filename=skv-pack-{user_id}.txt"})

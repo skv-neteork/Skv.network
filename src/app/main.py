@@ -146,8 +146,62 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
         return response
 
-app = FastAPI(title="SKV Network", version="4.0", lifespan=lifespan)
+app = FastAPI(
+    title="SKV Network API",
+    version="4.0",
+    description="Open neural knowledge base and shared memory for AI agents. TensorCube graph, constitutional rules, Hebbian learning.",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    contact={"name": "Deniz Chavdarov", "email": "denizchavdarov@icloud.com"},
+    license_info={"name": "MIT"}
+)
 app.add_middleware(SecurityHeadersMiddleware)
+from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["X-Content-Type-Options", "X-Frame-Options"]
+)
+
+# Rate Limiting + API Key validation
+from collections import defaultdict
+import time
+_rate_limits = defaultdict(list)
+
+@app.middleware("http")
+async def rate_limit_middleware(request, call_next):
+    # Пропускаем discovery и health
+    if request.url.path in ["/.well-known/skv", "/api/time", "/api/v4/graph/health"]:
+        return await call_next(request)
+    
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    
+    # Очищаем старые записи
+    _rate_limits[client_ip] = [t for t in _rate_limits[client_ip] if now - t < 60]
+    
+    # Rate limit: 30 запросов в минуту
+    if len(_rate_limits[client_ip]) >= 30:
+        return JSONResponse({"detail": "Rate limit exceeded. Max 30 requests/minute."}, status_code=429)
+    
+    _rate_limits[client_ip].append(now)
+    
+    # API key validation для /api/v4/sessions и /api/v4/cubes
+    if request.url.path.startswith("/api/v4/sessions") or request.url.path.startswith("/api/v4/cubes"):
+        api_key = request.headers.get("X-API-Key", "") or request.query_params.get("api_key", "")
+        if api_key != "86415d0b-a4fe-4be6-bb55-4407f525bd2d" and request.method != "GET":
+            return JSONResponse({"detail": "API key required. Get yours at /profile"}, status_code=401)
+    
+    response = await call_next(request)
+    response.headers["X-RateLimit-Remaining"] = str(30 - len(_rate_limits[client_ip]))
+    return response
+
 app.add_middleware(GZipMiddleware, minimum_size=256)
 
 @app.on_event("startup")

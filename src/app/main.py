@@ -113,6 +113,7 @@ async def lifespan(app):
     _task.cancel()
 
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -126,6 +127,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="SKV Network", version="4.0", lifespan=lifespan)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=256)
 
 @app.on_event("startup")
 async def start_background_services():
@@ -384,3 +386,8 @@ async def bench_retrieval(q: str = "Python async", model: str = "deepseek"):
         },
         "improvement": f"{len(hybrid_cubes) - len(qdrant_cubes)} more cubes"
     }
+
+
+@app.get("/privacy")
+async def privacy():
+    return {"policy": "SKV Network collects minimal data. Email used as user_id. No tracking cookies. No third-party sharing. Contact: denizchavdarov@icloud.com"}

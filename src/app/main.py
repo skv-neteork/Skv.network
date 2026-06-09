@@ -189,6 +189,9 @@ async def discovery():
             "ai_executor": "Generate images, HTML, PDF directly from JSON instructions"
         },
         "endpoints": {
+            "sessions": "POST /api/v4/sessions",
+            "memory": "GET /api/v4/users/{id}/projects/{project}/context",
+            "graph_health": "GET /api/v4/graph/health",
             "discovery": "GET /.well-known/skv",
             "search": "GET /api/cubes/search?query=...",
             "upload": "POST /api/v1/entries",

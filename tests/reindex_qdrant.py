@@ -1,6 +1,6 @@
 import json, urllib.request as req, time, subprocess
 
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "REDACTED"
 
 # Получаем кубики через docker exec
 result = subprocess.run(

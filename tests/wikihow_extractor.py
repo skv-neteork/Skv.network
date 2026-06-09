@@ -3,7 +3,7 @@
 import json, urllib.request as req, time, re
 from datetime import datetime
 
-POLZA_KEY = "***REMOVED***"
+POLZA_KEY = "REDACTED"
 MODEL = "x-ai/grok-4"
 SKV_UPLOAD = "https://skv.network/api/v1/entries"
 OUTPUT_FILE = "/root/skv-core/data/wikihow_output.json"

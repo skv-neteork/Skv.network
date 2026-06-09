@@ -4,7 +4,7 @@ import json, time, urllib.request as req, ssl
 
 SKV_URL = "https://skv.network/api/consult"
 POLZA_URL = "https://api.polza.ai/v1/chat/completions"
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "REDACTED"
 
 ctx = ssl.create_default_context()
 ctx.check_hostname = False

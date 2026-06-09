@@ -1,6 +1,6 @@
 import json, urllib.request as req, time
 
-POLZA_KEY = 'pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo'
+POLZA_KEY = 'REDACTED'
 INPUT_FILE = '/root/skv-core/data/codealpaca_top2000.json'
 OUTPUT_FILE = '/root/skv-core/data/extracted_top2000_final.json'
 

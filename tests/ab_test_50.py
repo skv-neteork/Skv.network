@@ -1,6 +1,6 @@
 import json, urllib.request as req, time
 
-POLZA_KEY = "***REMOVED***"
+POLZA_KEY = "REDACTED"
 SKV_CONSULT = "https://skv.network/api/consult"
 DIRECT_API = "https://api.polza.ai/v1/chat/completions"
 MODEL = "deepseek/deepseek-v4-flash"

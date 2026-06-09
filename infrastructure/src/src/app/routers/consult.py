@@ -5,7 +5,7 @@ import urllib.request as _req
 
 router = APIRouter()
 
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "REDACTED"
 
 # Конституционные кубики — всегда в ответе, без поиска
 CONSTITUTION_CUBES = [

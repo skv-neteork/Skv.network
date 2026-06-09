@@ -5,7 +5,7 @@ from datetime import datetime
 
 SKV_URL = "https://skv.network/api/consult"
 POLZA_URL = "https://api.polza.ai/v1/chat/completions"
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "REDACTED"
 
 MODELS = {
     "deepseek": "deepseek/deepseek-v4-flash",

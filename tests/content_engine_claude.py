@@ -1,7 +1,7 @@
 """SKV Content Engine v2.0 — Claude 3.5 Sonnet + авто-загрузка в SKV."""
 import json, urllib.request as req, time, re
 
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "REDACTED"
 MODEL = "meta-llama/llama-3.3-70b-instruct"  # Groq Llama 3.3 70B через Polza
 SKV_UPLOAD = "https://skv.network/api/v1/entries"
 

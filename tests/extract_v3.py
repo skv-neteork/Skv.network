@@ -1,6 +1,6 @@
 import json, urllib.request as req, re, time
 
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "REDACTED"
 
 def parse_json_safely(text):
     """Extract JSON from text, handling markdown or prefixes."""

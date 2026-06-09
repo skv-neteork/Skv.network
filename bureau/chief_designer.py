@@ -6,7 +6,7 @@
 import json, urllib.request as req, os, sys
 
 # Конфигурация
-POLZA_KEY = "***REMOVED***"
+POLZA_KEY = "REDACTED"
 SKV_URL = "https://skv.network"
 DIRECTOR = "deniz"
 

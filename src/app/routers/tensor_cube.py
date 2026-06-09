@@ -1,5 +1,10 @@
 """SKV v4.0 — TensorCube: Neural Knowledge Unit"""
 import numpy as np
+import time as _time
+
+# STDP temporal windows (seconds)
+STDP_WINDOW = 0.1   # 100ms — strong LTP
+STDP_LATE = 0.5     # 500ms — weak LTD-like
 from typing import Dict, Optional, Set
 from datetime import datetime
 import uuid
@@ -60,10 +65,15 @@ class TensorCube:
         for cid in to_remove: del self.connections[cid]
         return pruned
     
-    def add_connection(self, cube_id: str, weight: float = 0.3):
-        """Добавить связь с временной меткой."""
-        self.connections[cube_id] = weight
-        self.connection_timestamps[cube_id] = __import__('time').time()
+    def add_connection(self, cube_id: str, weight: float = 0.3, time_delta: float = None):
+        """STDP: closer in time = stronger connection."""
+        if time_delta is not None:
+            if time_delta <= STDP_WINDOW:
+                weight *= 1.5
+            elif time_delta >= STDP_LATE:
+                weight *= 0.5
+        self.connections[cube_id] = min(1.0, weight)
+        self.connection_timestamps[cube_id] = _time.time()
     
     def add_directed_edge(self, target_id: str, weight: float = 0.3, rel_type: str = "next"):
         if rel_type not in self.directed_edges:

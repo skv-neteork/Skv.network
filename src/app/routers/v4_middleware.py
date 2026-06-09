@@ -1,3 +1,4 @@
+import os
 """SKV v4.0 Middleware — embedding cache only (no text memory)"""
 import numpy as np
 from fastapi import APIRouter
@@ -13,7 +14,7 @@ def get_embedding_cached(query):
     import json, urllib.request as req
     body = json.dumps({"model": "text-embedding-3-small", "input": query[:500]}).encode()
     r = req.Request("https://api.polza.ai/v1/embeddings", data=body,
-        headers={"Content-Type": "application/json", "Authorization": "Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"})
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "") + ""})
     resp = json.loads(req.urlopen(r, timeout=10).read())
     emb = np.array(resp["data"][0]["embedding"], dtype=np.float32)
     _embedding_cache[cache_key] = emb

@@ -1,3 +1,4 @@
+import os
 """SKV Design Bureau with Research + Engineering Modes"""
 from fastapi import APIRouter, HTTPException
 import asyncio, httpx, json, re, time
@@ -8,7 +9,7 @@ from app.routers.project_manager import create_project, get_project, add_message
 
 router = APIRouter()
 POLZA_API = "https://api.polza.ai/v1/chat/completions"
-POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+POLZA_KEY = os.environ.get("POLZA_KEY", "")
 FLASH = "deepseek/deepseek-v4-flash"
 CRITIC = "deepseek/deepseek-chat"
 VALIDATOR = "http://127.0.0.1:8000/api/validate/formula"
@@ -220,7 +221,7 @@ async def run_subtask(subtask, context=""):
         # Get query embedding
         _emb_body = _js.dumps({"model": "text-embedding-3-small", "input": q[:500]}).encode()
         _emb_req = __import__('urllib.request').request.Request("https://api.polza.ai/v1/embeddings", 
-            data=_emb_body, headers={"Content-Type": "application/json", "Authorization": "Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"})
+            data=_emb_body, headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "") + ""})
         _emb_resp = _js.loads(__import__('urllib.request').request.urlopen(_emb_req, timeout=10).read())
         _q_vec = _np.array(_emb_resp["data"][0]["embedding"], dtype=_np.float32)
         

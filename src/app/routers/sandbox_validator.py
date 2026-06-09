@@ -1,3 +1,4 @@
+import os
 """Sandbox validation — runs code in Docker sandbox, auto-fix cycle."""
 import re, httpx, json, time, asyncio
 
@@ -47,7 +48,7 @@ async def validate_with_sandbox(hypothesis_text: str, task_description: str = ""
             try:
                 async with httpx.AsyncClient(timeout=60) as client:
                     fix_resp = await client.post("https://api.polza.ai/v1/chat/completions",
-                        headers={"Authorization": f"Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"},
+                        headers={"Authorization": f"Bearer " + os.environ.get("POLZA_KEY", "") + ""},
                         json={"model": "deepseek/deepseek-v4-flash", "messages": [{"role": "user", "content": fix_prompt}], "max_tokens": 2000})
                     fixed_text = fix_resp.json()["choices"][0]["message"]["content"]
                 fixed_blocks = extract_python_code(fixed_text)

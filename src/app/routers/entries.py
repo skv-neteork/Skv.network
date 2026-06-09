@@ -1,8 +1,9 @@
+import os
 import json, uuid, hashlib, asyncio, subprocess, psycopg2
 from datetime import datetime, timezone, timedelta, timedelta
 from fastapi import APIRouter, HTTPException, Request, Response
 
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = os.environ.get("POLZA_KEY", "")
 DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
 
 router = APIRouter()

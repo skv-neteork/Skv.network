@@ -1,3 +1,4 @@
+import os
 """Pyramid Engine — iterative 3-agent + critic loop"""
 import asyncio
 import httpx
@@ -9,7 +10,7 @@ import re
 logger = logging.getLogger("skv.pyramid")
 
 POLZA_API = "https://api.polza.ai/v1/chat/completions"
-POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+POLZA_KEY = os.environ.get("POLZA_KEY", "")
 FLASH_MODEL = "deepseek/deepseek-v4-flash"
 CRITIC_MODEL = "deepseek/deepseek-chat"
 

@@ -1,9 +1,10 @@
+import os
 import httpx, json, asyncio, re, time, sys
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
 SANDBOX_URL = "http://172.19.0.8:8000"
-POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+POLZA_KEY = os.environ.get("POLZA_KEY", "")
 MODELS = ["deepseek/deepseek-v4-flash"] * 3
 MAX_TRIES = 10
 

@@ -1,3 +1,4 @@
+import os
 import json, asyncio, time
 from collections import defaultdict
 import httpx
@@ -7,7 +8,7 @@ from app.routers.pyramid_engine import run_pyramid
 router = APIRouter()
 # Simple session memory: user_id -> last response
 session_memory = defaultdict(str)
-PKEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+PKEY = os.environ.get("POLZA_KEY", "")
 FLASH = "deepseek/deepseek-v4-flash"
 CHAT = "deepseek/deepseek-chat"
 C00 = "Verify: 1) Accuracy 2) Creativity 3) Safety 4) Diversity. Correct if violated."

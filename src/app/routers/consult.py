@@ -1,3 +1,4 @@
+import os
 import json, urllib.request as _req, time as _time
 from fastapi import APIRouter, Request
 from app.routers.tensor_cube import TensorCube, spread_activation
@@ -5,7 +6,7 @@ from app.routers.v4_middleware import get_embedding_cached
 import numpy as np
 
 router = APIRouter()
-POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+POLZA_KEY = os.environ.get("POLZA_KEY", "")
 
 
 # Global constitution rules
@@ -424,7 +425,7 @@ async def deepseek_chat(request: Request):
         "temperature": 0.3
     }).encode()
     r = req.Request("https://api.polza.ai/v1/chat/completions", data=api_body,
-        headers={"Content-Type": "application/json", "Authorization": "Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"})
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "") + ""})
     resp = json.loads(req.urlopen(r, timeout=120).read())
     return {"answer": resp["choices"][0]["message"]["content"]}
 
@@ -436,7 +437,7 @@ async def generate_anketa(request: Request):
     query = body.get("query", "")
     prompt = f"Generate SKV anketa JSON for: {query}"
     api_body = _json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}).encode()
-    r = _req.Request("https://api.polza.ai/v1/chat/completions", data=api_body, headers={"Content-Type": "application/json", "Authorization": "Bearer pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"})
+    r = _req.Request("https://api.polza.ai/v1/chat/completions", data=api_body, headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "") + ""})
     resp = _json.loads(_req.urlopen(r, timeout=120).read())
     answer = resp["choices"][0]["message"]["content"].replace("```json", "").replace("```", "").strip()
     try:

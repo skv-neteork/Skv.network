@@ -143,6 +143,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Отключаем кэширование для HTML-страниц
+        if request.url.path.endswith('.html') or request.url.path in ["/", "/trials", "/evolver", "/guide", "/about"]:
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
         return response
 
@@ -187,7 +192,7 @@ async def rate_limit_middleware(request, call_next):
     _rate_limits[client_ip] = [t for t in _rate_limits[client_ip] if now - t < 60]
     
     # Rate limit: 30 запросов в минуту
-    if len(_rate_limits[client_ip]) >= 30:
+    if len(_rate_limits[client_ip]) >= 100:
         return JSONResponse({"detail": "Rate limit exceeded. Max 30 requests/minute."}, status_code=429)
     
     _rate_limits[client_ip].append(now)
@@ -485,3 +490,9 @@ async def sitemap():
     xml += '</urlset>'
     from fastapi.responses import Response
     return Response(content=xml, media_type="application/xml")
+
+
+@app.get("/discovery")
+async def discovery_redirect():
+    from starlette.responses import RedirectResponse
+    return RedirectResponse(url="/.well-known/skv")

@@ -186,6 +186,10 @@ async def rate_limit_middleware(request, call_next):
         return await call_next(request)
     
     client_ip = request.client.host if request.client else "unknown"
+    
+    # Пропускаем внутренние запросы от самого себя
+    if client_ip in ["127.0.0.1", "localhost", "::1"]:
+        return await call_next(request)
     now = time.time()
     
     # Очищаем старые записи
@@ -425,7 +429,8 @@ async def graph_health():
         "orphaned_connections": orphaned,
         "deprecated_cubes": deprecated,
         "constitutional_cubes": constitutional,
-        "status": "healthy" if total_edges > 100 and orphaned == 0 else "needs_attention"
+        "status": "healthy" if total_edges > 100 and orphaned == 0 else "needs_attention",
+        "dead_cubes_note": "usage_count tracking WIP — dead_cubes metric not reliable yet"
     }
 
 @app.get("/api/v4/bench/retrieval")

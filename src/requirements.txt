@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+numpy
+qdrant-client
+asyncpg
+httpx
+pydantic-settings
+python-dotenv
+starlette

@@ -46,6 +46,12 @@ def hybrid_search(query_vector, top_k=50, max_depth=5):
                     reconsolidate_cube(_graph[_aid])
                 if _aid in _graph:
                     _graph[_aid].record_usage()
+            # Обновляем usage_count в глобальном графе
+            from app.routers.v4_graph import _v4_graph as _global_graph
+            for _aid in activated:
+                if _aid in _global_graph:
+                    _global_graph[_aid].metadata['usage_count'] = _global_graph[_aid].metadata.get('usage_count', 0) + 1
+            
             top = sorted(activated.items(), key=lambda x: -x[1])[:10]
             return [{"id": cid, "title": _graph[cid].metadata.get("title", cid)[:60], "energy": round(energy, 3)} for cid, energy in top if cid in _graph]
         return []

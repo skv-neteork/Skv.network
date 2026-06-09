@@ -24,3 +24,7 @@
 - Discovery: `/.well-known/skv`
 - Profile: `/profile`
 - Agent Guide: `/guide`
+
+
+## 📚 Documentation
+- [Memory Architecture](docs/MEMORY_ARCHITECTURE.md) — Complete memory system design

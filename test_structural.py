@@ -1,7 +1,7 @@
 import json, os, sys, urllib.parse, urllib.request as req
 
 POLZA_URL = "https://api.polza.ai/v1/chat/completions"
-POLZA_KEY = os.getenv("POLZA_KEY", "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR")
+POLZA_KEY = os.getenv("POLZA_KEY", "REDACTED")
 MODEL = "deepseek-chat"
 SKV_SEARCH_URL = "https://skv.network/api/cubes/search"  # ✅ Правильный эндпоинт
 QUERY = sys.argv[1] if len(sys.argv) > 1 else "How to validate user input in FastAPI?"

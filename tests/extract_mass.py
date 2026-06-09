@@ -1,6 +1,6 @@
 import json, urllib.request as req, re, time, sys
 
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "REDACTED"
 INPUT_FILE = sys.argv[1] if len(sys.argv) > 1 else "/root/skv-core/data/dialogues/dolly_15k.jsonl"
 OUTPUT_FILE = "/root/skv-core/data/extracted_dolly.json"
 

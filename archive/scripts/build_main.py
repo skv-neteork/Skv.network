@@ -17,7 +17,7 @@ async def startup():
     global cubes_library
     try:
         import asyncpg
-        conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+        conn = await asyncpg.connect("postgresql://skv_user:REDACTED@skv_postgres:5432/skv_db")
         rows = await conn.fetch("SELECT cube_id, type, title, trigger_intent, rules FROM cubes")
         for row in rows:
             triggers = row["trigger_intent"] if isinstance(row["trigger_intent"], list) else json.loads(row["trigger_intent"])

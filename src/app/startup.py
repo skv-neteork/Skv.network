@@ -1,10 +1,11 @@
+import os
 """Startup events for SKV Network."""
 import asyncpg
 import json
 import uuid
 from app.routers.entries import cubes_library
 
-DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 async def load_cubes_from_postgresql():
     """Загружает кубики из PostgreSQL при старте."""

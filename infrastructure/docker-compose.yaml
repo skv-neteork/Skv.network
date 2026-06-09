@@ -15,7 +15,7 @@ services:
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=skv.network
       - LETSENCRYPT_EMAIL=denizchavdarov@icloud.com
-      - DATABASE_URL=postgresql://skv_user:skv_secret_2026@postgres:5432/skv_db
+      - DATABASE_URL=${DATABASE_URL}
       - QDRANT_URL=http://qdrant:6333
       - REDIS_URL=redis://redis:6379
     depends_on:
@@ -30,7 +30,7 @@ services:
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - POSTGRES_USER=skv_user
-      - POSTGRES_PASSWORD=skv_secret_2026
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=skv_db
     volumes:
       - pgdata:/var/lib/postgresql/data

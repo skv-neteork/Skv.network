@@ -1,6 +1,6 @@
 import json, urllib.request, time
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek-v4-flash"
 
 with open('/root/skv-core/metacubes_v2.json') as f:

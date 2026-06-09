@@ -1,7 +1,7 @@
 """Финальный тест: SKV vs DeepSeek Chat (25 вопросов) с полным логированием."""
 import json, urllib.request as req, time
 
-POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+POLZA_KEY = "REDACTED"
 SKV_CONSULT = "https://skv.network/api/consult"
 DIRECT_API = "https://api.polza.ai/v1/chat/completions"
 MODEL = "deepseek/deepseek-chat"  # Не Flash!

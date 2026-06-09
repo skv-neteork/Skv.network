@@ -1,7 +1,7 @@
 """SKV Hallucination Test: 100 questions, automated."""
 import json, urllib.request, time, random
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek-v4-flash"
 
 # 100 questions where LLMs sometimes hallucinate

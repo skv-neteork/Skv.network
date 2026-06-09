@@ -9,7 +9,7 @@ import threading
 
 router = APIRouter()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:REDACTED@skv_postgres:5432/skv_db")
 
 async def get_db():
     return await asyncpg.connect(DATABASE_URL)

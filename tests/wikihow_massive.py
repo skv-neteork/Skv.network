@@ -2,7 +2,7 @@
 import json, urllib.request as req, time, re
 from datetime import datetime
 
-POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+POLZA_KEY = "REDACTED"
 MODEL = "x-ai/grok-4"
 SKV_UPLOAD = "https://skv.network/api/v1/entries"
 OUTPUT_FILE = "/root/skv-core/data/wikihow_massive_output.json"

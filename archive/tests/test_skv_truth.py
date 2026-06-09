@@ -1,7 +1,7 @@
 """SKV Benchmark: Test if cubes reduce hallucinations on tricky questions."""
 import json, urllib.request, time
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek-v4-flash"
 
 # 20 questions where LLMs tend to hallucinate

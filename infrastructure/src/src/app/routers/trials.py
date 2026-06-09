@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request
 import asyncpg, os, json, urllib.request as _req
 
 router = APIRouter()
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@127.0.0.1:5432/skv_db")
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:REDACTED@127.0.0.1:5432/skv_db")
+POLZA_KEY = "REDACTED"
 TRIAL_MODELS = ["deepseek/deepseek-v4-flash", "qwen/qwen3.6-flash", "openai/gpt-5.5"]
 
 async def get_db():

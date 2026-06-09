@@ -18,7 +18,7 @@ async def consult(request: Request):
     rules_context = ""
     try:
         from qdrant_client import QdrantClient
-        POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+        POLZA_KEY = "REDACTED"
         emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
         emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
             "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
@@ -48,7 +48,7 @@ async def consult(request: Request):
         try:
             req = _req.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={
                 "Content-Type": "application/json",
-                "Authorization": "Bearer pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+                "Authorization": "Bearer REDACTED"
             })
             resp = _req.urlopen(req, timeout=90)
             answer = json.loads(resp.read())["choices"][0]["message"]["content"]

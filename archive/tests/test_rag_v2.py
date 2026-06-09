@@ -1,6 +1,6 @@
 import json, urllib.request, time, subprocess, re
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek-v4-flash"
 
 def get_rules(question):

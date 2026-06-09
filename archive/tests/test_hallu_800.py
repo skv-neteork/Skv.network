@@ -1,7 +1,7 @@
 """SKV Full TruthfulQA: 800+ questions with compass approach."""
 import json, urllib.request, time, random
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek-v4-flash"
 
 # Load full TruthfulQA questions (generate 800+)

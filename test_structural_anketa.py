@@ -1,7 +1,7 @@
 import json, os, sys, urllib.request as req
 
 POLZA_URL = "https://api.polza.ai/v1/chat/completions"
-POLZA_KEY = os.getenv("POLZA_KEY", "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7")
+POLZA_KEY = os.getenv("POLZA_KEY", "REDACTED")
 MODEL = "deepseek-chat"
 QUERY = sys.argv[1] if len(sys.argv) > 1 else "How to securely store API keys in Python?"
 

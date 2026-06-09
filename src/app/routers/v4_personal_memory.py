@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, HTTPException, Request
 router = APIRouter()
 
@@ -6,7 +7,7 @@ import asyncpg
 import json
 from datetime import datetime, timezone
 
-DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 async def _get_conn():
     return await asyncpg.connect(DATABASE_URL)

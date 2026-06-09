@@ -143,7 +143,7 @@ def index_cube_in_qdrant(cube_id, title, rules, triggers):
         text = f"Title: {title}\nTriggers: {', '.join(triggers)}\nRules: {'; '.join(rules[:5])}"
         emb_body = json.dumps({"model": "text-embedding-3-small", "input": text[:2000]}).encode()
         emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
-            "Content-Type": "application/json", "Authorization": "Bearer pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+            "Content-Type": "application/json", "Authorization": "Bearer REDACTED"
         })
         embedding = json.loads(_req.urlopen(emb_req, timeout=15).read())["data"][0]["embedding"]
         import hashlib

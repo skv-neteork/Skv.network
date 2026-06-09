@@ -1,7 +1,7 @@
 """SKV Benchmark: Real-world scenarios where SKV should make a difference."""
 import json, urllib.request, time
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek-v4-flash"
 
 # 10 realistic scenarios where SKV cubes should help

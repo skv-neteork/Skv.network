@@ -1,7 +1,7 @@
 """SKV Content Engine v1.3 — рабочая версия (проверено отладкой)."""
 import json, urllib.request as req, time
 
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek/deepseek-chat"
 SKV_UPLOAD = "https://skv.network/api/v1/entries"
 

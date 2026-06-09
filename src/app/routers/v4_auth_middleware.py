@@ -1,9 +1,10 @@
+import os
 """V4 Auth Middleware — извлекает user_id из API токена."""
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 import asyncpg
 
-DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres/skv_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

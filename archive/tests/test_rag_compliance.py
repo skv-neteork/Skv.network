@@ -1,7 +1,7 @@
 """SKV RAG Pipeline: Top-5 rules from Qdrant → Generate → Verify → Measure Compliance."""
 import json, urllib.request, time
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek-v4-flash"
 
 def emb(text):

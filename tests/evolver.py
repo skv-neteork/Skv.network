@@ -2,7 +2,7 @@
 import json, urllib.request as req, time, random, os
 from datetime import datetime
 
-POLZA_KEY = "pza_Ns65_QseefnzOMML9WPpm8_Rhruu3fZ7"
+POLZA_KEY = "REDACTED"
 MODEL = "anthropic/claude-3-haiku"
 SKV_SEARCH = "https://skv.network/api/cubes/search"
 SKV_FEEDBACK = "https://skv.network/api/feedback"
@@ -121,7 +121,7 @@ def delete_cube(cube_id):
         import psycopg2 as pg2
         pg_conn = pg2.connect(
             host="127.0.0.1", port=5432,
-            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+            dbname="skv_db", user="skv_user", password="REDACTED"
         )
         cur = pg_conn.cursor()
         cur.execute("DELETE FROM cubes WHERE cube_id = %s", (cube_id,))
@@ -138,7 +138,7 @@ def delete_cube(cube_id):
         import psycopg2 as pg2
         pg_conn = pg2.connect(
             host="127.0.0.1", port=5432,
-            dbname="skv_db", user="skv_user", password="skv_secret_2026"
+            dbname="skv_db", user="skv_user", password="REDACTED"
         )
         cur = pg_conn.cursor()
         
@@ -233,7 +233,7 @@ def run_audit_cycle():
     log("✅ Deep audit complete")
     try:
         import psycopg2 as pg2
-        pg_conn = pg2.connect(host="127.0.0.1", port=5432, dbname="skv_db", user="skv_user", password="skv_secret_2026")
+        pg_conn = pg2.connect(host="127.0.0.1", port=5432, dbname="skv_db", user="skv_user", password="REDACTED")
         cur = pg_conn.cursor()
         cur.execute("""CREATE TABLE IF NOT EXISTS evolver_stats (date TEXT PRIMARY KEY, keep INT DEFAULT 0, fix INT DEFAULT 0, remove INT DEFAULT 0, total INT DEFAULT 0)""")
         cur.execute("""INSERT INTO evolver_stats (date, keep, fix, remove, total) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (date) DO UPDATE SET keep = evolver_stats.keep + %s, fix = evolver_stats.fix + %s, remove = evolver_stats.remove + %s, total = evolver_stats.total + %s""", (datetime.now().strftime("%Y-%m-%d"), results["KEEP"], results["FIX"], results["REMOVE"], sum(results.values()), results["KEEP"], results["FIX"], results["REMOVE"], sum(results.values())))

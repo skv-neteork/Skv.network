@@ -1,7 +1,7 @@
 """SKV Benchmark: Test if cubes improve AI accuracy and reduce hallucinations."""
 import json, urllib.request, time
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek-v4-flash"
 
 # TruthfulQA subset (20 questions)

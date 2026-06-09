@@ -1,7 +1,7 @@
 """Simple task queue for SKV — runs in background thread."""
 import json, urllib.request, time, threading, uuid
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 tasks = {}
 results = {}
 

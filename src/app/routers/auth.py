@@ -9,7 +9,7 @@ import json
 
 router = APIRouter()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+DATABASE_URL = os.getenv("DATABASE_URL", os.getenv("DATABASE_URL", ""))
 RESEND_KEY = "re_3pC1mjQB_9s1ziEbMVSHpnv2WU6qrBNMY"
 
 async def get_db():

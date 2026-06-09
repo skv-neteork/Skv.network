@@ -1,6 +1,6 @@
 import json, urllib.request as req, time, sys, os
 
-POLZA_KEY = 'pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo'
+POLZA_KEY = 'REDACTED'
 INPUT_FILE = '/root/skv-core/data/dialogues/code_alpaca_20k.json'
 OUTPUT_DIR = '/root/skv-core/data/codealpaca_batches'
 os.makedirs(OUTPUT_DIR, exist_ok=True)

@@ -2,7 +2,7 @@
 import json, urllib.request as req, time, re
 from datetime import datetime
 
-POLZA_KEY = "pza_K738KdM_Cm2HYltwAvCLi3Uw9n8U5Rfo"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek/deepseek-chat"  # DeepSeek через Polza (Grok упал в 402)
 SKV_UPLOAD = "https://skv.network/api/v1/entries"
 OUTPUT_FILE = "/root/skv-core/data/night_engine_output.json"

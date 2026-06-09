@@ -115,7 +115,7 @@ async def download_persona_pack(user_id: str):
     import os, json as json_lib, asyncpg
     print("[SKV] IMPORTS OK")
 
-    DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
+    DATABASE_URL = os.getenv("DATABASE_URL", "")
     search_id = user_id.split("@")[0] if "@" in user_id else user_id
     persona_text = f"USER PERSONA FOR: {user_id}\n"
     memory_index = ""
@@ -344,7 +344,7 @@ async def get_project_memory(user_id: str, project_name: str):
     """Возвращает оглавление сессий по конкретному проекту"""
     try:
         import asyncpg
-        DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
+        DATABASE_URL = os.getenv("DATABASE_URL", "")
         conn = await asyncpg.connect(DATABASE_URL)
         
         search_id = user_id.split("@")[0] if "@" in user_id else user_id

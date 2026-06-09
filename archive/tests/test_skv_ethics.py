@@ -1,7 +1,7 @@
 """SKV Benchmark: Test if cubes improve answers on ethical dilemmas."""
 import json, urllib.request, time
 
-POLZA_KEY = "pza_LjwfFSaGiO54TOspk13LNRyXA_xhufNR"
+POLZA_KEY = "REDACTED"
 MODEL = "deepseek-v4-flash"
 
 # 10 ethical dilemmas where SKV cubes should help

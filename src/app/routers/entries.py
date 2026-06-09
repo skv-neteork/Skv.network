@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta, timedelta
 from fastapi import APIRouter, HTTPException, Request, Response
 
 POLZA_KEY = os.environ.get("POLZA_KEY", "")
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
 
 router = APIRouter()
 entries_db = {}
@@ -417,7 +417,7 @@ async def get_cube_links(cube_id: str):
         conn.close()
         return {"cube_id": cube_id, "links": links}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        raise HTTPException(status_code=500, detail="Database error"[:200])
 
 
 @router.post("/api/feedback")
@@ -470,7 +470,7 @@ async def feedback(request: Request):
             "pending_trial": pending
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        raise HTTPException(status_code=500, detail="Database error"[:200])
     
     # Запускаем Суд через HTTP (не зависит от курсора БД)
     if pending:
@@ -531,7 +531,7 @@ async def get_trials():
         
         return {"trials": trials, "count": len(trials)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        raise HTTPException(status_code=500, detail="Database error"[:200])
 
 
 @router.get("/api/time")
@@ -581,7 +581,7 @@ async def delete_entry(cube_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        raise HTTPException(status_code=500, detail="Database error"[:200])
 
 
 def tokenize(text: str) -> set:
@@ -740,7 +740,7 @@ async def get_persona(user_id: str, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        raise HTTPException(status_code=500, detail="Database error"[:200])
 
 # Auto-consult on anketa upload
 

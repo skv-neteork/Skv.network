@@ -1,88 +1,95 @@
-"""Session Evolver v4.1 — Realtime consolidation every 10 messages."""
+"""Session Evolver v4.5 — PostgreSQL-backed consolidation."""
 
-import os, json, time, asyncio
+import asyncio
+import time
 import numpy as np
 
 async def consolidate_session(user_id: str, project: str):
-    """Сжать сессию в куб опыта при достижении 10 сообщений."""
-    memory_path = f"/app/app/runtime/memory/{user_id}/{project}.json"
-    
-    if not os.path.exists(memory_path):
-        return None
-    
-    with open(memory_path) as f:
-        data = json.load(f)
-    
-    sessions = data.get("sessions", [])
-    if len(sessions) < 10:
-        return None
-    
-    # Берём последние 10 сообщений
-    recent = sessions[-10:]
-    
-    # Собираем диалог
-    dialogue = "\n".join([
-        f"Q: {s.get('query','')}\nA: {s.get('response','')[:200]}"
-        for s in recent
-    ])
-    
-    # Создаём вектор из диалога
+    """Сжать сессии из PostgreSQL в experience cube."""
     try:
-        from app.routers.v4_middleware import get_embedding_cached
-        vector = get_embedding_cached(dialogue[:500])
-    except:
-        vector = [0.1] * 1536
-    
-    # Создаём куб опыта
-    from app.routers.v4_graph import _v4_graph, get_graph
-    from app.routers.tensor_cube import TensorCube
-    
-    get_graph()
-    
-    cube_id = f"evolved_{user_id}_{project}_{int(time.time())}"
-    tc = TensorCube(cube_id, np.array(vector, dtype=np.float32), metadata={
-        "title": f"Session: {project} — {len(sessions)} messages",
-        "rules": [
-            f"MUST consider context from {len(sessions)} previous messages",
-            f"MUST reference project: {project}"
-        ],
-        "cube_type": "EPISODIC",
-        "importance": min(1.0, len(sessions) / 50),  # Emotional tagging
-        "source": "realtime-evolver",
-        "consolidated_at": time.time(),
-        "message_count": len(sessions)
-    })
-    
-    _v4_graph[cube_id] = tc
-    
-    # Оставляем последние 5 сообщений, остальное — в кубе
-    data["sessions"] = sessions[-5:]
-    data["consolidated_cubes"] = data.get("consolidated_cubes", [])
-    data["consolidated_cubes"].append(cube_id)
-    
-    with open(memory_path, 'w') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    
-    print(f"[EVOLVER] Realtime consolidation: {project} → {cube_id[:20]} ({len(sessions)} msgs)", flush=True)
-    return cube_id
+        import asyncpg
+        conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+        
+        # Считаем количество сессий
+        row = await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM user_sessions WHERE user_id = $1 AND project_ref = $2",
+            user_id, project
+        )
+        count = row['cnt'] if row else 0
+        
+        if count < 10:
+            await conn.close()
+            return None
+        
+        # Загружаем последние 10 сессий
+        rows = await conn.fetch(
+            "SELECT data FROM user_sessions WHERE user_id = $1 AND project_ref = $2 ORDER BY updated_at DESC LIMIT 10",
+            user_id, project
+        )
+        
+        sessions = [dict(r['data']) if isinstance(r['data'], dict) else {} for r in rows]
+        
+        # Собираем диалог
+        dialogue = "\n".join([
+            f"Q: {s.get('query','')}\nA: {s.get('response','')[:200]}"
+            for s in sessions if s
+        ])
+        
+        # Создаём вектор
+        try:
+            from app.routers.v4_middleware import get_embedding_cached
+            vector = get_embedding_cached(dialogue[:500])
+        except:
+            vector = [0.1] * 1536
+        
+        # Создаём куб опыта
+        from app.routers.v4_graph import _v4_graph, get_graph
+        from app.routers.tensor_cube import TensorCube
+        
+        get_graph()
+        
+        cube_id = f"evolved_{user_id}_{project}_{int(time.time())}"
+        tc = TensorCube(cube_id, np.array(vector, dtype=np.float32), metadata={
+            "title": f"Session: {project} — {count} messages",
+            "rules": [f"MUST consider context from {count} messages in project {project}"],
+            "cube_type": "EPISODIC",
+            "importance": min(1.0, count / 50),
+            "source": "session-evolver",
+            "consolidated_at": time.time()
+        })
+        
+        _v4_graph[cube_id] = tc
+        
+        # Удаляем старые сессии, оставляем последние 5
+        await conn.execute(
+            "DELETE FROM user_sessions WHERE user_id = $1 AND project_ref = $2 AND id NOT IN (SELECT id FROM user_sessions WHERE user_id = $1 AND project_ref = $2 ORDER BY updated_at DESC LIMIT 5)",
+            user_id, project
+        )
+        
+        await conn.close()
+        print(f"[EVOLVER] Consolidated: {project} — {count} msgs → cube {cube_id[:20]}", flush=True)
+        return cube_id
+        
+    except Exception as e:
+        print(f"[EVOLVER] Error: {e}", flush=True)
+        return None
 
 async def run_session_evolver():
-    """Фоновый воркер — проверяет сессии каждые 60 секунд."""
+    """Проверяет PostgreSQL каждые 60 секунд."""
     while True:
         await asyncio.sleep(60)
         try:
-            memory_dir = "/app/app/runtime/memory"
-            if not os.path.exists(memory_dir):
-                continue
+            import asyncpg
+            conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
             
-            for user_id in os.listdir(memory_dir):
-                user_dir = os.path.join(memory_dir, user_id)
-                if not os.path.isdir(user_dir):
-                    continue
-                
-                for fname in os.listdir(user_dir):
-                    if fname.endswith('.json'):
-                        project = fname.replace('.json', '')
-                        await consolidate_session(user_id, project)
+            # Находим пользователей с >10 сессиями
+            rows = await conn.fetch(
+                "SELECT user_id, project_ref, COUNT(*) as cnt FROM user_sessions GROUP BY user_id, project_ref HAVING COUNT(*) >= 10"
+            )
+            
+            for row in rows:
+                await consolidate_session(row['user_id'], row['project_ref'])
+            
+            await conn.close()
         except Exception as e:
-            print(f"[EVOLVER] Error: {e}", flush=True)
+            print(f"[EVOLVER] Cycle error: {e}", flush=True)

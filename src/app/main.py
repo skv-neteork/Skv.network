@@ -289,9 +289,9 @@ async def discovery():
             "how_to": "Add ?user_id=your_email to requests"
         },
         "admin": {
-            "access": "Requires admin email (denizchavdarov@gmail.com)",
+            "access": "Requires admin authentication",
             "endpoints": ["CMD execution", "graph management", "cube deletion"],
-            "how_to": "Login via /profile or add user_id=denizchavdarov@gmail.com"
+            "how_to": "Login via /profile with admin credentials",
         }
     },
     "onboarding_flow": {

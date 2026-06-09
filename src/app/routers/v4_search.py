@@ -41,6 +41,8 @@ def hybrid_search(query_vector, top_k=50, max_depth=5):
             from app.routers.reconsolidation import reconsolidate_cube
             for _aid in activated:
                 if _aid in _graph:
+                    _graph[_aid].metadata['usage_count'] = _graph[_aid].metadata.get('usage_count', 0) + 1
+                if _aid in _graph:
                     reconsolidate_cube(_graph[_aid])
                 if _aid in _graph:
                     _graph[_aid].record_usage()

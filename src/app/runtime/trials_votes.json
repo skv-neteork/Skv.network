@@ -1,0 +1,1 @@
+{"test_cube_1": {"up": [], "down": ["user1", "user2", "user3"], "comments": [{"user": "user1", "comment": "Low quality", "time": 1781006117.8787253}, {"user": "user2", "comment": "Needs improvement", "time": 1781006147.1474457}, {"user": "user3", "comment": "Remove this", "time": 1781006147.1653104}], "status": "pending_trial", "down_count": 3, "up_count": 0}}

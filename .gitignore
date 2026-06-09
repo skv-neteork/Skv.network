@@ -3,3 +3,8 @@
 .env
 data/*.log
 **/__pycache__/
+.env
+*.env
+.env
+src/.env
+*.env

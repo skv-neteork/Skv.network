@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException
 import asyncpg
 import os
 import secrets
-import hashlib
+import bcrypt
 import uuid
 import requests
 import json
@@ -17,7 +17,7 @@ async def get_db():
 
 def hash_password(password: str) -> str:
     salt = os.getenv("SKV_SALT", "skv_default_salt_2026")
-    return hashlib.sha256((password + salt).encode()).hexdigest()
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def generate_code() -> str:
     return secrets.token_hex(3).upper()

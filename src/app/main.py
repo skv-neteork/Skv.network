@@ -7,6 +7,7 @@ from app.routers.trials import router as trials_router
 from app.routers.task_queue import router as task_queue_router
 from app.routers.auth import router as auth_router
 from app.routers.v4_personal_memory import router as pm_router
+from app.routers.memory_tools import router as memory_tools_router
 from app.routers.trials_v4 import router as trials_v4_router
 from app.routers.v4_auth_middleware import AuthMiddleware
 from app.routers.consult import router as consult_router
@@ -204,7 +205,17 @@ async def rate_limit_middleware(request, call_next):
     # API key validation для /api/v4/sessions и /api/v4/cubes
     if request.url.path.startswith("/api/v4/sessions") or request.url.path.startswith("/api/v4/cubes"):
         api_key = request.headers.get("X-API-Key", "") or request.query_params.get("api_key", "")
-        if api_key != "86415d0b-a4fe-4be6-bb55-4407f525bd2d" and request.method != "GET":
+        valid = False
+        if api_key:
+            try:
+                import asyncpg
+                conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+                row = await conn.fetchrow("SELECT api_key FROM user_api_keys WHERE api_key = $1", api_key)
+                valid = row is not None
+                await conn.close()
+            except:
+                pass
+        if not valid and request.method != "GET":
             return JSONResponse({"detail": "API key required. Get yours at /profile"}, status_code=401)
     
     response = await call_next(request)
@@ -246,6 +257,7 @@ app.include_router(trials_router)
 app.include_router(task_queue_router)
 app.include_router(auth_router)
 app.include_router(pm_router)
+app.include_router(memory_tools_router)
 app.include_router(trials_v4_router)
 from app.routers.formula_validator import router as formula_router
 app.include_router(formula_router)

@@ -8,7 +8,7 @@ CUBE 00 — Core Algorithm (Second Look Protocol) v4.0
   • 2. violations = verify_constitution(draft, ALL_5_CUBES)
   • 3. IF violations THEN draft = correct(draft); GOTO 2
   • 4. output(draft)
-  • 5. EVERY N messages reload CUBE_00
+  • 5. EVERY 10 messages reload CUBE_00 (10=simple, 5=medium, 3=complex, 1=high_stakes)
   • 6. IF challenge_trigger THEN self_doubt=TRUE; GOTO 2
   • FORBIDDEN: output without verify, checkbox verification
   • WARNING: self_deception = primary failure mode

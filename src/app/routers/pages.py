@@ -108,8 +108,8 @@ async def download_guide():
     return FileResponse(path, filename="skv-agent-guide.txt", media_type="text/plain")
 
 
-@router.get("/downloads/skv-persona-pack-{user_id}.txt")
-async def download_persona_pack(user_id: str):
+@router.get("/downloads/skv-persona-pack-{user_id:path}.txt")
+async def download_persona_pack(user_id: str, token: str = ""):
     """Генерирует и отдаёт файл с портфелем пользователя + конституцией + Agent Guide + Memory Index"""
     print("[SKV] FUNCTION STARTED")
     import os, json as json_lib, asyncpg
@@ -138,8 +138,8 @@ async def download_persona_pack(user_id: str):
         
         # Получаем Memory Index
         mi_row = await conn.fetchrow(
-            "SELECT memory_indexes FROM user_personas WHERE user_id = $1 OR user_id = $2 OR user_id LIKE $3",
-            user_id, search_id, search_id + "@%"
+            "SELECT memory_indexes FROM user_personas WHERE user_id = $1",
+            user_id
         )
         if mi_row and mi_row['memory_indexes']:
             indexes = json_lib.loads(mi_row['memory_indexes']) if isinstance(mi_row['memory_indexes'], str) else mi_row['memory_indexes']
@@ -154,7 +154,6 @@ async def download_persona_pack(user_id: str):
                 for m in sessions:
                     memory_index += f"  Session {m.get('session_number','?')}: {m.get('key_outcome','')}\n"
         
-        await conn.close()
     except Exception as e:
         persona_text += f"Error: {e}\n\n"
         memory_index = f"Error: {e}"
@@ -179,21 +178,24 @@ async def download_persona_pack(user_id: str):
     
     # Генерация API-ключа
     import uuid
-    api_token = ""
+    api_token = "DEBUG_CONN_OPEN"
     try:
+        print(f"[SKV] Querying token for {user_id}", flush=True)
         row = await conn.fetchrow("SELECT api_key FROM user_api_keys WHERE user_id = $1", user_id)
+        print(f"[SKV] Row found: {row is not None}", flush=True)
         if row and row['api_key']:
             api_token = row['api_key']
         else:
             api_token = str(uuid.uuid4())
             await conn.execute("INSERT INTO user_api_keys (user_id, api_key) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING", user_id, api_token)
-    except:
-        api_token = str(uuid.uuid4())[:8]  # fallback
+    except Exception as _e:
+        print(f'[SKV] API key error: {_e}', flush=True)
+        api_token = str(uuid.uuid4())  # fallback
     
     api_section = f"\nAPI KEY: {api_token}\nUse this key in X-API-Key header for memory access.\n"
     
     import uuid
-    api_token = str(uuid.uuid4())[:8]
+    api_token = str(uuid.uuid4())
     full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n\nAPI KEY: {api_token}\nUse this key in X-API-Key header for memory access.\n\n{'='*50}\n\n{persona_text}\nL0 CACHE (Last Request/Response):\n{l0_cache}\n\n---\n\nMEMORY INDEX (Session History):\n{memory_index}\n---\n\n{constitution}\n\n---\n\n{guide}\n\n---\n\nAPI KEY: {api_token}\nUse this key in X-API-Key header for memory access.\n"
 
     from fastapi.responses import PlainTextResponse

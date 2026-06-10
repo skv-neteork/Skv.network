@@ -76,6 +76,62 @@ async def nightly_sleep_cycle():
     except Exception as e:
         print(f"[SLEEP] Clustering error: {e}", flush=True)
     
+    # 5. HIERARCHICAL CLUSTERING
+    try:
+        from app.routers.hierarchical import apply_hierarchical_clustering
+        meta_count = apply_hierarchical_clustering()
+        stats["clustered"] = meta_count
+        print(f"[SLEEP] Clustering: {meta_count} meta-cubes", flush=True)
+    except Exception as e:
+        print(f"[SLEEP] Clustering error: {e}", flush=True)
+    
+    # 6. PATTERN SEPARATION
+    try:
+        from app.routers.pattern_separator import separate_patterns
+        for cube_id, cube in _v4_graph.items():
+            if cube.metadata.get("is_constitutional"):
+                continue
+            if len(cube.connections) > 50:  # хаб — проверяем на дубликаты
+                for neighbor_id in list(cube.connections.keys())[:10]:
+                    if neighbor_id in _v4_graph:
+                        neighbor = _v4_graph[neighbor_id]
+                        if hasattr(cube, 'vector') and hasattr(neighbor, 'vector'):
+                            import numpy as np
+                            cosine = np.dot(cube.vector, neighbor.vector) / (np.linalg.norm(cube.vector) * np.linalg.norm(neighbor.vector) + 1e-8)
+                            if cosine > 0.95:
+                                separate_patterns(cube)
+                                stats["separated"] = stats.get("separated", 0) + 1
+        print(f"[SLEEP] Pattern separation: {stats.get('separated', 0)} cubes", flush=True)
+    except Exception as e:
+        print(f"[SLEEP] Pattern separation error: {e}", flush=True)
+    
+    # 7. EMOTIONAL CONSOLIDATION
+    try:
+        for cube_id, cube in _v4_graph.items():
+            importance = cube.metadata.get("importance", 0.5)
+            if importance > 0.7:  # важные кубы усиливаем
+                for neighbor_id in cube.connections:
+                    cube.connections[neighbor_id] = min(1.0, cube.connections[neighbor_id] * 1.1)
+        stats["emotional"] = sum(1 for c in _v4_graph.values() if c.metadata.get("importance", 0) > 0.7)
+        print(f"[SLEEP] Emotional consolidation: {stats['emotional']} important cubes", flush=True)
+    except Exception as e:
+        print(f"[SLEEP] Emotional error: {e}", flush=True)
+    
+    # 8. DEAD CUBES CLEANUP
+    try:
+        dead = []
+        for cube_id, cube in _v4_graph.items():
+            if cube.metadata.get("is_constitutional"):
+                continue
+            if len(cube.connections) == 0 and cube.metadata.get("usage_count", 0) == 0:
+                dead.append(cube_id)
+        for cube_id in dead:
+            del _v4_graph[cube_id]
+        stats["cleaned"] = len(dead)
+        print(f"[SLEEP] Dead cubes removed: {len(dead)}", flush=True)
+    except Exception as e:
+        print(f"[SLEEP] Cleanup error: {e}", flush=True)
+    
     print(f"[SLEEP] Cycle complete: replayed={stats['replayed']}, pruned={stats['pruned']}, "
           f"reconsolidated={stats['reconsolidated']}", flush=True)
     return stats

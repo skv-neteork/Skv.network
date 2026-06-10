@@ -4,6 +4,10 @@ numpy
 qdrant-client
 asyncpg
 httpx
+aiohttp
+requests
+bcrypt
+psycopg2-binary
 pydantic-settings
 python-dotenv
 starlette

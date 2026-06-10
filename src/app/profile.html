@@ -89,9 +89,10 @@ async function downloadPack() {
         alert('Please log in first');
         return;
     }
-    const username = email.split('@')[0];
+    const username = email;
     document.getElementById('packStatus').textContent = 'Генерируется...';
-    window.location.href = `/downloads/skv-persona-pack-${username}.txt`;
+    const token = localStorage.getItem('skv_token') || '';
+    window.location.href = `/downloads/skv-persona-pack-${username}.txt?token=${token}`;
     document.getElementById('packStatus').textContent = '✅ Скачивание началось!';
 }
 </script>
@@ -193,7 +194,7 @@ async function downloadPack() {
             const token = localStorage.getItem('skv_token');
             if (email && token) {
                 document.getElementById('navProfile').textContent = '⚡ Profile';
-                document.getElementById('navStatus').textContent = 'Logged in as ' + email.split('@')[0];
+                document.getElementById('navStatus').textContent = 'Logged in as ' + email;
                 document.getElementById('navStatus').style.color = '#3fb950';
             }
         })();

@@ -61,7 +61,7 @@ async def register(request: Request):
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
     password_hash = hash_password(password)
-    confirmation_code = generate_code()
+    confirmation_code = "000000"  # временно без отправки
 
     try:
         conn = await get_db()

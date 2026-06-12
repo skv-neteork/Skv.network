@@ -14,13 +14,13 @@ async def core_memory_save(request: dict):
     
     # Сохраняем как важный куб
     from app.routers.v4_graph import _v4_graph, get_graph
-    from app.routers.tensor_cube import TensorCube
+    from app.routers.v4_graph import TensorCube
     from app.routers.v4_middleware import get_embedding_cached
     import numpy as np
     
     get_graph()
     
-    cube_id = f"core_{user_id}_{int(time.time())}"
+    cube_id = request.get("cube_id") or f"core_{user_id}_{int(time.time())}"
     vector = get_embedding_cached(content[:500])
     
     tc = TensorCube(cube_id, np.array(vector, dtype=np.float32), metadata={
@@ -33,6 +33,21 @@ async def core_memory_save(request: dict):
     })
     
     _v4_graph[cube_id] = tc
+    
+    # Сохраняем в PostgreSQL
+    try:
+        import asyncpg, asyncio
+        async def _save():
+            conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+            await conn.execute("""INSERT INTO cubes (cube_id, title, content, type, importance, embedding)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (cube_id) DO UPDATE SET content=$3, importance=$5, embedding=$6""" ,
+                cube_id, content[:80], json.dumps({"text": content, "importance": importance, "is_constitutional": request.get("is_constitutional", False)}),
+                request.get("type", "experience"), importance, vector)
+            await conn.close()
+        asyncio.run(_save())
+    except Exception as e:
+        print(f"[MEMORY] DB save error: {e}", flush=True)
     return {"status": "saved", "cube_id": cube_id}
 
 @router.post("/update")

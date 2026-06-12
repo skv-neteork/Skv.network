@@ -1,0 +1,6 @@
+
+# SKV v4.5 — Graph & Database
+asyncpg>=0.29.0
+nest_asyncio>=1.6.0
+qdrant-client>=1.9.0
+numpy>=1.26.0

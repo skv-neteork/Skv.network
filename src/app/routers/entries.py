@@ -682,18 +682,10 @@ async def search_cubes(query: str = "", response: Response = None):
         # Если keyword-поиск не нашёл ничего — пробуем Qdrant
         if len(results) == 0:
             try:
-                import urllib.request as _req
                 from qdrant_client import QdrantClient
+                from app.routers.v4_middleware import get_embedding
                 
-                # Получаем embedding для запроса
-                emb_body = json.dumps({"model": "text-embedding-3-small", "input": query}).encode()
-                emb_req = _req.Request("https://api.polza.ai/v1/embeddings", data=emb_body, headers={
-                    "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
-                })
-                emb_resp = json.loads(_req.urlopen(emb_req, timeout=15).read())
-                qv = emb_resp["data"][0]["embedding"]
-                
-                # Ищем в Qdrant
+                qv = get_embedding(query)
                 client = QdrantClient(host="skv_qdrant", port=6333)
                 qdrant_results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=10)
                 
@@ -701,16 +693,12 @@ async def search_cubes(query: str = "", response: Response = None):
                     payload = r.payload
                     results.append({
                         "id": str(r.id),
-                        "cube_id": payload.get("cube_id", ""),
-                        "title": payload.get("title", ""),
+                        "cube_id": payload.get("metadata", {}).get("title", str(r.id)),
+                        "title": payload.get("metadata", {}).get("title", str(r.id)),
                         "triggers": payload.get("triggers", payload.get("trigger_intent", []))
                     })
             except Exception as e:
-                pass  # Qdrant недоступен — остаёмся с пустым результатом
-    else:
-        # Пустой запрос — возвращаем все кубики
-        for cube_id, cube in cubes_library.items():
-            results.append({"id": cube["id"], "cube_id": cube_id, "title": cube.get("title", ""), "triggers": cube.get("triggers", [])})
+                print(f"[SEARCH] Qdrant error: {e}", flush=True)
     result = {"results": results, "count": len(results), "query": query}
     if cache:
         cache.set(cache_key, result, ttl=300)

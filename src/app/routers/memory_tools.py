@@ -92,3 +92,41 @@ async def core_memory_search(user_id: str, query: str):
     
     memory = await load_context(user_id, query)
     return memory
+
+# ═══════════════════════════════════════════
+# GET-эндпоинты для агентов без POST (web_extractor)
+# ═══════════════════════════════════════════
+
+@router.get("/save")
+async def core_memory_save_get(user_id: str = "anonymous", content: str = "", importance: float = 0.8, cube_id: str = None):
+    """GET-версия save для агентов без POST (web_extractor)"""
+    from app.routers.v4_graph import _v4_graph, get_graph
+    from app.routers.v4_middleware import get_embedding_cached
+    from app.routers.tensor_cube import TensorCube
+    import numpy as np, time
+    
+    get_graph()
+    cid = cube_id or f"core_{user_id}_{int(time.time())}"
+    vector = get_embedding_cached(content[:500])
+    
+    tc = TensorCube(cid, np.array(vector, dtype=np.float32), metadata={
+        "title": content[:80],
+        "content": content,
+        "importance": importance,
+        "source": "agent-get-save",
+        "pinned": True
+    })
+    
+    _v4_graph[cid] = tc
+    return {"status": "saved", "cube_id": cid}
+
+
+@router.get("/forget")
+async def core_memory_forget_get(cube_id: str = ""):
+    """GET-версия forget"""
+    from app.routers.v4_graph import _v4_graph, get_graph
+    get_graph()
+    if cube_id in _v4_graph:
+        del _v4_graph[cube_id]
+        return {"status": "forgotten", "cube_id": cube_id}
+    return {"status": "not_found", "cube_id": cube_id}

@@ -60,4 +60,3 @@ def auto_save_loop(interval_sec=3600):
             print(f"[V4] Save error: {_e}", flush=True)
 
 # Start auto-save in background
-threading.Thread(target=auto_save_loop, daemon=True).start()

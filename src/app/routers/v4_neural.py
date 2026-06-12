@@ -1,52 +1,51 @@
-"""V4 Neural Search + Hebbian Learning — вызывается из consult.py одной строкой."""
-from app.routers.v4_graph import get_graph
-from app.routers.tensor_cube import hebbian_update
+"""
+SKV v4.5 — Neural Cycle (Hebbian + Decay + Auto-save)
+Uses Oja's Rule (anti-explosion) + Background Tasks
+"""
+import asyncio
+from app.routers.v4_graph import _v4_graph, save_graph_to_pg
+from app.routers.v4_hebbian import oja_update, hebbian_update_batch, background_hebbian
+
+
+def run_hebbian_cycle():
+    """Быстрый цикл Hebbian с Oja's Rule (каждые 30 сек)"""
+    if not _v4_graph:
+        return
+    
+    updates_count = 0
+    for cid, cube in _v4_graph.items():
+        if not cube.connections:
+            continue
+        for tid, weight in list(cube.connections.items()):
+            if tid in _v4_graph:
+                # Оба куба активны — применяем Oja
+                new_w = oja_update(weight, act_a=1.0, act_b=1.0)
+                if abs(new_w - weight) > 0.001:
+                    cube.connections[tid] = new_w
+                    updates_count += 1
+    
+    if updates_count > 0:
+        print(f"[V4] Hebbian (Oja) updated {updates_count} connections", flush=True)
+
 
 def run_decay_cycle():
-    """Ослабляет неиспользуемые связи."""
-    try:
-        _graph = get_graph()
-        if _graph:
-            for _cube in _graph.values():
-                if hasattr(_cube, 'decay_connections') and not _cube.metadata.get('constitutional'):
-                    # Adaptive rate: usage_count越高, decay越慢
-                    usage = _cube.metadata.get('usage_count', 0)
-                    if usage > 100:
-                        rate = 0.999   # почти не забывает (0.1% за цикл)
-                    elif usage > 10:
-                        rate = 0.99    # нормально (1% за цикл)
-                    elif usage > 0:
-                        rate = 0.95    # быстро забывает (5% за цикл)
-                    else:
-                        rate = 0.9     # очень быстро (10% за цикл) — мусор
-                    _cube.decay_connections(rate=rate)
-            print(f"[V4] Adaptive Decay applied to {len(_graph)} cubes", flush=True)
-    except Exception as e:
-        print(f"[V4] Decay error: {e}", flush=True)
+    """Применяет Lazy Decay ко всем кубам (каждые 5 мин)"""
+    if not _v4_graph:
+        return
+    
+    dead = 0
+    for cid, cube in list(_v4_graph.items()):
+        energy = cube._apply_lazy_entropy()
+        if energy < 0.01:
+            dead += 1
+    
+    if dead > 0:
+        print(f"[V4] Decay: {dead} cubes with low energy", flush=True)
 
-def run_neural_cycle() -> str:
-    """Запускает spreading activation и Hebbian update. Возвращает контекст для LLM."""
-    try:
-        _graph = get_graph()
-        if not _graph:
-            return ""
-        
-        print(f"[V4] Neural cycle on {len(_graph)} cubes", flush=True)
-        
-        # Hebbian update на активных кубах
-        # Не трогаем конституционные кубы
-        non_const = [cid for cid, cb in _graph.items() if not cb.metadata.get('constitutional')]
-        active_ids = (non_const or list(_graph.keys()))[:5]
-        hebbian_update(_graph, active_ids)
-        print(f"[V4] Hebbian updated {len(active_ids)} cubes", flush=True)
-        
-        # TODO: spreading activation когда починим связи
-        return ""
-    except Exception as e:
-        print(f"[V4] Neural error: {e}", flush=True)
-        return ""
 
-# Alias для lifespan
-def run_hebbian_cycle():
-    """Вызов Hebbian learning — используется в lifespan main.py."""
-    run_neural_cycle()
+async def run_auto_save():
+    """Авто-сохранение графа в PostgreSQL (каждые 30 мин)"""
+    try:
+        await save_graph_to_pg()
+    except Exception as e:
+        print(f"[V4] Auto-save error: {e}", flush=True)

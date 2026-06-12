@@ -11,6 +11,7 @@ import os
 import time
 import math
 import shutil
+from app.routers.v4_quantum import compress_to_quantum_state, quantum_context_to_text
 
 _v4_graph = {}
 _pg_pool = None
@@ -245,6 +246,29 @@ async def spreading_activation(query_vector, threshold=0.15, max_hops=3):
     return [{"id": cid, "energy": graph[cid].energy, "metadata": graph[cid].metadata} 
             for cid in activated]
 
+
+
+
+# ═══════════════════════════════════════════
+# QUANTUM CONTEXT (сжатие для LLM)
+# ═══════════════════════════════════════════
+
+def get_quantum_context(query_vector, threshold=0.15, max_hops=3):
+    """Возвращает квантовый контекст для LLM (экономит токены)"""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            activated = pool.submit(lambda: asyncio.run(spreading_activation(query_vector, threshold, max_hops))).result(timeout=10)
+    else:
+        activated = loop.run_until_complete(spreading_activation(query_vector, threshold, max_hops))
+    
+    return {
+        'quantum_vector': compress_to_quantum_state(activated),
+        'context_text': quantum_context_to_text(activated),
+        'activated_count': len(activated)
+    }
 
 # ═══════════════════════════════════════════
 # GRAPH SAVING (UPSERT — безопасно)

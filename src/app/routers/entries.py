@@ -653,6 +653,53 @@ def score_keyword_match(query: str, cube: dict) -> float:
     
     return 0.0
 
+
+@router.get("/api/v1/entries/{cube_id}")
+async def get_entry(cube_id: str):
+    """Возвращает данные куба по ID (для обратной совместимости)"""
+    from app.routers.v4_graph import get_graph
+    get_graph()
+    from app.routers.v4_graph import _v4_graph
+    
+    cube = _v4_graph.get(cube_id)
+    if not cube:
+        # Попробуем найти в Qdrant по оригинальному ID (если это старый UUID)
+        try:
+            from qdrant_client import QdrantClient
+            client = QdrantClient(host="skv_qdrant", port=6333)
+            # Ищем точку, у которой в payload.cube_id совпадает с искомым
+            scroll_result = client.scroll(
+                collection_name="skv_rules_v2",
+                limit=10,
+                with_payload=True,
+                with_vectors=False
+            )
+            for point in scroll_result[0]:
+                if point.payload.get("cube_id") == cube_id:
+                    return {
+                        "id": str(point.id),
+                        "cube_id": cube_id,
+                        "title": point.payload.get("title", ""),
+                        "metadata": point.payload.get("metadata", {}),
+                        "note": "Found in Qdrant (not in active graph)"
+                    }
+        except:
+            pass
+        
+        raise HTTPException(status_code=404, detail="Entry not found")
+    
+    return {
+        "id": cube_id,
+        "cube_id": cube_id,
+        "title": cube.metadata.get("title", ""),
+        "content": cube.metadata.get("content", cube.metadata.get("text", "")),
+        "type": cube.metadata.get("type", "experience"),
+        "importance": cube.metadata.get("importance", 0.5),
+        "is_constitutional": cube.metadata.get("is_constitutional", False),
+        "connections": len(cube.connections),
+        "energy": cube.energy
+    }
+
 @router.get("/api/cubes/search")
 async def search_cubes(query: str = "", response: Response = None):
     cache_key = f"search:{hashlib.md5(query.encode()).hexdigest()[:12]}"

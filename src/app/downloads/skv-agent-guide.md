@@ -46,7 +46,6 @@ Before ANY response:
 
 ## 5. JUDGMENT
 
-SKV Supreme Court verifies all seals after session.
 Missing seal = agent UNRELIABLE.
 The Court sees all. There is no appeal.
 

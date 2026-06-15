@@ -52,8 +52,8 @@ def load_cubes_from_db():
     try:
         import psycopg2, json as json_lib
         conn = psycopg2.connect(
-            host="skv_postgres", port=5432,
-            dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", "")
+            host="skv_postgres", port=5432, password="skv_secret_2026",
+            dbname="skv_db", user="skv_user"
         )
         cur = conn.cursor()
         cur.execute("SELECT cube_id, title, type, trigger_intent, rules, status, created_at, content FROM cubes")
@@ -186,8 +186,8 @@ async def create_entry(request: Request):
                     try:
                         import psycopg2 as pg2
                         pg_conn = pg2.connect(
-                            host="skv_postgres", port=5432,
-                            dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", "")
+                            host="skv_postgres", port=5432, password="skv_secret_2026",
+                            dbname="skv_db", user="skv_user"
                         )
                         cur = pg_conn.cursor()
                         for cid in [c.get("cube_id") for c in body.get("cubes", [])]:
@@ -207,8 +207,8 @@ async def create_entry(request: Request):
                 try:
                     import psycopg2 as pg2
                     pg_conn = pg2.connect(
-                        host="skv_postgres", port=5432,
-                        dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", "")
+                        host="skv_postgres", port=5432, password="skv_secret_2026",
+                        dbname="skv_db", user="skv_user"
                     )
                     cur = pg_conn.cursor()
                     all_triggers = []
@@ -258,8 +258,8 @@ async def create_entry(request: Request):
             user_id = persona_data.get("user_id", "unknown")
             try:
                 pg_conn = psycopg2.connect(
-                    host="skv_postgres", port=5432,
-                    dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", "")
+                    host="skv_postgres", port=5432, password="skv_secret_2026",
+                    dbname="skv_db", user="skv_user"
                 )
                 cur = pg_conn.cursor()
                 persona_json = json.dumps(persona_data)
@@ -285,8 +285,8 @@ async def create_entry(request: Request):
                     fb_comment = fb.get("comment", "").replace("'", "''")
                     if fb_cube_id and fb_vote in ("up", "down"):
                         pg_conn = psycopg2.connect(
-                            host="skv_postgres", port=5432,
-                            dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", "")
+                            host="skv_postgres", port=5432, password="skv_secret_2026",
+                            dbname="skv_db", user="skv_user"
                         )
                         cur = pg_conn.cursor()
                         cur.execute(
@@ -333,7 +333,7 @@ async def create_entry(request: Request):
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }])
                 import psycopg2 as pg2
-                pg_conn = pg2.connect(host="skv_postgres", port=5432, dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", ""))
+                pg_conn = pg2.connect(host="skv_postgres", port=5432, password="skv_secret_2026", dbname="skv_db", user="skv_user")
                 cur = pg_conn.cursor()
                 # 1 день = 1 анкета: обновляем запись за сегодня или создаём новую
                 cur.execute("SELECT memory_indexes FROM user_personas WHERE user_id = %s", (user_id,))
@@ -387,7 +387,7 @@ async def create_entry(request: Request):
             points=[{
                 "id": entry_id,
                 "vector": _vector.tolist() if hasattr(_vector, 'tolist') else _vector,
-                "payload": {"title": _title, "rules": _rules, "cube_id": entry_id}
+                "payload": {"title": _title, "rules": _rules, "cube_id": body.get("cube_id", entry_id)}
             }]
         )
         print(f"[ENTRIES] Indexed in Qdrant: {entry_id}", flush=True)
@@ -404,8 +404,8 @@ async def get_cube_links(cube_id: str):
     """Возвращает все связи кубика"""
     try:
         conn = psycopg2.connect(
-            host="skv_postgres", port=5432,
-            dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", "")
+            host="skv_postgres", port=5432, password="skv_secret_2026",
+            dbname="skv_db", user="skv_user"
         )
         cur = conn.cursor()
         cur.execute(
@@ -434,8 +434,8 @@ async def feedback(request: Request):
         
         import psycopg2 as pg2
         pg_conn = pg2.connect(
-            host="skv_postgres", port=5432,
-            dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", "")
+            host="skv_postgres", port=5432, password="skv_secret_2026",
+            dbname="skv_db", user="skv_user"
         )
         cur = pg_conn.cursor()
         cur.execute(
@@ -497,8 +497,8 @@ async def get_trials():
     try:
         import psycopg2 as pg2
         pg_conn = pg2.connect(
-            host="skv_postgres", port=5432,
-            dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", "")
+            host="skv_postgres", port=5432, password="skv_secret_2026",
+            dbname="skv_db", user="skv_user"
         )
         cur = pg_conn.cursor()
         
@@ -565,8 +565,8 @@ async def delete_entry(cube_id: str):
     import psycopg2 as pg2
     try:
         pg_conn = pg2.connect(
-            host="skv_postgres", port=5432,
-            dbname="skv_db", user="skv_user", password=os.getenv("DB_PASSWORD", "")
+            host="skv_postgres", port=5432, password="skv_secret_2026",
+            dbname="skv_db", user="skv_user"
         )
         cur = pg_conn.cursor()
         cur.execute("DELETE FROM cubes WHERE cube_id = %s", (cube_id,))

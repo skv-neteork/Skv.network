@@ -400,9 +400,44 @@ async def consult_rag(request: Request):
                         pass
             
             if answer:
+                # Архитектурный фикс: определяем relevant через Qdrant
+                relevant = []
+                try:
+                    from qdrant_client import QdrantClient
+                    qv = get_embedding_cached(query)
+                    client = QdrantClient(host="skv_qdrant", port=6333)
+                    results = client.query_points(
+                        collection_name="skv_rules_v2",
+                        query=qv,
+                        limit=3
+                    )
+                    relevant = [r for r in results.points if hasattr(r, "payload")]
+                    print(f"[CONSULT] Qdrant вернул {len(relevant)} точек для used_cubes", flush=True)
+                except Exception as _qe:
+                    print(f"[CONSULT] Qdrant error: {_qe}", flush=True)
+
+
+
                 used_list = []
                 try:
-                    used_list = [r.payload.get("cube_id", "") for r in relevant[:2]]
+                    used_list = []
+                    for r in relevant[:2]:
+                        cid = r.payload.get("cube_id")
+                        if not cid:
+                            meta = r.payload.get("metadata", {})
+                            if isinstance(meta, dict):
+                                cid = meta.get("cube_id", "")
+                        if cid:
+                            used_list.append(cid)
+                    
+                    # ГАРАНТИРОВАННОЕ ВКЛЮЧЕНИЕ КОНСТИТУЦИОННЫХ КУБОВ
+                    try:
+                        from app.routers.v4_graph import _v4_graph
+                        for const_id in ['cube_const_00_v5', 'cube_const_01_v4', 'cube_const_02_v4', 'cube_const_03_v4', 'cube_const_05_v4']:
+                            if const_id in _v4_graph and const_id not in used_list:
+                                used_list.append(const_id)
+                    except:
+                        pass
                 except:
                     pass
                 return {

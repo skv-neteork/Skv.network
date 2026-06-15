@@ -130,3 +130,34 @@ async def core_memory_forget_get(cube_id: str = ""):
         del _v4_graph[cube_id]
         return {"status": "forgotten", "cube_id": cube_id}
     return {"status": "not_found", "cube_id": cube_id}
+
+@router.get("/feedback")
+async def core_memory_feedback_get(cube_id: str = "", vote: str = "up", comment: str = ""):
+    """GET-версия feedback для агентов без POST"""
+    from app.routers.v4_graph import _v4_graph, get_graph
+    get_graph()
+    
+    if cube_id not in _v4_graph:
+        return {"status": "not_found", "cube_id": cube_id}
+    
+    cube = _v4_graph[cube_id]
+    feedback_list = cube.metadata.get("feedback", [])
+    feedback_list.append({
+        "vote": vote,
+        "comment": comment,
+        "timestamp": __import__("time").time()
+    })
+    cube.metadata["feedback"] = feedback_list
+    
+    # Нагрев/остужение куба
+    if vote == "up":
+        cube.activate(impulse=0.2)
+    elif vote == "down":
+        cube.activate(impulse=-0.15)
+    
+    return {
+        "status": "feedback_added",
+        "cube_id": cube_id,
+        "vote": vote,
+        "total_feedback": len(feedback_list)
+    }

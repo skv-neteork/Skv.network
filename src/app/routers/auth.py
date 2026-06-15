@@ -6,6 +6,7 @@ import hashlib
 import uuid
 import requests
 import json
+import uuid
 
 router = APIRouter()
 
@@ -51,6 +52,7 @@ def send_email(email: str, code: str) -> bool:
 
 @router.post("/api/auth/register")
 async def register(request: Request):
+    import uuid
     data = await request.json()
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")
@@ -61,7 +63,8 @@ async def register(request: Request):
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
     password_hash = hash_password(password)
-    confirmation_code = "000000"  # временно без отправки
+    confirmation_code = "000000"
+    api_token = str(uuid.uuid4())
 
     try:
         conn = await get_db()
@@ -74,14 +77,21 @@ async def register(request: Request):
             "INSERT INTO users (email, password_hash, confirmation_code) VALUES ($1, $2, $3)",
             email, password_hash, confirmation_code
         )
+        await conn.execute(
+            "INSERT INTO user_api_keys (user_id, api_key) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
+            email, api_token
+        )
         await conn.close()
 
         send_email(email, confirmation_code)
-        return {"status": "ok", "message": "Confirmation code sent to email"}
+        return {"status": "ok", "message": "Confirmation code sent to email", "api_key": api_token}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)[:200])
+        try: await conn.close()
+        except: pass
+        raise HTTPException(status_code=500, detail=f"Registration error: {str(e)}")
+
 
 @router.post("/api/auth/confirm")
 async def confirm(request: Request):
@@ -108,6 +118,7 @@ async def confirm(request: Request):
             raise HTTPException(status_code=400, detail="Invalid confirmation code")
 
         await conn.execute("UPDATE users SET confirmed = TRUE, confirmation_code = NULL WHERE id = $1", user["id"])
+        
         await conn.close()
         return {"status": "ok", "message": "Email confirmed"}
     except HTTPException:
@@ -140,10 +151,8 @@ async def login(request: Request):
             raise HTTPException(status_code=403, detail="Email not confirmed")
 
         # Генерируем и сохраняем постоянный API-токен
-        api_token = str(uuid.uuid4())
-        await conn.execute("UPDATE users SET api_token = $1 WHERE id = $2", api_token, user["id"])
+        
         await conn.close()
-        return {"status": "ok", "api_token": api_token, "message": "Use this token in Authorization header to access your personal data."}
     except HTTPException:
         raise
     except Exception as e:

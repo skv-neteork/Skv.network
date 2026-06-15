@@ -69,6 +69,27 @@
             <button onclick="logout()" style="margin-bottom:12px;background:#30363d;border:1px solid #484f58;color:#c9d1d9;padding:6px 12px;border-radius:4px;cursor:pointer;">↪ Logout</button>
             <h2>Your API Token</h2>
             <p style="font-size:13px;color:#8b949e;margin-bottom:8px;">Use this token to authenticate API requests.</p>
+
+            <div style="margin-top:16px; padding:16px; background:#0d1117; border:1px solid #30363d; border-radius:6px;">
+                <h3 style="color:#f0883e;font-size:14px;margin-bottom:8px;">📖 How to use your API token</h3>
+                <p style="font-size:13px;color:#8b949e;margin-bottom:12px;">Copy any example below. Replace <code style="background:#161b22;padding:1px 4px;border-radius:3px;">YOUR_TOKEN</code> with the key above.</p>
+                
+                <p style="font-size:13px;color:#c9d1d9;margin-bottom:4px;"><strong>💾 Save session (memory)</strong></p>
+                <pre style="background:#161b22;padding:10px;border-radius:4px;font-size:12px;color:#7ee787;overflow-x:auto;margin-bottom:12px;">curl -X POST https://skv.network/api/v4/sessions \
+  -H "X-API-Key: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"you@example.com","project":"my_project","session_id":"s1","query":"Hello","response":"Hi"}'</pre>
+
+                <p style="font-size:13px;color:#c9d1d9;margin-bottom:4px;"><strong>📥 Load context (memory)</strong></p>
+                <pre style="background:#161b22;padding:10px;border-radius:4px;font-size:12px;color:#7ee787;overflow-x:auto;margin-bottom:12px;">curl "https://skv.network/api/v4/users/you@example.com/projects/my_project/context" \
+  -H "X-API-Key: YOUR_TOKEN"</pre>
+
+                <p style="font-size:13px;color:#c9d1d9;margin-bottom:4px;"><strong>🔍 Search cubes</strong></p>
+                <pre style="background:#161b22;padding:10px;border-radius:4px;font-size:12px;color:#7ee787;overflow-x:auto;margin-bottom:12px;">curl "https://skv.network/api/cubes/search?query=memory"</pre>
+
+                <p style="font-size:13px;color:#8b949e;margin-top:8px;">📚 Full guide: <a href="/downloads/skv-agent-guide.txt" style="color:#58a6ff;" download>skv-agent-guide.txt</a></p>
+            </div>
+
             <code id="tokenDisplay" style="background:#0d1117;padding:8px 12px;border-radius:4px;color:#7ee787;word-break:break-all;font-size:12px;"></code>
         
 <div class="card" style="margin-top:16px; text-align:center">

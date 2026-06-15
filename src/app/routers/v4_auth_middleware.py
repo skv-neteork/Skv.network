@@ -14,7 +14,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         
         # Извлекаем токен
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        token = request.headers.get("X-API-Key", "") or request.headers.get("Authorization", "").replace("Bearer ", "")
         if not token:
             # Для персональных эндпоинтов — токен обязателен
             if "/api/v4/sessions" in request.url.path or "/api/v4/users" in request.url.path:
@@ -24,11 +24,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Проверяем токен в БД
         try:
             conn = await asyncpg.connect(DATABASE_URL)
-            user = await conn.fetchrow("SELECT id FROM users WHERE api_token = $1", token)
+            user = await conn.fetchrow("SELECT api_key FROM user_api_keys WHERE api_key = $1", token)
             await conn.close()
             
             if user:
-                request.state.user_id = str(user["id"])
+                request.state.user_id = user["user_id"]
             else:
                 raise HTTPException(status_code=401, detail="Invalid token")
         except HTTPException:

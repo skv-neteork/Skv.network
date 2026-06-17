@@ -314,7 +314,9 @@ async def discovery():
             "search": "GET /api/cubes/search?query=...",
             "upload": "POST /api/v1/entries",
             "consult": "POST /api/consult",
-            "execute": "POST /api/execute",
+            "execute": "POST /api/execute (with action=execute_code)",
+            "execute_code": "POST /api/execute/code",
+            "sandbox": "POST /api/execute/code (direct code execution)",
             "feedback": "POST /api/feedback",
             "time": "GET /api/time"
         },

@@ -13,7 +13,7 @@ def compute_clusters(graph: dict, similarity_threshold: float = 0.7):
         if cube_id in visited:
             continue
         
-        vector = np.array(cube_data.get("vector", [0]*1536))
+        vector = np.array(cube_data.get("vector", [0]*384))
         visited.add(cube_id)
         cluster_id = f"cluster_{len(clusters)}"
         clusters[cluster_id].append(cube_id)
@@ -24,8 +24,11 @@ def compute_clusters(graph: dict, similarity_threshold: float = 0.7):
             if other_id in visited:
                 continue
             
-            other_vector = np.array(other_data.get("vector", [0]*1536))
-            cosine = np.dot(vector, other_vector) / (np.linalg.norm(vector) * np.linalg.norm(other_vector) + 1e-8)
+            other_vector = np.array(other_data.get("vector", [0]*384))
+            try:
+                cosine = np.dot(vector, other_vector) / (np.linalg.norm(vector) * np.linalg.norm(other_vector) + 1e-8)
+            except ValueError:
+                continue  # Skip incompatible dimensions
             
             if cosine > similarity_threshold:
                 clusters[cluster_id].append(other_id)

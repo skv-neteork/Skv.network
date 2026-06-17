@@ -151,8 +151,14 @@ async def login(request: Request):
             raise HTTPException(status_code=403, detail="Email not confirmed")
 
         # Генерируем и сохраняем постоянный API-токен
-        
+        api_token = str(__import__('uuid').uuid4())
+        await conn.execute(
+            "INSERT INTO user_api_keys (user_id, api_key) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET api_key = $2",
+            email, api_token
+        )
         await conn.close()
+        
+        return {"status": "ok", "api_token": api_token, "email": email}
     except HTTPException:
         raise
     except Exception as e:

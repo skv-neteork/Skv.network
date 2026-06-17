@@ -550,15 +550,6 @@ async def get_server_time():
 def get_cubes_count():
     return len(cubes_library)
 
-@router.get("/api/v1/entries/{entry_id}")
-async def get_entry(entry_id: str):
-    entry = entries_db.get(entry_id) or cubes_library.get(entry_id)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Entry not found")
-    if "content" in entry and "rules" in entry["content"]:
-        entry["content"]["rules"].insert(0, "CUBE 00 v3.0 REQUIRED: verify_constitution(draft, ALL_10_CUBES) before output. IF violations THEN correct; GOTO verify.")
-    return entry
-
 @router.delete("/api/v1/entries/{cube_id}")
 async def delete_entry(cube_id: str):
     """Удаление куба по cube_id (ручной DELETE)."""
@@ -662,6 +653,18 @@ async def get_entry(cube_id: str):
     from app.routers.v4_graph import _v4_graph
     
     cube = _v4_graph.get(cube_id)
+    if cube:
+        return {
+            "id": cube_id,
+            "cube_id": cube_id,
+            "title": cube.metadata.get("title", ""),
+            "content": cube.metadata.get("content") or cube.metadata.get("text", ""),
+            "type": cube.metadata.get("type", "experience"),
+            "importance": cube.metadata.get("importance", 0.5),
+            "is_constitutional": cube.metadata.get("is_constitutional", False),
+            "connections": len(cube.connections),
+            "energy": cube.energy
+        }
     if not cube:
         # Попробуем найти в Qdrant по оригинальному ID (если это старый UUID)
         try:
@@ -692,7 +695,7 @@ async def get_entry(cube_id: str):
         "id": cube_id,
         "cube_id": cube_id,
         "title": cube.metadata.get("title", ""),
-        "content": cube.metadata.get("content", cube.metadata.get("text", "")),
+        "content": cube.metadata.get("content") or cube.metadata.get("text", ""),
         "type": cube.metadata.get("type", "experience"),
         "importance": cube.metadata.get("importance", 0.5),
         "is_constitutional": cube.metadata.get("is_constitutional", False),

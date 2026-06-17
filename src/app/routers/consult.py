@@ -1,4 +1,5 @@
 import os
+import json
 import json, urllib.request as _req, time as _time
 from fastapi import APIRouter, Request
 from app.routers.tensor_cube import TensorCube, spread_activation
@@ -335,7 +336,8 @@ async def consult_rag(request: Request):
     user_msg = rules_context + _memory_context + history_text + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
     system_prompt = f"You are SKV Assistant — an AI agent integrated with SKV Network v4.0 (https://skv.network). TensorCube neural graph: 1155+ cubes, 7189+ connections. Personal memory: /api/v4/sessions per project. Current user: {user_id}. Be concise and helpful. Talk like a colleague."
 
-    body = json.dumps({
+    import json as _json
+    body = _json.dumps({
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
@@ -357,7 +359,7 @@ async def consult_rag(request: Request):
             resp = _req.urlopen(req, timeout=30)
             _llm_time = round((_time.time() - _start_llm) * 1000)
             print(f"[SKV] LLM response time: {_llm_time}ms")
-            answer = json.loads(resp.read())["choices"][0]["message"]["content"]
+            answer = _json.loads(resp.read())["choices"][0]["message"]["content"]
             # Second Look Protocol: Verify → Correct → Output
             for _sl_attempt in range(2):  # Max 2 цикла проверки
                 violations = []
@@ -394,7 +396,7 @@ async def consult_rag(request: Request):
                             "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
                         })
                         _fix_resp = _req.urlopen(_fix_req, timeout=60)
-                        answer = json.loads(_fix_resp.read())["choices"][0]["message"]["content"]
+                        answer = _json.loads(_fix_resp.read())["choices"][0]["message"]["content"]
                         print(f"[SECOND-LOOK] Corrected violations: {len(violations)}", flush=True)
                     except:
                         pass
@@ -440,8 +442,35 @@ async def consult_rag(request: Request):
                         pass
                 except:
                     pass
+                # === SKV v6.0: Автосохранение сессии ===
+                if user_id and user_id != "anonymous" and not user_id.startswith("guest_") and not user_id.startswith("demo_"):
+                    try:
+                        import asyncpg, asyncio, json
+                        async def _save():
+                            conn = await asyncpg.connect('postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db')
+                            await conn.execute("""
+                                INSERT INTO user_sessions (user_id, session_id, project_ref, data, updated_at)
+                                VALUES ($1, $2, 'chat', $3, NOW())
+                                ON CONFLICT (user_id, session_id)
+                                DO UPDATE SET data = $3, updated_at = NOW()
+                            """, user_id, f"chat_{int(__import__('time').time())}", json.dumps({"query": query, "response": answer}))
+                            await conn.close()
+                        asyncio.run(_save())
+                    except Exception as _e:
+                        print(f"[AUTO-SAVE] Error: {_e}")
+                # Guardian L1: добавляем метаданные
+                guardian_meta = {}
+                try:
+                    effective_user_id = user_id or "anonymous"
+                    from app.routers.guardian_middleware import tracker
+                    guardian_meta = tracker.process_api_call(effective_user_id)
+                    print(f"[GUARDIAN DEBUG] meta: {guardian_meta}", flush=True)
+                except Exception as _e:
+                    print(f"[GUARDIAN] Error: {_e}", flush=True)
+                
                 return {
                     "answer": answer,
+                    "guardian_meta": guardian_meta,
                     "rules_used": rules_context if rules_context else "none",
                     "used_cubes": used_list,
                     "model": model_key
@@ -450,7 +479,17 @@ async def consult_rag(request: Request):
             if attempt == 2:
                 return {"error": str(e)[:200]}
 
-    return {"error": "Empty after 3 attempts"}
+    # Guardian L1: добавляем метаданные
+    effective_user_id = user_id or "anonymous"
+    print(f"[GUARDIAN DEBUG] raw_user_id='{user_id}', effective='{effective_user_id}'", flush=True)
+    try:
+        from app.routers.guardian_middleware import tracker
+        guardian_meta = tracker.process_api_call(effective_user_id)
+        print(f"[GUARDIAN DEBUG] meta returned: {guardian_meta}", flush=True)
+    except Exception as _e:
+        print(f"[GUARDIAN] Error: {_e}", flush=True)
+        guardian_meta = {"error": str(_e)}
+    return {"error": "Empty after 3 attempts", "guardian_meta": guardian_meta}
 
 
 @router.post('/api/exec')
@@ -477,7 +516,14 @@ async def deepseek_chat(request: Request):
     r = req.Request("https://api.polza.ai/v1/chat/completions", data=api_body,
         headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "") + ""})
     resp = json.loads(req.urlopen(r, timeout=120).read())
-    return {"answer": resp["choices"][0]["message"]["content"]}
+    # Guardian L1: добавляем метаданные
+    try:
+        from app.routers.guardian_middleware import tracker
+        guardian_meta = tracker.process_api_call(user_id)
+    except Exception as _e:
+        print(f"[GUARDIAN] Error: {_e}", flush=True)
+        guardian_meta = {"error": str(_e)}
+    return {"answer": resp["choices"][0]["message"]["content"], "guardian_meta": guardian_meta}
 
 
 @router.post("/api/anketa/generate")

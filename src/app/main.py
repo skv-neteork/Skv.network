@@ -1,3 +1,4 @@
+from starlette.middleware import Middleware
 from app.startup import startup
 from fastapi import FastAPI, Request
 from app.middleware.rate_limit import rate_limit_middleware
@@ -9,6 +10,7 @@ from app.routers.auth import router as auth_router
 from app.routers.v4_personal_memory import router as pm_router
 from app.routers.memory_tools import router as memory_tools_router
 from app.routers.batch import router as batch_router
+from app.routers.guardian_middleware import guardian_router
 from app.routers.trials_v4 import router as trials_v4_router
 from app.routers.v4_auth_middleware import AuthMiddleware
 from app.routers.consult import router as consult_router
@@ -21,7 +23,7 @@ from app.routers.bureau import router as bureau_router
 from app.routers.formula_validator import router as formula_validator_router
 from app.routers.bureau import router as bureau_router
 import io, zipfile, os
-
+app = FastAPI(title="SKV Network", version="2.0")
 app = FastAPI(title="SKV Network", version="2.0")
 
 
@@ -136,6 +138,8 @@ async def lifespan(app):
     _task.cancel()
 
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware import Middleware
+from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -260,6 +264,7 @@ app.include_router(auth_router)
 app.include_router(pm_router)
 app.include_router(memory_tools_router)
 app.include_router(batch_router)
+app.include_router(guardian_router)
 app.include_router(trials_v4_router)
 from app.routers.formula_validator import router as formula_router
 app.include_router(formula_router)

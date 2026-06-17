@@ -15,6 +15,22 @@ async def execute_action(request: Request):
         raise HTTPException(status_code=400, detail="Missing 'action' field")
     
     # === IMAGE ===
+    
+    instructions = data.get("instructions", {})
+    instructions = data.get("instructions", {})
+    instructions = data.get("instructions", {})
+    if action == "execute_code":
+        code = instructions.get("code", "")
+        import io, contextlib
+        f = io.StringIO()
+        with contextlib.redirect_stdout(f):
+            try:
+                exec(code, {"__builtins__": {"print": print, "len": len, "range": range, "str": str, "int": int, "float": float, "list": list, "dict": dict}})
+                stdout = f.getvalue()
+                return {"status": "success", "stdout": stdout, "stderr": "", "file_url": None}
+            except Exception as e:
+                return {"status": "error", "stdout": f.getvalue(), "stderr": str(e), "file_url": None}
+
     if action == "generate_image":
         width = data.get("parameters", {}).get("width", 1024)
         height = data.get("parameters", {}).get("height", 1024)

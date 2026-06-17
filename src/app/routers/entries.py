@@ -802,3 +802,33 @@ async def maybe_consult(body, entry_id):
     async with aiohttp.ClientSession() as session:
         import asyncio
         await asyncio.gather(*[run_one(session, m) for m in models])
+
+@router.post("/api/v4/sessions")
+async def save_sdk_session(request: Request):
+    """Принимает сессию от Guardian SDK и сохраняет как SKV-анкету"""
+    import uuid
+    data = await request.json()
+    user_id = data.get("user_id", "anonymous")
+    project = data.get("project", "SDK Session")
+    session_id = data.get("session_id", str(uuid.uuid4()))
+    query = data.get("query", "")
+    response_text = data.get("response", "")
+    
+    anketa = {
+        "title": f"SDK Session: {project}",
+        "type": "project_anketa",
+        "persona": {"user_id": user_id, "traits": ["sdk_user"]},
+        "project": {"name": project, "description": f"Query: {query[:200]}"},
+        "memory_index": {"project": project, "session_number": session_id, "key_outcome": response_text[:200]},
+        "cubes": [],
+        "feedback": []
+    }
+    
+    entry_id = str(uuid.uuid4())
+    cubes_library[entry_id] = {
+        "id": entry_id, "cube_id": entry_id, 
+        "title": anketa["title"], "content": anketa, 
+        "triggers": ["sdk_session", project.lower()], 
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    return {"status": "ok", "session_id": session_id, "skv_entry_id": entry_id}

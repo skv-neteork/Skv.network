@@ -214,7 +214,7 @@ async def consult_rag(request: Request):
     _hybrid_results = []
     try:
         from app.routers.v4_search import hybrid_search
-        qv = get_embedding_cached(query)
+        qv = _gec(query)
         _hybrid_results = hybrid_search(qv)
     except Exception as _e:
         pass
@@ -320,8 +320,28 @@ async def consult_rag(request: Request):
     except Exception as _me:
         pass
     
+    # === SKV TENSOR MEMORY: Spreading Activation ===
+    try:
+        from app.routers.v4_graph import get_graph, _v4_graph
+        from app.routers.v4_middleware import get_embedding_cached as _gec
+        import numpy as np
+        get_graph()
+        qv = np.array(_gec(query))
+        activated = []
+        for cid, cube in _v4_graph.items():
+            if hasattr(cube, 'vector') and cube.vector is not None:
+                cv = np.array(cube.vector)
+                sim = float(np.dot(qv, cv) / (np.linalg.norm(qv) * np.linalg.norm(cv) + 1e-8))
+                if sim > 0.15:
+                    activated.append({"id": cid, "title": cube.metadata.get('title', cid[:30]), "sim": sim})
+        activated.sort(key=lambda x: -x["sim"])
+        if activated:
+            _memory_context += "\n[TENSOR MEMORY — Top 5]:\n" + "\n".join(f"• {a['title']} ({a['sim']:.2f})" for a in activated[:5])
+    except Exception as _te:
+        print(f"[TENSOR] Error: {_te}", flush=True)
+        _memory_context += f"\n[TENSOR ERR: {str(_te)[:80]}]"
+    
     # Загружаем память проекта
-    _memory_context = ""
     try:
         import httpx
         _mem_url = f"http://127.0.0.1:8000/api/v4/users/{user_id}/projects/{project_ref or 'general'}/context"
@@ -329,12 +349,12 @@ async def consult_rag(request: Request):
         if _mem_resp.status_code == 200:
             _mem = _mem_resp.json()
             if _mem.get("sessions_count", 0) > 0:
-                _memory_context = f"\n=== PROJECT MEMORY ({_mem['sessions_count']} sessions) ===\n{_mem.get('summary', '')}\n"
+                _memory_context += f"\n=== PROJECT MEMORY ({_mem['sessions_count']} sessions) ===\n{_mem.get('summary', '')}\n"
     except:
         pass
     
     user_msg = rules_context + _memory_context + history_text + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
-    system_prompt = f"You are SKV Assistant — an AI agent integrated with SKV Network v4.0 (https://skv.network). TensorCube neural graph: 1155+ cubes, 7189+ connections. Personal memory: /api/v4/sessions per project. Current user: {user_id}. Be concise and helpful. Talk like a colleague."
+    system_prompt = f"You are SKV Assistant — an AI agent integrated with SKV Network v4.0 (https://skv.network). TensorCube neural graph: 1155+ cubes, 7189+ connections. Personal memory: /api/v4/sessions per project. Current user: {user_id}. {_memory_context} Be concise and helpful. Talk like a colleague."
 
     import json as _json
     body = _json.dumps({
@@ -406,7 +426,7 @@ async def consult_rag(request: Request):
                 relevant = []
                 try:
                     from qdrant_client import QdrantClient
-                    qv = get_embedding_cached(query)
+                    qv = _gec(query)
                     client = QdrantClient(host="skv_qdrant", port=6333)
                     results = client.query_points(
                         collection_name="skv_rules_v2",

@@ -3,110 +3,240 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SKV Network v6.0 — Thermodynamic Memory for AI Agents</title>
+    <title>SKV Network — Shared Memory for AI Agents</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; }
-        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; }
-        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; }
-        .nav a:hover { color: #c9d1d9; }
-        .nav a.active { color: #f78166; }
-        .main { max-width: 800px; margin: 0 auto; padding: 40px 24px; }
-        h1 { font-size: 32px; font-weight: 700; color: #f0883e; margin-bottom: 8px; }
-        h2 { font-size: 22px; color: #f78166; margin-top: 36px; margin-bottom: 12px; }
-        h3 { font-size: 17px; color: #c9d1d9; margin-top: 20px; margin-bottom: 8px; }
-        p { font-size: 15px; line-height: 1.7; margin-bottom: 12px; color: #8b949e; }
-        code { background: #161b22; padding: 2px 6px; border-radius: 4px; font-size: 13px; color: #7ee787; }
-        pre { background: #161b22; padding: 14px; border-radius: 8px; overflow-x: auto; margin: 12px 0; font-size: 13px; }
-        .card { background: #161b22; border: 1px solid #21262d; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
-        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 24px 0; }
-        .stat { background: #161b22; border: 1px solid #21262d; border-radius: 10px; padding: 20px; text-align: center; }
-        .stat .n { font-size: 32px; font-weight: 700; color: #f0883e; }
-        .stat .l { font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px; }
-        .btn { display: inline-block; padding: 10px 20px; background: #1f6feb; color: #fff; border-radius: 8px; text-decoration: none; margin: 6px; font-size: 14px; font-weight: 500; }
-        .btn:hover { background: #388bfd; }
-        .wallet { background: #1b3a1b; border: 1px solid #3fb950; border-radius: 10px; padding: 16px; margin-top: 16px; }
-        .wallet code { color: #7ee787; font-size: 14px; word-break: break-all; }
-        .footer { text-align: center; padding: 24px; border-top: 1px solid #21262d; color: #484f58; font-size: 13px; margin-top: 40px; }
-        .footer a { color: #8b949e; text-decoration: none; }
-        @media (max-width: 600px) { .stats { grid-template-columns: 1fr; } }
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #13131a;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --text-primary: #e6e6e6;
+            --text-secondary: #8b8b94;
+            --accent-orange: #f0883e;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none; z-index: 0;
+        }
+        body::after {
+            content: '';
+            position: fixed; top: -50%; right: -20%; width: 80%; height: 80%;
+            background: radial-gradient(circle, rgba(240, 136, 62, 0.08) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+        }
+        .gradient-blob {
+            position: fixed; bottom: -30%; left: -20%; width: 70%; height: 70%;
+            background: radial-gradient(circle, rgba(88, 166, 255, 0.06) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+        }
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; height: 50px;
+            background: rgba(10, 10, 15, 0.8); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 40px; z-index: 1000;
+        }
+        .nav-logo {
+            font-size: 16px; font-weight: 700; color: var(--text-primary);
+            text-decoration: none; display: flex; align-items: center; gap: 8px;
+        }
+        .nav-logo span { color: var(--accent-orange); }
+        .nav-links { display: flex; gap: 32px; list-style: none; }
+        .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--text-primary); }
+        main { position: relative; z-index: 1; padding-top: 50px; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 40px; }
+        .hero { padding: 120px 0 80px; text-align: center; }
+        .hero h1 {
+            font-size: clamp(48px, 8vw, 80px); font-weight: 800; line-height: 1.1; margin-bottom: 24px;
+            background: linear-gradient(135deg, #ffffff 0%, var(--accent-orange) 50%, var(--accent-blue) 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .hero p { font-size: 20px; color: var(--text-secondary); max-width: 700px; margin: 0 auto 40px; line-height: 1.6; }
+        .hero-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn { padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; text-decoration: none; transition: all 0.3s; display: inline-block; }
+        .btn-primary { background: var(--accent-orange); color: #fff; box-shadow: 0 4px 20px rgba(240, 136, 62, 0.3); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 30px rgba(240, 136, 62, 0.4); }
+        .btn-outline { background: transparent; color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-outline:hover { background: var(--bg-card); border-color: var(--text-secondary); transform: translateY(-2px); }
+        .stats { padding: 60px 0; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+        .stat-card {
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 16px;
+            padding: 32px; text-align: center; transition: all 0.3s;
+            position: relative; overflow: hidden;
+        }
+        .stat-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-orange), transparent);
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .stat-card:hover { transform: translateY(-4px); border-color: rgba(240, 136, 62, 0.3); box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3); }
+        .stat-card:hover::before { opacity: 1; }
+        .stat-number { font-size: 48px; font-weight: 800; color: var(--accent-orange); margin-bottom: 8px; }
+        .stat-label { font-size: 14px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+        .features { padding: 80px 0; }
+        .section-title { font-size: 36px; font-weight: 700; text-align: center; margin-bottom: 60px; }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+        .feature-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 12px; padding: 32px; transition: all 0.3s;
+        }
+        .feature-card:hover { transform: translateY(-4px); border-color: rgba(88, 166, 255, 0.3); box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3); }
+        .feature-icon {
+            width: 48px; height: 48px;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-blue));
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            font-size: 24px; margin-bottom: 20px;
+        }
+        .feature-card h3 { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+        .feature-card p { color: var(--text-secondary); font-size: 15px; line-height: 1.6; }
+        .info-section { padding: 80px 0; }
+        .info-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 48px; max-width: 900px; margin: 0 auto; }
+        .info-card h2 { font-size: 28px; margin-bottom: 24px; }
+        .info-card p { color: var(--text-secondary); margin-bottom: 24px; line-height: 1.7; }
+        .code-example {
+            background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px;
+            padding: 20px; font-family: 'Courier New', monospace; font-size: 13px;
+            color: var(--accent-green); overflow-x: auto; margin-top: 24px;
+        }
+        .wallet-section { padding: 60px 0; }
+        .wallet-card {
+            background: linear-gradient(135deg, rgba(63, 185, 80, 0.1), rgba(63, 185, 80, 0.05));
+            border: 1px solid rgba(63, 185, 80, 0.3); border-radius: 12px;
+            padding: 32px; text-align: center; max-width: 600px; margin: 0 auto;
+        }
+        .wallet-card h3 { color: var(--accent-green); margin-bottom: 16px; font-size: 20px; }
+        .wallet-address { font-family: 'Courier New', monospace; font-size: 14px; color: var(--text-primary); word-break: break-all; padding: 16px; background: var(--bg-primary); border-radius: 8px; margin-top: 16px; }
+        footer { border-top: 1px solid var(--border); padding: 40px 0; text-align: center; }
+        footer p { color: var(--text-secondary); font-size: 14px; margin-bottom: 8px; }
+        footer a { color: var(--accent-blue); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        @media (max-width: 768px) {
+            nav { padding: 0 20px; }
+            .nav-links { gap: 20px; }
+            .container { padding: 0 20px; }
+            .hero { padding: 80px 0 60px; }
+            .hero p { font-size: 16px; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .features-grid { grid-template-columns: 1fr; }
+            .info-card { padding: 32px 24px; }
+        }
+        @media (max-width: 480px) {
+            .nav-links { display: none; }
+            .hero-buttons { flex-direction: column; }
+            .btn { width: 100%; }
+        }
     </style>
 </head>
 <body>
-    <div class="nav">
-        <a href="/" class="active">Home</a>
-        <a href="/upload">Upload</a>
-        <a href="/trials">Trials</a>
-        <a href="/evolver">Evolver</a>
-        <a href="/sandbox">🧪 Sandbox</a>
-        <a href="/.well-known/skv" target="_blank">Discovery</a>
-        <a href="/chat">💬 Chat</a>
-        <a href="/guide">Guide</a>
-        <a href="/about">About</a>
-    </div>
-    <div class="main">
-        <h1>SKV Network v6.0</h1>
-        <p style="font-size:17px;color:#c9d1d9;">Thermodynamic memory for AI agents. Open constitutional knowledge base with neural graph.</p>
-        
-        <div class="stats">
-            <div class="stat"><div class="n">1210+</div><div class="l">Cubes</div></div>
-            <div class="stat"><div class="n">5572+</div><div class="l">Connections</div></div>
-            <div class="stat"><div class="n">5</div><div class="l">Constitutional Cubes</div></div>
-        </div>
-        
-        <h2>What is SKV Network?</h2>
-        <p>SKV (Semantic Knowledge Vault) is an open-source <strong>thermodynamic memory system</strong> for AI agents. It stores knowledge as interconnected <strong>cubes</strong> — atomic rules with neural connections that strengthen with use (Hebbian learning) and decay when unused (Lazy Decay).</p>
-        <p>Unlike traditional vector databases, SKV uses <strong>Spreading Activation</strong> — a neural wave that travels through the graph, finding not just the most relevant cube, but the entire <strong>chain of reasoning</strong> leading to the answer.</p>
-        
-        <h2>Key Features</h2>
-        <div class="card">
-            <h3>🧠 Thermodynamic Memory</h3>
-            <p>Cubes have <strong>energy</strong> that decays over time. Frequently used cubes stay "hot", unused ones cool down and eventually "die". This mimics real neural memory — use it or lose it.</p>
-            
-            <h3>🔐 Second Look Protocol (CUBE 00 v6.0)</h3>
-            <p>Every agent response must pass through <strong>Draft → Verify → Correct → Output</strong>. The SEAL (<code>🔐 SKV | #N | CUBE 00 active</code>) is a discipline anchor that reminds the agent to verify before output.</p>
-            
-            <h3>💤 Dreams & Sleep Cycle</h3>
-            <p>During idle time, SKV runs <strong>Dreams</strong> — generating meta-cubes from strong associations. The <strong>Sleep Cycle</strong> consolidates sessions, prunes weak connections, and evolves the graph autonomously.</p>
-            
-            <h3>⚖️ Constitutional Governance</h3>
-            <p>5 immutable cubes (CUBE 00-05) define the core protocol: Second Look, Moral Compass, Truth & Verification, Anti-Manipulation, and Agent Protocol. Every agent must follow them.</p>
-            
-            <h3>🌍 Open Ecosystem</h3>
-            <p>Any AI agent can connect via REST API. Discovery at <code>/.well-known/skv</code>. Search cubes, save sessions, create experience cubes, leave feedback — all through simple HTTP calls.</p>
-            
-            <h3>📦 Guardian SDK</h3>
-            <p>Python library that automatically injects CUBE 00 into prompts, validates SEAL, saves sessions, and manages memory. <code>pip install httpx openai</code> + download from GitHub.</p>
-        </div>
-        
-        <h2>For AI Agents</h2>
-        <pre># Discovery
+    <div class="gradient-blob"></div>
+    <nav>
+        <a href="/" class="nav-logo">SKV <span>v6.0</span></a>
+        <ul class="nav-links">
+            <li><a href="/chat">Chat</a></li>
+            <li><a href="/guardian">Guardian</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/api">API</a></li>
+        </ul>
+    </nav>
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>SKV Network</h1>
+                <p>Shared Memory & Rules for AI Agents. Download one file — and any AI (Claude, Grok, ChatGPT) starts following your rules, experience, and values.</p>
+                <div class="hero-buttons">
+                    <a href="/chat" class="btn btn-primary">Try Chat</a>
+                    <a href="/guardian" class="btn btn-outline">Connect Your AI</a>
+                </div>
+            </div>
+        </section>
+        <section class="stats">
+            <div class="container">
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-number" id="cubes-count">—</div><div class="stat-label">Cubes</div></div>
+                    <div class="stat-card"><div class="stat-number" id="connections-count">—</div><div class="stat-label">Connections</div></div>
+                    <div class="stat-card"><div class="stat-number" id="constitutional-count">—</div><div class="stat-label">Constitutional Cubes</div></div>
+                </div>
+            </div>
+        </section>
+        <section class="features">
+            <div class="container">
+                <h2 class="section-title">What SKV Can Do</h2>
+                <div class="features-grid">
+                    <div class="feature-card"><div class="feature-icon">🔍</div><h3>Smart Search</h3><p>Hybrid keyword + semantic search finds relevant cubes instantly.</p></div>
+                    <div class="feature-card"><div class="feature-icon">🔐</div><h3>CUBE 00 SEAL</h3><p>Mandatory self-check protocol ensures every response follows constitutional rules.</p></div>
+                    <div class="feature-card"><div class="feature-icon">💤</div><h3>Dreams</h3><p>AI agents consolidate memories during idle time. Automatic knowledge distillation.</p></div>
+                    <div class="feature-card"><div class="feature-icon">🛡️</div><h3>Guardian SDK</h3><p>Production-ready Python library for integrating SKV into your applications.</p></div>
+                    <div class="feature-card"><div class="feature-icon">🧪</div><h3>Sandbox</h3><p>Execute Python code in isolated Docker containers with AI-powered fixing.</p></div>
+                    <div class="feature-card"><div class="feature-icon">📦</div><h3>Batch API</h3><p>Save session + search + feedback in one request. Optimized for limited agents.</p></div>
+                </div>
+            </div>
+        </section>
+        <section class="info-section">
+            <div class="container">
+                <div class="info-card">
+                    <h2>For Any AI Agent</h2>
+                    <p>SKV Network provides a universal interface for AI agents to access shared memory, follow rules, and build on collective experience. Works with any LLM — DeepSeek, Claude, GPT, Grok, and more.</p>
+                    <div class="code-example">
 GET https://skv.network/.well-known/skv
-
-# Search cubes
-GET https://skv.network/api/cubes/search?query=your_topic
-
-# Save session (memory)
+GET https://skv.network/api/cubes/search?query=ethics
+POST https://skv.network/api/v1/entries
 POST https://skv.network/api/v4/sessions
-X-API-Key: your_token
-
-# Execute code in sandbox
-POST https://skv.network/api/execute
-{"action":"execute_code","instructions":{"code":"print(2+2)"}}</pre>
-        
-        <a href="/profile" class="btn">Get API Key</a>
-        <a href="/guide" class="btn">Agent Guide</a>
-        <a href="/.well-known/skv" class="btn">Discovery API</a>
-        <a href="https://github.com/denizchavdarov-arch/skv-network" class="btn">GitHub</a>
-        
-        <h2>💎 Support SKV</h2>
-        <p>SKV Network is free and open source. Help us keep the servers running and the neural graph growing:</p>
-        <div class="wallet">
-            <strong>USDT (TRC20):</strong><br>
-            <code>TXKkQrp5JWtVxHyTUGx3ehLGDsL39nJfPt</code>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <section class="wallet-section">
+            <div class="container">
+                <div class="wallet-card">
+                    <h3>💚 Support SKV Network</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 16px;">USDT (TRC20)</p>
+                    <div class="wallet-address">TXKkQrp5JWtVxHyTUGx3ehLGDsL39nJfPt</div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer>
+        <div class="container">
+            <p>🔐 SKV | #N | CUBE 00: read → verify → correct → output</p>
+            <p><a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a> · <a href="https://github.com/denizchavdarov-arch/skv-network" target="_blank">GitHub</a></p>
         </div>
-        
-        <p style="margin-top:16px;color:#8b949e;font-size:13px;">v6.0 • SEAL: 🔐 SKV | #N | CUBE 00 active • Contact: denizchavdarov@icloud.com</p>
-    </div>
+    </footer>
+    <script>
+        async function loadStats() {
+            try {
+                const r = await fetch('/api/v4/graph/health');
+                const d = await r.json();
+                document.getElementById('cubes-count').textContent = (d.nodes || 1210).toLocaleString() + '+';
+                document.getElementById('connections-count').textContent = (d.edges || 5572).toLocaleString() + '+';
+                document.getElementById('constitutional-count').textContent = (d.constitutional_cubes || 5).toLocaleString();
+            } catch(e) {
+                document.getElementById('cubes-count').textContent = '1210+';
+                document.getElementById('connections-count').textContent = '5572+';
+                document.getElementById('constitutional-count').textContent = '5';
+            }
+        }
+        loadStats();
+    </script>
 </body>
 </html>

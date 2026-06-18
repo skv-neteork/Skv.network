@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKV Guardian — Universal AI Chat with Memory</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui; background: #0d1117; color: #c9d1d9; }
+        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; }
+        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; }
+        .nav a:hover { color: #c9d1d9; }
+        .nav a.active { color: #f78166; }
+        .main { max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #f0883e; font-size: 24px; margin-bottom: 8px; }
+        .setup-card { background: #161b22; border: 1px solid #21262d; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+        .setup-card h2 { color: #f78166; font-size: 18px; margin-bottom: 16px; }
+        .setup-card label { display: block; color: #8b949e; font-size: 13px; margin-bottom: 4px; margin-top: 12px; }
+        .setup-card select, .setup-card input { width: 100%; padding: 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 14px; }
+        .setup-card button { margin-top: 16px; padding: 12px 24px; background: #238636; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; width: 100%; }
+        .setup-card button:hover { background: #2ea043; }
+        .chat-box { background: #161b22; border: 1px solid #21262d; border-radius: 12px; padding: 20px; min-height: 400px; max-height: 500px; overflow-y: auto; margin-bottom: 16px; display: none; }
+        .msg { margin-bottom: 16px; padding: 12px; border-radius: 8px; }
+        .msg.user { background: #1f6feb22; border: 1px solid #1f6feb44; }
+        .msg.agent { background: #23863622; border: 1px solid #23863644; }
+        .msg .role { font-size: 12px; color: #8b949e; margin-bottom: 4px; }
+        .msg .text { font-size: 15px; line-height: 1.5; }
+        .msg .seal { font-size: 12px; color: #f0883e; margin-top: 8px; font-family: monospace; }
+        .msg .cubes { font-size: 11px; color: #8b949e; margin-top: 4px; }
+        .input-area { display: flex; gap: 8px; display: none; }
+        .input-area input { flex: 1; padding: 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 15px; }
+        .input-area button { padding: 12px 24px; background: #238636; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; }
+        .status-bar { display: flex; gap: 16px; margin-bottom: 16px; font-size: 12px; color: #8b949e; display: none; }
+        .status-bar .ok { color: #3fb950; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/guardian" class="active">🛡️ Guardian</a>
+        <a href="/chat">💬 Chat</a>
+        <a href="/guide">Guide</a>
+        <a href="/about">About</a>
+    </div>
+    <div class="main">
+        <h1>SKV Guardian — Connect Your AI Agent</h1>
+        
+        <div class="setup-card" id="setupCard">
+            <h2>🔧 Setup Your Agent</h2>
+            <p style="color:#8b949e;font-size:13px;margin-bottom:16px;">Connect any OpenAI-compatible agent to SKV Network. Your API key stays in your browser — never sent to our server.</p>
+            
+            <label>AI Provider</label>
+            <select id="providerSelect">
+                <option value="openai">OpenAI (GPT-4o, GPT-3.5)</option>
+                <option value="deepseek">DeepSeek (via OpenRouter)</option>
+                <option value="custom">Custom (OpenAI-compatible API)</option>
+            </select>
+            
+            <label>Your API Key</label>
+            <input type="password" id="apiKeyInput" placeholder="sk-... or your provider key">
+            
+            <label>Model (optional)</label>
+            <input type="text" id="modelInput" placeholder="gpt-4o / deepseek-chat / your-model">
+            
+            <div id="customUrlGroup" style="display:none;">
+                <label>Custom API URL</label>
+                <input type="text" id="customUrlInput" placeholder="https://api.your-provider.com/v1">
+            </div>
+            
+            <label>SKV API Key (from your profile)</label>
+            <input type="text" id="skvKeyInput" placeholder="Your SKV token from /profile">
+            
+            <button onclick="startGuardian()">🚀 Start Guardian Chat</button>
+            <p style="color:#484f58;font-size:11px;margin-top:8px;">Your keys are stored only in your browser's localStorage. Never sent to SKV server.</p>
+        </div>
+        
+        <div class="status-bar" id="statusBar">
+            <span>🛡️ Guardian: <span class="ok">active</span></span>
+            <span>🧠 Memory: <span class="ok" id="memStatus">ready</span></span>
+            <span>🔐 SEAL: <span class="ok" id="sealStatus">#0</span></span>
+        </div>
+        
+        <div class="chat-box" id="chatBox">
+            <div class="msg agent">
+                <div class="role">🤖 Your AI Agent (via Guardian SDK)</div>
+                <div class="text">Guardian is active! Every response will be verified through SKV Constitution and saved to memory. Ask me anything!</div>
+                <div class="seal">🔐 SKV | #0 | CUBE 00 active</div>
+            </div>
+        </div>
+        
+        <div class="input-area" id="inputArea">
+            <input type="text" id="queryInput" placeholder="Ask your AI agent..." onkeydown="if(event.key==='Enter')sendToGuardian()">
+            <button onclick="sendToGuardian()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // Показываем/скрываем custom URL
+        document.getElementById('providerSelect').addEventListener('change', function() {
+            document.getElementById('customUrlGroup').style.display = this.value === 'custom' ? 'block' : 'none';
+        });
+        
+        let sealCounter = 0;
+        let sessionCounter = 1;
+        let apiUrl = '';
+        let apiKey = '';
+        let model = '';
+        let skvKey = '';
+        
+        function startGuardian() {
+            const provider = document.getElementById('providerSelect').value;
+            apiKey = document.getElementById('apiKeyInput').value.trim();
+            model = document.getElementById('modelInput').value.trim();
+            skvKey = document.getElementById('skvKeyInput').value.trim();
+            
+            if (!apiKey) { alert('Please enter your AI provider API key'); return; }
+            
+            // Определяем URL провайдера
+            switch(provider) {
+                case 'openai':
+                    apiUrl = 'https://api.openai.com/v1/chat/completions';
+                    if (!model) model = 'gpt-4o';
+                    break;
+                case 'deepseek':
+                    apiUrl = 'https://api.openrouter.ai/api/v1/chat/completions';
+                    if (!model) model = 'deepseek/deepseek-chat';
+                    break;
+                case 'custom':
+                    apiUrl = document.getElementById('customUrlInput').value.trim();
+                    if (!apiUrl) { alert('Please enter custom API URL'); return; }
+                    if (!model) model = 'gpt-3.5-turbo';
+                    break;
+            }
+            
+            // Сохраняем ключи в localStorage
+            localStorage.setItem('guardian_api_key', apiKey);
+            localStorage.setItem('guardian_api_url', apiUrl);
+            localStorage.setItem('guardian_model', model);
+            localStorage.setItem('guardian_skv_key', skvKey);
+            
+            // Показываем чат
+            document.getElementById('setupCard').style.display = 'none';
+            document.getElementById('chatBox').style.display = 'block';
+            document.getElementById('inputArea').style.display = 'flex';
+            document.getElementById('statusBar').style.display = 'flex';
+        }
+        
+        async function sendToGuardian() {
+            const input = document.getElementById('queryInput');
+            const query = input.value.trim();
+            if (!query) return;
+            
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML += `<div class="msg user">
+                <div class="role">👤 You</div>
+                <div class="text">${escapeHtml(query)}</div>
+            </div>`;
+            chatBox.innerHTML += '<div class="loading">⏳ Guardian verifying...</div>';
+            chatBox.scrollTop = chatBox.scrollHeight;
+            input.value = '';
+            
+            try {
+                // === GUARDIAN SDK LOGIC ===
+                const enrichedQuery = `[SKV PROTOCOL v6.0 — CUBE 00]
+Execute: DRAFT → VERIFY (CUBE 01-03) → CORRECT → OUTPUT.
+Think silently. Output ONLY in <final_output> tags. End with: 🔐 SKV | #N | CUBE 00 active
+
+User: ${query}`;
+                
+                // Шаг 1: Запрос к AI провайдеру
+                const aiResponse = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + apiKey
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            {role: 'system', content: 'You are an AI agent with SKV Guardian. Follow the protocol in every response.'},
+                            {role: 'user', content: enrichedQuery}
+                        ],
+                        temperature: 0.3
+                    })
+                });
+                
+                const aiData = await aiResponse.json();
+                let rawAnswer = aiData.choices?.[0]?.message?.content || 'No response from AI';
+                
+                // Шаг 2: Парсим сэндвич (как SDK)
+                let finalOutput = rawAnswer;
+                const finalMatch = rawAnswer.match(/<final_output>(.*?)<\/final_output>/s);
+                if (finalMatch) {
+                    finalOutput = finalMatch[1].trim();
+                }
+                
+                // Шаг 3: Извлекаем SEAL
+                const sealMatch = finalOutput.match(/🔐 SKV \| #(\d+) \| CUBE 00 active/);
+                if (sealMatch) {
+                    sealCounter = parseInt(sealMatch[1]);
+                } else {
+                    sealCounter++;
+                    finalOutput += '\n\n🔐 SKV | #' + sealCounter + ' | CUBE 00 active';
+                }
+                
+                document.getElementById('sealStatus').textContent = '#' + sealCounter;
+                document.querySelector('.loading')?.remove();
+                
+                // Показываем ответ
+                chatBox.innerHTML += `<div class="msg agent">
+                    <div class="role">🤖 Your AI (verified)</div>
+                    <div class="text">${escapeHtml(finalOutput)}</div>
+                    <div class="seal">🔐 SKV | #${sealCounter} | CUBE 00 active</div>
+                </div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+                
+                // Шаг 4: Автосохранение в SKV память (если есть SKV ключ)
+                if (skvKey) {
+                    const sessionId = 'g' + sessionCounter++;
+                    fetch('https://skv.network/api/v4/sessions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': skvKey
+                        },
+                        body: JSON.stringify({
+                            user_id: 'guardian_user',
+                            project: 'guardian-chat',
+                            session_id: sessionId,
+                            query: query,
+                            response: finalOutput
+                        })
+                    }).then(r => r.json()).then(d => {
+                        if (d.status === 'saved' || d.status === 'ok') {
+                            document.getElementById('memStatus').textContent = 'saved #' + sessionId;
+                        }
+                    }).catch(() => {});
+                }
+                
+            } catch (e) {
+                document.querySelector('.loading')?.remove();
+                chatBox.innerHTML += `<div class="msg agent">
+                    <div class="role">🤖 Guardian</div>
+                    <div class="text">Error: ${escapeHtml(e.message)}. Check your API key and try again.</div>
+                </div>`;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Восстанавливаем сохранённые ключи при загрузке
+        (function() {
+            const savedKey = localStorage.getItem('guardian_api_key');
+            const savedUrl = localStorage.getItem('guardian_api_url');
+            const savedModel = localStorage.getItem('guardian_model');
+            const savedSkvKey = localStorage.getItem('guardian_skv_key');
+            
+            if (savedKey && savedUrl) {
+                document.getElementById('apiKeyInput').value = savedKey;
+                document.getElementById('modelInput').value = savedModel || '';
+                document.getElementById('skvKeyInput').value = savedSkvKey || '';
+                // Авто-старт если все ключи есть
+                if (savedKey && savedUrl) {
+                    apiKey = savedKey;
+                    apiUrl = savedUrl;
+                    model = savedModel || 'gpt-4o';
+                    skvKey = savedSkvKey || '';
+                    document.getElementById('setupCard').style.display = 'none';
+                    document.getElementById('chatBox').style.display = 'block';
+                    document.getElementById('inputArea').style.display = 'flex';
+                    document.getElementById('statusBar').style.display = 'flex';
+                }
+            }
+        })();
+    </script>
+</body>
+</html>

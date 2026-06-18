@@ -1,131 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SKV Chat v6.0</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; height: 100vh; }
-.sidebar { width: 260px; background: #161b22; border-right: 1px solid #21262d; padding: 20px; display: flex; flex-direction: column; }
-.sidebar h2 { color: #f0883e; font-size: 18px; margin-bottom: 12px; }
-.sidebar .status { font-size: 12px; color: #8b949e; margin-bottom: 16px; }
-.sidebar button { width: 100%; padding: 8px; background: #30363d; border: 1px solid #484f58; color: #c9d1d9; border-radius: 6px; cursor: pointer; font-size: 13px; margin-bottom: 8px; text-align: left; }
-.sidebar button:hover { background: #484f58; }
-.sidebar a { color: #8b949e; text-decoration: none; font-size: 13px; margin-top: 4px; }
-.sidebar a:hover { color: #c9d1d9; }
-.main { flex: 1; display: flex; flex-direction: column; }
-.chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-.msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-wrap: break-word; position: relative; }
-.msg-user { align-self: flex-end; background: #238636; color: #fff; }
-.msg-ai { align-self: flex-start; background: #161b22; border: 1px solid #21262d; }
-.cubes { margin-top: 8px; padding-top: 8px; border-top: 1px solid #21262d; font-size: 12px; color: #8b949e; }
-.cube-tag { display: inline-block; background: #21262d; padding: 2px 8px; border-radius: 4px; margin: 2px 4px; font-size: 12px; }
-.copy-btn { position: absolute; bottom: 4px; right: 8px; background: none; border: 1px solid #30363d; border-radius: 4px; color: #484f58; cursor: pointer; font-size: 10px; padding: 2px 6px; display: none; }
-.msg:hover .copy-btn { display: block; }
-.copy-btn:hover { background: #30363d; color: #8b949e; }
-.empty-state { text-align: center; color: #484f58; padding: 60px 20px; }
-.input-area { padding: 16px 20px; background: #161b22; border-top: 1px solid #21262d; display: flex; gap: 8px; }
-.input-area input { flex: 1; padding: 10px 14px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 14px; }
-.input-area button { padding: 10px 20px; background: #238636; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
-.seal { font-size: 9px; color: #21262d; margin-top: 8px; border-top: 1px dashed #21262d; padding-top: 8px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKV Chat v6.0 — Guardian SDK + Memory</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui; background: #0d1117; color: #c9d1d9; }
+        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; }
+        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; }
+        .nav a:hover { color: #c9d1d9; }
+        .nav a.active { color: #f78166; }
+        .main { max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #f0883e; font-size: 24px; margin-bottom: 8px; }
+        .memory-status { font-size: 12px; color: #8b949e; margin-bottom: 16px; }
+        .memory-status span { color: #3fb950; }
+        .chat-box { background: #161b22; border: 1px solid #21262d; border-radius: 12px; padding: 20px; min-height: 400px; max-height: 600px; overflow-y: auto; margin-bottom: 16px; }
+        .msg { margin-bottom: 16px; padding: 12px; border-radius: 8px; }
+        .msg.user { background: #1f6feb22; border: 1px solid #1f6feb44; }
+        .msg.agent { background: #23863622; border: 1px solid #23863644; }
+        .msg .role { font-size: 12px; color: #8b949e; margin-bottom: 4px; }
+        .msg .text { font-size: 15px; line-height: 1.5; }
+        .msg .seal { font-size: 12px; color: #f0883e; margin-top: 8px; font-family: monospace; }
+        .msg .cubes { font-size: 12px; color: #8b949e; margin-top: 4px; }
+        .input-area { display: flex; gap: 8px; }
+        .input-area input { flex: 1; padding: 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 15px; }
+        .input-area button { padding: 12px 24px; background: #238636; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; }
+        .input-area button:hover { background: #2ea043; }
+        .loading { text-align: center; color: #8b949e; padding: 20px; }
+    </style>
 </head>
 <body>
-<div class="sidebar">
-<h2>🧩 SKV Chat v6.0</h2>
-<p class="status" id="loginStatus">Not logged in</p>
-<div id="projectsList" style="margin-bottom:12px;font-size:12px;color:#8b949e"></div>
-<button onclick="clearChat()" title="Clears chat and context, but not long-term memory">🗑️ Clear Chat (context only)</button>
-<a href="/">← Back to Home</a>
-<a href="/profile">👤 Profile</a>
-<a href="/guide">📘 Agent Guide</a>
-</div>
-<div class="main">
-<div class="chat-area" id="chatArea">
-<div class="empty-state" id="emptyState">
-<h3>SKV Chat v6.0</h3>
-<p>Memory-powered AI. Every response verified through CUBE 00.</p>
-</div>
-</div>
-<div class="input-area">
-<input type="text" id="userInput" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')sendMessage()">
-<button id="sendBtn" onclick="sendMessage()">Send</button>
-</div>
-</div>
-<script>
-const chatArea = document.getElementById('chatArea');
-const userInput = document.getElementById('userInput');
-const sendBtn = document.getElementById('sendBtn');
-const emptyState = document.getElementById('emptyState');
-const skvEmail = localStorage.getItem('skv_email');
-const skvToken = localStorage.getItem('skv_token');
-const isLoggedIn = skvEmail && skvToken;
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/chat" class="active">💬 Chat</a>
+        <a href="/guide">Guide</a>
+        <a href="/about">About</a>
+    </div>
+    <div class="main">
+        <h1>SKV Chat v6.0</h1>
+        <div class="memory-status">🧠 Memory: <span id="memoryStatus">active (session saved)</span> | API Key: <span id="apiKeyStatus">not set</span></div>
+        <div class="chat-box" id="chatBox">
+            <div class="msg agent">
+                <div class="role">🤖 SKV Agent (v6.0)</div>
+                <div class="text">Hello! I'm connected to SKV Network with persistent memory. Every response is verified through CUBE 00 and saved to your project. Ask me anything!</div>
+                <div class="seal">🔐 SKV | #0 | CUBE 00 active</div>
+            </div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="queryInput" placeholder="Ask SKV Agent..." onkeydown="if(event.key==='Enter')sendQuery()">
+            <button onclick="sendQuery()">Send</button>
+        </div>
+    </div>
 
-if (isLoggedIn) {
-    document.getElementById('loginStatus').textContent = '✓ ' + skvEmail.split('@')[0];
-    loadProjects();
+    <script>
+        // Постоянный user_id для памяти (можно заменить на email после логина)
+        let USER_ID = localStorage.getItem('skv_chat_uid');
+if (!USER_ID) {
+    USER_ID = 'chat_user_' + Date.now();
+    localStorage.setItem('skv_chat_uid', USER_ID);
 }
-
-async function sendMessage() {
-    const query = userInput.value.trim();
-    if (!query) return;
-    appendMessage('user', query);
-    userInput.value = '';
-    sendBtn.disabled = true;
-    const loadingId = appendMessage('ai', 'Thinking...', true);
-    try {
-        const resp = await fetch('/api/consult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: query, model: 'deepseek', user_id: skvEmail || 'anonymous' }) });
-        const data = await resp.json();
-        removeMessage(loadingId);
-        let html = `<p>${data.answer || 'No answer'}</p>`;
-        if (data.used_cubes && data.used_cubes.length > 0) {
-            let cubesHtml = '<div class="cubes"><strong>📚 Activated:</strong> ';
-            cubesHtml += data.used_cubes.map(cid => `<span class="cube-tag">${cid}</span>`).join(' ');
-            cubesHtml += '</div>';
-            html += cubesHtml;
+        const PROJECT = 'skv-chat';
+        const API_KEY = localStorage.getItem('skv_token') || '';
+        
+        if (API_KEY) {
+            document.getElementById('apiKeyStatus').textContent = '✓ set';
+            document.getElementById('apiKeyStatus').style.color = '#3fb950';
         }
-        html += '<div class="seal">SKV v6.0</div>';
-        appendMessage('ai', html);
-    } catch (e) {
-        removeMessage(loadingId);
-        appendMessage('ai', 'Error: ' + e.message);
-    }
-    sendBtn.disabled = false;
-}
-
-function appendMessage(role, content, isLoading) {
-    if (emptyState) emptyState.style.display = 'none';
-    const div = document.createElement('div');
-    div.className = 'msg msg-' + (role === 'user' ? 'user' : 'ai');
-    div.innerHTML = content.replace(/\n/g, '<br>');
-    // Кнопка копирования
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'copy-btn';
-    copyBtn.textContent = '📋 Copy';
-    copyBtn.onclick = function() {
-        navigator.clipboard.writeText(div.innerText.replace('📋 Copy', '').trim());
-        copyBtn.textContent = '✅ Copied';
-        setTimeout(() => copyBtn.textContent = '📋 Copy', 2000);
-    };
-    div.appendChild(copyBtn);
-    if (isLoading) div.id = 'loading-' + Date.now();
-    chatArea.appendChild(div);
-    chatArea.scrollTop = chatArea.scrollHeight;
-    return isLoading ? div.id : null;
-}
-
-function removeMessage(id) { const el = document.getElementById(id); if (el) el.remove(); }
-
-function clearChat() { chatArea.innerHTML = ''; if (emptyState) { emptyState.style.display = 'block'; chatArea.appendChild(emptyState); } }
-
-async function loadProjects() {
-    try {
-        const r = await fetch(`/api/v4/users/${skvEmail}/projects`, { headers: { 'X-API-Key': skvToken } });
-        const d = await r.json();
-        if (d.projects) document.getElementById('projectsList').innerHTML = 'Projects:<br>'+d.projects.map(p => '• '+p.name).join('<br>');
-    } catch(e) {}
-}
-</script>
+        
+        let sealCounter = 0;
+        let sessionCounter = 1;
+        
+        async function sendQuery() {
+            const input = document.getElementById('queryInput');
+            const query = input.value.trim();
+            if (!query) return;
+            
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML += `<div class="msg user">
+                <div class="role">👤 You</div>
+                <div class="text">${escapeHtml(query)}</div>
+            </div>`;
+            chatBox.innerHTML += '<div class="loading">⏳ Thinking...</div>';
+            chatBox.scrollTop = chatBox.scrollHeight;
+            input.value = '';
+            
+            try {
+                // 1. Запрос к Consult API
+                const response = await fetch('/api/consult', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        query: query,
+                        model: 'deepseek',
+                        user_id: USER_ID
+                    })
+                });
+                
+                const data = await response.json();
+                document.querySelector('.loading')?.remove();
+                
+                const answer = data.answer || 'No answer received';
+                const cubes = data.used_cubes || [];
+                sealCounter++;
+                
+                let cubesHtml = '';
+                if (cubes.length > 0) {
+                    cubesHtml = `<div class="cubes">📚 Used cubes: ${cubes.length}</div>`;
+                }
+                
+                chatBox.innerHTML += `<div class="msg agent">
+                    <div class="role">🤖 SKV Agent</div>
+                    <div class="text">${escapeHtml(answer)}</div>
+                    ${cubesHtml}
+                    <div class="seal">🔐 SKV | #${sealCounter} | CUBE 00 active</div>
+                </div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+                
+                // 2. Сохраняем сессию в память (асинхронно, не ждём)
+                const sessionId = 's' + sessionCounter++;
+                fetch('/api/v4/sessions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify({
+                        user_id: USER_ID,
+                        project: PROJECT,
+                        session_id: sessionId,
+                        query: query,
+                        response: answer
+                    })
+                }).then(r => r.json()).then(d => {
+                    if (d.status === 'saved') {
+                        document.getElementById('memoryStatus').innerHTML = '🧠 Memory: <span>active (session ' + sessionId + ' saved)</span>';
+                    }
+                }).catch(() => {});
+                
+            } catch (e) {
+                document.querySelector('.loading')?.remove();
+                chatBox.innerHTML += `<div class="msg agent">
+                    <div class="role">🤖 SKV Agent</div>
+                    <div class="text">Error: ${escapeHtml(e.message)}</div>
+                </div>`;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
 </body>
 </html>

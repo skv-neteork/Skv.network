@@ -197,7 +197,7 @@ async def consult_rag(request: Request):
         # Гость может всё, но данные временные
         system_prompt = f"You are SKV Assistant. User is a GUEST testing the system. Guest data is temporary (1 hour). Encourage them to register at https://skv.network for permanent memory. Current guest: {user_id}."
     else:
-        system_prompt = f"You are SKV Assistant — an AI agent integrated with SKV Network v4.0. Current user: {user_id}." 
+        system_prompt = f"You are SKV Assistant v6.0 — an AI agent with thermodynamic memory and constitutional safety. Every response must follow CUBE 00 (Draft→Verify→Correct→Output) and end with SEAL. User: {user_id}." 
     if user_id == "anonymous":
         user_id = f"guest_{int(__import__('time').time())}"
     is_admin = (user_id == "denizchavdarov@gmail.com" or user_id == "deniz" or user_id == "admin")

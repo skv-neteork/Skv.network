@@ -25,6 +25,12 @@ def _read_html(path):
 async def home():
     return HTMLResponse(_read_html(HOME_HTML_PATH))
 
+@router.get("/guardian")
+async def guardian_page():
+    return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "guardian.html")))
+
+    return HTMLResponse(_read_html(HOME_HTML_PATH))
+
 @router.get("/deepseek")
 async def deepseek_page():
     from fastapi.responses import HTMLResponse
@@ -403,3 +409,8 @@ async def bureau_page():
 @router.get("/profile")
 async def profile_page():
     return HTMLResponse(_read_html(PROFILE_HTML_PATH))
+
+@router.get("/guardian")
+async def guardian_page():
+    return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "guardian.html")))
+

@@ -90,7 +90,11 @@
                 <p style="font-size:13px;color:#8b949e;margin-top:8px;">📚 Full guide: <a href="/downloads/skv-agent-guide.txt" style="color:#58a6ff;" download>skv-agent-guide.txt</a></p>
             </div>
 
-            <code id="tokenDisplay" style="background:#0d1117;padding:8px 12px;border-radius:4px;color:#7ee787;word-break:break-all;font-size:12px;"></code>
+            <div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;margin-bottom:16px;">
+                <h3 style="color:#f0883e;font-size:16px;margin-bottom:8px;">🔑 Your API Token</h3>
+                <code id="tokenDisplay" style="display:block;background:#161b22;padding:12px 16px;border-radius:6px;color:#7ee787;word-break:break-all;font-size:18px;font-weight:600;text-align:center;letter-spacing:1px;"></code>
+                <button onclick="copyToken()" style="margin-top:8px;padding:6px 16px;background:#30363d;border:1px solid #484f58;color:#c9d1d9;border-radius:4px;cursor:pointer;font-size:12px;">📋 Copy Token</button>
+            </div>
         
 <div class="card" style="margin-top:16px; text-align:center">
     <h3 style="color:#f0883e">📥 Download Your SKV Pack</h3>
@@ -194,6 +198,14 @@ async function downloadPack() {
             } catch(e) { showMsg('authMsg', 'error', 'Network error'); }
         }
 
+        
+        function copyToken() {
+            const token = document.getElementById('tokenDisplay').textContent;
+            navigator.clipboard.writeText(token).then(() => {
+                alert('Token copied to clipboard!');
+            });
+        }
+        
         function logout() {
             localStorage.removeItem("skv_token");
             localStorage.removeItem("skv_email");
@@ -219,6 +231,14 @@ async function downloadPack() {
                 document.getElementById('navStatus').style.color = '#3fb950';
             }
         })();
+        
+        function copyToken() {
+            const token = document.getElementById('tokenDisplay').textContent;
+            navigator.clipboard.writeText(token).then(() => {
+                alert('Token copied to clipboard!');
+            });
+        }
+        
         function logout() {
             localStorage.removeItem("skv_token");
             localStorage.removeItem("skv_email");
@@ -236,6 +256,14 @@ async function downloadPack() {
                 if (status) { status.textContent = "✓ Logged in"; status.style.color = "#3fb950"; }
             }
         })();
+        
+        function copyToken() {
+            const token = document.getElementById('tokenDisplay').textContent;
+            navigator.clipboard.writeText(token).then(() => {
+                alert('Token copied to clipboard!');
+            });
+        }
+        
         function logout() {
             localStorage.removeItem("skv_token");
             localStorage.removeItem("skv_email");

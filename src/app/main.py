@@ -14,6 +14,7 @@ from app.routers.guardian_middleware import guardian_router
 from app.routers.trials_v4 import router as trials_v4_router
 from app.routers.v4_auth_middleware import AuthMiddleware
 from app.routers.consult import router as consult_router
+from app.routers.v7_router import router as v7_router
 from app.routers.tensor_api import router as tensor_router
 from app.routers.exports import router as exports_router
 from app.routers.execute import router as execute_router
@@ -269,6 +270,7 @@ app.include_router(trials_v4_router)
 from app.routers.formula_validator import router as formula_router
 app.include_router(formula_router)
 app.include_router(consult_router)
+app.include_router(v7_router)
 app.include_router(tensor_router)
 app.include_router(exports_router)
 app.include_router(code_executor_router)

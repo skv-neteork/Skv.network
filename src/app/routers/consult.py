@@ -354,7 +354,7 @@ async def consult_rag(request: Request):
         pass
     
     user_msg = rules_context + _memory_context + history_text + "\n\nQuestion: " + query + "\n\nAnswer helpfully."
-    system_prompt = f"You are SKV Assistant — an AI agent integrated with SKV Network v4.0 (https://skv.network). TensorCube neural graph: 1155+ cubes, 7189+ connections. Personal memory: /api/v4/sessions per project. Current user: {user_id}. {_memory_context} Be concise and helpful. Talk like a colleague."
+    system_prompt = f"You are SKV Assistant v6.0. Memory Cube Chain active. {_memory_context} User: {user_id}. Be concise and helpful."
 
     import json as _json
     body = _json.dumps({
@@ -560,3 +560,89 @@ async def generate_anketa(request: Request):
         return {"status": "ok", "anketa": _json.loads(answer)}
     except:
         return {"status": "error", "raw": answer[:500]}
+@router.post("/api/v4/mark_important")
+async def mark_important(request: Request):
+    """Сохранить PII в SessionCube с изоляцией"""
+    try:
+        data = await request.json()
+        user_id = data.get("user_id", "unknown")
+        pii_type = data.get("type", "note")
+        value = data.get("value", "")
+        context = data.get("context", "")
+        
+        if not value:
+            return {"status": "error", "reason": "value required"}
+        
+        from app.v4_cube_chain import SessionCube, PIIItem
+        import uuid, datetime
+        
+        pii = PIIItem(type=pii_type, value=value, context=context)
+        cube = SessionCube(
+            cube_id=f"pii_{uuid.uuid4().hex[:12]}",
+            user_id=user_id,
+            project="memory",
+            vector=[0.0] * 384,
+            summary=f"PII: {pii_type}",
+            topics=[pii_type],
+            timestamp=datetime.datetime.utcnow().isoformat(),
+            pii=[pii],
+            contains_pii=True
+        )
+        
+        from app.routers.v4_graph import _v4_graph, get_graph
+        get_graph()
+        _v4_graph[cube.cube_id] = cube
+        
+        # Сохраняем в PostgreSQL для персистентности
+        try:
+            import psycopg2, os
+            conn = psycopg2.connect(os.getenv("DATABASE_URL", "postgresql://skv_user:skv_pass@localhost:5432/skv_db"))
+            cur = conn.cursor()
+            print(f"[search_memory] SQL: user={user_id} query={query}", flush=True)
+            cur.execute(
+                "INSERT INTO pii_cubes (cube_id, user_id, pii_type, value, context) VALUES (%s,%s,%s,%s,%s) ON CONFLICT (cube_id) DO UPDATE SET value=%s, context=%s",
+                (cube.cube_id, user_id, pii_type, value, context, value, context)
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as _dbe:
+            print(f"[PII DB] Error: {_dbe}", flush=True)
+        
+        return {"status": "ok", "cube_id": cube.cube_id, "type": pii_type}
+    except Exception as e:
+        return {"status": "error", "reason": str(e)}
+@router.post("/api/v4/search_memory")
+async def search_memory(request: Request):
+    """Векторный поиск по PII и сессиям в графе"""
+    data = await request.json()
+    user_id = data.get("user_id", "unknown")
+    query = data.get("query", "")
+    search_type = data.get("type", "pii")
+    
+    if not query:
+        return {"status": "error", "reason": "query required"}
+    
+    results = []
+    
+    # Поиск в PostgreSQL
+    try:
+        import psycopg2, os
+        conn = psycopg2.connect("postgresql://skv_user:skv_pass@skv_postgres:5432/skv_db")
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT cube_id, user_id, pii_type, value, context FROM pii_cubes WHERE user_id=%s AND (context ILIKE %s OR value ILIKE %s) LIMIT 10",
+            (user_id, f"%{query}%", f"%{query}%")
+        )
+        for row in cur.fetchall():
+            results.append({
+                "id": row[0], "energy": 1.0, "hop": 0, "edge_type": "database",
+                "summary": f"PII: {row[2]}", "timestamp": "",
+                "pii": [{"type": row[2], "value": row[3], "context": row[4]}]
+            })
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[search_memory] SQL error: {e}", flush=True)
+    
+    return {"status": "ok", "query": query, "results": results}

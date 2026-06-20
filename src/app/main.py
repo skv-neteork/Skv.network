@@ -1,3 +1,19 @@
+import signal
+import sys
+
+def graceful_shutdown(signum, frame):
+    try:
+        from app.routers.v7_router import GLOBAL_MEMORY_BUFFER
+        print("[SKV] SIGTERM received, saving buffer...")
+        GLOBAL_MEMORY_BUFFER.save()
+        print("[SKV] Buffer saved. Exiting.")
+    except Exception as e:
+        print(f"[SKV] Error during shutdown: {e}")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, graceful_shutdown)
+signal.signal(signal.SIGINT, graceful_shutdown)
+
 from starlette.middleware import Middleware
 from app.startup import startup
 from fastapi import FastAPI, Request

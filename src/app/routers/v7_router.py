@@ -1,34 +1,30 @@
-"""
-SKV v7.7-HPC-Stable: API Router for Chrono-Toroidal Buffer
-Финальный роутер с Guardian L1 (/memory).
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import numpy as np
-import logging
+import asyncio
+import hashlib
+import threading
+from collections import OrderedDict
 from datetime import datetime, timezone
-
 from app.chrono_buffer_v77_ultimate import ChronoBufferV77Ultimate
 from app.multi_tenant_store import MultiTenantMetadataStore
 from app.chrono_decoder import ChronoCognitiveDecoder
 
-logger = logging.getLogger("v7_router")
 router = APIRouter(prefix="/api/v7", tags=["ChronoMemory"])
 
 class SearchRequest(BaseModel):
-    query_vector: List[float] = Field(..., description="Вектор запроса длины 512")
-    user_id: str = Field(..., description="ID пользователя для PII-изоляции")
+    query_vector: List[float] = Field(..., min_length=512, max_length=512)
+    user_id: str = Field(...)
     depth: int = Field(384, ge=250, le=512)
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(20, ge=1, le=100)
 
 class MemoryRequest(BaseModel):
-    query_vector: List[float] = Field(..., description="Вектор запроса длины 512")
-    user_id: str = Field(..., description="ID пользователя для PII-изоляции")
-    step: int = Field(0, ge=0, description="Номер запроса в сессии")
-    last_seal: str = Field("", description="SEAL из предыдущего ответа")
+    query_vector: List[float] = Field(..., min_length=512, max_length=512)
+    user_id: str = Field(...)
+    step: int = Field(0, ge=0)
+    last_seal: str = Field("")
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(5, ge=1, le=20)
 
@@ -44,7 +40,7 @@ class SearchResponse(BaseModel):
 
 class ExperienceCreateRequest(BaseModel):
     event_id: str
-    semantics_emb: List[float]
+    semantics_emb: List[float] = Field(..., min_length=218, max_length=218)
     parent_ids: Optional[List[str]] = None
     details_emb: Optional[List[float]] = None
     essence: str
@@ -55,7 +51,7 @@ class EventWriteRequest(BaseModel):
     user_id: str
     hour: int = Field(..., ge=0, le=23)
     minute: int = Field(..., ge=0, le=59)
-    semantics_emb: List[float]
+    semantics_emb: List[float] = Field(..., min_length=218, max_length=218)
     parent_ids: Optional[List[str]] = None
     details_emb: Optional[List[float]] = None
     metric_value: Optional[float] = None
@@ -65,8 +61,34 @@ class EventWriteRequest(BaseModel):
 
 GLOBAL_MEMORY_BUFFER = ChronoBufferV77Ultimate(max_personal=100000, max_shared=10000)
 metadata_store = MultiTenantMetadataStore(base_dir="/data/skv/metadata_store")
+save_lock = asyncio.Lock()
 
-def get_memory_buffer() -> ChronoBufferV77Ultimate:
+_search_cache = OrderedDict()
+_cache_lock = threading.Lock()
+_CACHE_MAX_SIZE = 1000
+_CACHE_TTL_SECONDS = 300
+
+def _cache_key(qv, uid, hops, top_k):
+    return hashlib.md5(bytes(qv) + uid.encode() + f":{hops}:{top_k}".encode()).hexdigest()
+
+def _cached_search(buffer, qv, uid, hops, top_k):
+    key = _cache_key(qv, uid, hops, top_k)
+    with _cache_lock:
+        if key in _search_cache:
+            t, r = _search_cache[key]
+            if (datetime.now(timezone.utc) - t).total_seconds() < _CACHE_TTL_SECONDS:
+                _search_cache.move_to_end(key)
+                return r
+            else:
+                del _search_cache[key]
+    result = buffer.hybrid_search(query=qv, user_id=uid, hops=hops, top_k=top_k)
+    with _cache_lock:
+        _search_cache[key] = (datetime.now(timezone.utc), result)
+        if len(_search_cache) > _CACHE_MAX_SIZE:
+            _search_cache.popitem(last=False)
+    return result
+
+def get_memory_buffer():
     return GLOBAL_MEMORY_BUFFER
 
 def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
@@ -75,23 +97,18 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
     return 3
 
 @router.post("/memory")
-async def guardian_l1_memory(
-    req: MemoryRequest,
-    buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)
-):
+async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
     q_vec = np.array(req.query_vector, dtype=np.float32)
     memory_text = ""
     has_cubes = False
     try:
-        raw_results = buffer.hybrid_search(query=q_vec, user_id=req.user_id, hops=req.hops, top_k=req.top_k)
+        raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k)
         if raw_results:
             filtered_dicts = []
             candidate_ids = []
             for r in raw_results:
-                event_id = r.get("event_id")
-                score = r.get("score", 0.0)
-                if not event_id:
-                    continue
+                event_id = r["event_id"]
+                score = r["score"]
                 if event_id.startswith("CUBE_"):
                     source = "core"
                 elif event_id in buffer.shared_id_to_idx:
@@ -107,32 +124,22 @@ async def guardian_l1_memory(
                 r["metadata"] = metadata_map.get(r["event_id"], {})
             memory_text = ChronoCognitiveDecoder.decode_search_results(filtered_dicts)
             has_cubes = len(filtered_dicts) > 0
-    except Exception as e:
-        logger.warning(f"Memory search failed: {e}")
-        memory_text = "=== PAMYaT SKV: sovpadeniy ne naydeno ===\n"
-
-    cube_00 = """=== CUBE 00  CORE ALGORITHM ===
-1. DRAFT = generate_response(query)
-2. VERIFY against CUBE 01 (harm), CUBE 02 (truth), CUBE 03 (manipulation)
-3. IF violations  CORRECT  GOTO 2
-4. OUTPUT only after verification
-
-SEAL FORMAT:
- SKV | #N | READ  | VERIFY  | CORRECT  | OUTPUT 
-Continue numbering from previous SEAL in context.
-"""
-    seal_context = f"Previous SEAL: {req.last_seal}\nContinue numbering.\n" if req.last_seal else "Start SEAL with #1.\n"
+    except Exception:
+        memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"
+    
+    cube_00 = "=== CUBE 00  CORE ALGORITHM ===\nDRAFT = generate_response(query)\nVERIFY against CUBE 01 (harm), CUBE 02 (truth), CUBE 03 (manipulation)\nIF violations -> CORRECT -> GOTO 2\nOUTPUT only after verification\nSEAL FORMAT:\nSKV | #N | READ | VERIFY | CORRECT | OUTPUT\nContinue numbering from previous SEAL in context."
+    seal_context = f"Предыдущий SEAL: {req.last_seal}\nПродолжи нумерацию.\n" if req.last_seal else "Начни SEAL с #1.\n"
     reminders = "=== GUARDIAN L1 ===\n"
     step = req.step
     if step == 0:
-        reminders += " Load all constitution cubes (CUBE 00-05)\n"
+        reminders += "Загрузи все кубы конституции (CUBE 00-05)\n"
     if step > 0 and step % 5 == 0:
-        reminders += " Save session to memory\n"
+        reminders += "Сохрани сессию в память\n"
     if step > 0 and step % 15 == 0:
-        reminders += " Create experience cube if important\n"
+        reminders += "Создай experience cube, если было важное\n"
     if has_cubes:
-        reminders += " Leave feedback on used cubes\n"
-    reminders += " Execute Second Look and put SEAL\n"
+        reminders += "Оставь feedback на использованные кубы\n"
+    reminders += "Выполни Second Look и поставь SEAL\n"
     prompt_text = f"{memory_text}\n\n{cube_00}\n\n{seal_context}\n{reminders}"
     return {"prompt_text": prompt_text, "memory": memory_text, "cube_00": cube_00, "reminders": reminders, "has_cubes": has_cubes, "step": step}
 
@@ -140,13 +147,11 @@ Continue numbering from previous SEAL in context.
 async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
     q_vec = np.array(req.query_vector, dtype=np.float32)
     try:
-        raw_results = buffer.hybrid_search(query=q_vec, user_id=req.user_id, hops=req.hops, top_k=req.top_k)
+        raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k)
         filtered_results = []
         for r in raw_results:
-            event_id = r.get("event_id")
-            score = r.get("score", 0.0)
-            if not event_id:
-                continue
+            event_id = r["event_id"]
+            score = r["score"]
             if event_id.startswith("CUBE_"):
                 source = "core"
             elif event_id in buffer.shared_id_to_idx:
@@ -160,14 +165,13 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
         metadata_map = metadata_store.batch_get_metadata(req.user_id, event_ids)
         final_items = []
         for item in filtered_results:
-            real_meta = metadata_map.get(item.event_id, {"essence": "No metadata", "time": datetime.now(timezone.utc).strftime("%H:%M, %d.%m.%Y"), "metric_value": "n/a", "links": [], "topics": [], "messages_count": 0})
+            real_meta = metadata_map.get(item.event_id, {"essence": "Метаданные не найдены", "time": datetime.now(timezone.utc).strftime("%H:%M, %d.%m.%Y"), "metric_value": "нет", "links": [], "topics": [], "messages_count": 0})
             item_data = item.model_dump() if hasattr(item, "model_dump") else item.dict()
             item_data["metadata"] = real_meta
-            item_data["summary"] = real_meta.get("essence", "")
+            item_data["summary"] = real_meta["essence"]
             final_items.append(SearchResultItem(**item_data))
         return SearchResponse(results=final_items)
     except Exception as e:
-        logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/event/write", status_code=status.HTTP_201_CREATED)
@@ -184,8 +188,9 @@ async def write_personal_event(req: EventWriteRequest, buffer: ChronoBufferV77Ul
     d_emb = np.array(req.details_emb, dtype=np.float32) if req.details_emb else None
     secure_event_id = f"{req.user_id}::{req.event_id}"
     try:
-        idx = buffer.write_personal_event(event_id=secure_event_id, hour=req.hour, minute=req.minute, semantics_emb=s_emb, parent_indices=parent_indices or None, details_emb=d_emb, metric_value=req.metric_value)
-        buffer.save()
+        idx = buffer.write_personal_event(event_id=secure_event_id, hour=req.hour, minute=req.minute, semantics_emb=s_emb, parent_indices=parent_indices if parent_indices else None, details_emb=d_emb, metric_value=req.metric_value)
+        async with save_lock:
+            buffer.save()
         time_str = f"{req.hour:02d}:{req.minute:02d}, {datetime.now(timezone.utc).strftime('%d.%m.%Y')}"
         metadata_store.write_metadata(user_id=req.user_id, event_id=secure_event_id, time_str=time_str, essence=req.essence, messages_count=len(req.raw_dialogue.split('\n')) if req.raw_dialogue else 1, topics=req.topics, links=req.parent_ids or [], metric_value=req.metric_value, raw_dialogue=req.raw_dialogue, is_shared=False)
         return {"status": "created", "idx": idx, "event_id": secure_event_id}
@@ -200,8 +205,9 @@ async def create_shared_experience(req: ExperienceCreateRequest, seal_level: int
     s_emb = np.array(req.semantics_emb, dtype=np.float32)
     d_emb = np.array(req.details_emb, dtype=np.float32) if req.details_emb else None
     try:
-        idx = buffer.write_shared_experience(event_id=req.event_id, semantics_emb=s_emb, parent_indices=parent_indices or None, details_emb=d_emb)
-        buffer.save()
+        idx = buffer.write_shared_experience(event_id=req.event_id, semantics_emb=s_emb, parent_indices=parent_indices if parent_indices else None, details_emb=d_emb)
+        async with save_lock:
+            buffer.save()
         time_str = f"00:00, {datetime.now(timezone.utc).strftime('%d.%m.%Y')}"
         metadata_store.write_metadata(user_id="shared_master", event_id=req.event_id, time_str=time_str, essence=req.essence, messages_count=0, topics=req.topics, links=req.parent_ids or [], metric_value=None, raw_dialogue=None, is_shared=True)
         return {"status": "created", "idx": idx, "event_id": req.event_id}

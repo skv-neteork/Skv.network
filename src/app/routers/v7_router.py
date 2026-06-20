@@ -94,6 +94,8 @@ def get_memory_buffer():
 def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization Token")
+    if not authorization.startswith("Bearer ") or len(authorization) < 20:
+        raise HTTPException(status_code=403, detail="Invalid token format")
     return 3
 
 @router.post("/memory")

@@ -331,9 +331,14 @@ class ChronoBufferV77Ultimate:
                 minlength=current_size
             )
             
-            # Threshold cutoff only (no normalization)
+            # Threshold cutoff
             new_scores[new_scores < threshold] = 0.0
             scores += new_scores
+
+            # Normalize to prevent energy explosion (keep in [0, 1])
+            max_score = np.max(scores)
+            if max_score > 1.0:
+                scores = scores / max_scor
         
         # Final normalization (once, after all hops)
         max_score = np.max(scores)

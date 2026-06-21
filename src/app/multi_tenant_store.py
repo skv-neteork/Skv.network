@@ -15,7 +15,11 @@ class MultiTenantMetadataStore:
         self._init_table(self.shared_db_path)
 
     def _get_user_db_path(self, user_id: str) -> str:
+        if not user_id or not user_id.strip():
+            raise ValueError("user_id cannot be empty")
         safe_user_id = "".join(c for c in user_id if c.isalnum() or c in ("_", "-"))
+        if not safe_user_id:
+            raise ValueError("user_id contains no valid characters")
         return f"{self.base_dir}/{safe_user_id}.db"
 
     def _init_table(self, db_path: str):

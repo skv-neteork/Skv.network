@@ -7,6 +7,7 @@ import hashlib
 import threading
 from collections import OrderedDict
 from datetime import datetime, timezone
+import os
 from app.chrono_buffer_v77_ultimate import ChronoBufferV77Ultimate
 from app.multi_tenant_store import MultiTenantMetadataStore
 from app.chrono_decoder import ChronoCognitiveDecoder
@@ -68,6 +69,21 @@ _cache_lock = threading.Lock()
 _CACHE_MAX_SIZE = 1000
 _CACHE_TTL_SECONDS = 300
 
+# Security: API keys from environment variable
+VALID_TOKENS = [t.strip() for t in os.getenv("SKV_API_KEYS", "").split(",") if t.strip()]
+
+# Rate limiting per user
+_request_counts = {}
+def check_rate_limit(user_id: str, max_requests: int = 60, window: int = 60):
+    import time
+    now = time.time()
+    if user_id not in _request_counts:
+        _request_counts[user_id] = []
+    _request_counts[user_id] = [t for t in _request_counts[user_id] if now - t < window]
+    if len(_request_counts[user_id]) >= max_requests:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    _request_counts[user_id].append(now)
+
 def _cache_key(qv, uid, hops, top_k):
     return hashlib.md5(bytes(qv) + uid.encode() + f":{hops}:{top_k}".encode()).hexdigest()
 
@@ -96,10 +112,19 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
         raise HTTPException(status_code=401, detail="Missing Authorization Token")
     if not authorization.startswith("Bearer ") or len(authorization) < 20:
         raise HTTPException(status_code=403, detail="Invalid token format")
+    token = authorization.replace("Bearer ", "")
+    # If no tokens configured, allow any (dev mode)
+    if not VALID_TOKENS:
+        return 3
+    if token not in VALID_TOKENS:
+        raise HTTPException(status_code=403, detail="Invalid API key")
     return 3
 
 @router.post("/memory")
 async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
+    if not req.user_id or not req.user_id.strip():
+        raise HTTPException(status_code=422, detail="user_id cannot be empty")
+    check_rate_limit(req.user_id)
     q_vec = np.array(req.query_vector, dtype=np.float32)
     memory_text = ""
     has_cubes = False

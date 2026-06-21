@@ -189,6 +189,8 @@ async def write_personal_event(req: EventWriteRequest, buffer: ChronoBufferV77Ul
     s_emb = np.array(req.semantics_emb, dtype=np.float32)
     d_emb = np.array(req.details_emb, dtype=np.float32) if req.details_emb else None
     secure_event_id = f"{req.user_id}::{req.event_id}"
+    if secure_event_id in buffer.personal_id_to_idx:
+        return {"status": "already_exists", "idx": buffer.personal_id_to_idx[secure_event_id], "event_id": secure_event_id}
     try:
         idx = buffer.write_personal_event(event_id=secure_event_id, hour=req.hour, minute=req.minute, semantics_emb=s_emb, parent_indices=parent_indices if parent_indices else None, details_emb=d_emb, metric_value=req.metric_value)
         async with save_lock:

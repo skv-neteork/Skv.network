@@ -28,6 +28,14 @@ import os
 import json
 from datetime import datetime, timezone
 
+# faiss HNSW (optional)
+try:
+    import faiss
+    HAISS_AVAILABLE = True
+except ImportError:
+    HAISS_AVAILABLE = False
+    faiss = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,6 +99,10 @@ class ChronoBufferV77Ultimate:
         self.personal_global_tick = 0
         self.personal_idx_to_id: Dict[int, str] = {}
         self.personal_id_to_idx: Dict[str, int] = {}
+
+        # HNSW index for fast search (optional)
+        self.personal_hnsw_index = None
+        self.shared_hnsw_index = None
         
         # Init persistence
         self.persistence = ChronoBufferPersistence(self)
@@ -370,8 +382,26 @@ class ChronoBufferV77Ultimate:
         
         # Personal
         if self.personal_current_size > 0:
-            p_scores = self.personal_matrix[:self.personal_current_size] @ query
-            p_scores = p_scores * self.personal_active_mask[:self.personal_current_size]
+            # Use HNSW if available
+            if self.personal_hnsw_index is not None:
+                try:
+                    query_norm = query / (np.linalg.norm(query) + 1e-10)
+                    distances, indices = self.personal_hnsw_index.search(
+                        query_norm.reshape(1, -1).astype('float32'),
+                        min(top_k * 2, self.personal_current_size)
+                    )
+                    p_scores = np.zeros(self.personal_current_size, dtype=np.float32)
+                    for i, idx in enumerate(indices[0]):
+                        if idx >= 0 and idx < self.personal_current_size:
+                            p_scores[idx] = 1.0 - distances[0][i]
+                    p_scores = p_scores * self.personal_active_mask[:self.personal_current_size]
+                except Exception as e:
+                    logger.warning(f"HNSW search failed, falling back to brute force: {e}")
+                    p_scores = self.personal_matrix[:self.personal_current_size] @ query
+                    p_scores = p_scores * self.personal_active_mask[:self.personal_current_size]
+            else:
+                p_scores = self.personal_matrix[:self.personal_current_size] @ query
+                p_scores = p_scores * self.personal_active_mask[:self.personal_current_size]
             p_assoc = self._vectorized_propagation(
                 p_scores,
                 self.personal_adjacency_indices,
@@ -481,6 +511,42 @@ class ChronoBufferV77Ultimate:
         block[-1] = value / 10000.0
         return block
     
+
+    # 
+    # HNSW INDEX METHODS (faiss, optional)
+    # 
+
+    def _build_personal_hnsw(self):
+        """Build HNSW index for personal matrix if faiss is available."""
+        if not HAISS_AVAILABLE or self.personal_current_size < 1000:
+            return
+        try:
+            self.personal_hnsw_index = faiss.IndexHNSWFlat(512, 32)
+            vectors = self.personal_matrix[:self.personal_current_size].astype('float32')
+            self.personal_hnsw_index.add(vectors)
+            logger.info(f"HNSW personal index built: {self.personal_current_size} vectors")
+        except Exception as e:
+            logger.warning(f"Failed to build personal HNSW index: {e}")
+            self.personal_hnsw_index = None
+
+    def _build_shared_hnsw(self):
+        """Build HNSW index for shared matrix if faiss is available."""
+        if not HAISS_AVAILABLE or self.shared_current_size < 100:
+            return
+        try:
+            self.shared_hnsw_index = faiss.IndexHNSWFlat(512, 32)
+            vectors = self.shared_matrix[:self.shared_current_size].astype('float32')
+            self.shared_hnsw_index.add(vectors)
+            logger.info(f"HNSW shared index built: {self.shared_current_size} vectors")
+        except Exception as e:
+            logger.warning(f"Failed to build shared HNSW index: {e}")
+            self.shared_hnsw_index = None
+
+    def _invalidate_hnsw(self):
+        """Invalidate HNSW index after write."""
+        self.personal_hnsw_index = None
+        self.shared_hnsw_index = None
+
     def save(self):
         self.persistence.save()
     
@@ -494,6 +560,42 @@ class ChronoBufferPersistence:
     def __init__(self, buffer: ChronoBufferV77Ultimate):
         self.buffer = buffer
     
+
+    # 
+    # HNSW INDEX METHODS (faiss, optional)
+    # 
+
+    def _build_personal_hnsw(self):
+        """Build HNSW index for personal matrix if faiss is available."""
+        if not HAISS_AVAILABLE or self.personal_current_size < 1000:
+            return
+        try:
+            self.personal_hnsw_index = faiss.IndexHNSWFlat(512, 32)
+            vectors = self.personal_matrix[:self.personal_current_size].astype('float32')
+            self.personal_hnsw_index.add(vectors)
+            logger.info(f"HNSW personal index built: {self.personal_current_size} vectors")
+        except Exception as e:
+            logger.warning(f"Failed to build personal HNSW index: {e}")
+            self.personal_hnsw_index = None
+
+    def _build_shared_hnsw(self):
+        """Build HNSW index for shared matrix if faiss is available."""
+        if not HAISS_AVAILABLE or self.shared_current_size < 100:
+            return
+        try:
+            self.shared_hnsw_index = faiss.IndexHNSWFlat(512, 32)
+            vectors = self.shared_matrix[:self.shared_current_size].astype('float32')
+            self.shared_hnsw_index.add(vectors)
+            logger.info(f"HNSW shared index built: {self.shared_current_size} vectors")
+        except Exception as e:
+            logger.warning(f"Failed to build shared HNSW index: {e}")
+            self.shared_hnsw_index = None
+
+    def _invalidate_hnsw(self):
+        """Invalidate HNSW index after write."""
+        self.personal_hnsw_index = None
+        self.shared_hnsw_index = None
+
     def save(self):
         path = self.buffer.storage_path
         os.makedirs(path, exist_ok=True)

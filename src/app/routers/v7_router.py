@@ -260,6 +260,25 @@ async def create_shared_experience(req: ExperienceCreateRequest, seal_level: int
 async def health_check(buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
     return {"status": "ok", "personal_size": buffer.personal_current_size, "shared_size": buffer.shared_current_size, "max_personal": buffer.max_personal, "max_shared": buffer.max_shared}
 
+@router.get("/constitution")
+async def get_constitution():
+    """Returns all constitutional cubes from SQLite"""
+    cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v4"]
+    metadata_map = metadata_store.batch_get_metadata("shared_master", cube_ids)
+    
+    constitution = []
+    for cube_id in cube_ids:
+        meta = metadata_map.get(cube_id, {})
+        if meta.get("essence"):
+            constitution.append({
+                "id": cube_id,
+                "title": meta.get("essence", "").split("\n")[0],
+                "text": meta.get("essence", "")
+            })
+    
+    return {"constitution": constitution}
+
+
 @router.get("/event/{event_id}")
 async def get_event_detail(event_id: str, user_id: str):
     if not (event_id.startswith(f"{user_id}::") or event_id.startswith("CUBE_")):

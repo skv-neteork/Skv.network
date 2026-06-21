@@ -33,7 +33,7 @@ async def load_cubes_from_postgresql():
 
 async def startup():
     """Выполняется при старте FastAPI."""
-    await load_cubes_from_postgresql()
+    #await load_cubes_from_postgresql()
     await preload_constitution()
 
 # Предзагружаем конституцию один раз

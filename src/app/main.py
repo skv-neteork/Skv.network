@@ -60,8 +60,11 @@ async def lifespan(app):
     from app.routers.v4_graph import get_graph, _v4_graph
     from app.routers.v4_neural import run_hebbian_cycle, run_decay_cycle
     
-    get_graph()
-    print(f"[V4] Graph loaded: {len(_v4_graph)} cubes, {sum(len(c.connections) for c in _v4_graph.values())} connections", flush=True)
+    try:
+        get_graph()
+        print(f"[V4] Graph loaded: {len(_v4_graph)} cubes, {sum(len(c.connections) for c in _v4_graph.values())} connections", flush=True)
+    except Exception as e:
+        print(f"[V4] Graph load failed (PostgreSQL unavailable): {e}", flush=True)
     
     # Фоновая задача: Hebbian каждые 30 секунд, Decay каждые 5 минут, Auto-save каждые 30 минут
     async def neuro_loop():

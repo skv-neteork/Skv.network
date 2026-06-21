@@ -81,7 +81,7 @@ def load_cubes_from_db():
     except Exception as e:
         print(f"[SKV] DB load error: {e}")
 
-load_cubes_from_db()
+#load_cubes_from_db()
 
 # --- Вспомогательная функция для сохранения в БД ---
 async def _save_cube_to_db(cube_id, title, cube_type, priority, trigger_intent, rules, content, status="community"):

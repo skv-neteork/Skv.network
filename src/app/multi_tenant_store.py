@@ -64,8 +64,8 @@ class MultiTenantMetadataStore:
     def batch_get_metadata(self, user_id: str, event_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         if not event_ids:
             return {}
-        personal_ids = [eid for eid in event_ids if not eid.startswith("CUBE_")]
-        shared_ids = [eid for eid in event_ids if eid.startswith("CUBE_")]
+        personal_ids = [eid for eid in event_ids if not (eid.startswith("cube_const_") or eid.startswith("CUBE_"))]
+        shared_ids = [eid for eid in event_ids if eid.startswith("cube_const_") or eid.startswith("CUBE_")]
         result_map = {}
         
         if personal_ids:

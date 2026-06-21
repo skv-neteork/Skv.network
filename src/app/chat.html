@@ -620,6 +620,20 @@
     <script>
         // State
         let sealCounter = 0;
+        let sessionId = "chat_" + Date.now();
+        let currentStep = 0;
+        let lastSeal = "";
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
         let chatHistory = [];
         let isLoading = false;
         const userEmail = localStorage.getItem('skv_email') || '';
@@ -687,50 +701,44 @@
             const text = input.value.trim();
             if (!text || isLoading) return;
 
-            // Hide welcome
             document.getElementById('welcomeMsg').style.display = 'none';
-
-            // Add user message
             appendUserMessage(text);
-            chatHistory.push({ role: 'user', content: text });
             input.value = '';
             input.style.height = 'auto';
-
-            // Show typing
             setLoading(true);
 
             try {
-                const resp = await fetch('/api/consult', {
+                const resp = await fetch('/api/v7/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        query: text,
-                        model: 'deepseek',
-                        user_id: userEmail || 'anonymous'
+                        user_id: userEmail || 'guest_' + Date.now(),
+                        message: text,
+                        session_id: sessionId,
+                        step: currentStep,
+                        last_seal: lastSeal || ''
                     })
                 });
 
                 const data = await resp.json();
-                const answer = data.answer || 'Sorry, no response.';
-                const cubes = data.used_cubes || [];
-                sealCounter++;
+                const answer = data.response || 'Sorry, no response.';
+                
+                appendAgentMessage(answer);
+                
+                if (data.last_seal) {
+                    lastSeal = data.last_seal;
+                }
+                currentStep = data.step || currentStep + 1;
+                
+                if (data.is_guest) {
+                    document.getElementById('guestWarning').style.display = 'block';
+                }
 
-                appendAgentMessage(answer, cubes, sealCounter);
-                chatHistory.push({
-                    role: 'agent',
-                    content: answer,
-                    cubes: cubes,
-                    seal: sealCounter
-                });
-
-                updateSealDisplay();
                 setMemoryStatus('saving');
                 setTimeout(() => setMemoryStatus('idle'), 2000);
 
-                saveHistory();
-
             } catch(e) {
-                appendAgentMessage('Error: ' + e.message, [], 0);
+                appendAgentMessage('Error: ' + e.message);
             }
 
             setLoading(false);
@@ -748,21 +756,17 @@
             scrollToBottom();
         }
 
-        function appendAgentMessage(text, cubes, seal) {
+        function appendAgentMessage(text) {
             const container = document.getElementById('messagesContainer');
             const div = document.createElement('div');
             div.className = 'message agent';
-
-            let cubesHtml = '';
-            if (cubes && cubes.length > 0) {
-                cubesHtml = `
-                    <div class="used-cubes">
-                        <div class="cubes-title">📦 Used Cubes</div>
-                        ${cubes.map(c => `<span class="cube-tag">${escapeHtml(typeof c === 'string' ? c : c.cube_id || c.title || '?')}</span>`).join('')}
-                    </div>
-                `;
-            }
-
+            div.innerHTML = `
+                <div class="message-label">SKV Agent</div>
+                <div class="message-bubble">${escapeHtml(text)}</div>
+            `;
+            container.appendChild(div);
+            scrollToBottom();
+        }
             let sealHtml = '';
             if (seal > 0) {
                 sealHtml = `

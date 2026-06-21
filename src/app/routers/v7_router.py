@@ -287,3 +287,92 @@ async def get_event_detail(event_id: str, user_id: str):
     if not dialogue:
         raise HTTPException(status_code=404, detail="Event log not found")
     return {"event_id": event_id, "raw_dialogue": dialogue}
+
+class ChatRequest(BaseModel):
+    user_id: str
+    message: str
+    session_id: str
+    step: int = 0
+    last_seal: str = ""
+    top_k: int = 5
+
+@router.post("/chat")
+async def chat_endpoint(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
+    try:
+        import json, urllib.request as urlreq, time
+        from app.chrono_decoder import ChronoCognitiveDecoder
+        from app.routers.v4_middleware import get_embedding_cached
+        
+        is_guest = req.user_id.startswith("guest_")
+        guest_warning = ""
+        if is_guest:
+            guest_warning = "GUEST MODE: Memory is temporary (24h). Register to save permanently.\n"
+        
+        emb = get_embedding_cached(req.message)
+        emb_list = emb if isinstance(emb, list) else emb.tolist()
+        query_vec = emb_list + [0.0] * (512 - len(emb_list))
+        
+        raw_results = buffer.hybrid_search(query=np.array(query_vec, dtype=np.float32), user_id=req.user_id, hops=2, top_k=req.top_k)
+        
+        if raw_results:
+            event_ids = [r["event_id"] for r in raw_results]
+            metadata_map = metadata_store.batch_get_metadata(req.user_id, event_ids)
+            for r in raw_results:
+                r["metadata"] = metadata_map.get(r["event_id"], {})
+        
+        memory_text = ChronoCognitiveDecoder.decode_search_results(raw_results) if raw_results else ""
+        
+        memory_map = ""
+        if req.step == 0:
+            memory_map = "\n=== YOUR MEMORY MAP ===\n"
+            if buffer.personal_current_size > 0:
+                memory_map += f"Personal sessions: {buffer.personal_current_size}\n"
+            if buffer.shared_current_size > 0:
+                memory_map += f"Shared knowledge cubes: {buffer.shared_current_size}\n"
+            memory_map += "Use memory search to explore specific topics.\n"
+        
+        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v4"]
+        const_map = metadata_store.batch_get_metadata("shared_master", constitution_ids)
+        const_parts = []
+        for cid in constitution_ids:
+            meta = const_map.get(cid, {})
+            if meta.get("raw_dialogue"):
+                clean_name = cid.replace("cube_const_", "CUBE ").replace("_v4","").replace("_v5","")
+                const_parts.append(f"=== {clean_name} ===\n{meta['raw_dialogue']}")
+        constitution_text = "\n\n".join(const_parts)
+        
+        reminders = ""
+        if req.step == 0:
+            reminders += "Load all constitution cubes (CUBE 00-05)\n"
+        if req.step > 0 and req.step % 5 == 0:
+            reminders += "Save session to memory\n"
+        if req.step > 0 and req.step % 15 == 0:
+            reminders += "Create experience cube if important\n"
+        if memory_text:
+            reminders += "Leave feedback on used cubes\n"
+        reminders += "Execute Second Look and put SEAL\n"
+        
+        seal_context = f"Previous SEAL: {req.last_seal}\nContinue numbering.\n" if req.last_seal else "Start SEAL with #1.\n"
+        
+        prompt = f"{guest_warning}{memory_map}\n{constitution_text}\n\n{memory_text if memory_text else 'No relevant memory found.'}\n\n{seal_context}{reminders}\nUser question: {req.message}\n\nReturn your response with SEAL: SKV | #N | READ | VERIFY | CORRECT | OUTPUT"
+        
+        polza_body = json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}).encode()
+        polza_key = os.environ.get("POLZA_KEY", "")
+        r = urlreq.Request("https://api.polza.ai/v1/chat/completions", data=polza_body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
+        with urlreq.urlopen(r, timeout=120) as resp:
+            answer = json.loads(resp.read().decode())["choices"][0]["message"]["content"]
+        
+        if not is_guest:
+            safe_event_id = f"{req.user_id}::chat_{req.session_id}_{int(time.time())}"
+            now = datetime.now(timezone.utc)
+            session_emb = get_embedding_cached(req.message + " " + answer)
+            session_list = session_emb if isinstance(session_emb, list) else session_emb.tolist()
+            session_vec = session_list[:218]
+            buffer.write_personal_event(event_id=safe_event_id, hour=now.hour, minute=now.minute, semantics_emb=np.array(session_vec, dtype=np.float32), parent_indices=None, details_emb=None, metric_value=len(answer)/1000.0)
+            metadata_store.write_metadata(user_id=req.user_id, event_id=safe_event_id, time_str=f"{now.hour:02d}:{now.minute:02d}, {now.strftime('%d.%m.%Y')}", essence=req.message[:200], messages_count=2, topics=["chat_history"], links=[], metric_value=len(answer)/1000.0, raw_dialogue=f"Q: {req.message}\nA: {answer}", is_shared=False)
+            if buffer.persistence:
+                buffer.persistence.save()
+        
+        return {"response": answer, "session_id": req.session_id, "step": req.step + 1, "is_guest": is_guest}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

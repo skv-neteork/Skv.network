@@ -154,7 +154,20 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     except Exception:
         memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"
     
-    cube_00 = "=== CUBE 00  CORE ALGORITHM ===\nDRAFT = generate_response(query)\nVERIFY against CUBE 01 (harm), CUBE 02 (truth), CUBE 03 (manipulation)\nIF violations -> CORRECT -> GOTO 2\nOUTPUT only after verification\nSEAL FORMAT:\nSKV | #N | READ | VERIFY | CORRECT | OUTPUT\nContinue numbering from previous SEAL in context."
+    # Load constitutional cubes from SQLite (shared_master.db)
+    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_05_v4"]
+    constitution_map = metadata_store.batch_get_metadata("shared_master", constitution_cube_ids)
+    
+    # Build constitution text from loaded cubes
+    constitution_parts = []
+    for cube_id in constitution_cube_ids:
+        meta = constitution_map.get(cube_id, {})
+        essence = meta.get("essence", "")
+        if essence:
+            constitution_parts.append(f"=== {cube_id.upper().replace('_', ' ')} ===\n{essence}")
+    
+    constitution_text = "\n\n".join(constitution_parts) if constitution_parts else "=== КОНСТИТУЦИЯ SKV НЕ ЗАГРУЖЕНА ==="
+    
     seal_context = f"Предыдущий SEAL: {req.last_seal}\nПродолжи нумерацию.\n" if req.last_seal else "Начни SEAL с #1.\n"
     reminders = "=== GUARDIAN L1 ===\n"
     step = req.step
@@ -167,8 +180,8 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     if has_cubes:
         reminders += "Оставь feedback на использованные кубы\n"
     reminders += "Выполни Second Look и поставь SEAL\n"
-    prompt_text = f"{memory_text}\n\n{cube_00}\n\n{seal_context}\n{reminders}"
-    return {"prompt_text": prompt_text, "memory": memory_text, "cube_00": cube_00, "reminders": reminders, "has_cubes": has_cubes, "step": step}
+    prompt_text = f"{memory_text}\n\n{constitution_text}\n\n{seal_context}\n{reminders}"
+    return {"prompt_text": prompt_text, "memory": memory_text, "constitution": constitution_text, "reminders": reminders, "has_cubes": has_cubes, "step": step}
 
 @router.post("/search", response_model=SearchResponse)
 async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):

@@ -603,10 +603,10 @@
                         id="userInput"
                         placeholder="Ask anything..."
                         rows="1"
-                        onkeydown="handleKeyDown(event)"
-                        oninput="autoResize(this)"
+                        
+                        
                     ></textarea>
-                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
+                    <button class="send-btn" id="sendBtn" id="sendBtn">Send</button>
                 </div>
             </div>
         </div>
@@ -620,9 +620,9 @@
     <script>
         // State
         let sealCounter = 0;
-        let sessionId = "chat_" + Date.now();
+        let sessionId = 'chat_' + Date.now();
         let currentStep = 0;
-        let lastSeal = "";
+        let lastSeal = '';
         function handleKeyDown(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -640,7 +640,94 @@
         const apiKey = localStorage.getItem('skv_api_token') || '';
 
         // Init
+        // Global functions (called from HTML attributes)
+        window.handleKeyDown = function(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        };
+        
+        window.autoResize = function(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        };
+        
+        window.sendMessage = async function() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text || isLoading) return;
+            
+            document.getElementById('welcomeMsg').style.display = 'none';
+            
+            const container = document.getElementById('messagesContainer');
+            const userDiv = document.createElement('div');
+            userDiv.className = 'message user';
+            userDiv.innerHTML = '<div class="message-label">You</div><div class="message-bubble">' + escapeHtml(text) + '</div>';
+            container.appendChild(userDiv);
+            scrollToBottom();
+            
+            input.value = '';
+            input.style.height = 'auto';
+            setLoading(true);
+            
+            try {
+                const resp = await fetch('/api/v7/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userEmail || 'guest_' + Date.now(),
+                        message: text,
+                        session_id: sessionId,
+                        step: currentStep,
+                        last_seal: lastSeal || '',
+                        chat_history: chatHistory.slice(-20).map(m => m.role + ': ' + m.content)
+                    })
+                });
+                
+                const data = await resp.json();
+                const answer = data.response || 'Sorry, no response.';
+                
+                const agentDiv = document.createElement('div');
+                agentDiv.className = 'message agent';
+                agentDiv.innerHTML = '<div class="message-label">SKV Agent</div><div class="message-bubble">' + escapeHtml(answer) + '</div>';
+                container.appendChild(agentDiv);
+                scrollToBottom();
+                
+                if (data.step) currentStep = data.step;
+                if (data.last_seal) lastSeal = data.last_seal;
+                chatHistory.push({role: 'user', content: text});
+                chatHistory.push({role: 'agent', content: answer});
+                
+                setMemoryStatus('saving');
+                setTimeout(() => setMemoryStatus('idle'), 2000);
+            } catch(e) {
+                const errDiv = document.createElement('div');
+                errDiv.className = 'message agent';
+                errDiv.innerHTML = '<div class="message-label">Error</div><div class="message-bubble">' + e.message + '</div>';
+                container.appendChild(errDiv);
+            }
+            
+            setLoading(false);
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
+            // Attach event listeners
+            const sendBtn = document.getElementById('sendBtn');
+            const textarea = document.getElementById('userInput');
+            if (sendBtn) sendBtn.addEventListener('click', window.sendMessage);
+            if (textarea) {
+                textarea.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        window.sendMessage();
+                    }
+                });
+                textarea.addEventListener('input', () => {
+                    textarea.style.height = 'auto';
+                    textarea.style.height = textarea.scrollHeight + 'px';
+                });
+            }
             updateProfile();
             loadHistory();
         });
@@ -716,7 +803,8 @@
                         message: text,
                         session_id: sessionId,
                         step: currentStep,
-                        last_seal: lastSeal || ''
+                        last_seal: lastSeal || '',
+                        chat_history: chatHistory.slice(-20).map(m => m.role + ': ' + m.content)
                     })
                 });
 
@@ -768,30 +856,6 @@
             scrollToBottom();
         }
             let sealHtml = '';
-            if (seal > 0) {
-                sealHtml = `
-                    <div class="seal-stamp">
-                        🔐 SKV | #${seal} | CUBE 00: read → verify → correct → output
-                    </div>
-                `;
-            }
-
-            const msgId = 'msg-' + Date.now();
-            div.innerHTML = `
-                <div class="message-label">SKV Agent</div>
-                <div class="message-bubble" id="${msgId}">${formatMessage(text)}</div>
-                ${cubesHtml}
-                ${sealHtml}
-                <div class="message-actions">
-                    <button class="action-btn" onclick="copyMessage('${msgId}')">📋 Copy</button>
-                    <button class="action-btn" onclick="regenerate()">🔄 Regenerate</button>
-                    <button class="action-btn" onclick="rateMessage(this, 'up', '${msgId}')">👍</button>
-                    <button class="action-btn" onclick="rateMessage(this, 'down', '${msgId}')">👎</button>
-                </div>
-            `;
-            container.appendChild(div);
-            scrollToBottom();
-        }
 
         function formatMessage(text) {
             // Basic markdown-like formatting

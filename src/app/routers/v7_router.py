@@ -417,3 +417,72 @@ async def chat_endpoint(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depe
         return {"response": answer, "session_id": req.session_id, "step": req.step + 1, "is_guest": is_guest}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class VoteRequest(BaseModel):
+    cube_id: str
+    user_id: str
+    vote: int  # +1 or -1
+
+@router.post("/experience/vote")
+async def vote_experience(req: VoteRequest):
+    """Vote for an experience cube. 3 downvotes → deprecated."""
+    import sqlite3, json
+    
+    if req.vote not in (-1, 1):
+        raise HTTPException(status_code=400, detail="Vote must be +1 or -1")
+    
+    conn = sqlite3.connect('/data/skv/metadata_store/shared_master.db')
+    cur = conn.cursor()
+    
+    # Get current votes
+    cur.execute('SELECT votes_json, rating FROM event_metadata WHERE event_id = ?', (req.cube_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Cube not found")
+    
+    votes = json.loads(row[0]) if row[0] else []
+    current_rating = row[1] or 0
+    
+    # Check if user already voted
+    for v in votes:
+        if v.get('user_id') == req.user_id:
+            # Change vote
+            old_vote = v['vote']
+            v['vote'] = req.vote
+            v['timestamp'] = datetime.now(timezone.utc).isoformat()
+            current_rating = current_rating - old_vote + req.vote
+            break
+    else:
+        # New vote
+        votes.append({
+            'user_id': req.user_id,
+            'vote': req.vote,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
+        current_rating += req.vote
+    
+    # Determine status
+    downvotes = sum(1 for v in votes if v['vote'] == -1)
+    upvotes = sum(1 for v in votes if v['vote'] == 1)
+    
+    if downvotes >= 3:
+        status = 'deprecated'
+    elif upvotes >= 3:
+        status = 'verified'
+    else:
+        status = 'community'
+    
+    cur.execute('UPDATE event_metadata SET votes_json = ?, rating = ?, status = ? WHERE event_id = ?',
+                (json.dumps(votes), current_rating, status, req.cube_id))
+    conn.commit()
+    conn.close()
+    
+    return {
+        "status": "ok",
+        "cube_id": req.cube_id,
+        "rating": current_rating,
+        "cube_status": status,
+        "upvotes": upvotes,
+        "downvotes": downvotes
+    }

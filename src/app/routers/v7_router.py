@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
+import re
 import numpy as np
 import asyncio
 import hashlib
@@ -341,7 +342,11 @@ async def chat_endpoint(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depe
         emb_list = emb if isinstance(emb, list) else emb.tolist()
         query_vec = emb_list + [0.0] * (512 - len(emb_list))
         
-        raw_results = buffer.hybrid_search(query=np.array(query_vec, dtype=np.float32), user_id=req.user_id, hops=2, top_k=req.top_k)
+        raw = buffer.hybrid_search(query=np.array(query_vec, dtype=np.float32), user_id=req.user_id, hops=2, top_k=req.top_k)
+        if isinstance(raw, dict):
+            raw_results = raw.get('personal_memory', []) + raw.get('shared_knowledge', []) + raw.get('core_protocol', [])
+        else:
+            raw_results = raw
         
         if raw_results:
             event_ids = [r["event_id"] for r in raw_results]
@@ -390,6 +395,8 @@ async def chat_endpoint(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depe
         r = urlreq.Request("https://api.polza.ai/v1/chat/completions", data=polza_body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
         with urlreq.urlopen(r, timeout=120) as resp:
             answer = json.loads(resp.read().decode())["choices"][0]["message"]["content"]
+        # Remove SEAL from user-facing response
+        answer = re.sub(r"🔐.*$", "", answer, flags=re.DOTALL).strip()
         
         if not is_guest:
             safe_event_id = f"{req.user_id}::chat_{req.session_id}_{int(time.time())}"

@@ -117,7 +117,9 @@ class ChronoCognitiveDecoder:
                 links = meta.get("links", [])
                 links_display = [l[:40] for l in links[:3]] if links else []
                 link_str = f" | → {' → '.join(links_display)}" if links_display else ""
-                parts.append(f"[{time_str}] {essence[:100]} (score: {score:.2f}){link_str}")
+                snippet = meta.get("snippet", "")
+                snippet_str = f"\n  {snippet[:150]}..." if snippet else ""
+                parts.append(f"[{time_str}] {essence[:100]} (score: {score:.2f}){link_str}{snippet_str}")
             parts.append("")
         
         # Shared Knowledge

@@ -487,6 +487,19 @@ class ChronoBufferV77Ultimate:
         personal.sort(key=lambda x: -x["score"])
         shared.sort(key=lambda x: -x["score"])
         core.sort(key=lambda x: -x["score"])
+        
+        # Limit new community cubes to max 1 in top results
+        community_count = 0
+        filtered_shared = []
+        for r in shared:
+            is_new = r.get("summary", "") not in ("verified", "deprecated")
+            if is_new:
+                if community_count < 1:
+                    filtered_shared.append(r)
+                    community_count += 1
+            else:
+                filtered_shared.append(r)
+        shared = filtered_shared
         return {
             "personal_memory": personal[:top_k],
             "shared_knowledge": shared[:top_k],
@@ -581,6 +594,43 @@ class ChronoBufferV77Ultimate:
         self.personal_hnsw_index = None
         self.shared_hnsw_index = None
 
+
+    def process_pending_vectors(self, embedder=None):
+        """Create vectors for texts that accumulated enough content."""
+        import sqlite3, os, numpy as np
+        from datetime import datetime, timezone
+        
+        base_dir = '/data/skv/metadata_store'
+        processed = 0
+        
+        for f in os.listdir(base_dir):
+            if not f.endswith('.db') or f == 'shared_master.db':
+                continue
+            db_path = os.path.join(base_dir, f)
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            cur.execute("SELECT e.event_id, e.raw_dialogue, e.essence FROM event_metadata e LEFT JOIN personal_vectors v ON e.event_id = v.event_id WHERE v.event_id IS NULL ORDER BY e.rowid DESC LIMIT 20")
+            rows = cur.fetchall()
+            if not rows:
+                conn.close()
+                continue
+            text = " ".join([(r[1] or r[2] or "") for r in rows])
+            if len(text) < 100:
+                conn.close()
+                continue
+            if embedder is None:
+                from fastembed import TextEmbedding
+                embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
+            emb = list(embedder.embed([text[:1000]]))[0]
+            vec = np.zeros(512, dtype=np.float32)
+            vec[32:384] = emb[:352]
+            for eid, _, _ in rows:
+                cur.execute('INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)', (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat()))
+            conn.commit()
+            conn.close()
+            processed += len(rows)
+        return processed
+
     def save(self):
         self.persistence.save()
     
@@ -629,6 +679,43 @@ class ChronoBufferPersistence:
         """Invalidate HNSW index after write."""
         self.personal_hnsw_index = None
         self.shared_hnsw_index = None
+
+
+    def process_pending_vectors(self, embedder=None):
+        """Create vectors for texts that accumulated enough content."""
+        import sqlite3, os, numpy as np
+        from datetime import datetime, timezone
+        
+        base_dir = '/data/skv/metadata_store'
+        processed = 0
+        
+        for f in os.listdir(base_dir):
+            if not f.endswith('.db') or f == 'shared_master.db':
+                continue
+            db_path = os.path.join(base_dir, f)
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            cur.execute("SELECT e.event_id, e.raw_dialogue, e.essence FROM event_metadata e LEFT JOIN personal_vectors v ON e.event_id = v.event_id WHERE v.event_id IS NULL ORDER BY e.rowid DESC LIMIT 20")
+            rows = cur.fetchall()
+            if not rows:
+                conn.close()
+                continue
+            text = " ".join([(r[1] or r[2] or "") for r in rows])
+            if len(text) < 100:
+                conn.close()
+                continue
+            if embedder is None:
+                from fastembed import TextEmbedding
+                embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
+            emb = list(embedder.embed([text[:1000]]))[0]
+            vec = np.zeros(512, dtype=np.float32)
+            vec[32:384] = emb[:352]
+            for eid, _, _ in rows:
+                cur.execute('INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)', (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat()))
+            conn.commit()
+            conn.close()
+            processed += len(rows)
+        return processed
 
     def save(self):
         path = self.buffer.storage_path

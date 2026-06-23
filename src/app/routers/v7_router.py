@@ -63,6 +63,38 @@ class EventWriteRequest(BaseModel):
     topics: List[str] = Field(default_factory=list)
     raw_dialogue: Optional[str] = None
 
+
+import threading
+import time as _time
+
+def background_vectorizer():
+    """Run lazy vectorization every 30 minutes."""
+    while True:
+        _time.sleep(1800)  # 30 minutes
+        try:
+            from app.chrono_buffer_v77_ultimate import ChronoBufferV77Ultimate
+            b = ChronoBufferV77Ultimate()
+            b.persistence.load()
+            count = b.process_pending_vectors()
+            if count > 0:
+                print(f"[INJECTOR] Created {count} vectors from pending texts", flush=True)
+        except Exception as e:
+            print(f"[INJECTOR] Error: {e}", flush=True)
+
+# Start background thread
+_thread = threading.Thread(target=background_vectorizer, daemon=True)
+_thread.start()
+print("[INJECTOR] Background vectorizer started (every 30 min)", flush=True)
+
+@router.post("/vectors/process")
+async def trigger_vectorization():
+    """Manually trigger lazy vectorization."""
+    try:
+        count = GLOBAL_MEMORY_BUFFER.process_pending_vectors()
+        return {"status": "ok", "vectors_created": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 GLOBAL_MEMORY_BUFFER = ChronoBufferV77Ultimate(max_personal=100000, max_shared=10000, storage_path="/data/skv/chrono_buffer")
 # Инициализируем persistence явно
 # Загружаем буфер из хранилища

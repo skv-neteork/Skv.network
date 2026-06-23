@@ -414,6 +414,9 @@ class ChronoBufferV77Ultimate:
             p_max = np.max(p_final) or 1.0
             for i in range(self.personal_current_size):
                 if p_final[i] > 0.01:
+                    eid = self.personal_idx_to_id.get(i, f"personal_{i}")
+                    if user_id != "default" and not eid.startswith(f"{user_id}::"):
+                        continue
                     results.append({
                         "event_id": self.personal_idx_to_id.get(i, f"personal_{i}"),
                         "score": float(weights["personal"] * p_final[i] / p_max),

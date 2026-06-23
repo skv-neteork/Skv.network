@@ -106,7 +106,8 @@ class ChronoCognitiveDecoder:
         
         # Personal Memory
         if personal:
-            parts.append("=== PERSONAL MEMORY ===")
+            parts.append("=== MEMORY CONTEXT ===")
+            parts.append("Use get_event_detail(event_id) to read full dialogue if needed.\n")
             for item in personal[:5]:
                 eid = item.get("event_id", "?")
                 score = item.get("score", 0)

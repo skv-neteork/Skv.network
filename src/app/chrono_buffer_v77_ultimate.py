@@ -479,6 +479,48 @@ class ChronoBufferV77Ultimate:
                     "summary": f"CUBE 0{i}: Constitutional rule"
                 })
         
+        # Load metadata for all personal results
+        try:
+            import sqlite3, json as _json, os
+            personal_ids = [r["event_id"] for r in results if r["source"] == "personal"]
+            if personal_ids and user_id != "default":
+                safe_user = ''.join(c for c in user_id if c.isalnum() or c in ('_','-'))
+                db_path = f'/data/skv/metadata_store/{safe_user}.db'
+                if os.path.exists(db_path):
+                    conn = sqlite3.connect(db_path)
+                    placeholders = ','.join('?' for _ in personal_ids)
+                    cur = conn.execute(f'SELECT event_id, time_str, essence, links_json, topics_json FROM event_metadata WHERE event_id IN ({placeholders})', personal_ids)
+                    meta_map = {}
+                    for row in cur.fetchall():
+                        meta_map[row[0]] = {
+                            "time": row[1] or "",
+                            "essence": row[2] or "",
+                            "links": _json.loads(row[3]) if row[3] and row[3].strip() else [],
+                            "topics": _json.loads(row[4]) if row[4] and row[4].strip() else []
+                        }
+                    conn.close()
+                    for r in results:
+                        if r["source"] == "personal" and r["event_id"] in meta_map:
+                            r["metadata"] = meta_map[r["event_id"]]
+                            r["summary"] = meta_map[r["event_id"]]["essence"]
+        except:
+            pass
+        
+        # Load metadata for shared results
+        try:
+            shared_ids = [r["event_id"] for r in results if r["source"] == "shared"]
+            if shared_ids:
+                conn = sqlite3.connect('/data/skv/metadata_store/shared_master.db')
+                placeholders = ','.join('?' for _ in shared_ids)
+                cur = conn.execute(f'SELECT event_id, essence FROM event_metadata WHERE event_id IN ({placeholders})', shared_ids)
+                meta_map = {row[0]: row[1] for row in cur.fetchall()}
+                conn.close()
+                for r in results:
+                    if r["source"] == "shared" and r["event_id"] in meta_map:
+                        r["summary"] = meta_map[r["event_id"]] or ""
+        except:
+            pass
+        
         # Structured output: three isolated streams
         # Personal boost: +10% to compete with shared
         for r in results:

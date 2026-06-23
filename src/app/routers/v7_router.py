@@ -353,8 +353,13 @@ async def chat_endpoint(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depe
             metadata_map = metadata_store.batch_get_metadata(req.user_id, event_ids)
             for r in raw_results:
                 r["metadata"] = metadata_map.get(r["event_id"], {})
-        
-        memory_text = ChronoCognitiveDecoder.decode_search_results(raw_results) if raw_results else ""
+            # Separate by source
+            personal = [r for r in raw_results if r.get("source") == "personal"]
+            shared = [r for r in raw_results if r.get("source") == "shared"]
+            core = [r for r in raw_results if r.get("source") == "core"]
+            memory_text = ChronoCognitiveDecoder.decode_structured(personal, shared, core)
+        else:
+            memory_text = ""
         
         memory_map = ""
         if req.step == 0:

@@ -99,3 +99,46 @@ class ChronoCognitiveDecoder:
             manifest.append(card_text)
         
         return "\n".join(manifest)
+    @classmethod
+    def decode_structured(cls, personal: List[Dict], shared: List[Dict], core: List[Dict]) -> str:
+        """Decode structured search results into three-section markdown."""
+        parts = []
+        
+        # Personal Memory
+        if personal:
+            parts.append("=== PERSONAL MEMORY ===")
+            for item in personal[:5]:
+                eid = item.get("event_id", "?")
+                score = item.get("score", 0)
+                meta = item.get("metadata", {})
+                time_str = meta.get("time", "unknown time")
+                essence = meta.get("essence", "no description")
+                links = meta.get("links", [])
+                links_display = [l[:40] for l in links[:3]] if links else []
+                link_str = f" | → {' → '.join(links_display)}" if links_display else ""
+                parts.append(f"[{time_str}] {essence[:100]} (score: {score:.2f}){link_str}")
+            parts.append("")
+        
+        # Shared Knowledge
+        if shared:
+            parts.append("=== SHARED KNOWLEDGE ===")
+            for item in shared[:3]:
+                eid = item.get("event_id", "?")
+                score = item.get("score", 0)
+                meta = item.get("metadata", {})
+                title = meta.get("essence", eid)[:80]
+                parts.append(f"• {title} (score: {score:.2f})")
+            parts.append("")
+        
+        # Core Protocol
+        if core:
+            parts.append("=== CORE PROTOCOL ===")
+            for item in core[:3]:
+                eid = item.get("event_id", "?")
+                parts.append(f"• {eid}: constitutional rule active")
+            parts.append("")
+        
+        if not parts:
+            return "=== NO MEMORY FOUND ==="
+        
+        return "\n".join(parts)

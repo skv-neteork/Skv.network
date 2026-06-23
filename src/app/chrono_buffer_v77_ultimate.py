@@ -436,7 +436,27 @@ class ChronoBufferV77Ultimate:
             s_final = 0.6 * s_scores + 0.4 * s_assoc
             s_max = np.max(s_final) or 1.0
             for i in range(self.shared_current_size):
-                if s_final[i] > 0.01:
+                if s_final[i] > 0.01 and self.shared_active_mask[i]:
+                    # Status multiplier
+                    eid = self.shared_idx_to_id.get(i, '')
+                    status_mult = 1.0
+                    try:
+                        import sqlite3
+                        conn = sqlite3.connect('/data/skv/metadata_store/shared_master.db')
+                        cur = conn.cursor()
+                        cur.execute('SELECT status FROM event_metadata WHERE event_id = ?', (eid,))
+                        row = cur.fetchone()
+                        if row:
+                            if row[0] == 'deprecated':
+                                conn.close()
+                                continue  # Skip deprecated
+                            elif row[0] == 'verified':
+                                status_mult = 1.2
+                            elif row[0] == 'community':
+                                status_mult = 0.7
+                        conn.close()
+                    except:
+                        pass
                     results.append({
                         "event_id": self.shared_idx_to_id.get(i, f"shared_{i}"),
                         "score": float(weights["shared"] * s_final[i] / s_max),

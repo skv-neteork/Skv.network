@@ -8,9 +8,11 @@ import threading
 from collections import OrderedDict
 from datetime import datetime, timezone
 import os
-from app.chrono_buffer_v77_ultimate import ChronoBufferV77Ultimate
+from app.chrono_buffer_v77_ultimate import ChronoBufferV77Ultimate, ChronoBufferPersistence
 from app.multi_tenant_store import MultiTenantMetadataStore
 from app.chrono_decoder import ChronoCognitiveDecoder
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v7", tags=["ChronoMemory"])
 
@@ -60,7 +62,13 @@ class EventWriteRequest(BaseModel):
     topics: List[str] = Field(default_factory=list)
     raw_dialogue: Optional[str] = None
 
-GLOBAL_MEMORY_BUFFER = ChronoBufferV77Ultimate(max_personal=100000, max_shared=10000)
+GLOBAL_MEMORY_BUFFER = ChronoBufferV77Ultimate(max_personal=100000, max_shared=10000, storage_path="/data/skv/chrono_buffer")
+# Инициализируем persistence явно
+# Загружаем буфер из хранилища
+if GLOBAL_MEMORY_BUFFER.persistence.load():
+    logger.info("[SKV] Buffer loaded from /data/skv/chrono_buffer")
+else:
+    logger.warning("[SKV] Failed to load buffer, using empty")
 metadata_store = MultiTenantMetadataStore(base_dir="/data/skv/metadata_store")
 save_lock = asyncio.Lock()
 
@@ -98,6 +106,9 @@ def _cached_search(buffer, qv, uid, hops, top_k):
             else:
                 del _search_cache[key]
     result = buffer.hybrid_search(query=qv, user_id=uid, hops=hops, top_k=top_k)
+    # Convert structured format to flat list for compatibility
+    if isinstance(result, dict):
+        result = result.get('personal_memory', []) + result.get('shared_knowledge', []) + result.get('core_protocol', [])
     with _cache_lock:
         _search_cache[key] = (datetime.now(timezone.utc), result)
         if len(_search_cache) > _CACHE_MAX_SIZE:
@@ -106,6 +117,24 @@ def _cached_search(buffer, qv, uid, hops, top_k):
 
 def get_memory_buffer():
     return GLOBAL_MEMORY_BUFFER
+
+@router.post("/cache/clear")
+async def clear_search_cache(buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
+    """Clear search cache and reload buffer"""
+    global _search_cache
+    with _cache_lock:
+        _search_cache.clear()
+    
+    # Reload buffer from disk
+    buffer.persistence.load()
+    
+    return {
+        "status": "ok",
+        "message": "Cache cleared and buffer reloaded",
+        "personal_active": int(np.sum(buffer.personal_active_mask[:buffer.personal_current_size])),
+        "shared_active": int(np.sum(buffer.shared_active_mask[:buffer.shared_current_size]))
+    }
+
 
 def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
     if not authorization:
@@ -273,7 +302,7 @@ async def get_constitution():
             constitution.append({
                 "id": cube_id,
                 "title": meta.get("essence", "").split("\n")[0],
-                "text": meta.get("essence", "")
+                "text": meta.get("raw_dialogue", "")
             })
     
     return {"constitution": constitution}

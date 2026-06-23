@@ -456,8 +456,22 @@ class ChronoBufferV77Ultimate:
                     "summary": f"CUBE 0{i}: Constitutional rule"
                 })
         
-        results.sort(key=lambda x: -x["score"])
-        return results[:top_k]
+        # Structured output: three isolated streams
+        # Personal boost: +10% to compete with shared
+        for r in results:
+            if r["source"] == "personal":
+                r["score"] = r["score"] * 1.10
+        personal = [r for r in results if r["source"] == "personal"]
+        shared = [r for r in results if r["source"] == "shared"]
+        core = [r for r in results if r["source"] == "core"]
+        personal.sort(key=lambda x: -x["score"])
+        shared.sort(key=lambda x: -x["score"])
+        core.sort(key=lambda x: -x["score"])
+        return {
+            "personal_memory": personal[:top_k],
+            "shared_knowledge": shared[:top_k],
+            "core_protocol": core[:top_k]
+        }
     
     # ═══════════════════════════════════════════
     # THERMODYNAMIC ENERGY

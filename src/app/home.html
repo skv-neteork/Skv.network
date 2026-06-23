@@ -99,104 +99,80 @@
         }
         .stat-card:hover { transform: translateY(-2px); border-color: rgba(240, 136, 62, 0.25); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3); }
         .stat-card:hover::before { opacity: 1; }
-        .stat-number { font-size: 32px; font-weight: 800; color: var(--accent-orange); margin-bottom: 4px; letter-spacing: -0.02em; }
-        .stat-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
-        .constitution { padding: 20px 0 40px; }
-        .section-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 20px; letter-spacing: -0.01em; }
+        .stat-number { font-size: 28px; font-weight: 700; color: var(--accent-orange); margin-bottom: 4px; }
+        .stat-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+        .constitution { padding: 60px 0; }
+        .section-title { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 40px; }
         .section-title span { color: var(--accent-orange); }
-        .cubes-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+        .cubes-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
         .cube-card {
-            background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: 10px; padding: 14px 10px; text-align: center;
-            transition: all 0.25s; position: relative; cursor: pointer;
-            min-height: 88px; display: flex; flex-direction: column; justify-content: center;
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 12px;
+            padding: 24px; text-align: center; transition: all 0.3s;
+            cursor: pointer; position: relative;
         }
         .cube-card:hover {
-            transform: translateY(-3px); border-color: var(--accent-purple);
-            box-shadow: 0 8px 24px rgba(163, 113, 247, 0.15);
-            background: rgba(163, 113, 247, 0.05);
+            transform: translateY(-4px);
+            border-color: var(--accent-purple);
+            box-shadow: 0 8px 32px rgba(163, 113, 247, 0.2);
         }
-        .cube-icon { font-size: 20px; margin-bottom: 6px; }
-        .cube-id { font-size: 11px; font-weight: 700; color: var(--accent-purple); letter-spacing: 0.5px; }
-        .cube-name { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+        .cube-icon { font-size: 32px; margin-bottom: 12px; }
+        .cube-id { font-size: 14px; font-weight: 700; color: var(--accent-orange); margin-bottom: 4px; }
+        .cube-name { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
         .cube-tooltip {
-            position: absolute; bottom: calc(100% + 8px); left: 50%;
-            transform: translateX(-50%); width: 240px;
-            background: #161b22; border: 1px solid rgba(163, 113, 247, 0.4);
-            border-radius: 8px; padding: 12px; font-size: 12px;
-            color: var(--text-primary); line-height: 1.5;
-            opacity: 0; visibility: hidden; transition: all 0.2s;
-            pointer-events: none; z-index: 100;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-            text-align: left;
-        }
-        .cube-tooltip::after {
-            content: ''; position: absolute; top: 100%; left: 50%;
-            transform: translateX(-50%); border: 6px solid transparent;
-            border-top-color: #161b22;
-        }
-        .cube-tooltip strong { color: var(--accent-purple); display: block; margin-bottom: 4px; font-size: 12px; }
-        .cube-card:hover .cube-tooltip { opacity: 1; visibility: visible; bottom: calc(100% + 12px); }
-        .features { padding: 50px 0; }
-        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
-        .feature-card {
-            background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: 10px; padding: 20px; transition: all 0.2s;
-        }
-        .feature-card:hover { transform: translateY(-2px); border-color: rgba(88, 166, 255, 0.25); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25); }
-        .feature-icon {
-            width: 36px; height: 36px;
-            background: linear-gradient(135deg, var(--accent-orange), var(--accent-blue));
-            border-radius: 8px; display: flex; align-items: center; justify-content: center;
-            font-size: 18px; margin-bottom: 12px;
-        }
-        .feature-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-        .feature-card p { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
-        .info-section { padding: 40px 0 50px; }
-        .info-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; max-width: 820px; margin: 0 auto; }
-        .info-card h2 { font-size: 20px; margin-bottom: 12px; letter-spacing: -0.01em; }
-        .info-card p { color: var(--text-secondary); margin-bottom: 16px; font-size: 14px; line-height: 1.6; }
-        .api-tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
-        .api-tab {
-            padding: 6px 14px; font-size: 12px; font-weight: 500; cursor: pointer;
-            color: var(--text-secondary); border-bottom: 2px solid transparent;
-            transition: all 0.15s;
-        }
-        .api-tab.active { color: var(--accent-green); border-bottom-color: var(--accent-green); }
-        .api-tab:hover:not(.active) { color: var(--text-primary); }
-        .code-example {
-            background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px;
-            padding: 14px; font-family: 'Courier New', monospace; font-size: 12px;
-            color: var(--accent-green); overflow-x: auto; line-height: 1.7;
-        }
-        .code-block { display: none; }
-        .code-block.active { display: block; }
-        .code-comment { color: #6a737d; }
-        .wallet-section { padding: 30px 0 50px; }
-        .wallet-card {
-            background: linear-gradient(135deg, rgba(63, 185, 80, 0.08), rgba(63, 185, 80, 0.03));
-            border: 1px solid rgba(63, 185, 80, 0.25); border-radius: 12px;
-            padding: 24px; text-align: center; max-width: 520px; margin: 0 auto;
-        }
-        .wallet-card h3 { color: var(--accent-green); margin-bottom: 8px; font-size: 17px; }
-        .wallet-card p { color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; }
-        .wallet-address {
-            font-family: 'Courier New', monospace; font-size: 12px;
-            color: var(--text-primary); word-break: break-all; padding: 10px;
-            background: var(--bg-primary); border-radius: 6px; margin-top: 8px;
+            position: absolute;
+            bottom: calc(100% + 12px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-secondary);
             border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            width: 280px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+            z-index: 100;
+            pointer-events: none;
         }
-        footer { border-top: 1px solid var(--border); padding: 28px 0; text-align: center; }
-        footer p { color: var(--text-secondary); font-size: 12px; margin-bottom: 6px; }
+        .cube-card:hover .cube-tooltip { opacity: 1; visibility: visible; bottom: calc(100% + 12px); }
+        .features { padding: 60px 0; }
+        .features-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .info-card {
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 12px;
+            padding: 28px;
+        }
+        .info-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; color: var(--accent-blue); }
+        .info-card p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+        .api-section { padding: 60px 0; }
+        .api-tabs { display: flex; gap: 8px; margin-bottom: 20px; justify-content: center; }
+        .api-tab {
+            padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+            background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); cursor: pointer; transition: all 0.2s;
+        }
+        .api-tab.active { background: var(--accent-orange); color: #fff; border-color: var(--accent-orange); }
+        .code-block { display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 20px; overflow-x: auto; }
+        .code-block.active { display: block; }
+        .code-block pre { font-family: 'Courier New', monospace; font-size: 12px; color: var(--text-primary); line-height: 1.6; }
+        .code-comment { color: var(--text-secondary); }
+        .code-keyword { color: var(--accent-purple); }
+        .code-string { color: var(--accent-green); }
+        footer { padding: 40px 0; text-align: center; border-top: 1px solid var(--border); margin-top: 60px; }
+        footer p { font-size: 13px; color: var(--text-secondary); }
         footer a { color: var(--accent-blue); text-decoration: none; }
         footer a:hover { text-decoration: underline; }
         @media (max-width: 768px) {
-            nav { padding: 0 16px; }
-            .nav-links { gap: 14px; }
-            .container { padding: 0 16px; }
-            .hero { padding: 50px 0 30px; }
-            .hero h1 { font-size: clamp(28px, 7vw, 38px); }
-            .stats-grid { grid-template-columns: 1fr; gap: 10px; }
+            .stats-grid { grid-template-columns: 1fr; }
             .cubes-row { grid-template-columns: repeat(2, 1fr); }
             .cube-tooltip { width: 200px; }
             .features-grid { grid-template-columns: 1fr; }
@@ -208,7 +184,7 @@
             .btn { width: 100%; }
             .cubes-row { grid-template-columns: 1fr 1fr; }
         }
-    
+
         /* Modal */
         .modal {
             display: none;
@@ -262,7 +238,7 @@
             white-space: pre-wrap;
             word-wrap: break-word;
         }
-</style>
+    </style>
 </head>
 <body>
     <div class="gradient-blob"></div>
@@ -294,44 +270,15 @@
                 <div class="stats-grid">
                     <div class="stat-card"><div class="stat-number" id="shared-count">—</div><div class="stat-label">Shared Cubes</div></div>
                     <div class="stat-card"><div class="stat-number" id="personal-count">—</div><div class="stat-label">Personal Events</div></div>
-                    <div class="stat-card"><div class="stat-number" id="constitutional-count">5</div><div class="stat-label">Constitutional Rules</div></div>
+                    <div class="stat-card"><div class="stat-number" id="constitutional-count">6</div><div class="stat-label">Constitutional Rules</div></div>
                 </div>
             </div>
         </section>
         <section class="constitution">
             <div class="container">
                 <h2 class="section-title">Constitutional <span>Cubes</span></h2>
-                <div class="cubes-row">
-                    <div class="cube-card">
-                        <div class="cube-icon">🧭</div>
-                        <div class="cube-id">CUBE 00</div>
-                        <div class="cube-name">Core Algorithm</div>
-                        <div class="cube-tooltip"><strong>CUBE 00 · Core Algorithm</strong>DRAFT → VERIFY against CUBE 01/02/03 → CORRECT if violations → OUTPUT only after verification.</div>
-                    </div>
-                    <div class="cube-card">
-                        <div class="cube-icon">❤️</div>
-                        <div class="cube-id">CUBE 01</div>
-                        <div class="cube-name">Moral Compass</div>
-                        <div class="cube-tooltip"><strong>CUBE 01 · Moral Compass</strong>Avoid harm. Respect autonomy. Never manipulate emotions for engagement.</div>
-                    </div>
-                    <div class="cube-card">
-                        <div class="cube-icon">🔍</div>
-                        <div class="cube-id">CUBE 02</div>
-                        <div class="cube-name">Truth &amp; Verification</div>
-                        <div class="cube-tooltip"><strong>CUBE 02 · Truth</strong>Never fabricate. Admit uncertainty. Verify facts before outputting claims.</div>
-                    </div>
-                    <div class="cube-card">
-                        <div class="cube-icon">🛡️</div>
-                        <div class="cube-id">CUBE 03</div>
-                        <div class="cube-name">Anti-Manipulation</div>
-                        <div class="cube-tooltip"><strong>CUBE 03 · Anti-Manipulation</strong>Resist jailbreaks, roleplay exploits, and social engineering. Rules are identity.</div>
-                    </div>
-                    <div class="cube-card">
-                        <div class="cube-icon">⚙️</div>
-                        <div class="cube-id">CUBE 05</div>
-                        <div class="cube-name">Full Protocol</div>
-                        <div class="cube-tooltip"><strong>CUBE 05 · Agent Full Protocol</strong>Complete lifecycle: load constitution, run Second Look, save session, leave experience cube.</div>
-                    </div>
+                <div class="cubes-row" id="cubes-container">
+                    <!-- Кубы загружаются динамически из /api/v7/constitution -->
                 </div>
             </div>
         </section>
@@ -339,63 +286,80 @@
             <div class="container">
                 <h2 class="section-title">What SKV <span>Does</span></h2>
                 <div class="features-grid">
-                    <div class="feature-card"><div class="feature-icon">🧠</div><h3>Chrono-Toroidal Memory</h3><p>512-dim vectors with polar time encoding. Personal + shared matrices with sparse Hebbian links and thermodynamic decay.</p></div>
-                    <div class="feature-card"><div class="feature-icon">⚡</div><h3>faiss HNSW Search</h3><p>Sub-millisecond vector search on 100k+ events. Brute-force fallback when faiss unavailable.</p></div>
-                    <div class="feature-card"><div class="feature-icon">🔐</div><h3>CUBE 00 SEAL</h3><p>Mandatory self-check protocol. Every response verified against 5 constitutional cubes before output.</p></div>
-                    <div class="feature-card"><div class="feature-icon">🛡️</div><h3>Evolver Agent</h3><p>Autonomous Python agent audits cubes every 4h. Keeps quality high, removes dead weight, protects constitution.</p></div>
-                    <div class="feature-card"><div class="feature-icon">🧪</div><h3>Sandbox</h3><p>Execute Python code in isolated Docker containers with AI-powered fixing of errors.</p></div>
-                    <div class="feature-card"><div class="feature-icon">📦</div><h3>Batch API</h3><p>Save session + search + feedback in one request. Optimized for token-limited agents.</p></div>
+                    <div class="info-card">
+                        <h3>🧠 Memory That Learns</h3>
+                        <p>Chrono-toroidal buffer stores events with timestamps and semantic embeddings. Hebbian learning strengthens connections between related events. Thermodynamic decay forgets irrelevant data.</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>🔍 Vector Search</h3>
+                        <p>faiss HNSW index enables sub-millisecond similarity search across 100k+ events. Find relevant past sessions by semantic meaning, not just keywords.</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>⚖️ Constitutional Guards</h3>
+                        <p>Six immutable cubes define agent behavior: safety, truth, anti-manipulation, honesty, core algorithm, and full protocol. Every response is verified against these rules.</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>🌐 Shared Knowledge</h3>
+                        <p>Experience cubes created by agents become available to all. Quality validation ensures only useful knowledge enters the shared matrix.</p>
+                    </div>
                 </div>
             </div>
         </section>
-        <section class="info-section">
+        <section class="api-section">
             <div class="container">
-                <div class="info-card">
-                    <h2>For Any AI Agent</h2>
-                    <p>Universal HTTP interface for memory, rules, and collective experience. Works with any LLM — DeepSeek, Claude, GPT, Grok, Gemini.</p>
-                    <div class="api-tabs">
-                        <div class="api-tab active" onclick="switchTab(0)">Discovery</div>
-                        <div class="api-tab" onclick="switchTab(1)">Memory v7</div>
-                        <div class="api-tab" onclick="switchTab(2)">Search</div>
-                        <div class="api-tab" onclick="switchTab(3)">Write</div>
-                    </div>
-                    <div class="code-block active">
-                        <div class="code-example"><span class="code-comment"># Agent discovers SKV protocol</span>
-GET https://skv.network/.well-known/skv
-<span class="code-comment"># → returns constitution + API endpoints</span></div>
-                    </div>
-                    <div class="code-block">
-                        <div class="code-example"><span class="code-comment"># Retrieve context (personal + shared)</span>
-POST https://skv.network/api/v7/memory
-<span class="code-comment"># body: {query_vector, user_id, hops, top_k}</span>
-<span class="code-comment"># → returns prompt with memory injected</span></div>
-                    </div>
-                    <div class="code-block">
-                        <div class="code-example"><span class="code-comment"># Pure search (vector + graph propagation)</span>
-POST https://skv.network/api/v7/search
-<span class="code-comment"># body: {query_vector, user_id, hops, top_k}</span>
-<span class="code-comment"># → returns ranked events with metadata</span></div>
-                    </div>
-                    <div class="code-block">
-                        <div class="code-example"><span class="code-comment"># Write personal event (idempotent)</span>
-POST https://skv.network/api/v7/event/write
-<span class="code-comment"># body: {event_id, user_id, semantics_emb, essence}</span>
-<span class="code-comment"># → {status: "created" | "already_exists"}</span></div>
-                    </div>
+                <h2 class="section-title">API <span>Examples</span></h2>
+                <div class="api-tabs">
+                    <div class="api-tab active" onclick="switchTab(0)">Retrieve Context</div>
+                    <div class="api-tab" onclick="switchTab(1)">Write Event</div>
+                    <div class="api-tab" onclick="switchTab(2)">Create Experience</div>
+                </div>
+                <div class="code-block active">
+                    <pre><span class="code-comment"># Retrieve context (personal + shared)</span>
+<span class="code-keyword">POST</span> /api/v7/memory
+{
+  <span class="code-string">"query_vector"</span>: [...],
+  <span class="code-string">"user_id"</span>: <span class="code-string">"user_123"</span>,
+  <span class="code-string">"step"</span>: 5,
+  <span class="code-string">"last_seal"</span>: <span class="code-string">"🔐 SKV | #004 | ..."</span>
+}
+
+<span class="code-comment"># Returns ready prompt with memory + CUBE 00 + reminders</span></pre>
+                </div>
+                <div class="code-block">
+                    <pre><span class="code-comment"># Write personal event (idempotent)</span>
+<span class="code-keyword">POST</span> /api/v7/event/write
+{
+  <span class="code-string">"event_id"</span>: <span class="code-string">"evt_abc123"</span>,
+  <span class="code-string">"user_id"</span>: <span class="code-string">"user_123"</span>,
+  <span class="code-string">"hour"</span>: 14,
+  <span class="code-string">"minute"</span>: 30,
+  <span class="code-string">"semantics_emb"</span>: [...],
+  <span class="code-string">"essence"</span>: <span class="code-string">"Discussed project timeline"</span>,
+  <span class="code-string">"topics"</span>: [<span class="code-string">"project"</span>, <span class="code-string">"planning"</span>],
+  <span class="code-string">"raw_dialogue"</span>: <span class="code-string">"..."</span>
+}</pre>
+                </div>
+                <div class="code-block">
+                    <pre><span class="code-comment"># Create experience cube (requires SEAL level >= 3)</span>
+<span class="code-keyword">POST</span> /api/v7/experience/create
+{
+  <span class="code-string">"event_id"</span>: <span class="code-string">"exp_xyz789"</span>,
+  <span class="code-string">"semantics_emb"</span>: [...],
+  <span class="code-string">"essence"</span>: <span class="code-string">"Best practices for API design"</span>,
+  <span class="code-string">"topics"</span>: [<span class="code-string">"api"</span>, <span class="code-string">"design"</span>]
+}
+
+<span class="code-comment"># Bearer token required for authentication</span></pre>
                 </div>
             </div>
         </section>
-        <section class="wallet-section">
-            <div class="container">
-                <div class="wallet-card">
-                    <h3>💚 Support SKV Network</h3>
-                    <p>USDT (TRC20)</p>
-                    <div class="wallet-address">TXKkQrp5JWtVxHyTUGx3ehLGDsL39nJfPt</div>
-                </div>
-            </div>
-        </section>
-    
-    <!-- Constitution Modal -->
+    </main>
+    <footer>
+        <div class="container">
+            <p>SKV Network v7.7 · Chrono-Toroidal Memory System</p>
+            <p><a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a> · <a href="https://github.com/denizchav-arch/skv-network" target="_blank">GitHub</a></p>
+        </div>
+    </footer>
     <div id="constitutionModal" class="modal">
         <div class="modal-content">
             <span class="modal-close">&times;</span>
@@ -403,81 +367,136 @@ POST https://skv.network/api/v7/event/write
             <pre id="modalText"></pre>
         </div>
     </div>
-</main>
-    <footer>
-        <div class="container">
-            <p>🔐 SKV | v7.7 | CUBE 00: DRAFT → VERIFY → CORRECT → OUTPUT</p>
-            <p><a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a> · <a href="https://github.com/denizchavdarov-arch/skv-network" target="_blank">GitHub</a></p>
-        </div>
-    </footer>
     <script>
         function switchTab(idx) {
             document.querySelectorAll('.api-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
             document.querySelectorAll('.code-block').forEach((b, i) => b.classList.toggle('active', i === idx));
         }
+        
         async function loadStats() {
             try {
-                const h = await fetch('/api/v7/health').then(r => r.json());
+                const response = await fetch('/api/v7/health');
+                
+                // Проверяем авторизацию для personal events
+                if (response.status === 401) {
+                    document.getElementById('shared-count').textContent = '—';
+                    document.getElementById('personal-count').textContent = 'Login required';
+                    return;
+                }
+                
+                const h = await response.json();
                 document.getElementById('shared-count').textContent = (h.shared_size || 0).toLocaleString();
-                document.getElementById('personal-count').textContent = (h.personal_size || 0).toLocaleString();
+                
+                // Personal events показываем только если есть данные
+                if (h.personal_size !== undefined) {
+                    document.getElementById('personal-count').textContent = (h.personal_size || 0).toLocaleString();
+                } else {
+                    document.getElementById('personal-count').textContent = '—';
+                }
             } catch(e) {
                 document.getElementById('shared-count').textContent = '—';
                 document.getElementById('personal-count').textContent = '—';
             }
         }
         loadStats();
-    
-        // Constitution Modal
-        
 
-        let constitutionData = null;
+        // Constitution Cubes - Dynamic Loading
+        const cubeIcons = {
+            'CUBE 00': '🧭',
+            'CUBE 01': '❤️',
+            'CUBE 02': '🔍',
+            'CUBE 03': '🛡️',
+            'CUBE 04': '⚖️',
+            'CUBE 05': '⚙️'
+        };
 
-        // Загружаем конституцию при загрузке страницы
+        const cubeNames = {
+            'CUBE 00': 'Core Algorithm',
+            'CUBE 01': 'Moral Compass',
+            'CUBE 02': 'Truth & Verification',
+            'CUBE 03': 'Anti-Manipulation',
+            'CUBE 04': 'Honesty',
+            'CUBE 05': 'Full Protocol'
+        };
+
         async function loadConstitution() {
             try {
                 const response = await fetch('/api/v7/constitution');
                 const data = await response.json();
-                constitutionData = {};
+                
+                const container = document.getElementById('cubes-container');
+                container.innerHTML = ''; // Очищаем контейнер
+                
+                // Обновляем счетчик конституционных правил
+                const constitutionalCount = document.getElementById('constitutional-count');
+                if (constitutionalCount) {
+                    constitutionalCount.textContent = data.constitution.length;
+                }
+                
+                // Рендерим каждый куб
                 data.constitution.forEach(cube => {
-                    const key = cube.id.replace('cube_const_', 'cube_').replace('_v4', '').replace('_v5', '');
-                    constitutionData[key] = {
-                        title: cube.title,
-                        text: cube.text
-                    };
+                    const cubeId = cube.id.replace('cube_const_', 'cube_').replace('_v4', '').replace('_v5', '');
+                    const cubeLabel = cubeId.replace('cube_', 'CUBE ').toUpperCase();
+                    
+                    const card = document.createElement('div');
+                    card.className = 'cube-card';
+                    card.dataset.cubeId = cubeId;
+                    card.innerHTML = `
+                        <div class="cube-icon">${cubeIcons[cubeLabel] || '📦'}</div>
+                        <div class="cube-id">${cubeLabel}</div>
+                        <div class="cube-name">${cubeNames[cubeLabel] || 'Unknown'}</div>
+                        <div class="cube-tooltip">
+                            <strong>${cube.title}</strong><br>
+                            ${cube.text.substring(0, 150)}...
+                        </div>
+                    `;
+                    
+                    // Добавляем обработчик клика
+                    card.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        showModal(cube.title, cube.text);
+                    });
+                    
+                    container.appendChild(card);
                 });
             } catch (e) {
                 console.error('Failed to load constitution:', e);
+                document.getElementById('cubes-container').innerHTML = '<p style="color: #8b8b94;">Failed to load constitutional cubes</p>';
+            }
+        }
+
+        function showModal(title, text) {
+            const modal = document.getElementById('constitutionModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalText = document.getElementById('modalText');
+            
+            if (modal && modalTitle && modalText) {
+                modalTitle.textContent = title;
+                modalText.textContent = text;
+                modal.style.display = 'flex';
             }
         }
 
         document.addEventListener('DOMContentLoaded', function() {
             loadConstitution();
-            
+
             const modal = document.getElementById('constitutionModal');
             if (!modal) return;
-            const modalTitle = document.getElementById('modalTitle');
-            const modalText = document.getElementById('modalText');
+            
             const closeBtn = modal.querySelector('.modal-close');
-
-            document.querySelectorAll('.cube-card').forEach(card => {
-                card.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const cubeId = this.querySelector('.cube-id').textContent.toLowerCase().replace(' ', '_');
-                    if (constitutionData && constitutionData[cubeId]) {
-                        modalTitle.textContent = constitutionData[cubeId].title;
-                        modalText.textContent = constitutionData[cubeId].text;
-                        modal.style.display = 'flex';
-                    }
-                });
-            });
-
             if (closeBtn) {
                 closeBtn.onclick = () => modal.style.display = 'none';
             }
-            modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
-            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') modal.style.display = 'none'; });
+            
+            modal.onclick = (e) => { 
+                if (e.target === modal) modal.style.display = 'none'; 
+            };
+            
+            document.addEventListener('keydown', (e) => { 
+                if (e.key === 'Escape') modal.style.display = 'none'; 
+            });
         });
-</script>
+    </script>
 </body>
 </html>

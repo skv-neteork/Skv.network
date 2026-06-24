@@ -191,7 +191,9 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     memory_text = ""
     has_cubes = False
     try:
-        raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k)
+        # v7.8: pass layer_weights for dynamic masks
+        lw = req.layer_weights if hasattr(req, 'layer_weights') else None
+        raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
         if raw_results:
             filtered_dicts = []
             candidate_ids = []
@@ -249,7 +251,9 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
 async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
     q_vec = np.array(req.query_vector, dtype=np.float32)
     try:
-        raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k)
+        # v7.8: pass layer_weights for dynamic masks
+        lw = req.layer_weights if hasattr(req, 'layer_weights') else None
+        raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
         filtered_results = []
         for r in raw_results:
             event_id = r["event_id"]
@@ -357,6 +361,7 @@ class ChatRequest(BaseModel):
     step: int = 0
     last_seal: str = ""
     top_k: int = 5
+    layer_weights: Optional[Dict[str, float]] = None  # v7.8 dynamic masks
 
 @router.post("/chat")
 async def chat_endpoint(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):

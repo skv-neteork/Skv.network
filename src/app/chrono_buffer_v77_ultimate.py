@@ -100,6 +100,12 @@ class ChronoBufferV77Ultimate:
         self.personal_idx_to_id: Dict[int, str] = {}
         self.personal_id_to_idx: Dict[str, int] = {}
 
+        # NLP model (loaded once)
+        self.nlp_model = None
+        try:
+            import spacy
+            self.nlp_model = spacy.load("en_core_web_sm")
+        except: pass
         # HNSW index for fast search (optional)
         self.personal_hnsw_index = None
         self.shared_hnsw_index = None
@@ -376,8 +382,9 @@ class ChronoBufferV77Ultimate:
         user_id: str = "default",
         hops: int = 2,
         top_k: int = 20,
-        weights: Optional[Dict[str, float]] = None
-    ) -> List[Dict]:
+        weights: Optional[Dict[str, float]] = None,
+        layer_weights: Optional[Dict[str, float]] = None
+    ) -> Dict:
         """
         Search across all three matrices.
         Returns ranked results with source annotation.
@@ -417,6 +424,25 @@ class ChronoBufferV77Ultimate:
                 self.personal_current_size,
                 hops=hops
             )
+            # v7.8: Apply dynamic layer masks
+            if layer_weights:
+                lw = layer_weights
+                action_scores = self.personal_matrix[:self.personal_current_size, 0:64] @ query[0:64]
+                subject_scores = self.personal_matrix[:self.personal_current_size, 64:128] @ query[64:128]
+                object_scores = self.personal_matrix[:self.personal_current_size, 128:192] @ query[128:192]
+                features_scores = self.personal_matrix[:self.personal_current_size, 192:256] @ query[192:256]
+                time_scores = self.personal_matrix[:self.personal_current_size, 256:288] @ query[256:288]
+                metrics_scores = self.personal_matrix[:self.personal_current_size, 288:320] @ query[288:320]
+                p_scores = (
+                    lw.get('action', 1.0) * action_scores +
+                    lw.get('subject', 1.0) * subject_scores +
+                    lw.get('object', 1.0) * object_scores +
+                    lw.get('features', 0.5) * features_scores +
+                    lw.get('time', 0.3) * time_scores +
+                    lw.get('metrics', 0.3) * metrics_scores
+                )
+                p_scores = p_scores * self.personal_active_mask[:self.personal_current_size]
+            
             p_final = 0.6 * p_scores + 0.4 * p_assoc
             p_max = np.max(p_final) or 1.0
             for i in range(self.personal_current_size):
@@ -606,21 +632,37 @@ class ChronoBufferV77Ultimate:
                 context.sort(key=lambda x: -x["score"])
                 context = context[:5]
             
-            # Build memory_map_flat string
+            # Build memory_map_flat from vector layers (v7.8)
             parts = []
+            
+            def _get_vec_essence(eid):
+                try:
+                    import sqlite3
+                    safe_user = ''.join(c for c in user_id if c.isalnum() or c in ('_','-'))
+                    db_path = f'/data/skv/metadata_store/{safe_user}.db'
+                    conn = sqlite3.connect(db_path)
+                    cur = conn.cursor()
+                    cur.execute('SELECT subject, action, object FROM event_metadata WHERE event_id = ?', (eid,))
+                    row = cur.fetchone()
+                    conn.close()
+                    if row and any(row):
+                        return f"{row[0] or '?'} {row[1] or '?'} {row[2] or '?'}".strip()
+                except:
+                    pass
+                return eid[:40]
             # Context before focus (reverse for chronological order)
             for ctx in reversed(context):
-                txt = ctx["essence"] if ctx["essence"] else ctx["event_id"][:80]
-                parts.append(txt[:80])
+                eid = ctx.get("event_id", "")
+                parts.append(_get_vec_essence(eid))
             
             # Focus
-            focus_txt = focus.get("summary", "") or focus.get("essence", "") or focus["event_id"][:80]
-            parts.append(f"🔴 {focus_txt[:80]}")
+            focus_eid = focus.get("event_id", "")
+            parts.append(f"🔴 {_get_vec_essence(focus_eid)}")
             
             # Context after focus
             for ctx in context:
-                txt = ctx["essence"] if ctx["essence"] else ctx["event_id"][:80]
-                parts.append(txt[:80])
+                eid = ctx.get("event_id", "")
+                parts.append(_get_vec_essence(eid))
             
             memory_map_flat = " → ".join(parts)
             
@@ -755,6 +797,56 @@ class ChronoBufferV77Ultimate:
         
         self.personal_global_tick += 1
 
+
+    def _extract_semantic_triad(self, text: str):
+        """Извлекает субъект, действие, объект через spaCy."""
+        try:
+            if self.nlp_model is None:
+                return {"subject": "", "action": "", "object": "", "features": ""}
+            doc = self.nlp_model(text[:2000])
+            subject = ""; action = ""; obj = ""; features = []
+            for token in doc:
+                if token.pos_ == "VERB" and token.dep_ == "ROOT": action = token.text
+                if token.dep_ in ("nsubj", "nsubjpass") and not subject:
+                    seen = set(); chunks = []
+                    for t in token.subtree:
+                        if t.dep_ in ("det", "amod", "compound") and t.text not in seen:
+                            chunks.append(t.text); seen.add(t.text)
+                    if token.text not in seen: chunks.append(token.text)
+                    subject = " ".join(chunks).strip()
+                if token.dep_ in ("dobj", "obj", "obl") and not obj:
+                    seen = set(); chunks = []
+                    for t in token.subtree:
+                        if t.dep_ in ("det", "amod", "compound") and t.text not in seen:
+                            chunks.append(t.text); seen.add(t.text)
+                    if token.text not in seen: chunks.append(token.text)
+                    obj = " ".join(chunks).strip()
+                if token.pos_ in ("ADJ", "ADV"): features.append(token.text)
+            return {"subject": subject or "unknown", "action": action or "unknown", "object": obj or "unknown", "features": " ".join(features)}
+        except: return {"subject": "", "action": "", "object": "", "features": ""}
+
+    def _build_vector_v78(self, triad: dict, hour: int = 0, minute: int = 0, metrics: list = None):
+        """Создаёт вектор v7.8 с раздельными слоями."""
+        import numpy as np, math
+        vec = np.zeros(512, dtype=np.float32)
+        if not hasattr(self, '_cached_embedder'):
+            from fastembed import TextEmbedding
+            self._cached_embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
+        emb = self._cached_embedder
+        if triad.get("action"): vec[0:64] = list(emb.embed([triad["action"][:500]]))[0][:64]
+        if triad.get("subject"): vec[64:128] = list(emb.embed([triad["subject"][:500]]))[0][:64]
+        if triad.get("object"): vec[128:192] = list(emb.embed([triad["object"][:500]]))[0][:64]
+        if triad.get("features"): vec[192:256] = list(emb.embed([triad["features"][:500]]))[0][:64]
+        hour_angle = 2 * math.pi * hour / 24; minute_angle = 2 * math.pi * minute / 60
+        vec[256] = math.sin(hour_angle); vec[257] = math.cos(hour_angle)
+        vec[258] = math.sin(minute_angle); vec[259] = math.cos(minute_angle)
+        if metrics:
+            for i, m in enumerate(metrics[:32]): vec[288 + i] = float(m)
+        for start, size in [(0,64),(64,64),(128,64),(192,64),(256,32),(288,32)]:
+            end = start + size; n = np.linalg.norm(vec[start:end])
+            if n > 0: vec[start:end] /= n
+        return vec
+
     def process_pending_vectors(self, embedder=None):
         """Create vectors for texts that accumulated enough content.
         - Long texts (>500 chars): one vector per text
@@ -802,9 +894,8 @@ class ChronoBufferV77Ultimate:
             # 1. Long texts -> individual vectors with NEXT links
             for eid, txt in long_texts:
                 text = txt or ""
-                emb = list(embedder.embed([text[:1000]]))[0]
-                vec = np.zeros(512, dtype=np.float32)
-                vec[32:384] = emb[:352]
+                triad = self._extract_semantic_triad(text)
+                vec = self._build_vector_v78(triad)
                 
                 # Write to matrix directly
                 if eid not in self.personal_id_to_idx:
@@ -817,6 +908,8 @@ class ChronoBufferV77Ultimate:
                     idx = self.personal_id_to_idx[eid]
                 self.personal_matrix[idx] = vec
                 
+                # Сохраняем triad в SQLite
+                cur.execute('UPDATE event_metadata SET subject = ?, action = ?, object = ?, status = ? WHERE event_id = ?', (triad.get('subject',''), triad.get('action',''), triad.get('object',''), 'active', eid))
                 cur.execute(
                     'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
                     (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
@@ -841,9 +934,8 @@ class ChronoBufferV77Ultimate:
                 
                 if len(batch_text) >= 2000:
                     # Create vector for batch
-                    emb = list(embedder.embed([batch_text[:1000]]))[0]
-                    vec = np.zeros(512, dtype=np.float32)
-                    vec[32:384] = emb[:352]
+                    triad = self._extract_semantic_triad(batch_text)
+                    vec = self._build_vector_v78(triad)
                     
                     batch_indices = []
                     for bid in batch:
@@ -878,9 +970,8 @@ class ChronoBufferV77Ultimate:
             
             # Remaining short texts
             if batch:
-                emb = list(embedder.embed([batch_text[:1000]]))[0]
-                vec = np.zeros(512, dtype=np.float32)
-                vec[32:384] = emb[:352]
+                triad = self._extract_semantic_triad(batch_text)
+                vec = self._build_vector_v78(triad)
                 
                 batch_indices = []
                 for bid in batch:
@@ -1041,9 +1132,8 @@ class ChronoBufferPersistence:
             # 1. Long texts -> individual vectors
             for eid, txt in long_texts:
                 text = txt or ""
-                emb = list(embedder.embed([text[:1000]]))[0]
-                vec = np.zeros(512, dtype=np.float32)
-                vec[32:384] = emb[:352]
+                triad = self._extract_semantic_triad(text)
+                vec = self._build_vector_v78(triad)
                 
                 # Write to matrix directly
                 if eid not in self.personal_id_to_idx:
@@ -1055,6 +1145,8 @@ class ChronoBufferPersistence:
                 else:
                     idx = self.personal_id_to_idx[eid]
                 self.personal_matrix[idx] = vec
+                # Сохраняем triad в SQLite
+                cur.execute('UPDATE event_metadata SET subject = ?, action = ?, object = ?, status = ? WHERE event_id = ?', (triad.get('subject',''), triad.get('action',''), triad.get('object',''), 'active', eid))
                 cur.execute(
                     'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
                     (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
@@ -1079,9 +1171,8 @@ class ChronoBufferPersistence:
                 
                 if len(batch_text) >= 2000:
                     # Create vector for batch
-                    emb = list(embedder.embed([batch_text[:1000]]))[0]
-                    vec = np.zeros(512, dtype=np.float32)
-                    vec[32:384] = emb[:352]
+                    triad = self._extract_semantic_triad(batch_text)
+                    vec = self._build_vector_v78(triad)
                     
                     for bid in batch:
                         if bid not in self.personal_id_to_idx:
@@ -1110,9 +1201,8 @@ class ChronoBufferPersistence:
             
             # Remaining short texts
             if batch:
-                emb = list(embedder.embed([batch_text[:1000]]))[0]
-                vec = np.zeros(512, dtype=np.float32)
-                vec[32:384] = emb[:352]
+                triad = self._extract_semantic_triad(batch_text)
+                vec = self._build_vector_v78(triad)
                 
                 for bid in batch:
                     if bid not in self.personal_id_to_idx:

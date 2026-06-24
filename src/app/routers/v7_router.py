@@ -371,6 +371,21 @@ async def chat_endpoint(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depe
         from app.routers.v4_middleware import get_embedding_cached
         
         is_guest = req.user_id.startswith("guest_")
+        chat_history = ""
+        try:
+            import sqlite3 as _sql, os as _os
+            safe_user = ''.join(c for c in req.user_id if c.isalnum() or c in ('_','-'))
+            db_path = f'/data/skv/metadata_store/{safe_user}.db'
+            if _os.path.exists(db_path):
+                _conn = _sql.connect(db_path)
+                _cur = _conn.cursor()
+                _cur.execute("SELECT raw_dialogue FROM event_metadata WHERE event_id LIKE ? ORDER BY rowid DESC LIMIT 20", (f'{req.user_id}::chat_%',))
+                _rows = _cur.fetchall()
+                if _rows:
+                    chat_history = "=== RECENT CHAT HISTORY ===\n" + "\n".join([r[0][:500] for r in reversed(_rows)])
+                _conn.close()
+        except:
+            pass
         guest_warning = ""
         if is_guest:
             guest_warning = "GUEST MODE: Memory is temporary (24h). Register to save permanently.\n"
@@ -430,7 +445,9 @@ async def chat_endpoint(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depe
         
         seal_context = f"Previous SEAL: {req.last_seal}\nContinue numbering.\n" if req.last_seal else "Start SEAL with #1.\n"
         
-        prompt = f"{guest_warning}{memory_map}\n{constitution_text}\n\n{memory_text if memory_text else 'No relevant memory found.'}\n\n{seal_context}{reminders}\nUser question: {req.message}\n\nReturn your response with SEAL: SKV | #N | READ | VERIFY | CORRECT | OUTPUT"
+        search_map = f"\n=== SEARCH MEMORY MAP ===\n{search_memory_map}\n" if search_memory_map else ""
+        search_instruction = "=== SEARCH MEMORY FIRST ===\nBEFORE answering, check the memory below.\n\n"
+        prompt = f"{guest_warning}{memory_map}{search_instruction}{search_map}{chat_history}\n\n{constitution_text}\n\n{memory_text if memory_text else 'No relevant memory found.'}\n\n{seal_context}{reminders}\nUser question: {req.message}\n\nReturn your response with SEAL: SKV | #N | READ | VERIFY | CORRECT | OUTPUT"
         
         polza_body = json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}).encode()
         polza_key = os.environ.get("POLZA_KEY", "")

@@ -190,7 +190,14 @@ class ChronoBufferV77Ultimate:
         self.shared_active_mask[idx] = True
         self.shared_global_tick += 1
         self.shared_current_size += 1
-        
+        try:
+            import sqlite3 as _sql
+            _conn = _sql.connect('/data/skv/metadata_store/shared_master.db')
+            _conn.execute('INSERT OR REPLACE INTO event_metadata (event_id, time_str, essence, messages_count, links_json, topics_json, raw_dialogue) VALUES (?,?,?,?,?,?,?)', (event_id, 'shared', event_id[:80], 0, '[]', '[]', event_id[:80]))
+            _conn.commit()
+            _conn.close()
+        except:
+            pass
         return idx
     
     def _write_event_to_matrix(
@@ -640,40 +647,154 @@ class ChronoBufferV77Ultimate:
         self.shared_hnsw_index = None
 
 
+    
+    def _add_vector_link(self, src_idx: int, dst_idx: int, link_type: str = 'NEXT'):
+        """Create a NEXT/PREV link between two vectors in personal adjacency."""
+        max_links = self.personal_adjacency_indices.shape[1]
+        
+        # Find empty slot for src -> dst
+        src_row = self.personal_adjacency_indices[src_idx]
+        empty_slots = (src_row == -1).nonzero()[0]
+        if len(empty_slots) > 0:
+            slot = empty_slots[0]
+            self.personal_adjacency_indices[src_idx, slot] = dst_idx
+            # NEXT links get weight 0.7 (strong sequential), PREV gets 0.5
+            weight = 0.7 if link_type == 'NEXT' else 0.5
+            self.personal_adjacency_weights[src_idx, slot] = weight
+            self.personal_link_timestamps[src_idx, slot] = self.personal_global_tick
+        
+        # Also create reverse link (PREV)
+        dst_row = self.personal_adjacency_indices[dst_idx]
+        empty_slots_dst = (dst_row == -1).nonzero()[0]
+        if len(empty_slots_dst) > 0:
+            slot = empty_slots_dst[0]
+            self.personal_adjacency_indices[dst_idx, slot] = src_idx
+            self.personal_adjacency_weights[dst_idx, slot] = 0.5  # PREV
+            self.personal_link_timestamps[dst_idx, slot] = self.personal_global_tick
+        
+        self.personal_global_tick += 1
+
     def process_pending_vectors(self, embedder=None):
-        """Create vectors for texts that accumulated enough content."""
+        """Create vectors for texts that accumulated enough content.
+        - Long texts (>500 chars): one vector per text
+        - Short texts: group until ~2000 chars total (50% fill)
+        - Creates NEXT links between sequential vectors
+        """
         import sqlite3, os, numpy as np
         from datetime import datetime, timezone
         
         base_dir = '/data/skv/metadata_store'
         processed = 0
         
+        if embedder is None:
+            from fastembed import TextEmbedding
+            embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
+        
         for f in os.listdir(base_dir):
             if not f.endswith('.db') or f == 'shared_master.db':
                 continue
+            
             db_path = os.path.join(base_dir, f)
             conn = sqlite3.connect(db_path)
             cur = conn.cursor()
-            cur.execute("SELECT e.event_id, e.raw_dialogue, e.essence FROM event_metadata e LEFT JOIN personal_vectors v ON e.event_id = v.event_id WHERE v.event_id IS NULL ORDER BY e.rowid DESC LIMIT 20")
+            
+            # Get all unvectorized events for this user, ordered by rowid (sequence)
+            cur.execute("""
+                SELECT e.event_id, e.raw_dialogue, e.essence 
+                FROM event_metadata e 
+                LEFT JOIN personal_vectors v ON e.event_id = v.event_id 
+                WHERE v.event_id IS NULL 
+                ORDER BY e.rowid ASC
+            """)
             rows = cur.fetchall()
+            
             if not rows:
                 conn.close()
                 continue
-            text = " ".join([(r[1] or r[2] or "") for r in rows])
-            if len(text) < 100:
-                conn.close()
-                continue
-            if embedder is None:
-                from fastembed import TextEmbedding
-                embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
-            emb = list(embedder.embed([text[:1000]]))[0]
-            vec = np.zeros(512, dtype=np.float32)
-            vec[32:384] = emb[:352]
-            for eid, _, _ in rows:
-                cur.execute('INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)', (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat()))
+            
+            # Separate long and short texts
+            long_texts = [(eid, txt) for eid, txt, ess in rows if len(txt or ess or "") >= 500]
+            short_texts = [(eid, txt) for eid, txt, ess in rows if len(txt or ess or "") < 500]
+            
+            prev_vec_idx = None
+            
+            # 1. Long texts -> individual vectors
+            for eid, txt in long_texts:
+                text = txt or ""
+                emb = list(embedder.embed([text[:1000]]))[0]
+                vec = np.zeros(512, dtype=np.float32)
+                vec[32:384] = emb[:352]
+                
+                # Write to matrix and SQLite
+                self._write_event_to_matrix(eid, vec)
+                cur.execute(
+                    'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
+                    (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
+                )
+                
+                # Create NEXT link if sequential
+                if prev_vec_idx is not None:
+                    curr_idx = self.personal_id_to_idx.get(eid)
+                    if curr_idx is not None:
+                        self._add_vector_link(prev_vec_idx, curr_idx, 'NEXT')
+                
+                prev_vec_idx = self.personal_id_to_idx.get(eid)
+                processed += 1
+            
+            # 2. Short texts -> group until ~2000 chars
+            batch = []
+            batch_text = ""
+            for eid, txt in short_texts:
+                text = txt or ""
+                batch.append(eid)
+                batch_text += " " + text
+                
+                if len(batch_text) >= 2000:
+                    # Create vector for batch
+                    emb = list(embedder.embed([batch_text[:1000]]))[0]
+                    vec = np.zeros(512, dtype=np.float32)
+                    vec[32:384] = emb[:352]
+                    
+                    for bid in batch:
+                        self._write_event_to_matrix(bid, vec)
+                        cur.execute(
+                            'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
+                            (bid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
+                        )
+                    
+                    if prev_vec_idx is not None:
+                        last_batch_idx = self.personal_id_to_idx.get(batch[-1])
+                        if last_batch_idx is not None:
+                            self._add_vector_link(prev_vec_idx, last_batch_idx, 'NEXT')
+                    
+                    prev_vec_idx = self.personal_id_to_idx.get(batch[-1])
+                    processed += len(batch)
+                    batch = []
+                    batch_text = ""
+            
+            # Remaining short texts
+            if batch:
+                emb = list(embedder.embed([batch_text[:1000]]))[0]
+                vec = np.zeros(512, dtype=np.float32)
+                vec[32:384] = emb[:352]
+                
+                for bid in batch:
+                    self._write_event_to_matrix(bid, vec)
+                    cur.execute(
+                        'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
+                        (bid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
+                    )
+                
+                if prev_vec_idx is not None:
+                    last_batch_idx = self.personal_id_to_idx.get(batch[-1])
+                    if last_batch_idx is not None:
+                        self._add_vector_link(prev_vec_idx, last_batch_idx, 'NEXT')
+                
+                processed += len(batch)
+            
             conn.commit()
             conn.close()
-            processed += len(rows)
+        
         return processed
 
     def save(self):
@@ -726,40 +847,154 @@ class ChronoBufferPersistence:
         self.shared_hnsw_index = None
 
 
+    
+    def _add_vector_link(self, src_idx: int, dst_idx: int, link_type: str = 'NEXT'):
+        """Create a NEXT/PREV link between two vectors in personal adjacency."""
+        max_links = self.personal_adjacency_indices.shape[1]
+        
+        # Find empty slot for src -> dst
+        src_row = self.personal_adjacency_indices[src_idx]
+        empty_slots = (src_row == -1).nonzero()[0]
+        if len(empty_slots) > 0:
+            slot = empty_slots[0]
+            self.personal_adjacency_indices[src_idx, slot] = dst_idx
+            # NEXT links get weight 0.7 (strong sequential), PREV gets 0.5
+            weight = 0.7 if link_type == 'NEXT' else 0.5
+            self.personal_adjacency_weights[src_idx, slot] = weight
+            self.personal_link_timestamps[src_idx, slot] = self.personal_global_tick
+        
+        # Also create reverse link (PREV)
+        dst_row = self.personal_adjacency_indices[dst_idx]
+        empty_slots_dst = (dst_row == -1).nonzero()[0]
+        if len(empty_slots_dst) > 0:
+            slot = empty_slots_dst[0]
+            self.personal_adjacency_indices[dst_idx, slot] = src_idx
+            self.personal_adjacency_weights[dst_idx, slot] = 0.5  # PREV
+            self.personal_link_timestamps[dst_idx, slot] = self.personal_global_tick
+        
+        self.personal_global_tick += 1
+
     def process_pending_vectors(self, embedder=None):
-        """Create vectors for texts that accumulated enough content."""
+        """Create vectors for texts that accumulated enough content.
+        - Long texts (>500 chars): one vector per text
+        - Short texts: group until ~2000 chars total (50% fill)
+        - Creates NEXT links between sequential vectors
+        """
         import sqlite3, os, numpy as np
         from datetime import datetime, timezone
         
         base_dir = '/data/skv/metadata_store'
         processed = 0
         
+        if embedder is None:
+            from fastembed import TextEmbedding
+            embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
+        
         for f in os.listdir(base_dir):
             if not f.endswith('.db') or f == 'shared_master.db':
                 continue
+            
             db_path = os.path.join(base_dir, f)
             conn = sqlite3.connect(db_path)
             cur = conn.cursor()
-            cur.execute("SELECT e.event_id, e.raw_dialogue, e.essence FROM event_metadata e LEFT JOIN personal_vectors v ON e.event_id = v.event_id WHERE v.event_id IS NULL ORDER BY e.rowid DESC LIMIT 20")
+            
+            # Get all unvectorized events for this user, ordered by rowid (sequence)
+            cur.execute("""
+                SELECT e.event_id, e.raw_dialogue, e.essence 
+                FROM event_metadata e 
+                LEFT JOIN personal_vectors v ON e.event_id = v.event_id 
+                WHERE v.event_id IS NULL 
+                ORDER BY e.rowid ASC
+            """)
             rows = cur.fetchall()
+            
             if not rows:
                 conn.close()
                 continue
-            text = " ".join([(r[1] or r[2] or "") for r in rows])
-            if len(text) < 100:
-                conn.close()
-                continue
-            if embedder is None:
-                from fastembed import TextEmbedding
-                embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
-            emb = list(embedder.embed([text[:1000]]))[0]
-            vec = np.zeros(512, dtype=np.float32)
-            vec[32:384] = emb[:352]
-            for eid, _, _ in rows:
-                cur.execute('INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)', (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat()))
+            
+            # Separate long and short texts
+            long_texts = [(eid, txt) for eid, txt, ess in rows if len(txt or ess or "") >= 500]
+            short_texts = [(eid, txt) for eid, txt, ess in rows if len(txt or ess or "") < 500]
+            
+            prev_vec_idx = None
+            
+            # 1. Long texts -> individual vectors
+            for eid, txt in long_texts:
+                text = txt or ""
+                emb = list(embedder.embed([text[:1000]]))[0]
+                vec = np.zeros(512, dtype=np.float32)
+                vec[32:384] = emb[:352]
+                
+                # Write to matrix and SQLite
+                self._write_event_to_matrix(eid, vec)
+                cur.execute(
+                    'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
+                    (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
+                )
+                
+                # Create NEXT link if sequential
+                if prev_vec_idx is not None:
+                    curr_idx = self.personal_id_to_idx.get(eid)
+                    if curr_idx is not None:
+                        self._add_vector_link(prev_vec_idx, curr_idx, 'NEXT')
+                
+                prev_vec_idx = self.personal_id_to_idx.get(eid)
+                processed += 1
+            
+            # 2. Short texts -> group until ~2000 chars
+            batch = []
+            batch_text = ""
+            for eid, txt in short_texts:
+                text = txt or ""
+                batch.append(eid)
+                batch_text += " " + text
+                
+                if len(batch_text) >= 2000:
+                    # Create vector for batch
+                    emb = list(embedder.embed([batch_text[:1000]]))[0]
+                    vec = np.zeros(512, dtype=np.float32)
+                    vec[32:384] = emb[:352]
+                    
+                    for bid in batch:
+                        self._write_event_to_matrix(bid, vec)
+                        cur.execute(
+                            'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
+                            (bid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
+                        )
+                    
+                    if prev_vec_idx is not None:
+                        last_batch_idx = self.personal_id_to_idx.get(batch[-1])
+                        if last_batch_idx is not None:
+                            self._add_vector_link(prev_vec_idx, last_batch_idx, 'NEXT')
+                    
+                    prev_vec_idx = self.personal_id_to_idx.get(batch[-1])
+                    processed += len(batch)
+                    batch = []
+                    batch_text = ""
+            
+            # Remaining short texts
+            if batch:
+                emb = list(embedder.embed([batch_text[:1000]]))[0]
+                vec = np.zeros(512, dtype=np.float32)
+                vec[32:384] = emb[:352]
+                
+                for bid in batch:
+                    self._write_event_to_matrix(bid, vec)
+                    cur.execute(
+                        'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
+                        (bid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
+                    )
+                
+                if prev_vec_idx is not None:
+                    last_batch_idx = self.personal_id_to_idx.get(batch[-1])
+                    if last_batch_idx is not None:
+                        self._add_vector_link(prev_vec_idx, last_batch_idx, 'NEXT')
+                
+                processed += len(batch)
+            
             conn.commit()
             conn.close()
-            processed += len(rows)
+        
         return processed
 
     def save(self):

@@ -357,7 +357,7 @@ class ChronoBufferV77Ultimate:
             # Normalize to prevent energy explosion (keep in [0, 1])
             max_score = np.max(scores)
             if max_score > 1.0:
-                scores = scores / max_scor
+                scores = scores / max_score
         
         # Final normalization (once, after all hops)
         max_score = np.max(scores)
@@ -552,8 +552,89 @@ class ChronoBufferV77Ultimate:
             else:
                 filtered_shared.append(r)
         shared = filtered_shared
+        # MEMORY MAP: build context for top personal result
+        personal_result = personal[:top_k]
+        memory_map_flat = ""
+        
+        if personal_result:
+            focus = personal_result[0]
+            focus_idx = self.personal_id_to_idx.get(focus["event_id"])
+            
+            context = []
+            if focus_idx is not None:
+                # Read adjacency row for focus event
+                adj_row = self.personal_adjacency_indices[focus_idx]
+                weight_row = self.personal_adjacency_weights[focus_idx]
+                
+                for slot in range(len(adj_row)):
+                    neighbor_idx = adj_row[slot]
+                    weight = weight_row[slot]
+                    
+                    if neighbor_idx < 0 or weight <= 0:
+                        continue
+                    if neighbor_idx >= self.personal_current_size:
+                        continue
+                    if not self.personal_active_mask[neighbor_idx]:
+                        continue
+                    
+                    neighbor_id = self.personal_idx_to_id.get(neighbor_idx, f"personal_{neighbor_idx}")
+                    
+                    # Get essence from metadata
+                    neighbor_essence = ""
+                    try:
+                        if user_id != "default":
+                            safe_user = ''.join(c for c in user_id if c.isalnum() or c in ('_','-'))
+                            db_path = f'/data/skv/metadata_store/{safe_user}.db'
+                            if os.path.exists(db_path):
+                                conn = sqlite3.connect(db_path)
+                                cur = conn.execute('SELECT essence FROM event_metadata WHERE event_id = ?', (neighbor_id,))
+                                row = cur.fetchone()
+                                if row and row[0]:
+                                    neighbor_essence = str(row[0])[:200]
+                                conn.close()
+                    except:
+                        pass
+                    
+                    context.append({
+                        "event_id": neighbor_id,
+                        "score": float(weight),
+                        "relation": "LINK" if weight >= 0.5 else "WEAK",
+                        "essence": neighbor_essence
+                    })
+                
+                # Sort by weight descending, take top 5
+                context.sort(key=lambda x: -x["score"])
+                context = context[:5]
+            
+            # Build memory_map_flat string
+            parts = []
+            # Context before focus (reverse for chronological order)
+            for ctx in reversed(context):
+                txt = ctx["essence"] if ctx["essence"] else ctx["event_id"][:80]
+                parts.append(txt[:80])
+            
+            # Focus
+            focus_txt = focus.get("summary", "") or focus.get("essence", "") or focus["event_id"][:80]
+            parts.append(f"🔴 {focus_txt[:80]}")
+            
+            # Context after focus
+            for ctx in context:
+                txt = ctx["essence"] if ctx["essence"] else ctx["event_id"][:80]
+                parts.append(txt[:80])
+            
+            memory_map_flat = " → ".join(parts)
+            
+            # Wrap personal result
+            personal_result = {
+                "focus": focus,
+                "context": context,
+                "memory_map_flat": memory_map_flat
+            }
+        else:
+            personal_result = []
+        
         return {
-            "personal_memory": personal[:top_k],
+            "personal_memory": personal_result,
             "shared_knowledge": shared[:top_k],
             "core_protocol": core[:top_k]
         }
@@ -678,7 +759,7 @@ class ChronoBufferV77Ultimate:
         """Create vectors for texts that accumulated enough content.
         - Long texts (>500 chars): one vector per text
         - Short texts: group until ~2000 chars total (50% fill)
-        - Creates NEXT links between sequential vectors
+        - Creates NEXT links between sequential vectors automatically
         """
         import sqlite3, os, numpy as np
         from datetime import datetime, timezone
@@ -718,30 +799,39 @@ class ChronoBufferV77Ultimate:
             
             prev_vec_idx = None
             
-            # 1. Long texts -> individual vectors
+            # 1. Long texts -> individual vectors with NEXT links
             for eid, txt in long_texts:
                 text = txt or ""
                 emb = list(embedder.embed([text[:1000]]))[0]
                 vec = np.zeros(512, dtype=np.float32)
                 vec[32:384] = emb[:352]
                 
-                # Write to matrix and SQLite
-                self._write_event_to_matrix(eid, vec)
+                # Write to matrix directly
+                if eid not in self.personal_id_to_idx:
+                    idx = self.personal_current_size
+                    self.personal_idx_to_id[idx] = eid
+                    self.personal_id_to_idx[eid] = idx
+                    self.personal_active_mask[idx] = True
+                    self.personal_current_size += 1
+                else:
+                    idx = self.personal_id_to_idx[eid]
+                self.personal_matrix[idx] = vec
+                
                 cur.execute(
                     'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
                     (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
                 )
                 
-                # Create NEXT link if sequential
+                # CREATE NEXT LINK if we have a previous vector
                 if prev_vec_idx is not None:
                     curr_idx = self.personal_id_to_idx.get(eid)
-                    if curr_idx is not None:
+                    if curr_idx is not None and curr_idx != prev_vec_idx:
                         self._add_vector_link(prev_vec_idx, curr_idx, 'NEXT')
                 
                 prev_vec_idx = self.personal_id_to_idx.get(eid)
                 processed += 1
             
-            # 2. Short texts -> group until ~2000 chars
+            # 2. Short texts -> group until ~2000 chars, then vectorize with links
             batch = []
             batch_text = ""
             for eid, txt in short_texts:
@@ -755,19 +845,33 @@ class ChronoBufferV77Ultimate:
                     vec = np.zeros(512, dtype=np.float32)
                     vec[32:384] = emb[:352]
                     
+                    batch_indices = []
                     for bid in batch:
-                        self._write_event_to_matrix(bid, vec)
+                        if bid not in self.personal_id_to_idx:
+                            idx = self.personal_current_size
+                            self.personal_idx_to_id[idx] = bid
+                            self.personal_id_to_idx[bid] = idx
+                            self.personal_active_mask[idx] = True
+                            self.personal_current_size += 1
+                        else:
+                            idx = self.personal_id_to_idx[bid]
+                        self.personal_matrix[idx] = vec
+                        batch_indices.append(idx)
+                        
                         cur.execute(
                             'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
                             (bid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
                         )
                     
-                    if prev_vec_idx is not None:
-                        last_batch_idx = self.personal_id_to_idx.get(batch[-1])
-                        if last_batch_idx is not None:
-                            self._add_vector_link(prev_vec_idx, last_batch_idx, 'NEXT')
+                    # Create NEXT links between batch and previous, and within batch
+                    if prev_vec_idx is not None and batch_indices:
+                        self._add_vector_link(prev_vec_idx, batch_indices[0], 'NEXT')
                     
-                    prev_vec_idx = self.personal_id_to_idx.get(batch[-1])
+                    # Link within batch
+                    for k in range(len(batch_indices) - 1):
+                        self._add_vector_link(batch_indices[k], batch_indices[k+1], 'NEXT')
+                    
+                    prev_vec_idx = batch_indices[-1] if batch_indices else prev_vec_idx
                     processed += len(batch)
                     batch = []
                     batch_text = ""
@@ -778,22 +882,38 @@ class ChronoBufferV77Ultimate:
                 vec = np.zeros(512, dtype=np.float32)
                 vec[32:384] = emb[:352]
                 
+                batch_indices = []
                 for bid in batch:
-                    self._write_event_to_matrix(bid, vec)
+                    if bid not in self.personal_id_to_idx:
+                        idx = self.personal_current_size
+                        self.personal_idx_to_id[idx] = bid
+                        self.personal_id_to_idx[bid] = idx
+                        self.personal_active_mask[idx] = True
+                        self.personal_current_size += 1
+                    else:
+                        idx = self.personal_id_to_idx[bid]
+                    self.personal_matrix[idx] = vec
+                    batch_indices.append(idx)
+                    
                     cur.execute(
                         'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
                         (bid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
                     )
                 
-                if prev_vec_idx is not None:
-                    last_batch_idx = self.personal_id_to_idx.get(batch[-1])
-                    if last_batch_idx is not None:
-                        self._add_vector_link(prev_vec_idx, last_batch_idx, 'NEXT')
+                if prev_vec_idx is not None and batch_indices:
+                    self._add_vector_link(prev_vec_idx, batch_indices[0], 'NEXT')
+                
+                for k in range(len(batch_indices) - 1):
+                    self._add_vector_link(batch_indices[k], batch_indices[k+1], 'NEXT')
                 
                 processed += len(batch)
             
             conn.commit()
             conn.close()
+        
+        # Save after processing so links persist
+        if processed > 0 and self.persistence:
+            self.persistence.save()
         
         return processed
 
@@ -925,8 +1045,16 @@ class ChronoBufferPersistence:
                 vec = np.zeros(512, dtype=np.float32)
                 vec[32:384] = emb[:352]
                 
-                # Write to matrix and SQLite
-                self._write_event_to_matrix(eid, vec)
+                # Write to matrix directly
+                if eid not in self.personal_id_to_idx:
+                    idx = self.personal_current_size
+                    self.personal_idx_to_id[idx] = eid
+                    self.personal_id_to_idx[eid] = idx
+                    self.personal_active_mask[idx] = True
+                    self.personal_current_size += 1
+                else:
+                    idx = self.personal_id_to_idx[eid]
+                self.personal_matrix[idx] = vec
                 cur.execute(
                     'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
                     (eid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
@@ -956,7 +1084,15 @@ class ChronoBufferPersistence:
                     vec[32:384] = emb[:352]
                     
                     for bid in batch:
-                        self._write_event_to_matrix(bid, vec)
+                        if bid not in self.personal_id_to_idx:
+                            idx = self.personal_current_size
+                            self.personal_idx_to_id[idx] = bid
+                            self.personal_id_to_idx[bid] = idx
+                            self.personal_active_mask[idx] = True
+                            self.personal_current_size += 1
+                        else:
+                            idx = self.personal_id_to_idx[bid]
+                        self.personal_matrix[idx] = vec
                         cur.execute(
                             'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
                             (bid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
@@ -979,7 +1115,15 @@ class ChronoBufferPersistence:
                 vec[32:384] = emb[:352]
                 
                 for bid in batch:
-                    self._write_event_to_matrix(bid, vec)
+                    if bid not in self.personal_id_to_idx:
+                        idx = self.personal_current_size
+                        self.personal_idx_to_id[idx] = bid
+                        self.personal_id_to_idx[bid] = idx
+                        self.personal_active_mask[idx] = True
+                        self.personal_current_size += 1
+                    else:
+                        idx = self.personal_id_to_idx[bid]
+                    self.personal_matrix[idx] = vec
                     cur.execute(
                         'INSERT OR REPLACE INTO personal_vectors (event_id, vector_blob, created_at) VALUES (?, ?, ?)',
                         (bid, vec.tobytes(), datetime.now(timezone.utc).isoformat())
@@ -1103,6 +1247,68 @@ class ChronoBufferPersistence:
                     setattr(self.buffer, attr, d)
             
             logger.info(f"Buffer loaded: personal={self.buffer.personal_current_size}, shared={self.buffer.shared_current_size}")
+            
+            import sqlite3
+            # RESTORE VECTORS FROM SQLITE (they may be newer than buffer.npz)
+            try:
+                restored = 0
+                base_dir = '/data/skv/metadata_store'
+                if os.path.isdir(base_dir):
+                    for f in os.listdir(base_dir):
+                        if not f.endswith('.db') or f == 'shared_master.db':
+                            continue
+                        db_path = os.path.join(base_dir, f)
+                        conn = sqlite3.connect(db_path)
+                        cur = conn.cursor()
+                        cur.execute('SELECT event_id, vector_blob FROM personal_vectors')
+                        for eid, blob in cur.fetchall():
+                            vec = np.frombuffer(blob, dtype=np.float32)
+                            idx = self.buffer.personal_id_to_idx.get(eid)
+                            if idx is not None:
+                                self.buffer.personal_matrix[idx] = vec
+                                restored += 1
+                        conn.close()
+                    if restored > 0:
+                        logger.info(f"Restored {restored} vectors from SQLite")
+            except Exception as e:
+                logger.warning(f"Vector restore error: {e}")
+            
+            # REBUILD LINKS for sequential events (books, sessions)
+            try:
+                from collections import defaultdict
+                rebuilt_links = 0
+                # Group events by source (book_id for test_user, session for chats)
+                sources = defaultdict(list)
+                for i in range(self.buffer.personal_current_size):
+                    eid = self.buffer.personal_idx_to_id.get(i, '')
+                    if not eid:
+                        continue
+                    # Extract source key: book_id for test_user::bookId_chunkNum, or session_id
+                    if '::' in eid:
+                        parts = eid.split('::')[1].split('_')
+                        if len(parts) >= 2 and parts[0].isdigit():
+                            source_key = parts[0]  # book_id
+                            chunk_num = int(parts[1])
+                            sources[source_key].append((chunk_num, i))
+                
+                for source_key, chunks in sources.items():
+                    chunks.sort()
+                    for k in range(len(chunks) - 1):
+                        _, idx_a = chunks[k]
+                        _, idx_b = chunks[k + 1]
+                        # Check if link already exists
+                        existing = self.buffer.personal_adjacency_indices[idx_a]
+                        if idx_b not in existing:
+                            self.buffer._add_vector_link(idx_a, idx_b, 'NEXT')
+                            rebuilt_links += 2
+                
+                if rebuilt_links > 0:
+                    logger.info(f"Rebuilt {rebuilt_links} links")
+            except Exception as e:
+                logger.warning(f"Link rebuild skipped: {e}")
+            except Exception as e:
+                logger.warning(f"Vector restore skipped: {e}")
+            
             return True
             
         except Exception as e:

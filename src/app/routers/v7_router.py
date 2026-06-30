@@ -143,7 +143,16 @@ def _cached_search(buffer, qv, uid, hops, top_k, layer_weights=None):
     result = buffer.hybrid_search(query=qv, user_id=uid, hops=hops, top_k=top_k)
     # Convert structured format to flat list for compatibility
     if isinstance(result, dict):
-        result = result.get('personal_memory', []) + result.get('shared_knowledge', []) + result.get('core_protocol', [])
+        pm = result.get('personal_memory', {})
+        if isinstance(pm, dict):
+            flat = []
+            focus = pm.get('focus')
+            if focus:
+                flat.append(focus)
+            flat.extend(pm.get('context', []))
+            result = flat + result.get('shared_knowledge', []) + result.get('core_protocol', [])
+        else:
+            result = pm + result.get('shared_knowledge', []) + result.get('core_protocol', []) if isinstance(pm, list) else []
     with _cache_lock:
         _search_cache[key] = (datetime.now(timezone.utc), result)
         if len(_search_cache) > _CACHE_MAX_SIZE:

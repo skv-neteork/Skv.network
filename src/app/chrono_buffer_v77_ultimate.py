@@ -831,7 +831,7 @@ class ChronoBufferV77Ultimate:
         vec = np.zeros(512, dtype=np.float32)
         if not hasattr(self, '_cached_embedder'):
             from fastembed import TextEmbedding
-            self._cached_embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
+            self._cached_embedder = TextEmbedding(model_name='BAAI/bge-base-en-v1.5')
         emb = self._cached_embedder
         if triad.get("action"): vec[0:64] = list(emb.embed([triad["action"][:500]]))[0][:64]
         if triad.get("subject"): vec[64:128] = list(emb.embed([triad["subject"][:500]]))[0][:64]
@@ -861,7 +861,7 @@ class ChronoBufferV77Ultimate:
         
         if embedder is None:
             from fastembed import TextEmbedding
-            embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
+            embedder = TextEmbedding(model_name='BAAI/bge-base-en-v1.5')
         
         for f in os.listdir(base_dir):
             if not f.endswith('.db') or f == 'shared_master.db':
@@ -1099,7 +1099,7 @@ class ChronoBufferPersistence:
         
         if embedder is None:
             from fastembed import TextEmbedding
-            embedder = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
+            embedder = TextEmbedding(model_name='BAAI/bge-base-en-v1.5')
         
         for f in os.listdir(base_dir):
             if not f.endswith('.db') or f == 'shared_master.db':

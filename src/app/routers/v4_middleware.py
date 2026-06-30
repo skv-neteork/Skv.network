@@ -6,7 +6,7 @@ _model = None
 def get_model():
     global _model
     if _model is None:
-        _model = TextEmbedding(model_name='BAAI/bge-small-en-v1.5')
+        _model = TextEmbedding(model_name='BAAI/bge-base-en-v1.5')
     return _model
 
 def get_embedding(text: str) -> list:

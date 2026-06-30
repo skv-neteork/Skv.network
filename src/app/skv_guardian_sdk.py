@@ -55,7 +55,7 @@ class SKVGuardianSDK:
         if self._embedder is None:
             try:
                 from fastembed import TextEmbedding
-                self._embedder = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+                self._embedder = TextEmbedding(model_name="BAAI/bge-base-en-v1.5")
                 logger.info("FastEmbed initialized")
             except Exception as e:
                 logger.warning(f"FastEmbed not available: {e}")

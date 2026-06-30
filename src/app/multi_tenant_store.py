@@ -90,8 +90,8 @@ class MultiTenantMetadataStore:
                     "essence": row[2],
                     "metric_value": row[3] if row[3] is not None else "нет",
                     "messages_count": row[4],
-                    "links": (json.loads(row[5]) if row[5] and row[5].strip() else []),
-                    "topics": (json.loads(row[6]) if row[6] and row[6].strip() else []),
+                    "links": (json.loads(row[5]) if row[5] and row[5].strip() and row[5].strip().startswith("[") else []),
+                    "topics": (json.loads(row[6]) if row[6] and row[6].strip() and row[6].strip().startswith("[") else []),
                     "raw_dialogue": row[7]
                 }
 

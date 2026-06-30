@@ -204,7 +204,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         full_emb = get_embedding_cached(req.query_text)
         full_list = full_emb if isinstance(full_emb, list) else full_emb.tolist()
         q_vec = np.zeros(768, dtype=np.float32)
-        q_vec[:384] = full_list[:384]
+        q_vec[:768] = full_list[:768]
     elif req.query_vector:
         q_vec = np.array(req.query_vector, dtype=np.float32)
     else:

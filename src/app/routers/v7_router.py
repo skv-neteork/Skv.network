@@ -189,6 +189,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     if not req.user_id or not req.user_id.strip():
         raise HTTPException(status_code=422, detail="user_id cannot be empty")
     check_rate_limit(req.user_id)
+    step = req.step
     if req.query_text:
         from app.routers.v4_middleware import get_embedding_cached
         full_emb = get_embedding_cached(req.query_text)

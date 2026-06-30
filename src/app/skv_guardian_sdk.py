@@ -61,7 +61,7 @@ class SKVGuardianSDK:
                 logger.warning(f"FastEmbed not available: {e}")
         return self._embedder
 
-    def _create_embedding(self, text: str, target_dim: int = 218) -> List[float]:
+    def _create_embedding(self, text: str, target_dim: int = 768) -> List[float]:
         cache_key = f"{text}:{target_dim}"
         if cache_key in self._embedding_cache:
             return self._embedding_cache[cache_key]
@@ -93,7 +93,7 @@ class SKVGuardianSDK:
             step = self.step_counter.get(session_id, 0)
             last_seal = self.last_seal.get(session_id, "")
             emb = self._create_embedding(query, 218)
-            query_vec = emb + [0.0] * (512 - len(emb))
+            query_vec = emb + [0.0] * (768 - len(emb))
             r = self._http_client.post(f"{self.skv_url}/api/v7/memory", json={"query_vector": query_vec, "user_id": user_id, "step": step, "last_seal": last_seal, "hops": 2, "top_k": 5})
             r.raise_for_status()
             return r.json().get("prompt_text", "")

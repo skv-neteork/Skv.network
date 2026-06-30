@@ -262,7 +262,30 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         reminders += "⭐ Оставь feedback на использованные кубы\n"
     reminders += "📜 Все кубы конституции загружены\n"
     reminders += "🔐 Выполни Second Look и поставь SEAL\n"
-    prompt_text = f"{memory_text}\n\n{constitution_text}\n\n{seal_context}\n{reminders}"
+    # Load L2 Memory Map
+    memory_map_text = ""
+    try:
+        import sqlite3 as sq
+        db_name = req.user_id.replace("@", "").replace(".", "")
+        l2_conn = sq.connect(f"/data/skv/metadata_store/{db_name}.db")
+        l2_cur = l2_conn.cursor()
+        l2_cur.execute("SELECT map_json FROM summary_l2 WHERE user_id = ?", (req.user_id,))
+        l2_row = l2_cur.fetchone()
+        if l2_row and l2_row[0]:
+            import json as jn
+            l2_map = jn.loads(l2_row[0])
+            memory_map_text = "=== MEMORY MAP L2 ===\n"
+            themes = l2_map.get("main_themes", [])[:5]
+            if themes:
+                memory_map_text += f"Основные темы: {', '.join(themes)}\n"
+            profile = l2_map.get("user_profile", "")
+            if profile:
+                memory_map_text += f"Профиль: {profile[:300]}\n"
+        l2_conn.close()
+    except:
+        pass
+    
+    prompt_text = f"{memory_text}\n\n{memory_map_text}\n{constitution_text}\n\n{seal_context}\n{reminders}"
     return {"prompt_text": prompt_text, "memory": memory_text, "constitution": constitution_text, "reminders": reminders, "has_cubes": has_cubes, "step": step}
 
 @router.post("/search", response_model=SearchResponse)

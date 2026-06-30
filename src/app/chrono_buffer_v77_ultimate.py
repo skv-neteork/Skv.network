@@ -520,7 +520,9 @@ class ChronoBufferV77Ultimate:
                 safe_user = ''.join(c for c in user_id if c.isalnum() or c in ('_','-'))
                 db_path = f'/data/skv/metadata_store/{safe_user}.db'
                 if os.path.exists(db_path):
-                    conn = sqlite3.connect(db_path)
+                    conn = sqlite3.connect(db_path, timeout=30)
+            conn.execute('PRAGMA journal_mode = WAL')
+            conn.execute('PRAGMA busy_timeout = 30000')
                     placeholders = ','.join('?' for _ in personal_ids)
                     cur = conn.execute(f'SELECT event_id, time_str, essence, links_json, topics_json FROM event_metadata WHERE event_id IN ({placeholders})', personal_ids)
                     meta_map = {}
@@ -612,7 +614,9 @@ class ChronoBufferV77Ultimate:
                             safe_user = ''.join(c for c in user_id if c.isalnum() or c in ('_','-'))
                             db_path = f'/data/skv/metadata_store/{safe_user}.db'
                             if os.path.exists(db_path):
-                                conn = sqlite3.connect(db_path)
+                                conn = sqlite3.connect(db_path, timeout=30)
+            conn.execute('PRAGMA journal_mode = WAL')
+            conn.execute('PRAGMA busy_timeout = 30000')
                                 cur = conn.execute('SELECT essence FROM event_metadata WHERE event_id = ?', (neighbor_id,))
                                 row = cur.fetchone()
                                 if row and row[0]:
@@ -640,7 +644,9 @@ class ChronoBufferV77Ultimate:
                     import sqlite3
                     safe_user = ''.join(c for c in user_id if c.isalnum() or c in ('_','-'))
                     db_path = f'/data/skv/metadata_store/{safe_user}.db'
-                    conn = sqlite3.connect(db_path)
+                    conn = sqlite3.connect(db_path, timeout=30)
+            conn.execute('PRAGMA journal_mode = WAL')
+            conn.execute('PRAGMA busy_timeout = 30000')
                     cur = conn.cursor()
                     cur.execute('SELECT subject, action, object FROM event_metadata WHERE event_id = ?', (eid,))
                     row = cur.fetchone()
@@ -868,7 +874,9 @@ class ChronoBufferV77Ultimate:
                 continue
             
             db_path = os.path.join(base_dir, f)
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(db_path, timeout=30)
+            conn.execute('PRAGMA journal_mode = WAL')
+            conn.execute('PRAGMA busy_timeout = 30000')
             cur = conn.cursor()
             
             # Get all unvectorized events for this user, ordered by rowid (sequence)
@@ -1106,7 +1114,9 @@ class ChronoBufferPersistence:
                 continue
             
             db_path = os.path.join(base_dir, f)
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(db_path, timeout=30)
+            conn.execute('PRAGMA journal_mode = WAL')
+            conn.execute('PRAGMA busy_timeout = 30000')
             cur = conn.cursor()
             
             # Get all unvectorized events for this user, ordered by rowid (sequence)
@@ -1348,7 +1358,9 @@ class ChronoBufferPersistence:
                         if not f.endswith('.db') or f == 'shared_master.db':
                             continue
                         db_path = os.path.join(base_dir, f)
-                        conn = sqlite3.connect(db_path)
+                        conn = sqlite3.connect(db_path, timeout=30)
+            conn.execute('PRAGMA journal_mode = WAL')
+            conn.execute('PRAGMA busy_timeout = 30000')
                         cur = conn.cursor()
                         cur.execute('SELECT event_id, vector_blob FROM personal_vectors')
                         for eid, blob in cur.fetchall():

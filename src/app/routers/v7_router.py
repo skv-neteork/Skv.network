@@ -18,14 +18,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v7", tags=["ChronoMemory"])
 
 class SearchRequest(BaseModel):
-    query_vector: List[float] = Field(..., min_length=512, max_length=512)
+    query_vector: Optional[List[float]] = None
+    query_text: Optional[str] = None
     user_id: str = Field(...)
     depth: int = Field(384, ge=250, le=512)
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(20, ge=1, le=100)
 
 class MemoryRequest(BaseModel):
-    query_vector: List[float] = Field(..., min_length=512, max_length=512)
+    query_vector: Optional[List[float]] = None
+    query_text: Optional[str] = None
     user_id: str = Field(...)
     step: int = Field(0, ge=0)
     last_seal: str = Field("")
@@ -128,7 +130,7 @@ def check_rate_limit(user_id: str, max_requests: int = 60, window: int = 60):
 def _cache_key(qv, uid, hops, top_k):
     return hashlib.md5(bytes(qv) + uid.encode() + f":{hops}:{top_k}".encode()).hexdigest()
 
-def _cached_search(buffer, qv, uid, hops, top_k):
+def _cached_search(buffer, qv, uid, hops, top_k, layer_weights=None):
     key = _cache_key(qv, uid, hops, top_k)
     with _cache_lock:
         if key in _search_cache:
@@ -187,7 +189,16 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     if not req.user_id or not req.user_id.strip():
         raise HTTPException(status_code=422, detail="user_id cannot be empty")
     check_rate_limit(req.user_id)
-    q_vec = np.array(req.query_vector, dtype=np.float32)
+    if req.query_text:
+        from app.routers.v4_middleware import get_embedding_cached
+        full_emb = get_embedding_cached(req.query_text)
+        full_list = full_emb if isinstance(full_emb, list) else full_emb.tolist()
+        q_vec = np.zeros(768, dtype=np.float32)
+        q_vec[:384] = full_list[:384]
+    elif req.query_vector:
+        q_vec = np.array(req.query_vector, dtype=np.float32)
+    else:
+        q_vec = np.zeros(768, dtype=np.float32)
     memory_text = ""
     has_cubes = False
     try:

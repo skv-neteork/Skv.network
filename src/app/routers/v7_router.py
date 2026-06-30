@@ -230,7 +230,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"
     
     # Load constitutional cubes from SQLite (shared_master.db)
-    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_05_v4"]
+    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v4"]
     constitution_map = metadata_store.batch_get_metadata("shared_master", constitution_cube_ids)
     
     # Build constitution text from loaded cubes
@@ -245,16 +245,13 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     
     seal_context = f"Предыдущий SEAL: {req.last_seal}\nПродолжи нумерацию.\n" if req.last_seal else "Начни SEAL с #1.\n"
     reminders = "=== GUARDIAN L1 ===\n"
-    step = req.step
-    if step == 0:
-        reminders += "Загрузи все кубы конституции (CUBE 00-05)\n"
-    if step > 0 and step % 5 == 0:
-        reminders += "Сохрани сессию в память\n"
-    if step > 0 and step % 15 == 0:
-        reminders += "Создай experience cube, если было важное\n"
+    reminders += "📝 Сохрани сессию (POST /api/v7/event/write)\n"
+    reminders += "📦 Создай experience cube если было важное\n"
+    reminders += "🗺 Обнови Memory Map L2\n"
     if has_cubes:
-        reminders += "Оставь feedback на использованные кубы\n"
-    reminders += "Выполни Second Look и поставь SEAL\n"
+        reminders += "⭐ Оставь feedback на использованные кубы\n"
+    reminders += "📜 Все кубы конституции загружены\n"
+    reminders += "🔐 Выполни Second Look и поставь SEAL\n"
     prompt_text = f"{memory_text}\n\n{constitution_text}\n\n{seal_context}\n{reminders}"
     return {"prompt_text": prompt_text, "memory": memory_text, "constitution": constitution_text, "reminders": reminders, "has_cubes": has_cubes, "step": step}
 

@@ -311,23 +311,28 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
         raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
         
-        # HYBRID: FTS5 exact matches get score boost
+        # HYBRID: Multi-word FTS5 boost (more matched words = higher boost)
         if req.query_text and raw_results:
             try:
                 import sqlite3 as sq
                 db_name = req.user_id.replace('@', '').replace('.', '')
                 fts_conn = sq.connect(f'/data/skv/metadata_store/{db_name}.db')
                 fts_cur = fts_conn.cursor()
-                words = [w for w in req.query_text.split() if len(w) > 3]
-                if words:
-                    keywords = ' OR '.join(words)
-                    fts_cur.execute('SELECT event_id FROM events_fts WHERE events_fts MATCH ?', (keywords,))
-                    fts_ids = {r[0] for r in fts_cur.fetchall()}
+                all_words = [w for w in req.query_text.split() if len(w) > 3]
+                if all_words:
+                    fts_matches = {}
+                    for word in all_words:
+                        fts_cur.execute('SELECT event_id FROM events_fts WHERE events_fts MATCH ?', (word,))
+                        for (eid,) in fts_cur.fetchall():
+                            fts_matches[eid] = fts_matches.get(eid, 0) + 1
                     fts_conn.close()
-                    if fts_ids:
+                    if fts_matches:
                         for r in raw_results:
-                            if r.get('event_id') in fts_ids:
-                                r['score'] = r.get('score', 0) * 1.5 + 0.2
+                            eid = r.get('event_id')
+                            if eid in fts_matches:
+                                word_count = fts_matches[eid]
+                                boost = 1.0 + (word_count * 0.5)
+                                r['score'] = r.get('score', 0) * boost + (word_count * 0.2)
                         raw_results.sort(key=lambda x: -x.get('score', 0))
             except:
                 pass

@@ -79,20 +79,30 @@ class MultiTenantMetadataStore:
 
     def _fetch_chunk(self, db_path: str, ids: List[str], result_map: dict):
         placeholders = ",".join("?" for _ in ids)
-        query = f"SELECT * FROM event_metadata WHERE event_id IN ({placeholders})"
+        query = f"SELECT event_id, time_str, essence, messages_count, links_json, topics_json, raw_dialogue FROM event_metadata WHERE event_id IN ({placeholders})"
         with sqlite3.connect(db_path) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.execute(query, ids)
             for row in cursor.fetchall():
                 eid = row[0]
+                links_raw = row[4]
+                topics_raw = row[5]
+                try:
+                    links = json.loads(links_raw) if links_raw and links_raw.strip() else []
+                except:
+                    links = []
+                try:
+                    topics = json.loads(topics_raw) if topics_raw and topics_raw.strip() else []
+                except:
+                    topics = []
                 result_map[eid] = {
                     "time": row[1],
                     "essence": row[2],
-                    "metric_value": row[3] if row[3] is not None else "нет",
-                    "messages_count": row[4],
-                    "links": (json.loads(row[5]) if row[5] and row[5].strip() and (row[5].strip().startswith("[") or row[5].strip().startswith("{") or row[5].strip().startswith("{") or row[5].strip().startswith("{")) else []),
-                    "links": (json.loads(row[5]) if row[5] and row[5].strip() and (row[5].strip().startswith("[") or row[5].strip().startswith("{")) else []),
-                    "topics": (json.loads(row[6]) if row[6] and row[6].strip() and (row[6].strip().startswith("[") or row[6].strip().startswith("{")) else []),
+                    "metric_value": "нет",
+                    "messages_count": row[3] if row[3] is not None else 0,
+                    "links": links,
+                    "topics": topics,
+                    "raw_dialogue": row[6]
                 }
 
     def get_full_dialogue(self, user_id: str, event_id: str) -> Optional[str]:

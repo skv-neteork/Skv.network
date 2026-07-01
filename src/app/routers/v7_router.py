@@ -334,7 +334,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                             if eid in fts_matches:
                                 word_count = fts_matches[eid]
                                 boost = 1.0 + (word_count * 0.5)
-                                r['score'] = r.get('score', 0) * boost + (word_count * 0.2)
+                                r['score'] = r.get('score', 0) + (word_count * 0.55)
                         raw_results.sort(key=lambda x: -x.get('score', 0))
             except:
                 pass

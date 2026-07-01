@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/v7", tags=["ChronoMemory"])
 class SearchRequest(BaseModel):
     query_vector: Optional[List[float]] = None
     query_text: Optional[str] = None
-    user_id: str = Field(...)
+    user_id: str = Field("anonymous")
     depth: int = Field(384, ge=250, le=512)
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(20, ge=1, le=100)
@@ -28,7 +28,7 @@ class SearchRequest(BaseModel):
 class MemoryRequest(BaseModel):
     query_vector: Optional[List[float]] = None
     query_text: Optional[str] = None
-    user_id: str = Field(...)
+    user_id: str = Field("anonymous")
     step: int = Field(0, ge=0)
     last_seal: str = Field("")
     hops: int = Field(2, ge=0, le=4)
@@ -198,6 +198,20 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     # Если есть токен — извлекаем user_id из него
     if authorization and authorization.startswith("Bearer "):
         req.user_id = get_user_from_token(authorization)
+    # Если есть токен — извлекаем user_id
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "")
+        try:
+            import sqlite3 as _sq
+            _conn = _sq.connect("/data/skv/metadata_store/shared_master.db")
+            _cur = _conn.cursor()
+            _cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+            _row = _cur.fetchone()
+            if _row:
+                req.user_id = _row[0]
+            _conn.close()
+        except:
+            pass
     if not req.user_id or not req.user_id.strip():
         raise HTTPException(status_code=422, detail="user_id cannot be empty")
     check_rate_limit(req.user_id)

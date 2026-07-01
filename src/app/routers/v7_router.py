@@ -229,7 +229,33 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         # v7.8: pass layer_weights for dynamic masks
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
         raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
-        print(f'DEBUG raw_results[0] score: {raw_results[0].get("score") if raw_results else "EMPTY"}', flush=True)
+        
+        # HYBRID: Multi-word FTS5 boost
+        if req.query_text and raw_results:
+            try:
+                import sqlite3 as sq
+                db_name = req.user_id.replace('@', '').replace('.', '')
+                fts_conn = sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+                fts_cur = fts_conn.cursor()
+                all_words = [w for w in req.query_text.split() if len(w) > 3]
+                if all_words:
+                    fts_matches = {}
+                    for word in all_words:
+                        fts_cur.execute('SELECT event_id FROM events_fts WHERE events_fts MATCH ?', (word,))
+                        for (eid,) in fts_cur.fetchall():
+                            fts_matches[eid] = fts_matches.get(eid, 0) + 1
+                    fts_conn.close()
+                    if fts_matches:
+                        for r in raw_results:
+                            eid = r.get('event_id')
+                            if eid in fts_matches:
+                                word_count = fts_matches[eid]
+                                boost = 1.0 + (word_count * 0.5)
+                                r['score'] = r.get('score', 0) * boost + (word_count * 0.2)
+                        raw_results.sort(key=lambda x: -x.get('score', 0))
+            except:
+                pass
+        
         if raw_results:
             filtered_dicts = []
             candidate_ids = []
@@ -309,36 +335,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
     try:
         # v7.8: pass layer_weights for dynamic masks
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
-        raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
-        
-        # HYBRID: Multi-word FTS5 boost (more matched words = higher boost)
-        if req.query_text and raw_results:
-            try:
-                import sqlite3 as sq
-                db_name = req.user_id.replace('@', '').replace('.', '')
-                fts_conn = sq.connect(f'/data/skv/metadata_store/{db_name}.db')
-                fts_cur = fts_conn.cursor()
-                all_words = [w for w in req.query_text.split() if len(w) > 3]
-                if all_words:
-                    fts_matches = {}
-                    for word in all_words:
-                        fts_cur.execute('SELECT event_id FROM events_fts WHERE events_fts MATCH ?', (word,))
-                        for (eid,) in fts_cur.fetchall():
-                            fts_matches[eid] = fts_matches.get(eid, 0) + 1
-                    fts_conn.close()
-                    if fts_matches:
-                        for r in raw_results:
-                            eid = r.get('event_id')
-                            if eid in fts_matches:
-                                word_count = fts_matches[eid]
-                                boost = 1.0 + (word_count * 0.5)
-                                r['score'] = r.get('score', 0) * boost + (word_count * 0.2)
-                        raw_results.sort(key=lambda x: -x.get('score', 0))
-            except:
-                pass
-        
-        if raw_results:
-            event_ids = [r["event_id"] for r in raw_results]
+                    event_ids = [r["event_id"] for r in raw_results]
             metadata_map = metadata_store.batch_get_metadata(req.user_id, event_ids)
             for r in raw_results:
                 r["metadata"] = metadata_map.get(r["event_id"], {})

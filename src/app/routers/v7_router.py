@@ -195,10 +195,6 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
 
 @router.post("/memory")
 async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
-    # Если есть токен — извлекаем user_id из него
-    if authorization and authorization.startswith("Bearer "):
-        # Extract user_id from Bearer token
-        req.user_id = "denizchavdarov@gmail.com"  # TODO: real token lookup
     # Если есть токен — извлекаем user_id
     if authorization and authorization.startswith("Bearer "):
         token = authorization.replace("Bearer ", "")

@@ -452,7 +452,7 @@ class ChronoBufferV77Ultimate:
                         continue
                     results.append({
                         "event_id": self.personal_idx_to_id.get(i, f"personal_{i}"),
-                        "score": float(weights["personal"] * p_final[i] / p_max),
+                        "score": float(p_final[i]),  # raw cosine score
                         "source": "personal",
                         "summary": ""
                     })

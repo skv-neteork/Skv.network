@@ -251,7 +251,15 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
                             eid = r.get('event_id')
                             if eid in fts_matches:
                                 word_count = fts_matches[eid]
-                                r['score'] = r.get('score', 0) + (word_count * 0.55)
+                                                                # Name boost: uppercase words = 0.5, lowercase = 0.2
+                                name_boost = 0
+                                word_boost = 0
+                                for word in all_words:
+                                    if word[0].isupper():
+                                        name_boost += 0.5
+                                    else:
+                                        word_boost += 0.2
+                                r['score'] = r.get('score', 0) + name_boost + word_boost
                         raw_results.sort(key=lambda x: -x.get('score', 0))
             except:
                 pass
@@ -359,7 +367,15 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                             if eid in fts_matches:
                                 word_count = fts_matches[eid]
                                 boost = 1.0 + (word_count * 0.5)
-                                r['score'] = r.get('score', 0) + (word_count * 0.55)
+                                                                # Name boost: uppercase words = 0.5, lowercase = 0.2
+                                name_boost = 0
+                                word_boost = 0
+                                for word in all_words:
+                                    if word[0].isupper():
+                                        name_boost += 0.5
+                                    else:
+                                        word_boost += 0.2
+                                r['score'] = r.get('score', 0) + name_boost + word_boost
                         raw_results.sort(key=lambda x: -x.get('score', 0))
             except:
                 pass

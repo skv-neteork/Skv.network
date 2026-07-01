@@ -194,7 +194,10 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
     return 3
 
 @router.post("/memory")
-async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
+async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
+    # Если есть токен — извлекаем user_id из него
+    if authorization and authorization.startswith("Bearer "):
+        req.user_id = get_user_from_token(authorization)
     if not req.user_id or not req.user_id.strip():
         raise HTTPException(status_code=422, detail="user_id cannot be empty")
     check_rate_limit(req.user_id)

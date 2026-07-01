@@ -35,15 +35,18 @@ class ChronoCognitiveDecoder:
         time_str = metadata.get("time") or "Вневременной куб"
         metric_val = metadata.get("metric_value") or "нет"
         
-        # ФИКС #1: Жесткая проверка типов для links
+        # Обработка links (словарь или список)
         raw_links = metadata.get("links")
-        if isinstance(raw_links, list):
-            links_str = ", ".join(str(l) for l in raw_links) if raw_links else "нет"
+        if isinstance(raw_links, dict):
+            real_links = {k: v for k, v in raw_links.items() if k != 'relation'}
+            if real_links:
+                links_display = ", ".join(f"{k} (w={v:.1f})" for k, v in list(real_links.items())[:2])
+            else:
+                links_display = "нет"
+        elif isinstance(raw_links, list) and raw_links:
+            links_display = ", ".join(str(l)[:50] for l in raw_links[:2])
         else:
-            links_str = str(raw_links) if raw_links else "нет"
-        
-        # ФИКС #2: Чистый вывод без пустых скобок
-        links_display = f"[{links_str}]" if links_str != "нет" else "нет"
+            links_display = "нет"
         
         essence = metadata.get("essence") or "Суть не извлечена"
         

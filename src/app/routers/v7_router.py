@@ -164,11 +164,12 @@ def _cached_search(buffer, qv, uid, hops, top_k, layer_weights=None):
 # VECTOR ROUTER (HNSW per-user indices)
 # ═══════════════════════════════════════════════════════════════
 
-import hnswlib as _hnswlib
+import faiss as _faiss
 import numpy as _np
 import os as _os
 
 class VectorRouter:
+    """Per-user FAISS indices with LRU cache"""
     def __init__(self, base_path="/data/skv/hnsw", max_hot=50, dim=768):
         self.base_path = base_path
         self.max_hot = max_hot
@@ -177,13 +178,11 @@ class VectorRouter:
         _os.makedirs(base_path, exist_ok=True)
     
     def _load_index(self, user_id):
-        hnsw_path = f"{self.base_path}/{user_id}.hnsw"
+        idx_path = f"{self.base_path}/{user_id}.faiss"
         ids_path = f"{self.base_path}/{user_id}_ids.npy"
-        if not _os.path.exists(hnsw_path):
+        if not _os.path.exists(idx_path):
             return None
-        index = _hnswlib.Index(space="cosine", dim=self.dim)
-        index.load_index(hnsw_path)
-        index.set_ef(200)
+        index = _faiss.read_index(idx_path)
         ids = _np.load(ids_path)
         return index, ids
     
@@ -197,7 +196,8 @@ class VectorRouter:
                 del self.hot_cache[oldest]
             self.hot_cache[user_id] = loaded
         index, ids = self.hot_cache[user_id]
-        labels, distances = index.knn_query(_np.array([query_vec], dtype=_np.float32), k=min(top_k, len(ids)))
+        query = _np.array([query_vec], dtype=_np.float32)
+        distances, labels = index.search(query, min(top_k, len(ids)))
         results = []
         for i in range(len(labels[0])):
             idx = labels[0][i]

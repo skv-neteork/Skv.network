@@ -159,6 +159,54 @@ def _cached_search(buffer, qv, uid, hops, top_k, layer_weights=None):
             _search_cache.popitem(last=False)
     return result
 
+
+# ═══════════════════════════════════════════════════════════════
+# VECTOR ROUTER (HNSW per-user indices)
+# ═══════════════════════════════════════════════════════════════
+
+import hnswlib as _hnswlib
+import numpy as _np
+import os as _os
+
+class VectorRouter:
+    def __init__(self, base_path="/data/skv/hnsw", max_hot=50, dim=768):
+        self.base_path = base_path
+        self.max_hot = max_hot
+        self.dim = dim
+        self.hot_cache = {}
+        _os.makedirs(base_path, exist_ok=True)
+    
+    def _load_index(self, user_id):
+        hnsw_path = f"{self.base_path}/{user_id}.hnsw"
+        ids_path = f"{self.base_path}/{user_id}_ids.npy"
+        if not _os.path.exists(hnsw_path):
+            return None
+        index = _hnswlib.Index(space="cosine", dim=self.dim)
+        index.load_index(hnsw_path)
+        index.set_ef(200)
+        ids = _np.load(ids_path)
+        return index, ids
+    
+    def search(self, user_id, query_vec, top_k=10):
+        if user_id not in self.hot_cache:
+            loaded = self._load_index(user_id)
+            if loaded is None:
+                return []
+            if len(self.hot_cache) >= self.max_hot:
+                oldest = min(self.hot_cache.keys(), key=lambda u: len(self.hot_cache))
+                del self.hot_cache[oldest]
+            self.hot_cache[user_id] = loaded
+        index, ids = self.hot_cache[user_id]
+        labels, distances = index.knn_query(_np.array([query_vec], dtype=_np.float32), k=min(top_k, len(ids)))
+        results = []
+        for i in range(len(labels[0])):
+            idx = labels[0][i]
+            if idx < len(ids):
+                results.append((str(ids[idx]), float(1.0 - distances[0][i])))
+        return results
+
+GLOBAL_VECTOR_ROUTER = VectorRouter()
+
 def get_memory_buffer():
     return GLOBAL_MEMORY_BUFFER
 

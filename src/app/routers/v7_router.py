@@ -229,7 +229,12 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     try:
         # v7.8: pass layer_weights for dynamic masks
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
-        raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
+        # Try VectorRouter (HNSW) first, fallback to _cached_search
+        hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id, q_vec, top_k=req.top_k)
+        if hnsw_results:
+            raw_results = [{"event_id": eid, "score": score, "source": "personal"} for eid, score in hnsw_results]
+        else:
+            raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
         
         # HYBRID: Multi-word FTS5 boost
         if req.query_text and raw_results:
@@ -343,7 +348,12 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
     try:
         # v7.8: pass layer_weights for dynamic masks
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
-        raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
+        # Try VectorRouter (HNSW) first, fallback to _cached_search
+        hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id, q_vec, top_k=req.top_k)
+        if hnsw_results:
+            raw_results = [{"event_id": eid, "score": score, "source": "personal"} for eid, score in hnsw_results]
+        else:
+            raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
         
         print(f'DEBUG HYBRID: query_text={bool(req.query_text)}, raw_results={bool(raw_results)}', flush=True)
         # HYBRID: Multi-word FTS5 boost (more matched words = higher boost)

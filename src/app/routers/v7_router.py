@@ -25,6 +25,17 @@ class SearchRequest(BaseModel):
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(20, ge=1, le=100)
 
+class FeedbackRequest(BaseModel):
+    user_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    type: str = "bug"
+    title: str
+    description: str
+    event_id: Optional[str] = None
+    cube_id: Optional[str] = None
+    query_text: Optional[str] = None
+    severity: int = 1
+
 class MemoryRequest(BaseModel):
     query_vector: Optional[List[float]] = None
     query_text: Optional[str] = None
@@ -665,17 +676,6 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-class FeedbackRequest(BaseModel):
-    user_id: Optional[str] = None
-    agent_id: Optional[str] = None
-    type: str = "bug"
-    title: str
-    description: str
-    event_id: Optional[str] = None
-    cube_id: Optional[str] = None
-    query_text: Optional[str] = None
-    severity: int = 1
 
 class VoteRequest(BaseModel):
     cube_id: str

@@ -33,6 +33,7 @@ class MemoryRequest(BaseModel):
     last_seal: str = Field("")
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(5, ge=1, le=20)
+    focus_words: Optional[List[str]] = None
 
 class SearchResultItem(BaseModel):
     event_id: str
@@ -293,27 +294,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             raw_results = [{"event_id": eid, "score": score, "source": "personal"} for eid, score in hnsw_results]
             
             # FTS5 boost using focus_words from agent
-            focus = getattr(req, 'focus_words', None) or []
-            if focus:
-                try:
-                    import sqlite3 as sq
-                    db_name = req.user_id.replace('@', '').replace('.', '')
-                    fts_conn = sq.connect(f'/data/skv/metadata_store/{db_name}.db')
-                    fts_cur = fts_conn.cursor()
-                    fts_matches = {}
-                    for word in focus:
-                        fts_cur.execute('SELECT event_id FROM events_fts WHERE events_fts MATCH ?', (word,))
-                        for (eid,) in fts_cur.fetchall():
-                            fts_matches[eid] = fts_matches.get(eid, 0) + 1
-                    fts_conn.close()
-                    if fts_matches:
-                        for r in raw_results:
-                            eid = r.get('event_id')
-                            if eid in fts_matches:
-                                r['score'] = r.get('score', 0) + (fts_matches[eid] * 0.3)
-                        raw_results.sort(key=lambda x: -x.get('score', 0))
-                except:
-                    pass
+
         else:
             raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
         
@@ -421,7 +402,29 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         pass
     
     prompt_text = f"{memory_text}\n\n{memory_map_text}\n{constitution_text}\n\n{seal_context}\n{reminders}"
-    return {"prompt_text": prompt_text, "memory": memory_text, "constitution": constitution_text, "reminders": reminders, "has_cubes": has_cubes, "step": step}
+    # Раздельная выдача
+    vector_top = raw_results[:10] if raw_results else []
+    fts_top = []
+    focus = getattr(req, 'focus_words', None) or []
+    if focus:
+        try:
+            import sqlite3 as sq
+            db_name = req.user_id.replace('@', '').replace('.', '')
+            fts_conn = sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+            fts_cur = fts_conn.cursor()
+            for word in focus:
+                fts_cur.execute('SELECT event_id FROM events_fts WHERE events_fts MATCH ? LIMIT 10', (word,))
+                for (eid,) in fts_cur.fetchall():
+                    if eid not in [f.get('event_id') for f in fts_top]:
+                        fts_top.append({'event_id': eid, 'matched_word': word, 'source': 'fts'})
+            fts_conn.close()
+        except:
+            pass
+    vector_ids = {v.get('event_id') for v in vector_top}
+    fts_ids = {f.get('event_id') for f in fts_top}
+    intersection = [v for v in vector_top if v.get('event_id') in fts_ids]
+    
+    return {"prompt_text": prompt_text, "memory": memory_text, "constitution": constitution_text, "reminders": reminders, "has_cubes": has_cubes, "step": step, "vector_top10": vector_top[:10], "fts_top10": fts_top[:10], "intersection": intersection[:10], "best_vector": vector_top[0] if vector_top else None, "best_fts": fts_top[0] if fts_top else None, "best_intersection": intersection[0] if intersection else None}
 
 @router.post("/search", response_model=SearchResponse)
 async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
@@ -435,27 +438,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
             raw_results = [{"event_id": eid, "score": score, "source": "personal"} for eid, score in hnsw_results]
             
             # FTS5 boost using focus_words from agent
-            focus = getattr(req, 'focus_words', None) or []
-            if focus:
-                try:
-                    import sqlite3 as sq
-                    db_name = req.user_id.replace('@', '').replace('.', '')
-                    fts_conn = sq.connect(f'/data/skv/metadata_store/{db_name}.db')
-                    fts_cur = fts_conn.cursor()
-                    fts_matches = {}
-                    for word in focus:
-                        fts_cur.execute('SELECT event_id FROM events_fts WHERE events_fts MATCH ?', (word,))
-                        for (eid,) in fts_cur.fetchall():
-                            fts_matches[eid] = fts_matches.get(eid, 0) + 1
-                    fts_conn.close()
-                    if fts_matches:
-                        for r in raw_results:
-                            eid = r.get('event_id')
-                            if eid in fts_matches:
-                                r['score'] = r.get('score', 0) + (fts_matches[eid] * 0.3)
-                        raw_results.sort(key=lambda x: -x.get('score', 0))
-                except:
-                    pass
+
         else:
             raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
         

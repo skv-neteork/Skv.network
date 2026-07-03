@@ -581,6 +581,139 @@ class VoteRequest(BaseModel):
     user_id: str
     vote: int  # +1 or -1
 
+
+# ═══════════════════════════════════════════════════════════════
+# WRITE ENDPOINTS (v8.2)
+# ═══════════════════════════════════════════════════════════════
+
+class EventWriteRequest(BaseModel):
+    user_id: str
+    session_id: str
+    query: str
+    response: str
+    topic: Optional[str] = None
+
+class SummarizeRequest(BaseModel):
+    user_id: str
+    session_id: str
+    topic: str
+    summary_text: str
+    message_count: int = 1
+
+class MapUpdateRequest(BaseModel):
+    user_id: str
+    session_count: int = 1
+
+class BatchFlushRequest(BaseModel):
+    user_id: str
+    session_id: str
+    batch_logs: List[Dict] = []
+    query: Optional[str] = None
+    experience_cubes: Optional[List[Dict]] = []
+    feedback_votes: Optional[List[Dict]] = []
+
+@router.post("/event/write", status_code=status.HTTP_201_CREATED)
+async def write_event(req: EventWriteRequest):
+    try:
+        import sqlite3
+        db_name = req.user_id.replace("@", "").replace(".", "")
+        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+        cur = conn.cursor()
+        cur.execute("INSERT INTO event_metadata (event_id, essence, raw_dialogue, status, messages_count) VALUES (?,?,?,?,?)",
+                   (f"{req.user_id}::{req.session_id}", req.topic or req.query[:100],
+                    f"Q: {req.query}\nA: {req.response}", "active", 1))
+        conn.commit()
+        conn.close()
+        return {"status": "ok", "event_id": f"{req.user_id}::{req.session_id}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/memory/summarize", status_code=status.HTTP_201_CREATED)
+async def store_summary(req: SummarizeRequest):
+    try:
+        import sqlite3
+        db_name = req.user_id.replace("@", "").replace(".", "")
+        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+        cur = conn.cursor()
+        cur.execute("""CREATE TABLE IF NOT EXISTS summary_l1
+            (session_id TEXT PRIMARY KEY, user_id TEXT, topic TEXT, summary_text TEXT,
+             summary_json TEXT, message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+        cur.execute("INSERT OR REPLACE INTO summary_l1 (session_id, user_id, topic, summary_text, message_count) VALUES (?,?,?,?,?)",
+                   (req.session_id, req.user_id, req.topic, req.summary_text, req.message_count))
+        conn.commit()
+        conn.close()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/memory/map", status_code=status.HTTP_200_OK)
+async def update_memory_map(req: MapUpdateRequest):
+    try:
+        import sqlite3
+        db_name = req.user_id.replace("@", "").replace(".", "")
+        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+        cur = conn.cursor()
+        cur.execute("""CREATE TABLE IF NOT EXISTS summary_l2
+            (user_id TEXT PRIMARY KEY, map_json TEXT, session_count INTEGER,
+             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+        cur.execute("INSERT OR REPLACE INTO summary_l2 (user_id, session_count) VALUES (?,?)",
+                   (req.user_id, req.session_count))
+        conn.commit()
+        conn.close()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/experience/create", status_code=status.HTTP_201_CREATED)
+async def create_experience_cube(req: ExperienceCreateRequest):
+    try:
+        import sqlite3, uuid
+        cube_id = req.cube_id or f"cube_{uuid.uuid4().hex[:12]}"
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        cur = conn.cursor()
+        cur.execute("""INSERT OR REPLACE INTO cubes_new 
+            (cube_id, essence, subject_action_object, rules_markdown, evidence, source_session, status)
+            VALUES (?, ?, ?, ?, ?, ?, "community")""",
+            (cube_id, req.essence, req.topic, req.rules_markdown, req.evidence, req.session_id))
+        conn.commit()
+        conn.close()
+        return {"status": "ok", "cube_id": cube_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/agent/batch_flush", status_code=status.HTTP_202_ACCEPTED)
+async def agent_batch_flush(req: BatchFlushRequest):
+    import sqlite3
+    db_name = req.user_id.replace("@", "").replace(".", "")
+    conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+    cur = conn.cursor()
+    if req.batch_logs:
+        text = "\n".join([f"Q: {log.get('q','')}\nA: {log.get('a','')}" for log in req.batch_logs])
+        cur.execute("INSERT INTO event_metadata (event_id, essence, raw_dialogue, status, messages_count) VALUES (?,?,?,?,?)",
+                   (f"{req.user_id}::{req.session_id}", req.query or "batch", text, "active", len(req.batch_logs)))
+        conn.commit()
+    conn.close()
+    result = {"status": "batch_accepted", "logs_saved": len(req.batch_logs)}
+    if req.query:
+        try:
+            import requests as _req
+            resp = _req.post("http://localhost:8000/api/v7/memory",
+                json={"query_text": req.query, "user_id": req.user_id})
+            result["memory"] = resp.json().get("memory", "")
+        except:
+            pass
+    return result
+
+@router.get("/agent/memory")
+async def agent_get_memory(user_id: str, query: str):
+    try:
+        import requests as _req
+        resp = _req.post("http://localhost:8000/api/v7/memory",
+            json={"query_text": query, "user_id": user_id})
+        return resp.json()
+    except:
+        return {"memory": "SKV unavailable", "has_cubes": False}
+
 @router.post("/experience/vote")
 async def vote_experience(req: VoteRequest):
     """Vote for an experience cube. 3 downvotes → deprecated."""

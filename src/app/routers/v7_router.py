@@ -46,12 +46,12 @@ class SearchResponse(BaseModel):
     results: List[SearchResultItem]
 
 class ExperienceCreateRequest(BaseModel):
-    event_id: str
-    semantics_emb: List[float] = Field(..., min_length=218, max_length=218)
-    parent_ids: Optional[List[str]] = None
-    details_emb: Optional[List[float]] = None
+    topic: str
     essence: str
-    topics: List[str] = Field(default_factory=list)
+    rules_markdown: str
+    evidence: str
+    session_id: Optional[str] = None
+    cube_id: Optional[str] = None
 
 class EventWriteRequest(BaseModel):
     event_id: str

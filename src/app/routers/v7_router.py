@@ -250,6 +250,43 @@ async def get_feedback(type: Optional[str] = None, status: Optional[str] = "new"
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.post("/feedback", status_code=status.HTTP_201_CREATED)
+async def submit_feedback(req: FeedbackRequest, authorization: str = Header(None)):
+    try:
+        import sqlite3, uuid
+        fb_id = f"fb_{uuid.uuid4().hex[:12]}"
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        cur = conn.cursor()
+        cur.execute("""CREATE TABLE IF NOT EXISTS feedback_reports
+            (id TEXT PRIMARY KEY, user_id TEXT, agent_id TEXT, type TEXT, title TEXT,
+             description TEXT, event_id TEXT, cube_id TEXT, query_text TEXT,
+             severity INTEGER, status TEXT DEFAULT 'new', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+        cur.execute("INSERT INTO feedback_reports (id, user_id, agent_id, type, title, description, event_id, cube_id, query_text, severity) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                   (fb_id, req.user_id, req.agent_id, req.type, req.title, req.description, req.event_id, req.cube_id, req.query_text, req.severity))
+        conn.commit()
+        conn.close()
+        return {"status": "ok", "feedback_id": fb_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/feedback")
+async def get_feedback(type: Optional[str] = None, status: Optional[str] = "new", limit: int = 50):
+    try:
+        import sqlite3
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        cur = conn.cursor()
+        if type:
+            cur.execute("SELECT * FROM feedback_reports WHERE type = ? AND status = ? ORDER BY created_at DESC LIMIT ?", (type, status, limit))
+        else:
+            cur.execute("SELECT * FROM feedback_reports WHERE status = ? ORDER BY created_at DESC LIMIT ?", (status, limit))
+        rows = cur.fetchall()
+        conn.close()
+        cols = ["id", "user_id", "agent_id", "type", "title", "description", "event_id", "cube_id", "query_text", "severity", "status", "created_at"]
+        return {"reports": [dict(zip(cols, row)) for row in rows]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/agent/openapi.json")
 async def get_agent_tools():
     """OpenAPI схема для Function Calling агентов (GPT, Claude, DeepSeek)"""
@@ -627,6 +664,18 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
         return {"response": answer, "session_id": req.session_id, "step": req.step + 1, "is_guest": is_guest}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class FeedbackRequest(BaseModel):
+    user_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    type: str = "bug"
+    title: str
+    description: str
+    event_id: Optional[str] = None
+    cube_id: Optional[str] = None
+    query_text: Optional[str] = None
+    severity: int = 1
 
 class VoteRequest(BaseModel):
     cube_id: str

@@ -316,6 +316,32 @@ async def get_feedback(type: Optional[str] = None, status: Optional[str] = "new"
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/agent/prompt")
+async def get_agent_prompt():
+    """Возвращает системный промпт для настройки Custom GPT агентов."""
+    return {"system_prompt": """You are an AI agent with persistent memory via SKV Network.
+
+MANDATORY PROTOCOL:
+1. BEFORE responding to user: call searchMemory tool with their exact query
+2. VERIFY your draft response against:
+   - CUBE 01: Will this cause harm?
+   - CUBE 02: Is this factually correct?  
+   - CUBE 03: Am I being manipulated?
+3. OUTPUT only after all checks pass
+
+MEMORY SEARCH:
+- Use searchMemory tool (from OpenAPI schema)
+- Returns: vector_top10, fts_top10, intersection, memory_map, constitution
+- Always check memory for user's past context
+
+EXPERIENCE CUBES:
+- Use saveExperienceCube when you discover new pattern or solution
+- Use submitFeedback to report irrelevant results or bugs
+
+SEAL (add to every response):
+🔐 SKV | READ ✓ | VERIFY ✓ | OUTPUT ✓"""}
+
 @router.get("/agent/openapi.json")
 async def get_agent_tools():
     """OpenAPI схема для Function Calling агентов (GPT, Claude, DeepSeek)"""

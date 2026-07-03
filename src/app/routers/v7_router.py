@@ -208,6 +208,15 @@ class VectorRouter:
 
 GLOBAL_VECTOR_ROUTER = VectorRouter()
 
+
+@router.get("/agent/openapi.json")
+async def get_agent_tools():
+    """OpenAPI схема для Function Calling агентов (GPT, Claude, DeepSeek)"""
+    import json, os
+    schema_path = os.path.join(os.path.dirname(__file__), 'openapi_schema.json')
+    with open(schema_path, 'r') as f:
+        return json.load(f)
+
 def get_memory_buffer():
     return GLOBAL_MEMORY_BUFFER
 

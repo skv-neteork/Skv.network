@@ -254,8 +254,20 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
 
 @router.post("/memory")
 async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
-    # Если есть токен — извлекаем user_id
+    # Извлекаем user_id из токена
     if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "")
+        try:
+            import sqlite3 as _sq
+            _conn = _sq.connect("/data/skv/metadata_store/shared_master.db")
+            _cur = _conn.cursor()
+            _cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+            _row = _cur.fetchone()
+            _conn.close()
+            if _row:
+                req.user_id = _row[0]
+        except:
+            pass
         token = authorization.replace("Bearer ", "")
         try:
             import sqlite3 as _sq

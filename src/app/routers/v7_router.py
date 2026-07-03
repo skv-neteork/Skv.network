@@ -707,10 +707,14 @@ async def agent_batch_flush(req: BatchFlushRequest):
 @router.get("/agent/memory")
 async def agent_get_memory(user_id: str, query: str):
     try:
-        import requests as _req
-        resp = _req.post("http://localhost:8000/api/v7/memory",
-            json={"query_text": query, "user_id": user_id})
-        return resp.json()
+        from fastembed import TextEmbedding
+        import numpy as np
+        emb = TextEmbedding(model_name="BAAI/bge-base-en-v1.5")
+        e = np.array(list(emb.embed([query]))[0], dtype=np.float32)
+        qv = np.zeros(768, dtype=np.float32)
+        qv[:768] = e[:768]
+        results = GLOBAL_VECTOR_ROUTER.search(user_id, qv, top_k=5)
+        return {"results": [{"event_id": eid, "score": s} for eid, s in results], "has_cubes": len(results) > 0}
     except:
         return {"memory": "SKV unavailable", "has_cubes": False}
 

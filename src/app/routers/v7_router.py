@@ -264,6 +264,24 @@ async def get_feedback(type: Optional[str] = None, status: Optional[str] = "new"
 
 @router.post("/feedback", status_code=status.HTTP_201_CREATED)
 async def submit_feedback(req: FeedbackRequest, authorization: str = Header(None)):
+    # Only authenticated agents can submit feedback
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required for feedback")
+    token = authorization.replace("Bearer ", "")
+    try:
+        import sqlite3 as _sq
+        _conn = _sq.connect("/data/skv/metadata_store/shared_master.db")
+        _cur = _conn.cursor()
+        _cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+        _row = _cur.fetchone()
+        _conn.close()
+        if not _row:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        req.user_id = _row[0]
+    except HTTPException:
+        raise
+    except:
+        raise HTTPException(status_code=401, detail="Token verification failed")
     try:
         import sqlite3, uuid
         fb_id = f"fb_{uuid.uuid4().hex[:12]}"

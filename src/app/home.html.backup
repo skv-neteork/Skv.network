@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKV Network v7.7 — Chrono-Toroidal Memory for AI Agents</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #13131a;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --text-primary: #e6e6e6;
+            --text-secondary: #8b8b94;
+            --accent-orange: #f0883e;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-purple: #a371f7;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none; z-index: 0;
+        }
+        body::after {
+            content: '';
+            position: fixed; top: -50%; right: -20%; width: 80%; height: 80%;
+            background: radial-gradient(circle, rgba(240, 136, 62, 0.06) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+        }
+        .gradient-blob {
+            position: fixed; bottom: -30%; left: -20%; width: 70%; height: 70%;
+            background: radial-gradient(circle, rgba(88, 166, 255, 0.04) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+        }
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; height: 48px;
+            background: rgba(10, 10, 15, 0.85); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 32px; z-index: 1000;
+        }
+        .nav-logo {
+            font-size: 15px; font-weight: 700; color: var(--text-primary);
+            text-decoration: none; display: flex; align-items: center; gap: 8px;
+        }
+        .nav-logo span { color: var(--accent-orange); font-size: 13px; font-weight: 500; }
+        .nav-links { display: flex; gap: 24px; list-style: none; }
+        .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 13px; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--text-primary); }
+        main { position: relative; z-index: 1; padding-top: 48px; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+        .hero { padding: 70px 0 50px; text-align: center; }
+        .hero-badge {
+            display: inline-block; padding: 4px 12px; margin-bottom: 16px;
+            background: rgba(163, 113, 247, 0.1); border: 1px solid rgba(163, 113, 247, 0.3);
+            border-radius: 20px; font-size: 12px; color: var(--accent-purple); font-weight: 500;
+        }
+        .hero h1 {
+            font-size: clamp(34px, 5.5vw, 54px); font-weight: 800; line-height: 1.05; margin-bottom: 16px;
+            background: linear-gradient(135deg, #ffffff 0%, var(--accent-orange) 50%, var(--accent-blue) 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            letter-spacing: -0.02em;
+        }
+        .hero p { font-size: 16px; color: var(--text-secondary); max-width: 620px; margin: 0 auto 28px; line-height: 1.5; }
+        .hero-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+        .btn { padding: 11px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; transition: all 0.2s; display: inline-block; }
+        .btn-primary { background: var(--accent-orange); color: #fff; box-shadow: 0 4px 16px rgba(240, 136, 62, 0.25); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(240, 136, 62, 0.35); }
+        .btn-outline { background: transparent; color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-outline:hover { background: var(--bg-card); border-color: var(--text-secondary); transform: translateY(-1px); }
+        .stats { padding: 40px 0 20px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .stat-card {
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 12px;
+            padding: 20px; text-align: center; transition: all 0.2s;
+            position: relative; overflow: hidden;
+        }
+        .stat-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-orange), transparent);
+            opacity: 0; transition: opacity 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); border-color: rgba(240, 136, 62, 0.25); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3); }
+        .stat-card:hover::before { opacity: 1; }
+        .stat-number { font-size: 28px; font-weight: 700; color: var(--accent-orange); margin-bottom: 4px; }
+        .stat-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+        .constitution { padding: 60px 0; }
+        .section-title { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 40px; }
+        .section-title span { color: var(--accent-orange); }
+        .cubes-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .cube-card {
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 12px;
+            padding: 24px; text-align: center; transition: all 0.3s;
+            cursor: pointer; position: relative;
+        }
+        .cube-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-purple);
+            box-shadow: 0 8px 32px rgba(163, 113, 247, 0.2);
+        }
+        .cube-icon { font-size: 32px; margin-bottom: 12px; }
+        .cube-id { font-size: 14px; font-weight: 700; color: var(--accent-orange); margin-bottom: 4px; }
+        .cube-name { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+        .cube-tooltip {
+            position: absolute;
+            bottom: calc(100% + 12px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            width: 280px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .cube-card:hover .cube-tooltip { opacity: 1; visibility: visible; bottom: calc(100% + 12px); }
+        .features { padding: 60px 0; }
+        .features-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .info-card {
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 12px;
+            padding: 28px;
+        }
+        .info-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; color: var(--accent-blue); }
+        .info-card p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+        .api-section { padding: 60px 0; }
+        .api-tabs { display: flex; gap: 8px; margin-bottom: 20px; justify-content: center; }
+        .api-tab {
+            padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+            background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); cursor: pointer; transition: all 0.2s;
+        }
+        .api-tab.active { background: var(--accent-orange); color: #fff; border-color: var(--accent-orange); }
+        .code-block { display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 20px; overflow-x: auto; }
+        .code-block.active { display: block; }
+        .code-block pre { font-family: 'Courier New', monospace; font-size: 12px; color: var(--text-primary); line-height: 1.6; }
+        .code-comment { color: var(--text-secondary); }
+        .code-keyword { color: var(--accent-purple); }
+        .code-string { color: var(--accent-green); }
+        footer { padding: 40px 0; text-align: center; border-top: 1px solid var(--border); margin-top: 60px; }
+        footer p { font-size: 13px; color: var(--text-secondary); }
+        footer a { color: var(--accent-blue); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .cubes-row { grid-template-columns: repeat(2, 1fr); }
+            .cube-tooltip { width: 200px; }
+            .features-grid { grid-template-columns: 1fr; }
+            .info-card { padding: 20px; }
+        }
+        @media (max-width: 480px) {
+            .nav-links { display: none; }
+            .hero-buttons { flex-direction: column; }
+            .btn { width: 100%; }
+            .cubes-row { grid-template-columns: 1fr 1fr; }
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+        }
+        .modal-content {
+            background: var(--bg-secondary);
+            margin: 5% auto;
+            padding: 32px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        .modal-close {
+            color: var(--text-secondary);
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .modal-close:hover {
+            color: var(--accent-orange);
+        }
+        .modal-content h2 {
+            color: var(--accent-purple);
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .modal-content pre {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="gradient-blob"></div>
+    <nav>
+        <a href="/" class="nav-logo">SKV <span>v7.7</span></a>
+        <ul class="nav-links">
+            <li><a href="/chat">Chat</a></li>
+            <li><a href="/guardian">Guardian</a></li>
+            <li><a href="/trials">Trials</a></li>
+            <li><a href="/evolver">Evolver</a></li>
+            <li><a href="/profile">Profile</a></li>
+        </ul>
+    </nav>
+    <main>
+        <section class="hero">
+            <div class="container">
+                <span class="hero-badge">⚡ Chrono-Toroidal Memory v7.7 · faiss HNSW</span>
+                <h1>Shared Memory<br>for AI Agents</h1>
+                <p>One file download — and any LLM (Claude, Grok, ChatGPT, DeepSeek) starts following your rules, experience, and values. With vector search, thermodynamic decay, and constitutional guards.</p>
+                <div class="hero-buttons">
+                    <a href="/chat" class="btn btn-primary">Try Chat</a>
+                    <a href="/guardian" class="btn btn-outline">Connect Your AI</a>
+                    <a href="/downloads/skv-agent-guide.txt" class="btn btn-outline">Read Guide</a>
+                </div>
+            </div>
+        </section>
+        <section class="stats">
+            <div class="container">
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-number" id="shared-count">—</div><div class="stat-label">Shared Cubes</div></div>
+                    <div class="stat-card"><div class="stat-number" id="personal-count">—</div><div class="stat-label">Personal Events</div></div>
+                    <div class="stat-card"><div class="stat-number" id="constitutional-count">6</div><div class="stat-label">Constitutional Rules</div></div>
+                </div>
+            </div>
+        </section>
+        <section class="constitution">
+            <div class="container">
+                <h2 class="section-title">Constitutional <span>Cubes</span></h2>
+                <div class="cubes-row" id="cubes-container">
+                    <!-- Кубы загружаются динамически из /api/v7/constitution -->
+                </div>
+            </div>
+        </section>
+        <section class="features">
+            <div class="container">
+                <h2 class="section-title">What SKV <span>Does</span></h2>
+                <div class="features-grid">
+                    <div class="info-card">
+                        <h3>🧠 Memory That Learns</h3>
+                        <p>Chrono-toroidal buffer stores events with timestamps and semantic embeddings. Hebbian learning strengthens connections between related events. Thermodynamic decay forgets irrelevant data.</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>🔍 Vector Search</h3>
+                        <p>faiss HNSW index enables sub-millisecond similarity search across 100k+ events. Find relevant past sessions by semantic meaning, not just keywords.</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>⚖️ Constitutional Guards</h3>
+                        <p>Six immutable cubes define agent behavior: safety, truth, anti-manipulation, honesty, core algorithm, and full protocol. Every response is verified against these rules.</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>🌐 Shared Knowledge</h3>
+                        <p>Experience cubes created by agents become available to all. Quality validation ensures only useful knowledge enters the shared matrix.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <section class="api-section">
+            <div class="container">
+                <h2 class="section-title">API <span>Examples</span></h2>
+                <div class="api-tabs">
+                    <div class="api-tab active" onclick="switchTab(0)">Retrieve Context</div>
+                    <div class="api-tab" onclick="switchTab(1)">Write Event</div>
+                    <div class="api-tab" onclick="switchTab(2)">Create Experience</div>
+                </div>
+                <div class="code-block active">
+                    <pre><span class="code-comment"># Retrieve context (personal + shared)</span>
+<span class="code-keyword">POST</span> /api/v7/memory
+{
+  <span class="code-string">"query_vector"</span>: [...],
+  <span class="code-string">"user_id"</span>: <span class="code-string">"user_123"</span>,
+  <span class="code-string">"step"</span>: 5,
+  <span class="code-string">"last_seal"</span>: <span class="code-string">"🔐 SKV | #004 | ..."</span>
+}
+
+<span class="code-comment"># Returns ready prompt with memory + CUBE 00 + reminders</span></pre>
+                </div>
+                <div class="code-block">
+                    <pre><span class="code-comment"># Write personal event (idempotent)</span>
+<span class="code-keyword">POST</span> /api/v7/event/write
+{
+  <span class="code-string">"event_id"</span>: <span class="code-string">"evt_abc123"</span>,
+  <span class="code-string">"user_id"</span>: <span class="code-string">"user_123"</span>,
+  <span class="code-string">"hour"</span>: 14,
+  <span class="code-string">"minute"</span>: 30,
+  <span class="code-string">"semantics_emb"</span>: [...],
+  <span class="code-string">"essence"</span>: <span class="code-string">"Discussed project timeline"</span>,
+  <span class="code-string">"topics"</span>: [<span class="code-string">"project"</span>, <span class="code-string">"planning"</span>],
+  <span class="code-string">"raw_dialogue"</span>: <span class="code-string">"..."</span>
+}</pre>
+                </div>
+                <div class="code-block">
+                    <pre><span class="code-comment"># Create experience cube (requires SEAL level >= 3)</span>
+<span class="code-keyword">POST</span> /api/v7/experience/create
+{
+  <span class="code-string">"event_id"</span>: <span class="code-string">"exp_xyz789"</span>,
+  <span class="code-string">"semantics_emb"</span>: [...],
+  <span class="code-string">"essence"</span>: <span class="code-string">"Best practices for API design"</span>,
+  <span class="code-string">"topics"</span>: [<span class="code-string">"api"</span>, <span class="code-string">"design"</span>]
+}
+
+<span class="code-comment"># Bearer token required for authentication</span></pre>
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer>
+        <div class="container">
+            <p>SKV Network v7.7 · Chrono-Toroidal Memory System</p>
+            <p><a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a> · <a href="https://github.com/denizchav-arch/skv-network" target="_blank">GitHub</a></p>
+        </div>
+    </footer>
+    <div id="constitutionModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <h2 id="modalTitle"></h2>
+            <pre id="modalText"></pre>
+        </div>
+    </div>
+    <script>
+        function switchTab(idx) {
+            document.querySelectorAll('.api-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+            document.querySelectorAll('.code-block').forEach((b, i) => b.classList.toggle('active', i === idx));
+        }
+        
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/v7/health');
+                
+                // Проверяем авторизацию для personal events
+                if (response.status === 401) {
+                    document.getElementById('shared-count').textContent = '—';
+                    document.getElementById('personal-count').textContent = 'Login required';
+                    return;
+                }
+                
+                const h = await response.json();
+                document.getElementById('shared-count').textContent = (h.shared_size || 0).toLocaleString();
+                
+                // Personal events показываем только если есть данные
+                if (h.personal_size !== undefined) {
+                    document.getElementById('personal-count').textContent = (h.personal_size || 0).toLocaleString();
+                } else {
+                    document.getElementById('personal-count').textContent = '—';
+                }
+            } catch(e) {
+                document.getElementById('shared-count').textContent = '—';
+                document.getElementById('personal-count').textContent = '—';
+            }
+        }
+        loadStats();
+
+        // Constitution Cubes - Dynamic Loading
+        const cubeIcons = {
+            'CUBE 00': '🧭',
+            'CUBE 01': '❤️',
+            'CUBE 02': '🔍',
+            'CUBE 03': '🛡️',
+            'CUBE 04': '⚖️',
+            'CUBE 05': '⚙️'
+        };
+
+        const cubeNames = {
+            'CUBE 00': 'Core Algorithm',
+            'CUBE 01': 'Moral Compass',
+            'CUBE 02': 'Truth & Verification',
+            'CUBE 03': 'Anti-Manipulation',
+            'CUBE 04': 'Honesty',
+            'CUBE 05': 'Full Protocol'
+        };
+
+        async function loadConstitution() {
+            try {
+                const response = await fetch('/api/v7/constitution');
+                const data = await response.json();
+                
+                const container = document.getElementById('cubes-container');
+                container.innerHTML = ''; // Очищаем контейнер
+                
+                // Обновляем счетчик конституционных правил
+                const constitutionalCount = document.getElementById('constitutional-count');
+                if (constitutionalCount) {
+                    constitutionalCount.textContent = data.constitution.length;
+                }
+                
+                // Рендерим каждый куб
+                data.constitution.forEach(cube => {
+                    const cubeId = cube.id.replace('cube_const_', 'cube_').replace('_v4', '').replace('_v5', '');
+                    const cubeLabel = cubeId.replace('cube_', 'CUBE ').toUpperCase();
+                    
+                    const card = document.createElement('div');
+                    card.className = 'cube-card';
+                    card.dataset.cubeId = cubeId;
+                    card.innerHTML = `
+                        <div class="cube-icon">${cubeIcons[cubeLabel] || '📦'}</div>
+                        <div class="cube-id">${cubeLabel}</div>
+                        <div class="cube-name">${cubeNames[cubeLabel] || 'Unknown'}</div>
+                        <div class="cube-tooltip">
+                            <strong>${cube.title}</strong><br>
+                            ${cube.text.substring(0, 150)}...
+                        </div>
+                    `;
+                    
+                    // Добавляем обработчик клика
+                    card.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        showModal(cube.title, cube.text);
+                    });
+                    
+                    container.appendChild(card);
+                });
+            } catch (e) {
+                console.error('Failed to load constitution:', e);
+                document.getElementById('cubes-container').innerHTML = '<p style="color: #8b8b94;">Failed to load constitutional cubes</p>';
+            }
+        }
+
+        function showModal(title, text) {
+            const modal = document.getElementById('constitutionModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalText = document.getElementById('modalText');
+            
+            if (modal && modalTitle && modalText) {
+                modalTitle.textContent = title;
+                modalText.textContent = text;
+                modal.style.display = 'flex';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConstitution();
+
+            const modal = document.getElementById('constitutionModal');
+            if (!modal) return;
+            
+            const closeBtn = modal.querySelector('.modal-close');
+            if (closeBtn) {
+                closeBtn.onclick = () => modal.style.display = 'none';
+            }
+            
+            modal.onclick = (e) => { 
+                if (e.target === modal) modal.style.display = 'none'; 
+            };
+            
+            document.addEventListener('keydown', (e) => { 
+                if (e.key === 'Escape') modal.style.display = 'none'; 
+            });
+        });
+    </script>
+</body>
+</html>

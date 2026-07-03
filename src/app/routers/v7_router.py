@@ -424,7 +424,28 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     fts_ids = {f.get('event_id') for f in fts_top}
     intersection = [v for v in vector_top if v.get('event_id') in fts_ids]
     
-    return {"prompt_text": prompt_text, "memory": memory_text, "constitution": constitution_text, "reminders": reminders, "has_cubes": has_cubes, "step": step, "vector_top10": vector_top[:10], "fts_top10": fts_top[:10], "intersection": intersection[:10], "best_vector": vector_top[0] if vector_top else None, "best_fts": fts_top[0] if fts_top else None, "best_intersection": intersection[0] if intersection else None}
+    # Full text for best results
+    def _full_text(eid):
+        try:
+            import sqlite3 as sq
+            db_name = req.user_id.replace('@', '').replace('.', '')
+            conn = sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+            cur = conn.cursor()
+            cur.execute('SELECT raw_dialogue FROM event_metadata WHERE event_id = ?', (eid,))
+            row = cur.fetchone()
+            conn.close()
+            return row[0][:1000] if row and row[0] else ''
+        except:
+            return ''
+    
+    best_vec = vector_top[0] if vector_top else {}
+    if best_vec: best_vec['full_text'] = _full_text(best_vec.get('event_id', ''))
+    best_fts = fts_top[0] if fts_top else {}
+    if best_fts: best_fts['full_text'] = _full_text(best_fts.get('event_id', ''))
+    best_int = intersection[0] if intersection else {}
+    if best_int: best_int['full_text'] = _full_text(best_int.get('event_id', ''))
+    
+    return {"prompt_text": prompt_text, "memory": memory_text, "constitution": constitution_text, "reminders": reminders, "has_cubes": has_cubes, "step": step, "memory_map": memory_map_text, "vector_top10": vector_top[:10], "fts_top10": fts_top[:10], "intersection": intersection[:10], "best_vector": best_vec, "best_fts": best_fts, "best_intersection": best_int}
 
 @router.post("/search", response_model=SearchResponse)
 async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):

@@ -619,7 +619,7 @@ async def write_event(req: EventWriteRequest):
         db_name = req.user_id.replace("@", "").replace(".", "")
         conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
         cur = conn.cursor()
-        cur.execute("INSERT INTO event_metadata (event_id, essence, raw_dialogue, status, messages_count) VALUES (?,?,?,?,?)",
+        cur.execute("INSERT OR REPLACE INTO event_metadata (event_id, essence, raw_dialogue, status, messages_count) VALUES (?,?,?,?,?)",
                    (f"{req.user_id}::{req.session_id}", req.topic or req.query[:100],
                     f"Q: {req.query}\nA: {req.response}", "active", 1))
         conn.commit()
@@ -689,20 +689,11 @@ async def agent_batch_flush(req: BatchFlushRequest):
     cur = conn.cursor()
     if req.batch_logs:
         text = "\n".join([f"Q: {log.get('q','')}\nA: {log.get('a','')}" for log in req.batch_logs])
-        cur.execute("INSERT INTO event_metadata (event_id, essence, raw_dialogue, status, messages_count) VALUES (?,?,?,?,?)",
+        cur.execute("INSERT OR REPLACE INTO event_metadata (event_id, essence, raw_dialogue, status, messages_count) VALUES (?,?,?,?,?)",
                    (f"{req.user_id}::{req.session_id}", req.query or "batch", text, "active", len(req.batch_logs)))
         conn.commit()
     conn.close()
-    result = {"status": "batch_accepted", "logs_saved": len(req.batch_logs)}
-    if req.query:
-        try:
-            import requests as _req
-            resp = _req.post("http://localhost:8000/api/v7/memory",
-                json={"query_text": req.query, "user_id": req.user_id})
-            result["memory"] = resp.json().get("memory", "")
-        except:
-            pass
-    return result
+    return {"status": "batch_accepted", "logs_saved": len(req.batch_logs)}
 
 @router.get("/agent/memory")
 async def agent_get_memory(user_id: str, query: str):

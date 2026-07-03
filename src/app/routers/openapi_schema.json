@@ -40,7 +40,8 @@
                     "type": "array",
                     "items": {
                       "type": "string"
-                    }
+                    },
+                    "description": "\u041a\u043b\u044e\u0447\u0435\u0432\u044b\u0435 \u0441\u043b\u043e\u0432\u0430"
                   }
                 },
                 "required": [
@@ -132,7 +133,7 @@
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "SKV API \u043a\u043b\u044e\u0447"
+        "description": "SKV API \u043a\u043b\u044e\u0447. \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c: https://skv.network/profile"
       }
     }
   }

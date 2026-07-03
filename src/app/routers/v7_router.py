@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/v7", tags=["ChronoMemory"])
 class SearchRequest(BaseModel):
     query_vector: Optional[List[float]] = None
     query_text: Optional[str] = None
-    user_id: str = Field("anonymous")
+    user_id: Optional[str] = None
     depth: int = Field(384, ge=250, le=512)
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(20, ge=1, le=100)
@@ -28,7 +28,7 @@ class SearchRequest(BaseModel):
 class MemoryRequest(BaseModel):
     query_vector: Optional[List[float]] = None
     query_text: Optional[str] = None
-    user_id: str = Field("anonymous")
+    user_id: Optional[str] = None
     step: int = Field(0, ge=0)
     last_seal: str = Field("")
     hops: int = Field(2, ge=0, le=4)

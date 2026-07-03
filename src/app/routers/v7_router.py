@@ -301,7 +301,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         # v7.8: pass layer_weights for dynamic masks
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
         # Try VectorRouter (HNSW) first, fallback to _cached_search
-        hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id, q_vec, top_k=req.top_k)
+        hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id.replace("@", "").replace(".", ""), q_vec, top_k=req.top_k)
         raw_results = []
         if hnsw_results:
             raw_results = [{"event_id": eid, "score": score, "source": "personal"} for eid, score in hnsw_results]
@@ -469,7 +469,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
         # v7.8: pass layer_weights for dynamic masks
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
         # Try VectorRouter (HNSW) first, fallback to _cached_search
-        hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id, q_vec, top_k=req.top_k)
+        hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id.replace("@", "").replace(".", ""), q_vec, top_k=req.top_k)
         raw_results = []
         if hnsw_results:
             raw_results = [{"event_id": eid, "score": score, "source": "personal"} for eid, score in hnsw_results]

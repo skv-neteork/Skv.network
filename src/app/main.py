@@ -41,6 +41,117 @@ from app.routers.formula_validator import router as formula_validator_router
 from app.routers.bureau import router as bureau_router
 import io, zipfile, os
 app = FastAPI(title="SKV Network", version="2.0")
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def homepage_v8():
+    """SKV v8.0 PRO — Zero-Code AI Memory Network"""
+    html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKV v8.0 PRO — Zero-Code AI Memory Network</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', system-ui; background: #0a0a0f; color: #e6e6e6; line-height: 1.6; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 3em; background: linear-gradient(135deg, #00ff88, #00ccff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+        h2 { color: #00ccff; margin: 40px 0 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .badge { display: inline-block; background: #00ff88; color: #000; padding: 4px 12px; border-radius: 12px; font-weight: 700; font-size: 0.8em; }
+        .subtitle { color: #8b8b94; font-size: 1.2em; margin-bottom: 30px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+        .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-left: 4px solid #00ff88; padding: 20px; border-radius: 8px; }
+        .card h3 { color: #f0883e; margin-bottom: 10px; }
+        code { background: #1a1a1a; color: #ff8800; padding: 2px 8px; border-radius: 4px; font-family: monospace; }
+        pre { background: #13131a; padding: 15px; border-radius: 8px; overflow-x: auto; border: 1px solid #333; }
+        pre code { background: none; padding: 0; }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #333; color: #666; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 SKV v8.0 PRO</h1>
+        <p class="subtitle">Zero-Code AI Memory Network <span class="badge">LIVE</span></p>
+        
+        <h2>🚀 Quick Start (30 секунд)</h2>
+        <div class="card">
+            <h3>Для Custom GPT / Claude / DeepSeek</h3>
+            <p>1. Actions → Import OpenAPI Schema:</p>
+            <pre><code>https://skv.network/api/v7/agent/openapi.json</code></pre>
+            <p>2. Auth: Bearer <code>sk_xxx</code></p>
+            <p>3. Готово! Агент автоматически вызывает <code>searchMemory</code> перед каждым ответом.</p>
+        </div>
+        
+        <h2>🧠 Архитектура v8.0</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>4-уровневая память</h3>
+                <p><strong>Level 0:</strong> Raw dialogue (30 дней → архив)</p>
+                <p><strong>Level 1:</strong> Summary (вектор 768 + JSON)</p>
+                <p><strong>Level 2:</strong> Memory Map (темы, timeline)</p>
+                <p><strong>Level 3:</strong> Cubes (атомарные знания + граф)</p>
+            </div>
+            <div class="card">
+                <h3>Гибридный поиск</h3>
+                <p><strong>HNSW:</strong> семантический поиск (bge-base 768)</p>
+                <p><strong>FTS5:</strong> точные совпадения по словам</p>
+                <p><strong>Spreading Activation:</strong> по графу кубов</p>
+                <p><strong>RRF:</strong> слияние результатов</p>
+            </div>
+            <div class="card">
+                <h3>Конституция CUBE 00-05</h3>
+                <p><strong>CUBE 00:</strong> Core Algorithm</p>
+                <p><strong>CUBE 01:</strong> Harm Prevention</p>
+                <p><strong>CUBE 02:</strong> Truth & Verification</p>
+                <p><strong>CUBE 03:</strong> Moral Compass</p>
+                <p><strong>CUBE 04:</strong> Anti-Manipulation</p>
+                <p><strong>CUBE 05:</strong> Agent Protocol</p>
+            </div>
+            <div class="card">
+                <h3>Zero-Code Gateway</h3>
+                <p>OpenAPI 3.1.0 спецификация</p>
+                <p>Function Calling для LLM</p>
+                <p>Автоматический вызов инструментов</p>
+                <p>Никакого кода на стороне агента</p>
+            </div>
+        </div>
+        
+        <h2>📡 API Endpoints</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>READ</h3>
+                <p><code>POST /api/v7/memory</code> — поиск памяти</p>
+                <p><code>GET /api/v7/constitution</code> — кубы CUBE 00-05</p>
+                <p><code>GET /api/v7/agent/openapi.json</code> — схема</p>
+            </div>
+            <div class="card">
+                <h3>WRITE</h3>
+                <p><code>POST /api/v7/experience/create</code> — создать куб</p>
+                <p><code>POST /api/v7/experience/vote</code> — голос</p>
+                <p><code>POST /api/v7/feedback</code> — отчёт</p>
+            </div>
+        </div>
+        
+        <h2>🔗 Ссылки</h2>
+        <div class="card">
+            <p>📖 <a href="/docs">Swagger UI</a> — интерактивная документация</p>
+            <p>📜 <a href="/api/v7/constitution">Конституция CUBE 00-05</a></p>
+            <p>🔧 <a href="/api/v7/agent/openapi.json">OpenAPI Schema</a></p>
+            <p>🤖 <a href="/api/v7/agent/prompt">System Prompt для агентов</a></p>
+        </div>
+        
+        <footer>
+            <p>SKV v8.0 PRO | skv.network | 2026 | Zero-Code AI Memory Network</p>
+        </footer>
+    </div>
+</body>
+</html>"""
+    return html
 app = FastAPI(title="SKV Network", version="2.0")
 
 

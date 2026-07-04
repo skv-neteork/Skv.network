@@ -458,6 +458,157 @@ SEAL (add to every response):
 # PROFILE ENDPOINTS
 # ═══════════════════════════════════════════════════════════════
 
+
+# ═══════════════════════════════════════════════════════════════
+# AUTH ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+import hashlib, secrets, smtplib, os
+from email.mime.text import MIMEText
+
+def hash_password(password: str) -> str:
+    salt = os.environ.get("SKV_SALT", "skv_secret_salt_2026")
+    return hashlib.sha256((password + salt).encode()).hexdigest()
+
+def generate_api_key() -> str:
+    return f"sk_{secrets.token_hex(16)}"
+
+def send_confirmation_email(email: str, code: str):
+    try:
+        smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+        smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+        smtp_user = os.environ.get("SMTP_USER", "")
+        smtp_pass = os.environ.get("SMTP_PASS", "")
+        
+        if not smtp_user:
+            print(f"Confirmation code for {email}: {code}")
+            return
+        
+        msg = MIMEText(f"Your SKV Network confirmation code: {code}")
+        msg["Subject"] = "SKV Network — Email Confirmation"
+        msg["From"] = smtp_user
+        msg["To"] = email
+        
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+        server.quit()
+    except Exception as e:
+        print(f"Email send failed: {e}")
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class ConfirmRequest(BaseModel):
+    email: str
+    code: str
+
+@router.post("/auth/register")
+async def register(req: RegisterRequest):
+    try:
+        import sqlite3
+        if not req.email or "@" not in req.email:
+            raise HTTPException(status_code=400, detail="Valid email required")
+        if not req.password or len(req.password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        cur = conn.cursor()
+        
+        # Create users table if not exists
+        cur.execute("""CREATE TABLE IF NOT EXISTS users (
+            email TEXT PRIMARY KEY, password_hash TEXT, confirmed INTEGER DEFAULT 0,
+            confirmation_code TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+        
+        # Check if email exists
+        cur.execute("SELECT email FROM users WHERE email = ?", (req.email,))
+        if cur.fetchone():
+            conn.close()
+            raise HTTPException(status_code=409, detail="Email already registered")
+        
+        password_hash = hash_password(req.password)
+        confirmation_code = secrets.token_hex(4).upper()
+        
+        cur.execute("INSERT INTO users (email, password_hash, confirmation_code) VALUES (?, ?, ?)",
+                   (req.email, password_hash, confirmation_code))
+        conn.commit()
+        conn.close()
+        
+        send_confirmation_email(req.email, confirmation_code)
+        
+        return {"status": "ok", "message": "Registration successful. Check email for confirmation code."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/auth/confirm")
+async def confirm_email(req: ConfirmRequest):
+    try:
+        import sqlite3
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        cur = conn.cursor()
+        cur.execute("SELECT confirmation_code FROM users WHERE email = ? AND confirmed = 0", (req.email,))
+        row = cur.fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="User not found or already confirmed")
+        
+        if row[0] != req.code:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Invalid confirmation code")
+        
+        cur.execute("UPDATE users SET confirmed = 1, confirmation_code = NULL WHERE email = ?", (req.email,))
+        
+        # Create API key
+        api_key = generate_api_key()
+        cur.execute("INSERT OR REPLACE INTO user_api_keys (user_id, api_key) VALUES (?, ?)", (req.email, api_key))
+        conn.commit()
+        conn.close()
+        
+        return {"status": "ok", "message": "Email confirmed!", "api_key": api_key}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/auth/login")
+async def login(req: LoginRequest):
+    try:
+        import sqlite3
+        password_hash = hash_password(req.password)
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        cur = conn.cursor()
+        cur.execute("SELECT email FROM users WHERE email = ? AND password_hash = ? AND confirmed = 1",
+                   (req.email, password_hash))
+        row = cur.fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Return existing active key or create new one
+        cur.execute("SELECT api_key FROM user_api_keys WHERE user_id = ? AND is_active = 1 LIMIT 1", (req.email,))
+        key_row = cur.fetchone()
+        if key_row:
+            api_key = key_row[0]
+        else:
+            api_key = generate_api_key()
+            cur.execute("INSERT INTO user_api_keys (user_id, api_key) VALUES (?, ?)", (req.email, api_key))
+            conn.commit()
+        
+        conn.close()
+        return {"status": "ok", "api_key": api_key, "user_id": req.email}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/profile")
 async def get_profile(authorization: str = Header(None)):
     """Get user profile with API keys and stats."""

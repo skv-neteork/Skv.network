@@ -184,7 +184,7 @@ async def execute_code(payload: dict, request: Request = None):
                     current = safe
             if history:
                 await save_cube(history[-1].get("error", ""), history[-1].get("fix", ""))
-            return {"status": "success", "stdout": result.get("stdout", ""), "metrics": metrics, "attempts": attempt, "fixes": history, "security_check": "PASS"}
+            return {"status": "success", "stdout": result.get("stdout", ""), "final_code": current, "original_code": code, "metrics": metrics, "attempts": attempt, "fixes": history, "security_check": "PASS"}
 
         error = result.get("stderr") or result.get("status", "Unknown error")
         if error == last_error:

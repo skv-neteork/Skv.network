@@ -251,6 +251,10 @@ print(f'Sqrt(16): {math.sqrt(16)}')`,
                     output = d.stderr || d.status || 'Unknown error';
                 }
 
+                if (d.final_code && d.final_code !== d.original_code) {
+                    output += `\n\n--- Corrected Code ---\n${d.final_code}`;
+                }
+
                 if (d.fixes && d.fixes.length > 0) {
                     output += `\n\n--- AI Auto-Fix Applied ---`;
                     d.fixes.forEach(f => {

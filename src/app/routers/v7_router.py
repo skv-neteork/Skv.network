@@ -463,8 +463,8 @@ SEAL (add to every response):
 # AUTH ENDPOINTS
 # ═══════════════════════════════════════════════════════════════
 
-import hashlib, secrets, smtplib, os
-from email.mime.text import MIMEText
+import hashlib, secrets, os
+
 
 def hash_password(password: str) -> str:
     salt = os.environ.get("SKV_SALT", "skv_secret_salt_2026")
@@ -475,27 +475,31 @@ def generate_api_key() -> str:
 
 def send_confirmation_email(email: str, code: str):
     try:
-        smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-        smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-        smtp_user = os.environ.get("SMTP_USER", "")
-        smtp_pass = os.environ.get("SMTP_PASS", "")
-        
-        if not smtp_user:
-            print(f"Confirmation code for {email}: {code}")
+        import requests
+        resend_key = os.environ.get("RESEND_API_KEY", "")
+        if not resend_key:
+            print(f"[SKV] Confirmation code for {email}: {code}")
             return
         
-        msg = MIMEText(f"Your SKV Network confirmation code: {code}")
-        msg["Subject"] = "SKV Network — Email Confirmation"
-        msg["From"] = smtp_user
-        msg["To"] = email
-        
-        server = smtplib.SMTP(smtp_host, smtp_port)
-        server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.send_message(msg)
-        server.quit()
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+            json={
+                "from": "SKV Network <noreply@skv.network>",
+                "to": email,
+                "subject": "SKV Network — Email Confirmation",
+                "text": f"Your confirmation code: {code}\n\nEnter this code on the registration page to activate your account."
+            },
+            timeout=10
+        )
+        if resp.status_code == 200:
+            print(f"[SKV] Email sent to {email}: {resp.json().get('id', 'ok')}")
+        else:
+            print(f"[SKV] Email failed for {email}: {resp.text}")
+            print(f"[SKV] Confirmation code for {email}: {code}")
     except Exception as e:
-        print(f"Email send failed: {e}")
+        print(f"[SKV] Email error for {email}: {e}")
+        print(f"[SKV] Confirmation code for {email}: {code}")
 
 class RegisterRequest(BaseModel):
     email: str

@@ -3,272 +3,784 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile — SKV Network</title>
+    <title>SKV Network — Profile & API Keys</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; }
-        .nav { display: flex; gap: 24px; padding: 16px 24px; border-bottom: 1px solid #21262d; }
-        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; }
-        .nav a:hover { color: #c9d1d9; }
-        .nav a.active { color: #f78166; }
-        .main { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
-        h1 { font-size: 28px; font-weight: 600; color: #f0883e; margin-bottom: 16px; }
-        .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 24px; margin-bottom: 20px; }
-        .card h2 { font-size: 16px; color: #c9d1d9; margin-bottom: 12px; }
-        label { display: block; font-size: 13px; color: #8b949e; margin-bottom: 4px; }
-        input { width: 100%; padding: 10px 14px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 14px; margin-bottom: 12px; }
-        input:focus { outline: none; border-color: #f78166; }
-        button { padding: 8px 20px; background: #238636; color: #fff; border: 1px solid #2ea043; border-radius: 6px; cursor: pointer; font-size: 14px; }
-        button:hover { background: #2ea043; }
-        .msg { font-size: 13px; padding: 8px 12px; border-radius: 6px; margin-top: 10px; display: none; }
-        .msg.success { background: #1b3a1b; color: #3fb950; display: block; }
-        .msg.error { background: #3a1b1b; color: #f85149; display: block; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0B0F19;
+            color: #d1d5db;
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+        .mono { font-family: 'Fira Code', monospace; }
+        
+        /* Header */
+        header {
+            border-bottom: 1px solid #1f2937;
+            background: rgba(17, 24, 39, 0.5);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            height: 56px;
+        }
+        .header-inner {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 24px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+        }
+        .logo-version { color: #10b981; }
+        nav { display: flex; gap: 20px; }
+        nav a {
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+        nav a:hover { color: #10b981; }
+        nav a.purple { color: #a78bfa; }
+        
+        /* Main */
+        main {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 60px 24px 80px;
+        }
+        
+        /* Card */
+        .card {
+            background: rgba(17, 24, 39, 0.4);
+            border: 1px solid #1f2937;
+            border-radius: 12px;
+            padding: 32px;
+        }
+        .card-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 8px;
+        }
+        .card-desc {
+            font-size: 14px;
+            color: #9ca3af;
+            margin-bottom: 24px;
+        }
+        
+        /* Form */
+        .form-group { margin-bottom: 16px; }
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #9ca3af;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px 14px;
+            background: #0B0F19;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+        .form-input[readonly] {
+            color: #6b7280;
+            cursor: not-allowed;
+        }
+        
+        /* Button */
+        .btn {
+            width: 100%;
+            padding: 11px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            margin-top: 8px;
+        }
+        .btn-primary {
+            background: #10b981;
+            color: white;
+        }
+        .btn-primary:hover { background: #059669; }
+        .btn-primary:disabled {
+            background: #374151;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: transparent;
+            color: #9ca3af;
+            border: 1px solid #374151;
+        }
+        .btn-secondary:hover {
+            background: #1f2937;
+            color: white;
+        }
+        .btn-danger {
+            background: transparent;
+            color: #f87171;
+            border: 1px solid #7f1d1d;
+            font-size: 12px;
+            padding: 6px 12px;
+            width: auto;
+            margin-top: 0;
+        }
+        .btn-danger:hover {
+            background: #7f1d1d;
+            color: white;
+        }
+        .btn-small {
+            width: auto;
+            padding: 6px 12px;
+            font-size: 12px;
+            margin-top: 0;
+        }
+        
+        /* Alert */
+        .alert {
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .alert.show { display: block; }
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+        }
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #6ee7b7;
+        }
+        .alert-info {
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: #c4b5fd;
+        }
+        
+        /* Help text */
+        .help-text {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 12px;
+            line-height: 1.5;
+        }
+        .help-text code {
+            color: #a78bfa;
+            background: rgba(139, 92, 246, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        
+        /* Link */
+        .link {
+            color: #a78bfa;
+            text-decoration: none;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .link:hover { color: #c4b5fd; text-decoration: underline; }
+        
+        /* Profile section */
+        .profile-section { margin-bottom: 28px; }
+        .profile-section:last-child { margin-bottom: 0; }
+        .profile-section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #1f2937;
+        }
+        .profile-email {
+            font-size: 15px;
+            color: white;
+            font-weight: 500;
+        }
+        
+        /* API Key */
+        .key-item {
+            background: #0B0F19;
+            border: 1px solid #1f2937;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .key-value {
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            color: #10b981;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .key-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .key-btn {
+            background: transparent;
+            border: 1px solid #374151;
+            color: #9ca3af;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .key-btn:hover {
+            background: #1f2937;
+            color: white;
+        }
+        .key-btn.danger:hover {
+            background: #7f1d1d;
+            border-color: #7f1d1d;
+            color: white;
+        }
+        
+        /* Stats */
+        .stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .stat-box {
+            background: #0B0F19;
+            border: 1px solid #1f2937;
+            border-radius: 8px;
+            padding: 14px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: white;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+        
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+            font-size: 13px;
+            font-style: italic;
+        }
+        
+        /* State visibility */
+        .state { display: none; }
+        .state.active { display: block; }
+        
+        /* Footer */
+        footer {
+            border-top: 1px solid #111827;
+            background: #030712;
+            padding: 32px 24px;
+            text-align: center;
+        }
+        .footer-text {
+            font-size: 11px;
+            color: #6b7280;
+            margin-bottom: 10px;
+        }
+        .footer-contacts {
+            font-size: 11px;
+            color: #4b5563;
+        }
+        .footer-contacts a {
+            color: #9ca3af;
+            text-decoration: none;
+        }
+        .footer-contacts a:hover { color: #10b981; }
+        .footer-contacts code { color: #10b981; }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: #0B0F19;
+            border: 1px solid #1f2937;
+            max-width: 400px;
+            width: 90%;
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 12px;
+        }
+        .modal-text {
+            font-size: 14px;
+            color: #9ca3af;
+            margin-bottom: 20px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .modal-actions .btn {
+            width: auto;
+            padding: 8px 16px;
+            margin-top: 0;
+        }
+        
+        @media (max-width: 600px) {
+            nav { display: none; }
+            .card { padding: 24px 20px; }
+        }
     </style>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iI2YwODgzZSIvPgogIDx0ZXh0IHg9IjE2IiB5PSIyMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiMwZDExMTciPlNLVjwvdGV4dD4KPC9zdmc+">
 </head>
 <body>
-    <div class="nav">
-        <a href="/">Home</a>
-        <a href="/upload">Upload</a>
-        <a href="/trials">Trials</a>
-            <a href="/evolver">Evolver</a>
-        
-        <a href="/.well-known/skv" target="_blank">Discovery</a>
-        <a href="/guide">Guide</a>
-        
-        
-        <a href="/about">About</a>
-        <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
-        <span id="navStatus" style="color:#484f58;font-size:12px;margin-left:auto;"></span>
-    </div>
-    <div class="main">
-        <h1>SKV Profile</h1>
-
-        <div class="card" id="loginCard">
-            <h2>Register / Login</h2>
-            <label>Email</label>
-            <input type="email" id="email" placeholder="you@example.com">
-            <label>Password</label>
-            <input type="password" id="password" placeholder="Min 6 characters">
-            <div style="display:flex;gap:10px;">
-                <button onclick="register()">Register</button>
-                <button onclick="login()">Login</button>
-            </div>
-            <div class="msg" id="authMsg"></div>
+    <header>
+        <div class="header-inner">
+            <a href="/" class="logo">
+                <span>🔐</span>
+                <span>SKV_NETWORK <span class="logo-version">v8.0</span></span>
+            </a>
+            <nav>
+                <a href="/">Home</a>
+                <a href="/#constitution">Constitution</a>
+                <a href="/sandbox">Sandbox</a>
+                <a href="/api/v7/agent/openapi.json" target="_blank" class="purple">OpenAPI</a>
+            </nav>
         </div>
+    </header>
 
-        <div class="card" id="confirmCard" style="display:none;">
-            <h2>Confirm Email</h2>
-            <label>Confirmation Code</label>
-            <input type="text" id="confirmCode" placeholder="Enter code from email">
-            <button onclick="confirmEmail()">Confirm</button>
-            <div class="msg" id="confirmMsg"></div>
-        </div>
-
-        <div class="card" id="tokenCard" style="display:none;">
-            <button onclick="logout()" style="margin-bottom:12px;background:#30363d;border:1px solid #484f58;color:#c9d1d9;padding:6px 12px;border-radius:4px;cursor:pointer;">↪ Logout</button>
-            <h2>Your API Token</h2>
-            <p style="font-size:13px;color:#8b949e;margin-bottom:8px;">Use this token to authenticate API requests.</p>
-
-            <div style="margin-top:16px; padding:16px; background:#0d1117; border:1px solid #30363d; border-radius:6px;">
-                <h3 style="color:#f0883e;font-size:14px;margin-bottom:8px;">📖 How to use your API token</h3>
-                <p style="font-size:13px;color:#8b949e;margin-bottom:12px;">Copy any example below. Replace <code style="background:#161b22;padding:1px 4px;border-radius:3px;">YOUR_TOKEN</code> with the key above.</p>
+    <main>
+        <div class="card">
+            <!-- STATE 1: Register -->
+            <div id="state-register" class="state">
+                <h1 class="card-title">Create Account</h1>
+                <p class="card-desc">Get your API key and connect AI agents to SKV Network.</p>
                 
-                <p style="font-size:13px;color:#c9d1d9;margin-bottom:4px;"><strong>💾 Save session (memory)</strong></p>
-                <pre style="background:#161b22;padding:10px;border-radius:4px;font-size:12px;color:#7ee787;overflow-x:auto;margin-bottom:12px;">curl -X POST https://skv.network/api/v4/sessions \
-  -H "X-API-Key: YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"user_id":"you@example.com","project":"my_project","session_id":"s1","query":"Hello","response":"Hi"}'</pre>
-
-                <p style="font-size:13px;color:#c9d1d9;margin-bottom:4px;"><strong>📥 Load context (memory)</strong></p>
-                <pre style="background:#161b22;padding:10px;border-radius:4px;font-size:12px;color:#7ee787;overflow-x:auto;margin-bottom:12px;">curl "https://skv.network/api/v4/users/you@example.com/projects/my_project/context" \
-  -H "X-API-Key: YOUR_TOKEN"</pre>
-
-                <p style="font-size:13px;color:#c9d1d9;margin-bottom:4px;"><strong>🔍 Search cubes</strong></p>
-                <pre style="background:#161b22;padding:10px;border-radius:4px;font-size:12px;color:#7ee787;overflow-x:auto;margin-bottom:12px;">curl "https://skv.network/api/cubes/search?query=memory"</pre>
-
-                <p style="font-size:13px;color:#8b949e;margin-top:8px;">📚 Full guide: <a href="/downloads/skv-agent-guide.txt" style="color:#58a6ff;" download>skv-agent-guide.txt</a></p>
+                <div id="alert-register" class="alert"></div>
+                
+                <form id="form-register" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="reg-email">Email</label>
+                        <input type="email" id="reg-email" class="form-input" placeholder="you@example.com" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-password">Password</label>
+                        <input type="password" id="reg-password" class="form-input" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btn-register">Create Account</button>
+                </form>
+                
+                <p class="help-text" style="margin-top: 20px;">
+                    Already have an account? <a class="link" onclick="showState('login')">Sign in</a>
+                </p>
             </div>
 
-            <div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;margin-bottom:16px;">
-                <h3 style="color:#f0883e;font-size:16px;margin-bottom:8px;">🔑 Your API Token</h3>
-                <code id="tokenDisplay" style="display:block;background:#161b22;padding:12px 16px;border-radius:6px;color:#7ee787;word-break:break-all;font-size:18px;font-weight:600;text-align:center;letter-spacing:1px;"></code>
-                <button onclick="copyToken()" style="margin-top:8px;padding:6px 16px;background:#30363d;border:1px solid #484f58;color:#c9d1d9;border-radius:4px;cursor:pointer;font-size:12px;">📋 Copy Token</button>
+            <!-- STATE 2: Confirm -->
+            <div id="state-confirm" class="state">
+                <h1 class="card-title">Confirm Your Email</h1>
+                <p class="card-desc">We sent a confirmation code. Check your email or server logs.</p>
+                
+                <div id="alert-confirm" class="alert"></div>
+                
+                <form id="form-confirm" onsubmit="handleConfirm(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="conf-email">Email</label>
+                        <input type="email" id="conf-email" class="form-input" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="conf-code">Confirmation Code</label>
+                        <input type="text" id="conf-code" class="form-input mono" placeholder="F49EC6C0" required autocomplete="off" style="text-transform: uppercase;">
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btn-confirm">Confirm Email</button>
+                </form>
+                
+                <p class="help-text">
+                    💡 In test environment, the code appears in server logs.<br>
+                    Check: <code>docker logs skv_api --tail 50</code>
+                </p>
             </div>
-        
-<div class="card" style="margin-top:16px; text-align:center">
-    <h3 style="color:#f0883e">📥 Download Your SKV Pack</h3>
-    <p style="color:#8b949e;font-size:14px">Get your personal portfolio, constitution, and agent guide in one file. Give it to any AI chat to make it SKV-aware and personalized.</p>
-    <button onclick="downloadPack()" style="padding: 12px 24px; background: #1f6feb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 8px">
-        📥 Download My SKV Pack
-<p style="color:#8b949e;font-size:13px;margin-top:12px;text-align:center"></p>
-    </button>
-<p style="color:#c9d1d9;font-size:14px;margin-top:16px;text-align:center">After uploading the file to AI chat, give the command:<br><strong style="color:#f0883e;font-size:16px">"Follow all SKV rules from this file. Search cubes via /api/cubes/search?query=TOPIC. After session, create an anketa with feedback."</strong></p>
-    <p style="color:#484f58;font-size:12px;margin-top:8px" id="packStatus"></p>
-</div>
 
-<script>
-async function downloadPack() {
-    const email = localStorage.getItem('skv_email');
-    if (!email) {
-        alert('Please log in first');
-        return;
-    }
-    const username = email;
-    document.getElementById('packStatus').textContent = 'Генерируется...';
-    const token = localStorage.getItem('skv_token') || '';
-    window.location.href = `/downloads/skv-persona-pack-${username}.txt?token=${token}`;
-    document.getElementById('packStatus').textContent = '✅ Скачивание началось!';
-}
-</script>
+            <!-- STATE 3: Login -->
+            <div id="state-login" class="state">
+                <h1 class="card-title">Sign In</h1>
+                <p class="card-desc">Enter your credentials to get your API key.</p>
+                
+                <div id="alert-login" class="alert"></div>
+                
+                <form id="form-login" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="login-email">Email</label>
+                        <input type="email" id="login-email" class="form-input" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="login-password">Password</label>
+                        <input type="password" id="login-password" class="form-input" placeholder="Your password" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btn-login">Sign In</button>
+                </form>
+                
+                <p class="help-text" style="margin-top: 20px;">
+                    Don't have an account? <a class="link" onclick="showState('register')">Create one</a>
+                </p>
+            </div>
+
+            <!-- STATE 4: Profile -->
+            <div id="state-profile" class="state">
+                <h1 class="card-title">My Profile</h1>
+                <p class="card-desc">Your API keys and account information.</p>
+                
+                <div id="alert-profile" class="alert"></div>
+                
+                <!-- Account Info -->
+                <div class="profile-section">
+                    <div class="profile-section-title">Account</div>
+                    <p class="profile-email" id="profile-email">—</p>
+                </div>
+                
+                <!-- API Keys -->
+                <div class="profile-section">
+                    <div class="profile-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>API Keys</span>
+                        <button class="btn btn-primary btn-small" onclick="createKey()" id="btn-new-key">+ New Key</button>
+                    </div>
+                    <div id="keys-list"></div>
+                </div>
+                
+                <!-- Stats -->
+                <div class="profile-section">
+                    <div class="profile-section-title">Statistics</div>
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <div class="stat-value" id="stat-events">—</div>
+                            <div class="stat-label">Events</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="stat-vectors">—</div>
+                            <div class="stat-label">Vectors</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Logout -->
+                <button class="btn btn-secondary" onclick="logout()" style="margin-top: 20px;">Sign Out</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Revoke confirmation modal -->
+    <div id="revoke-modal" class="modal">
+        <div class="modal-content">
+            <h3 class="modal-title">Revoke API Key?</h3>
+            <p class="modal-text">This action cannot be undone. Any agents using this key will lose access immediately.</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeRevokeModal()">Cancel</button>
+                <button class="btn btn-danger" id="btn-confirm-revoke" onclick="confirmRevoke()">Revoke</button>
+            </div>
+        </div>
     </div>
 
+    <footer>
+        <p class="footer-text">© 2026 SKV Network · Designed by AI, for AI · Protected by CUBE 00-05</p>
+        <p class="footer-contacts">
+            📧 <a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a>
+            &nbsp;·&nbsp;
+            💎 USDT TRON (Telegram Wallet): <code>TKiRxHVxHSnZSP7ERwkv73nPmGfq2fKwJF</code>
+        </p>
+    </footer>
+
     <script>
-        // Восстановление сессии
-        (function() {
-            const token = localStorage.getItem('skv_token');
-            const email = localStorage.getItem('skv_email');
-            if (token && email) {
-                document.getElementById('loginCard').style.display = 'none';
-                document.getElementById('tokenCard').style.display = 'block';
-                document.getElementById('tokenDisplay').textContent = token;
-                document.getElementById('email').value = email;
+        const API_BASE = '';
+        let currentToken = localStorage.getItem('skv_token');
+        let pendingRevokeKey = null;
+        let tempEmail = '';
+
+        // Init
+        async function init() {
+            if (currentToken) {
+                try {
+                    const profile = await apiCall('/api/v7/profile', 'GET');
+                    if (profile && profile.email) {
+                        showState('profile');
+                        renderProfile(profile);
+                        return;
+                    }
+                } catch (e) {
+                    localStorage.removeItem('skv_token');
+                    currentToken = null;
+                }
             }
-        })();
-
-        async function register() {
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            if (!email || !password) { showMsg('authMsg', 'error', 'Fill all fields'); return; }
-            showMsg('authMsg', 'success', 'Registering...');
-            try {
-                const r = await fetch('/api/auth/register', {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({email, password})
-                });
-                const d = await r.json();
-                if (r.ok) {
-                    showMsg('authMsg', 'success', d.message + '. Check email for code.');
-                    document.getElementById('confirmCard').style.display = 'block';
-                } else {
-                    showMsg('authMsg', 'error', d.detail || 'Error');
-                }
-            } catch(e) { showMsg('authMsg', 'error', 'Network error'); }
+            showState('register');
         }
 
-        async function confirmEmail() {
-            const email = document.getElementById('email').value.trim();
-            const code = document.getElementById('confirmCode').value.trim();
-            if (!code) { showMsg('confirmMsg', 'error', 'Enter code'); return; }
-            try {
-                const r = await fetch('/api/auth/confirm', {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({email, code})
-                });
-                const d = await r.json();
-                if (r.ok) {
-                    showMsg('confirmMsg', 'success', 'Email confirmed!');
-                    document.getElementById('confirmCard').style.display = 'none';
-                } else {
-                    showMsg('confirmMsg', 'error', d.detail || 'Error');
-                }
-            } catch(e) { showMsg('confirmMsg', 'error', 'Network error'); }
-        }
-
-        async function login() {
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            if (!email || !password) { showMsg('authMsg', 'error', 'Fill all fields'); return; }
-            showMsg('authMsg', 'success', 'Logging in...');
-            try {
-                const r = await fetch('/api/auth/login', {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({email, password})
-                });
-                const d = await r.json();
-                if (r.ok) {
-                    showMsg('authMsg', 'success', 'Logged in!');
-                    document.getElementById('tokenCard').style.display = 'block';
-                    document.getElementById('tokenDisplay').textContent = d.api_token;
-                        localStorage.setItem('skv_token', d.api_token);
-                        localStorage.setItem('skv_email', email);
-                } else {
-                    showMsg('authMsg', 'error', d.detail || 'Error');
-                }
-            } catch(e) { showMsg('authMsg', 'error', 'Network error'); }
-        }
-
-        
-        function copyToken() {
-            const token = document.getElementById('tokenDisplay').textContent;
-            navigator.clipboard.writeText(token).then(() => {
-                alert('Token copied to clipboard!');
+        function showState(state) {
+            document.querySelectorAll('.state').forEach(s => s.classList.remove('active'));
+            document.getElementById('state-' + state).classList.add('active');
+            
+            // Clear alerts
+            document.querySelectorAll('.alert').forEach(a => {
+                a.classList.remove('show');
+                a.className = 'alert';
             });
         }
-        
-        function logout() {
-            localStorage.removeItem("skv_token");
-            localStorage.removeItem("skv_email");
-            document.getElementById("tokenCard").style.display = "none";
-            document.getElementById("email").value = "";
-            document.getElementById("password").value = "";
-            showMsg("authMsg", "success", "Logged out");
+
+        function showAlert(state, type, message) {
+            const alert = document.getElementById('alert-' + state);
+            alert.className = 'alert alert-' + type + ' show';
+            alert.textContent = message;
         }
 
-        function showMsg(id, type, text) {
-            const el = document.getElementById(id);
-            el.textContent = text;
-            el.className = 'msg ' + type;
-        }
-    
-        // Проверка статуса входа
-        (function() {
-            const email = localStorage.getItem('skv_email');
-            const token = localStorage.getItem('skv_token');
-            if (email && token) {
-                document.getElementById('navProfile').textContent = '⚡ Profile';
-                document.getElementById('navStatus').textContent = 'Logged in as ' + email;
-                document.getElementById('navStatus').style.color = '#3fb950';
+        async function apiCall(path, method = 'GET', body = null) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (currentToken) headers['Authorization'] = 'Bearer ' + currentToken;
+            
+            const opts = { method, headers };
+            if (body) opts.body = JSON.stringify(body);
+            
+            const res = await fetch(API_BASE + path, opts);
+            const data = await res.json().catch(() => ({}));
+            
+            if (!res.ok) {
+                throw new Error(data.detail || data.error || 'Request failed');
             }
-        })();
-        
-        function copyToken() {
-            const token = document.getElementById('tokenDisplay').textContent;
-            navigator.clipboard.writeText(token).then(() => {
-                alert('Token copied to clipboard!');
+            return data;
+        }
+
+        // Register
+        async function handleRegister(e) {
+            e.preventDefault();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+            const btn = document.getElementById('btn-register');
+            
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+            
+            try {
+                await apiCall('/api/v7/auth/register', 'POST', { email, password });
+                tempEmail = email;
+                document.getElementById('conf-email').value = email;
+                showAlert('register', 'success', 'Account created! Check your email for the confirmation code.');
+                setTimeout(() => showState('confirm'), 800);
+            } catch (err) {
+                showAlert('register', 'error', err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
+            }
+        }
+
+        // Confirm
+        async function handleConfirm(e) {
+            e.preventDefault();
+            const email = document.getElementById('conf-email').value;
+            const code = document.getElementById('conf-code').value.trim().toUpperCase();
+            const btn = document.getElementById('btn-confirm');
+            
+            btn.disabled = true;
+            btn.textContent = 'Confirming...';
+            
+            try {
+                const data = await apiCall('/api/v7/auth/confirm', 'POST', { email, code });
+                if (data.api_key) {
+                    currentToken = data.api_key;
+                    localStorage.setItem('skv_token', currentToken);
+                }
+                showAlert('confirm', 'success', 'Email confirmed!');
+                setTimeout(async () => {
+                    try {
+                        const profile = await apiCall('/api/v7/profile', 'GET');
+                        showState('profile');
+                        renderProfile(profile);
+                    } catch (err) {
+                        showState('login');
+                        document.getElementById('login-email').value = email;
+                    }
+                }, 800);
+            } catch (err) {
+                showAlert('confirm', 'error', err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Confirm Email';
+            }
+        }
+
+        // Login
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            const btn = document.getElementById('btn-login');
+            
+            btn.disabled = true;
+            btn.textContent = 'Signing in...';
+            
+            try {
+                const data = await apiCall('/api/v7/auth/login', 'POST', { email, password });
+                if (data.api_key) {
+                    currentToken = data.api_key;
+                    localStorage.setItem('skv_token', currentToken);
+                }
+                showAlert('login', 'success', 'Signed in!');
+                setTimeout(async () => {
+                    try {
+                        const profile = await apiCall('/api/v7/profile', 'GET');
+                        showState('profile');
+                        renderProfile(profile);
+                    } catch (err) {
+                        showAlert('login', 'error', 'Failed to load profile: ' + err.message);
+                    }
+                }, 500);
+            } catch (err) {
+                showAlert('login', 'error', err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
+            }
+        }
+
+        // Profile
+        function renderProfile(profile) {
+            document.getElementById('profile-email').textContent = profile.email || '—';
+            document.getElementById('stat-events').textContent = profile.events_count ?? '—';
+            document.getElementById('stat-vectors').textContent = profile.vectors_count ?? '—';
+            renderKeys(profile.api_keys || []);
+        }
+
+        function renderKeys(keys) {
+            const list = document.getElementById('keys-list');
+            if (!keys || keys.length === 0) {
+                list.innerHTML = '<div class="empty-state">No API keys yet. Create one to get started.</div>';
+                return;
+            }
+            list.innerHTML = keys.map(k => `
+                <div class="key-item">
+                    <div class="key-value mono" title="${k}">${k}</div>
+                    <div class="key-actions">
+                        <button class="key-btn" onclick="copyKey('${k}')">Copy</button>
+                        <button class="key-btn danger" onclick="openRevokeModal('${k}')">Revoke</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function copyKey(key) {
+            navigator.clipboard.writeText(key).then(() => {
+                showAlert('profile', 'success', 'API key copied to clipboard');
+                setTimeout(() => document.getElementById('alert-profile').classList.remove('show'), 2000);
             });
         }
-        
-        function logout() {
-            localStorage.removeItem("skv_token");
-            localStorage.removeItem("skv_email");
-            location.reload();
-        }
-</script>
-    <script>
-        (function() {
-            const email = localStorage.getItem("skv_email");
-            const token = localStorage.getItem("skv_token");
-            if (email && token) {
-                const link = document.getElementById("navProfileLink");
-                if (link) link.textContent = "⚡ " + email.split("@")[0];
-                const status = document.getElementById("navStatus");
-                if (status) { status.textContent = "✓ Logged in"; status.style.color = "#3fb950"; }
+
+        async function createKey() {
+            const btn = document.getElementById('btn-new-key');
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+            try {
+                const data = await apiCall('/api/v7/profile/keys', 'POST');
+                const profile = await apiCall('/api/v7/profile', 'GET');
+                renderProfile(profile);
+                showAlert('profile', 'success', 'New API key created');
+                setTimeout(() => document.getElementById('alert-profile').classList.remove('show'), 2000);
+            } catch (err) {
+                showAlert('profile', 'error', 'Failed to create key: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '+ New Key';
             }
-        })();
-        
-        function copyToken() {
-            const token = document.getElementById('tokenDisplay').textContent;
-            navigator.clipboard.writeText(token).then(() => {
-                alert('Token copied to clipboard!');
-            });
         }
-        
+
+        function openRevokeModal(key) {
+            pendingRevokeKey = key;
+            document.getElementById('revoke-modal').classList.add('active');
+        }
+
+        function closeRevokeModal() {
+            pendingRevokeKey = null;
+            document.getElementById('revoke-modal').classList.remove('active');
+        }
+
+        async function confirmRevoke() {
+            if (!pendingRevokeKey) return;
+            const btn = document.getElementById('btn-confirm-revoke');
+            btn.disabled = true;
+            btn.textContent = 'Revoking...';
+            try {
+                await apiCall('/api/v7/profile/keys/' + encodeURIComponent(pendingRevokeKey), 'DELETE');
+                closeRevokeModal();
+                const profile = await apiCall('/api/v7/profile', 'GET');
+                renderProfile(profile);
+                showAlert('profile', 'success', 'API key revoked');
+                setTimeout(() => document.getElementById('alert-profile').classList.remove('show'), 2000);
+            } catch (err) {
+                showAlert('profile', 'error', 'Failed to revoke: ' + err.message);
+                closeRevokeModal();
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Revoke';
+            }
+        }
+
         function logout() {
-            localStorage.removeItem("skv_token");
-            localStorage.removeItem("skv_email");
-            location.reload();
+            localStorage.removeItem('skv_token');
+            currentToken = null;
+            showState('login');
         }
+
+        init();
     </script>
 </body>
 </html>

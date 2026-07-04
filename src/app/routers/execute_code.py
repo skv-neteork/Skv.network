@@ -88,11 +88,18 @@ async def select_best_fix(fixes, current_code):
         if not await is_compilable(candidate):
             continue
         try:
-            result = await run_code(candidate)
-            if result.get("status") == "success":
-                exec_time = result.get("metrics", {}).get("execution_time_ms", 9999)
-                if exec_time < best["time"]:
-                    best = {"code": candidate, "why": fix.get("why", ""), "time": exec_time}
+            # Warm-up (ignore)
+            await run_code(candidate)
+            # Best of 2 real runs
+            best_time = 9999
+            for _ in range(2):
+                result = await run_code(candidate)
+                if result.get("status") == "success":
+                    t = result.get("metrics", {}).get("execution_time_ms", 9999)
+                    if t < best_time:
+                        best_time = t
+            if best_time < best["time"]:
+                best = {"code": candidate, "why": fix.get("why", ""), "time": best_time}
         except:
             continue
     return best

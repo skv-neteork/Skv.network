@@ -618,12 +618,22 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     constitution_map = metadata_store.batch_get_metadata("shared_master", constitution_cube_ids)
     
     # Build constitution text from loaded cubes
+    # Full text on step 0 and every 20 steps, short otherwise
+    load_full = (step == 0 or step % 20 == 0)
     constitution_parts = []
     for cube_id in constitution_cube_ids:
         meta = constitution_map.get(cube_id, {})
         essence = meta.get("essence", "")
         if essence:
-            constitution_parts.append(f"=== {cube_id.upper().replace('_', ' ')} ===\n{essence}")
+            if load_full:
+                dialogue = meta.get("raw_dialogue", "")
+                if dialogue:
+                    constitution_parts.append(f"=== {essence} ===\n{dialogue}")
+                else:
+                    constitution_parts.append(f"=== {essence} ===")
+            else:
+                # Short version: only essence (first 200 chars)
+                constitution_parts.append(f"=== {essence} ===")
     
     constitution_text = "\n\n".join(constitution_parts) if constitution_parts else "=== КОНСТИТУЦИЯ SKV НЕ ЗАГРУЖЕНА ==="
     

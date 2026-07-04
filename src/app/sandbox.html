@@ -1,67 +1,188 @@
 <!DOCTYPE html>
-<html>
-<head><title>SKV Code Sandbox</title>
-<style>
-body{background:#0d1117;color:#c9d1d9;font-family:monospace;padding:20px;max-width:800px;margin:0 auto}
-textarea{width:100%;height:200px;background:#161b22;color:#58a6ff;border:1px solid #30363d;padding:10px;font-size:14px;resize:vertical;border-radius:6px}
-button{padding:10px 20px;border-radius:6px;cursor:pointer;font-size:14px;border:none;color:#fff}
-.btn-run{background:#238636}
-.btn-copy{background:#30363d}
-.btn-clear{background:#da3633}
-#output{background:#161b22;border:1px solid #30363d;padding:15px;margin-top:15px;white-space:pre-wrap;min-height:100px;font-size:13px;border-radius:6px;user-select:all}
-h1{color:#f0883e;font-size:24px}
-</style></head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKV Network — Code Sandbox</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #0B0F19;
+            color: #d1d5db;
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+        header {
+            border-bottom: 1px solid #1f2937;
+            background: rgba(17, 24, 39, 0.5);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            height: 56px;
+        }
+        .header-inner {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 24px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .logo {
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+        }
+        .logo-version { color: #10b981; }
+        nav { display: flex; gap: 20px; }
+        nav a {
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        nav a:hover { color: #10b981; }
+        nav a.active { color: #10b981; }
+        main {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 48px 24px 64px;
+        }
+        .page-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 8px;
+        }
+        .card {
+            background: rgba(17, 24, 39, 0.4);
+            border: 1px solid #1f2937;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 280px;
+            background: #0B0F19;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 14px;
+            color: #10b981;
+            font-family: 'Fira Code', monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-run { background: #10b981; color: white; }
+        .btn-clear { background: transparent; color: #f87171; border: 1px solid #7f1d1d; }
+        .btn-example {
+            background: transparent;
+            color: #a78bfa;
+            border: 1px solid #374151;
+            font-size: 12px;
+            padding: 6px 12px;
+        }
+        #output {
+            background: #0B0F19;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 16px;
+            min-height: 120px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            color: #d1d5db;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
 <body>
-<div style="display:flex;gap:20px;margin-bottom:20px;flex-wrap:wrap">
-<a href="/" style="color:#8b949e;text-decoration:none">Home</a>
-<a href="/upload" style="color:#8b949e;text-decoration:none">Upload</a>
-<a href="/trials" style="color:#8b949e;text-decoration:none">Trials</a>
-<a href="/evolver" style="color:#8b949e;text-decoration:none">Evolver</a>
-<a href="/sandbox" style="color:#f0883e;text-decoration:none">Sandbox</a>
-<a href="/chat" style="color:#8b949e;text-decoration:none">Chat</a>
-<a href="/guide" style="color:#8b949e;text-decoration:none">Guide</a>
-<a href="/about" style="color:#8b949e;text-decoration:none">About</a>
-</div>
-<h1>SKV Code Sandbox</h1>
-<textarea id="code" placeholder="# Write your Python code here...
-# Examples:
-#   print(2+2)
-#   def fib(n): return n if n <= 1 else fib(n-1) + fib(n-2)
-#   print(fib(10))
-"></textarea>
-<div style="display:flex;gap:10px;margin:10px 0">
-<button class="btn-run" onclick="run()">Run</button>
-<button class="btn-clear" onclick="clearAll()">Clear</button>
-</div>
-<div id="output"></div>
-<script>
-function run() {
-    const code = document.getElementById("code").value;
-    if (!code.trim()) { document.getElementById("output").textContent = "Please enter some code."; return; }
-    document.getElementById("output").textContent = "Running...";
-    fetch("/api/execute/code", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({code:code, mode:"all", language:"python"})
-    })
-    .then(r => r.json())
-    .then(d => {
-        let out = "Status: " + d.status + "\nOutput: " + (d.stdout || "none") + "\nIterations: " + d.iterations;
-        if (d.fixes_applied && d.fixes_applied.length) {
-            out += "\n\nFixes:";
-            d.fixes_applied.forEach(function(f) { out += "\n  #" + f.attempt + ": " + f.fix; });
+    <header>
+        <div class="header-inner">
+            <a href="/" class="logo">�� SKV_NETWORK <span class="logo-version">v8.3</span></a>
+            <nav>
+                <a href="/">Home</a>
+                <a href="/sandbox" class="active">Sandbox</a>
+                <a href="/profile">Profile</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <h1 class="page-title">Code Sandbox</h1>
+        <p style="color: #9ca3af; margin-bottom: 32px;">Execute Python code in an isolated environment.</p>
+
+        <div class="card">
+            <textarea id="code" placeholder="# Write your Python code here...
+print('Hello, SKV Network!')"></textarea>
+            <div style="display: flex; gap: 10px; margin-top: 16px;">
+                <button class="btn btn-run" onclick="run()">▶ Run Code</button>
+                <button class="btn btn-clear" onclick="clearAll()">✕ Clear</button>
+            </div>
+        </div>
+
+        <div class="card" id="output-card" style="display: none;">
+            <div id="output"></div>
+        </div>
+
+        <div class="card">
+            <button class="btn btn-example" onclick="loadExample('hello')">Hello World</button>
+            <button class="btn btn-example" onclick="loadExample('fibonacci')">Fibonacci</button>
+            <button class="btn btn-example" onclick="loadExample('math')">Math</button>
+        </div>
+    </main>
+
+    <script>
+        const examples = {
+            hello: 'print("Hello, SKV Network!")',
+            fibonacci: `def fib(n):
+    return n if n <= 1 else fib(n-1) + fib(n-2)
+for i in range(10):
+    print(f'fib({i}) = {fib(i)}')`,
+            math: `import math
+print(f'Pi: {math.pi:.4f}')
+print(f'Sqrt(16): {math.sqrt(16)}')`
+        };
+
+        function loadExample(name) {
+            document.getElementById('code').value = examples[name];
         }
-        if (d.metrics) {
-            out += "\n\nMetrics: score=" + (d.metrics.score || "N/A") + ", complexity=" + d.metrics.complexity + ", error_handling=" + d.metrics.has_error_handling;
+
+        function run() {
+            const code = document.getElementById('code').value;
+            if (!code.trim()) return;
+
+            fetch('/api/execute/code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code, mode: 'all', language: 'python' })
+            })
+            .then(r => r.json())
+            .then(d => {
+                document.getElementById('output-card').style.display = 'block';
+                document.getElementById('output').textContent = d.stdout || d.stderr || JSON.stringify(d, null, 2);
+            })
+            .catch(e => {
+                document.getElementById('output-card').style.display = 'block';
+                document.getElementById('output').textContent = 'Error: ' + e.message;
+            });
         }
-        document.getElementById("output").textContent = out;
-    })
-    .catch(function(e) { document.getElementById("output").textContent = "Error: " + e.message; });
-}
-function clearAll() {
-    document.getElementById("code").value = "";
-    document.getElementById("output").textContent = "";
-}
-</script>
+
+        function clearAll() {
+            document.getElementById('code').value = '';
+            document.getElementById('output-card').style.display = 'none';
+        }
+    </script>
 </body>
 </html>

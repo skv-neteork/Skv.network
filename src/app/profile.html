@@ -382,8 +382,46 @@
             margin-top: 0;
         }
         
+
+        /* Mobile menu */
+        .menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            background: rgba(11, 15, 25, 0.98);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid #1f2937;
+            padding: 16px 24px;
+            z-index: 49;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .mobile-menu.active { display: flex; }
+        .mobile-menu a {
+            color: #d1d5db;
+            text-decoration: none;
+            font-size: 15px;
+            padding: 8px 0;
+            border-bottom: 1px solid #1f2937;
+        }
+        .mobile-menu a:last-child { border-bottom: none; }
+        .mobile-menu a:hover { color: #10b981; }
+        .mobile-menu a.purple { color: #a78bfa; }
+
         @media (max-width: 600px) {
             nav { display: none; }
+            .menu-toggle { display: block; }
             .card { padding: 24px 20px; }
         }
     </style>
@@ -399,10 +437,20 @@
                 <a href="/">Home</a>
                 <a href="/#constitution">Constitution</a>
                 <a href="/sandbox">Sandbox</a>
+                <a href="/profile">Profile</a>
                 <a href="/api/v7/agent/openapi.json" target="_blank" class="purple">OpenAPI</a>
             </nav>
+            <button class="menu-toggle" onclick="toggleMenu()" aria-label="Menu">☰</button>
         </div>
     </header>
+
+    <div id="mobile-menu" class="mobile-menu">
+        <a href="/" onclick="toggleMenu()">Home</a>
+        <a href="/#constitution" onclick="toggleMenu()">Constitution</a>
+        <a href="/sandbox">Sandbox</a>
+        <a href="/profile">Profile</a>
+        <a href="/api/v7/agent/openapi.json" target="_blank" class="purple">OpenAPI</a>
+    </div>
 
     <main>
         <div class="card">
@@ -554,7 +602,7 @@
             if (currentToken) {
                 try {
                     const profile = await apiCall('/api/v7/profile', 'GET');
-                    if (profile && profile.email) {
+                    if (profile && (profile.email || profile.user_id)) {
                         showState('profile');
                         renderProfile(profile);
                         return;
@@ -695,9 +743,14 @@
 
         // Profile
         function renderProfile(profile) {
-            document.getElementById('profile-email').textContent = profile.email || '—';
-            document.getElementById('stat-events').textContent = profile.events_count ?? '—';
-            document.getElementById('stat-vectors').textContent = profile.vectors_count ?? '—';
+            document.getElementById('profile-email').textContent = profile.email || profile.user_id || '—';
+            
+            // Извлекаем числа — могут быть вложенными
+            const events = profile.stats?.events ?? profile.events_count ?? profile.total_events ?? '—';
+            const vectors = profile.stats?.vectors ?? profile.vectors_count ?? profile.total_vectors ?? '—';
+            document.getElementById('stat-events').textContent = events;
+            document.getElementById('stat-vectors').textContent = vectors;
+            
             renderKeys(profile.api_keys || []);
         }
 
@@ -707,15 +760,19 @@
                 list.innerHTML = '<div class="empty-state">No API keys yet. Create one to get started.</div>';
                 return;
             }
-            list.innerHTML = keys.map(k => `
-                <div class="key-item">
-                    <div class="key-value mono" title="${k}">${k}</div>
-                    <div class="key-actions">
-                        <button class="key-btn" onclick="copyKey('${k}')">Copy</button>
-                        <button class="key-btn danger" onclick="openRevokeModal('${k}')">Revoke</button>
+            list.innerHTML = keys.map(k => {
+                // Поддерживаем и строки и объекты {key: "...", ...}
+                const keyStr = typeof k === 'string' ? k : (k.key || k.api_key || k.token || JSON.stringify(k));
+                return `
+                    <div class="key-item">
+                        <div class="key-value mono" title="${keyStr}">${keyStr}</div>
+                        <div class="key-actions">
+                            <button class="key-btn" onclick="copyKey('${keyStr}')">Copy</button>
+                            <button class="key-btn danger" onclick="openRevokeModal('${keyStr}')">Revoke</button>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function copyKey(key) {
@@ -781,6 +838,12 @@
         }
 
         init();
+    </script>
+
+    <script>
+        function toggleMenu() {
+            document.getElementById('mobile-menu').classList.toggle('active');
+        }
     </script>
 </body>
 </html>

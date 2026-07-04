@@ -453,6 +453,113 @@ EXPERIENCE CUBES:
 SEAL (add to every response):
 🔐 SKV | READ ✓ | VERIFY ✓ | OUTPUT ✓"""}
 
+
+# ═══════════════════════════════════════════════════════════════
+# PROFILE ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/profile")
+async def get_profile(authorization: str = Header(None)):
+    """Get user profile with API keys and stats."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    token = authorization.replace("Bearer ", "")
+    try:
+        import sqlite3
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        user_id = row[0]
+        
+        # Get all user's keys
+        cur.execute("SELECT api_key, is_active, created_at FROM user_api_keys WHERE user_id = ?", (user_id,))
+        keys = [{"key": k, "active": bool(a), "created": c} for k, a, c in cur.fetchall()]
+        
+        # Get stats from user's DB
+        db_name = user_id.replace("@", "").replace(".", "")
+        try:
+            user_conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+            user_cur = user_conn.cursor()
+            user_cur.execute("SELECT COUNT(*) FROM event_metadata")
+            events = user_cur.fetchone()[0]
+            user_cur.execute("SELECT COUNT(*) FROM personal_vectors")
+            vectors = user_cur.fetchone()[0]
+            user_conn.close()
+        except:
+            events = 0
+            vectors = 0
+        
+        conn.close()
+        return {
+            "user_id": user_id,
+            "api_keys": keys,
+            "stats": {
+                "events": events,
+                "vectors": vectors
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/profile/keys")
+async def create_api_key(authorization: str = Header(None)):
+    """Generate new API key."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    token = authorization.replace("Bearer ", "")
+    try:
+        import sqlite3, uuid
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        user_id = row[0]
+        
+        new_key = f"sk_{uuid.uuid4().hex[:32]}"
+        cur.execute("INSERT INTO user_api_keys (user_id, api_key) VALUES (?, ?)", (user_id, new_key))
+        conn.commit()
+        conn.close()
+        return {"status": "ok", "api_key": new_key}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/profile/keys/{key}")
+async def revoke_api_key(key: str, authorization: str = Header(None)):
+    """Revoke an API key."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    token = authorization.replace("Bearer ", "")
+    try:
+        import sqlite3
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        user_id = row[0]
+        
+        # Only allow revoking own keys
+        cur.execute("UPDATE user_api_keys SET is_active = 0 WHERE api_key = ? AND user_id = ?", (key, user_id))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Key not found or not yours")
+        conn.commit()
+        conn.close()
+        return {"status": "ok", "message": "Key revoked"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/agent/openapi.json")
 async def get_agent_tools():
     """OpenAPI схема для Function Calling агентов (GPT, Claude, DeepSeek)"""

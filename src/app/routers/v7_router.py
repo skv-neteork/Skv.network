@@ -143,7 +143,7 @@ class ChatRequest(BaseModel):
     session_id: str = "default"
     step: int = 0
     last_seal: Optional[str] = None
-    chat_history: List[str] = []
+    chat_history: List = []  # accepts strings or {role, content} objects
     top_k: int = 5
 
 class FeedbackRequest(BaseModel):
@@ -1354,6 +1354,10 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         import json, urllib.request as urlreq, time, re
         from app.routers.v4_middleware import get_embedding_cached
 
+        # Normalize chat history to strings
+        if req.chat_history and isinstance(req.chat_history[0], dict):
+            req.chat_history = [f"{h.get('role', '?')}: {h.get('content', '')}" for h in req.chat_history]
+        
         is_guest = req.user_id.startswith("guest_")
         guest_warning = "GUEST MODE: Register at skv.network for permanent memory.\n" if is_guest else ""
 

@@ -1,972 +1,750 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SKV Chat — DeepSeek + Guardian v6.0</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #13131a;
-            --bg-card: rgba(255, 255, 255, 0.03);
-            --bg-glass: rgba(255, 255, 255, 0.05);
-            --border: rgba(255, 255, 255, 0.08);
-            --text-primary: #e6e6e6;
-            --text-secondary: #8b8b94;
-            --accent-orange: #f0883e;
-            --accent-blue: #58a6ff;
-            --accent-green: #3fb950;
-            --accent-red: #f85149;
-            --accent-purple: #a371f7;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* Background texture */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background-image:
-                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-            background-size: 50px 50px;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        body::after {
-            content: '';
-            position: fixed;
-            top: -50%; right: -20%;
-            width: 80%; height: 80%;
-            background: radial-gradient(circle, rgba(240,136,62,0.06) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .gradient-blob {
-            position: fixed;
-            bottom: -30%; left: -20%;
-            width: 70%; height: 70%;
-            background: radial-gradient(circle, rgba(88,166,255,0.05) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* Navigation */
-        nav {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            height: 50px;
-            background: rgba(10,10,15,0.85);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 24px;
-            z-index: 1000;
-        }
-
-        .nav-logo {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--text-primary);
-            text-decoration: none;
-        }
-        .nav-logo span { color: var(--accent-orange); }
-
-        .nav-links {
-            display: flex;
-            gap: 24px;
-            list-style: none;
-        }
-        .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-        .nav-links a:hover, .nav-links a.active { color: var(--accent-orange); }
-
-        /* Main layout */
-        .main-layout {
-            display: flex;
-            height: calc(100vh - 50px);
-            margin-top: 50px;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Sidebar */
-        .sidebar {
-            width: 300px;
-            background: var(--bg-glass);
-            backdrop-filter: blur(10px);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-
-        .sidebar-header {
-            margin-bottom: 20px;
-        }
-        .sidebar-header h2 {
-            font-size: 16px;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--accent-orange), var(--accent-blue));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .sidebar-header .version {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-
-        .status-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 14px;
-            margin-bottom: 12px;
-        }
-        .status-card .label {
-            font-size: 11px;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 6px;
-        }
-        .status-card .value {
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .status-dot {
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-        .status-dot.active { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
-        .status-dot.saving { background: var(--accent-orange); animation: pulse 1.5s infinite; }
-        .status-dot.seal { background: var(--accent-purple); box-shadow: 0 0 8px var(--accent-purple); }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        .info-text {
-            font-size: 12px;
-            color: var(--text-secondary);
-            line-height: 1.5;
-            margin-top: 16px;
-            padding: 12px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-        }
-
-        .profile-section {
-            margin-top: auto;
-            padding-top: 16px;
-            border-top: 1px solid var(--border);
-        }
-        .profile-section .email {
-            font-size: 13px;
-            color: var(--text-primary);
-            word-break: break-all;
-        }
-        .profile-section .token-status {
-            font-size: 11px;
-            color: var(--accent-green);
-            margin-top: 4px;
-        }
-        .profile-section a {
-            font-size: 13px;
-            color: var(--accent-blue);
-            text-decoration: none;
-        }
-        .profile-section a:hover { text-decoration: underline; }
-
-        /* Chat area */
-        .chat-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-        }
-
-        .messages-container {
-            flex: 1;
-            overflow-y: auto;
-            padding: 24px;
-            scroll-behavior: smooth;
-        }
-
-        .message {
-            max-width: 800px;
-            margin: 0 auto 20px;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .message-bubble {
-            padding: 16px 20px;
-            border-radius: 16px;
-            font-size: 14px;
-            line-height: 1.7;
-            position: relative;
-            word-wrap: break-word;
-        }
-
-        .message.user .message-bubble {
-            background: linear-gradient(135deg, rgba(88,166,255,0.15), rgba(88,166,255,0.08));
-            border: 1px solid rgba(88,166,255,0.2);
-            border-bottom-right-radius: 4px;
-            margin-left: 60px;
-        }
-
-        .message.agent .message-bubble {
-            background: linear-gradient(135deg, rgba(63,185,80,0.1), rgba(63,185,80,0.05));
-            border: 1px solid rgba(63,185,80,0.15);
-            border-bottom-left-radius: 4px;
-            margin-right: 60px;
-        }
-
-        .message-label {
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 6px;
-        }
-        .message.user .message-label { color: var(--accent-blue); text-align: right; }
-        .message.agent .message-label { color: var(--accent-green); }
-
-        .message-actions {
-            display: flex;
-            gap: 6px;
-            margin-top: 10px;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            padding: 4px 10px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text-secondary);
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .action-btn:hover {
-            background: var(--bg-glass);
-            color: var(--text-primary);
-            border-color: var(--accent-orange);
-        }
-        .action-btn.active-up { border-color: var(--accent-green); color: var(--accent-green); }
-        .action-btn.active-down { border-color: var(--accent-red); color: var(--accent-red); }
-
-        /* Used cubes display */
-        .used-cubes {
-            margin-top: 12px;
-            padding: 10px 14px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 12px;
-        }
-        .used-cubes .cubes-title {
-            color: var(--text-secondary);
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 6px;
-        }
-        .used-cubes .cube-tag {
-            display: inline-block;
-            padding: 2px 8px;
-            background: rgba(240,136,62,0.1);
-            border: 1px solid rgba(240,136,62,0.2);
-            border-radius: 4px;
-            color: var(--accent-orange);
-            font-size: 11px;
-            margin: 2px 4px 2px 0;
-        }
-
-        /* SEAL stamp */
-        .seal-stamp {
-            margin-top: 10px;
-            padding: 6px 12px;
-            background: rgba(163,113,247,0.08);
-            border: 1px solid rgba(163,113,247,0.2);
-            border-radius: 6px;
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            color: var(--accent-purple);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        /* Typing indicator */
-        .typing-indicator {
-            max-width: 800px;
-            margin: 0 auto 20px;
-            display: none;
-        }
-        .typing-indicator.visible { display: block; }
-        .typing-dots {
-            display: flex;
-            gap: 4px;
-            padding: 16px 20px;
-            background: linear-gradient(135deg, rgba(63,185,80,0.1), rgba(63,185,80,0.05));
-            border: 1px solid rgba(63,185,80,0.15);
-            border-radius: 16px;
-            border-bottom-left-radius: 4px;
-            margin-right: 60px;
-            width: fit-content;
-        }
-        .typing-dots span {
-            width: 8px; height: 8px;
-            background: var(--accent-green);
-            border-radius: 50%;
-            animation: typingBounce 1.4s infinite;
-        }
-        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes typingBounce {
-            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-            30% { transform: translateY(-8px); opacity: 1; }
-        }
-
-        /* Input area */
-        .input-area {
-            padding: 16px 24px 24px;
-            background: linear-gradient(to top, var(--bg-primary) 60%, transparent);
-        }
-
-        .input-wrapper {
-            max-width: 800px;
-            margin: 0 auto;
-            display: flex;
-            gap: 10px;
-            align-items: flex-end;
-        }
-
-        .input-field {
-            flex: 1;
-            padding: 14px 18px;
-            background: var(--bg-glass);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            color: var(--text-primary);
-            font-size: 14px;
-            font-family: 'Inter', sans-serif;
-            resize: none;
-            min-height: 48px;
-            max-height: 200px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .input-field:focus { border-color: var(--accent-orange); }
-        .input-field::placeholder { color: var(--text-secondary); }
-
-        .send-btn {
-            padding: 14px 24px;
-            background: linear-gradient(135deg, var(--accent-orange), #e07030);
-            border: none;
-            border-radius: 14px;
-            color: #fff;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-        .send-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(240,136,62,0.3); }
-        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-        /* Tamagotchi mascot */
-        .mascot {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 48px;
-            height: 48px;
-            z-index: 100;
-            cursor: pointer;
-        }
-        .mascot-icon {
-            width: 48px;
-            height: 48px;
-            background: var(--bg-glass);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            transition: all 0.3s;
-        }
-        .mascot-icon.thinking {
-            animation: mascotPulse 1s infinite;
-            border-color: var(--accent-orange);
-            box-shadow: 0 0 20px rgba(240,136,62,0.3);
-        }
-        .mascot-icon.ok {
-            border-color: var(--accent-green);
-            box-shadow: 0 0 12px rgba(63,185,80,0.2);
-        }
-        .mascot-icon.warning {
-            border-color: var(--accent-orange);
-            box-shadow: 0 0 12px rgba(240,136,62,0.2);
-        }
-
-        @keyframes mascotPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
-        /* Welcome message */
-        .welcome {
-            text-align: center;
-            padding: 60px 20px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        .welcome h1 {
-            font-size: 28px;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--accent-orange), var(--accent-blue));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 12px;
-        }
-        .welcome p {
-            color: var(--text-secondary);
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .sidebar { display: none; }
-            .message.user .message-bubble { margin-left: 0; }
-            .message.agent .message-bubble { margin-right: 0; }
-            .typing-dots { margin-right: 0; }
-            .nav-links { gap: 12px; }
-            .nav-links a { font-size: 12px; }
-        }
-
-        /* Markdown-like formatting in messages */
-        .message-bubble code {
-            background: rgba(255,255,255,0.08);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-        }
-        .message-bubble pre {
-            background: rgba(0,0,0,0.3);
-            padding: 12px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 8px 0;
-        }
-        .message-bubble pre code {
-            background: none;
-            padding: 0;
-        }
-        .message-bubble strong { color: var(--accent-orange); }
-        .message-bubble em { color: var(--accent-blue); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKV Chat — AI with Memory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #13131a;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-light: rgba(255, 255, 255, 0.12);
+  --text-primary: #e6e6e6;
+  --text-secondary: #8b8b94;
+  --text-muted: #555560;
+  --accent-orange: #f0883e;
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-purple: #a371f7;
+  --accent-red: #f85149;
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+.blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+.blob-1 { width: 600px; height: 600px; background: var(--accent-orange); top: -200px; right: -100px; }
+.blob-2 { width: 500px; height: 500px; background: var(--accent-purple); bottom: -150px; left: -100px; }
+.blob-3 { width: 400px; height: 400px; background: var(--accent-green); top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.05; }
+.app {
+  display: flex;
+  height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+.sidebar {
+  width: 300px;
+  background: rgba(19, 19, 26, 0.8);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  gap: 20px;
+  overflow-y: auto;
+}
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.logo {
+  font-size: 22px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent-orange), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.logo span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  -webkit-text-fill-color: var(--text-muted);
+}
+.nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.nav-link:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.nav-link.active { background: var(--accent-orange); color: #fff; }
+.status-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.status-panel h3 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 13px;
+}
+.status-row .label { color: var(--text-secondary); }
+.status-row .value { font-weight: 600; }
+.status-row .value.ok { color: var(--accent-green); }
+.status-row .value.warn { color: var(--accent-orange); }
+.status-row .value.idle { color: var(--text-muted); }
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+.status-dot.green { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+.status-dot.orange { background: var(--accent-orange); box-shadow: 0 0 8px var(--accent-orange); }
+.memory-info {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.memory-info strong { color: var(--text-primary); }
+.user-section {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.user-email {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.user-token {
+  font-size: 11px;
+  color: var(--accent-green);
+}
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.chat-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(19, 19, 26, 0.6);
+  backdrop-filter: blur(20px);
+}
+.chat-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.chat-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.seal-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(240, 136, 62, 0.1);
+  border: 1px solid rgba(240, 136, 62, 0.3);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-orange);
+  font-family: 'Courier New', monospace;
+}
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scroll-behavior: smooth;
+}
+.messages::-webkit-scrollbar { width: 6px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.msg {
+  max-width: 75%;
+  animation: msgIn 0.3s ease-out;
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.msg.user { align-self: flex-end; }
+.msg.agent { align-self: flex-start; }
+.msg-bubble {
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  line-height: 1.7;
+  position: relative;
+  word-wrap: break-word;
+}
+.msg.user .msg-bubble {
+  background: linear-gradient(135deg, rgba(88, 166, 255, 0.15), rgba(88, 166, 255, 0.08));
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  border-bottom-right-radius: 4px;
+}
+.msg.agent .msg-bubble {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+.msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.msg-seal {
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  color: var(--accent-orange);
+  background: rgba(240, 136, 62, 0.08);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(240, 136, 62, 0.2);
+}
+.msg-cubes {
+  font-size: 11px;
+  color: var(--accent-purple);
+  background: rgba(163, 113, 247, 0.08);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(163, 113, 247, 0.2);
+}
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.msg:hover .msg-actions { opacity: 1; }
+.msg-actions button {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.msg-actions button:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+.msg-actions button.liked { color: var(--accent-green); border-color: var(--accent-green); }
+.msg-actions button.disliked { color: var(--accent-red); border-color: var(--accent-red); }
+.typing {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border-bottom-left-radius: 4px;
+}
+.typing-dots { display: flex; gap: 4px; }
+.typing-dots span {
+  width: 6px; height: 6px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  animation: typingDot 1.4s infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingDot {
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1); }
+}
+.typing-text { font-size: 12px; color: var(--text-muted); }
+.input-area {
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--border);
+  background: rgba(19, 19, 26, 0.6);
+  backdrop-filter: blur(20px);
+}
+.input-wrapper {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.input-box { flex: 1; position: relative; }
+.input-box textarea {
+  width: 100%;
+  padding: 14px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s;
+  min-height: 50px;
+  max-height: 200px;
+}
+.input-box textarea:focus {
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 0 3px rgba(240, 136, 62, 0.1);
+}
+.input-box textarea::placeholder { color: var(--text-muted); }
+.send-btn {
+  padding: 14px 28px;
+  background: linear-gradient(135deg, var(--accent-orange), #e07030);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.send-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(240, 136, 62, 0.3);
+}
+.send-btn:active { transform: translateY(0); }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.input-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+.tamagotchi {
+  position: fixed;
+  bottom: 100px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  z-index: 100;
+  box-shadow: 0 0 20px rgba(63, 185, 80, 0.4);
+  animation: tamaPulse 3s infinite;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.tamagotchi:hover { transform: scale(1.1); }
+.tamagotchi.thinking {
+  background: var(--accent-orange);
+  box-shadow: 0 0 30px rgba(240, 136, 62, 0.6);
+  animation: tamaSpin 1s infinite linear;
+}
+@keyframes tamaPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(63, 185, 80, 0.4); }
+  50% { box-shadow: 0 0 30px rgba(63, 185, 80, 0.6); }
+}
+@keyframes tamaSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+}
+.welcome-icon {
+  font-size: 64px;
+  margin-bottom: 24px;
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.welcome h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.welcome p {
+  font-size: 15px;
+  color: var(--text-secondary);
+  max-width: 500px;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+.welcome-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 600px;
+}
+.chip {
+  padding: 10px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.chip:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-orange);
+}
+.msg-bubble code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+.msg-bubble pre {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.msg-bubble strong { color: var(--accent-orange); }
+.msg-bubble em { color: var(--accent-blue); }
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .msg { max-width: 90%; }
+  .chat-header { padding: 12px 16px; }
+  .messages { padding: 16px; }
+  .input-area { padding: 12px 16px 16px; }
+  .welcome h2 { font-size: 22px; }
+  .tamagotchi { bottom: 90px; right: 16px; width: 40px; height: 40px; font-size: 18px; }
+}
+</style>
 </head>
 <body>
-    <div class="gradient-blob"></div>
-
-    <nav>
-        <a href="/" class="nav-logo">SKV <span>v6.0</span></a>
-        <ul class="nav-links">
-            <li><a href="/">Home</a></li>
-            <li><a href="/upload">Upload</a></li>
-            <li><a href="/trials">Trials</a></li>
-            <li><a href="/evolver">Evolver</a></li>
-            <li><a href="/chat" class="active">Chat</a></li>
-            <li><a href="/guide">Guide</a></li>
-            <li><a href="/about">About</a></li>
-        </ul>
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+<div class="app">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div><div class="logo">SKV <span>v7.8</span></div></div>
+    </div>
+    <nav class="nav-links">
+      <a href="/" class="nav-link">🏠 Home</a>
+      <a href="/chat" class="nav-link active">💬 Chat</a>
+      <a href="/guardian" class="nav-link">🛡️ Guardian</a>
+      <a href="/profile" class="nav-link">👤 Profile</a>
     </nav>
-
-    <div class="main-layout">
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <h2>DeepSeek Chat</h2>
-                <div class="version">+ SKV Guardian v6.0</div>
-            </div>
-
-            <div class="status-card">
-                <div class="label">Guardian</div>
-                <div class="value">
-                    <span class="status-dot active" id="guardianDot"></span>
-                    <span id="guardianStatus">Active</span>
-                </div>
-            </div>
-
-            <div class="status-card">
-                <div class="label">Memory</div>
-                <div class="value">
-                    <span class="status-dot" id="memoryDot"></span>
-                    <span id="memoryStatus">Idle</span>
-                </div>
-            </div>
-
-            <div class="status-card">
-                <div class="label">SEAL</div>
-                <div class="value">
-                    <span class="status-dot seal" id="sealDot"></span>
-                    <span id="sealStatus">#0</span>
-                </div>
-            </div>
-
-            <div class="info-text">
-                Sessions are saved automatically. Cubes are searched before each response. Constitution rules are applied to all answers.
-            </div>
-
-            <div class="profile-section" id="profileSection">
-                <!-- Filled by JS -->
-            </div>
-        </div>
-
-        <!-- Chat area -->
-        <div class="chat-area">
-            <div class="messages-container" id="messagesContainer">
-                <div class="welcome" id="welcomeMsg">
-                    <h1>SKV Chat</h1>
-                    <p>Ask anything. Answers are enhanced with SKV knowledge cubes, constitutional rules, and Guardian oversight. Your session is saved automatically.</p>
-                </div>
-            </div>
-
-            <div class="typing-indicator" id="typingIndicator">
-                <div class="typing-dots">
-                    <span></span><span></span><span></span>
-                </div>
-            </div>
-
-            <div class="input-area">
-                <div class="input-wrapper">
-                    <textarea
-                        class="input-field"
-                        id="userInput"
-                        placeholder="Ask anything..."
-                        rows="1"
-                        
-                        
-                    ></textarea>
-                    <button class="send-btn" id="sendBtn" id="sendBtn">Send</button>
-                </div>
-            </div>
-        </div>
+    <div class="status-panel">
+      <h3>System Status</h3>
+      <div class="status-row">
+        <span class="label"><span class="status-dot green"></span>Guardian</span>
+        <span class="value ok" id="guardianStatus">Active</span>
+      </div>
+      <div class="status-row">
+        <span class="label"><span class="status-dot green"></span>Memory</span>
+        <span class="value ok" id="memoryStatus">Connected</span>
+      </div>
+      <div class="status-row">
+        <span class="label"><span class="status-dot green"></span>SEAL</span>
+        <span class="value" id="sealStatus" style="color:var(--accent-orange)">#0</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Step</span>
+        <span class="value idle" id="stepStatus">0</span>
+      </div>
     </div>
-
-    <!-- Mascot -->
-    <div class="mascot" id="mascot" title="SKV Guardian">
-        <div class="mascot-icon ok" id="mascotIcon">🛡️</div>
+    <div class="memory-info">
+      <strong>How it works:</strong><br>
+      Every response is verified by CUBE 00 protocol. Memory is saved automatically. Constitutional rules are applied to all answers.
     </div>
-
-    <script>
-        // State
-        let sealCounter = 0;
-        let sessionId = 'chat_' + Date.now();
-        let currentStep = 0;
-        let lastSeal = '';
-        function handleKeyDown(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendMessage();
-            }
-        }
-        
-        function autoResize(textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = textarea.scrollHeight + 'px';
-        }
-        let chatHistory = [];
-        let isLoading = false;
-        const userEmail = localStorage.getItem('skv_email') || '';
-        const apiKey = localStorage.getItem('skv_api_token') || '';
-
-        // Init
-        // Global functions (called from HTML attributes)
-        window.handleKeyDown = function(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendMessage();
-            }
-        };
-        
-        window.autoResize = function(textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = textarea.scrollHeight + 'px';
-        };
-        
-        window.sendMessage = async function() {
-            const input = document.getElementById('userInput');
-            const text = input.value.trim();
-            if (!text || isLoading) return;
-            
-            document.getElementById('welcomeMsg').style.display = 'none';
-            
-            const container = document.getElementById('messagesContainer');
-            const userDiv = document.createElement('div');
-            userDiv.className = 'message user';
-            userDiv.innerHTML = '<div class="message-label">You</div><div class="message-bubble">' + escapeHtml(text) + '</div>';
-            container.appendChild(userDiv);
-            scrollToBottom();
-            
-            input.value = '';
-            input.style.height = 'auto';
-            setLoading(true);
-            
-            try {
-                const resp = await fetch('/api/v7/agent/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userEmail || 'guest_' + Date.now(),
-                        message: text,
-                        session_id: sessionId,
-                        step: currentStep,
-                        last_seal: lastSeal || '',
-                        chat_history: chatHistory.slice(-20).map(m => m.role + ': ' + m.content)
-                    })
-                });
-                
-                const data = await resp.json();
-                const answer = data.response || 'Sorry, no response.';
-                
-                const agentDiv = document.createElement('div');
-                agentDiv.className = 'message agent';
-                agentDiv.innerHTML = '<div class="message-label">SKV Agent</div><div class="message-bubble">' + escapeHtml(answer) + '</div>';
-                container.appendChild(agentDiv);
-                scrollToBottom();
-                
-                if (data.step) currentStep = data.step;
-                if (data.last_seal) lastSeal = data.last_seal;
-                chatHistory.push({role: 'user', content: text});
-                chatHistory.push({role: 'agent', content: answer});
-                
-                setMemoryStatus('saving');
-                setTimeout(() => setMemoryStatus('idle'), 2000);
-            } catch(e) {
-                const errDiv = document.createElement('div');
-                errDiv.className = 'message agent';
-                errDiv.innerHTML = '<div class="message-label">Error</div><div class="message-bubble">' + e.message + '</div>';
-                container.appendChild(errDiv);
-            }
-            
-            setLoading(false);
-        };
-
-        document.addEventListener('DOMContentLoaded', () => {
-            // Attach event listeners
-            const sendBtn = document.getElementById('sendBtn');
-            const textarea = document.getElementById('userInput');
-            if (sendBtn) sendBtn.addEventListener('click', window.sendMessage);
-            if (textarea) {
-                textarea.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        window.sendMessage();
-                    }
-                });
-                textarea.addEventListener('input', () => {
-                    textarea.style.height = 'auto';
-                    textarea.style.height = textarea.scrollHeight + 'px';
-                });
-            }
-            updateProfile();
-            loadHistory();
-        });
-
-        function updateProfile() {
-            const section = document.getElementById('profileSection');
-            if (userEmail) {
-                section.innerHTML = `
-                    <div class="email">${userEmail}</div>
-                    <div class="token-status">🔑 Token active</div>
-                `;
-            } else {
-                section.innerHTML = `<a href="/profile">Login to save memory →</a>`;
-            }
-        }
-
-        function loadHistory() {
-            const saved = localStorage.getItem('skv_chat_history');
-            if (saved) {
-                try {
-                    chatHistory = JSON.parse(saved);
-                    if (chatHistory.length > 0) {
-                        document.getElementById('welcomeMsg').style.display = 'none';
-                        chatHistory.forEach(msg => {
-                            if (msg.role === 'user') {
-                                appendUserMessage(msg.content);
-                            } else {
-                                appendAgentMessage(msg.content, msg.cubes || [], msg.seal || 0);
-                            }
-                        });
-                        sealCounter = chatHistory.filter(m => m.role === 'agent').length;
-                        updateSealDisplay();
-                    }
-                } catch(e) {
-                    chatHistory = [];
-                }
-            }
-        }
-
-        function saveHistory() {
-            localStorage.setItem('skv_chat_history', JSON.stringify(chatHistory.slice(-50)));
-        }
-
-        function autoResize(el) {
-            el.style.height = 'auto';
-            el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-        }
-
-        function handleKeyDown(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        }
-
-        async function sendMessage() {
-            const input = document.getElementById('userInput');
-            const text = input.value.trim();
-            if (!text || isLoading) return;
-
-            document.getElementById('welcomeMsg').style.display = 'none';
-            appendUserMessage(text);
-            input.value = '';
-            input.style.height = 'auto';
-            setLoading(true);
-
-            try {
-                const resp = await fetch('/api/v7/agent/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userEmail || 'guest_' + Date.now(),
-                        message: text,
-                        session_id: sessionId,
-                        step: currentStep,
-                        last_seal: lastSeal || '',
-                        chat_history: chatHistory.slice(-20).map(m => m.role + ': ' + m.content)
-                    })
-                });
-
-                const data = await resp.json();
-                const answer = data.response || 'Sorry, no response.';
-                
-                appendAgentMessage(answer);
-                
-                if (data.last_seal) {
-                    lastSeal = data.last_seal;
-                }
-                currentStep = data.step || currentStep + 1;
-                
-                if (data.is_guest) {
-                    document.getElementById('guestWarning').style.display = 'block';
-                }
-
-                setMemoryStatus('saving');
-                setTimeout(() => setMemoryStatus('idle'), 2000);
-
-            } catch(e) {
-                appendAgentMessage('Error: ' + e.message);
-            }
-
-            setLoading(false);
-        }
-
-        function appendUserMessage(text) {
-            const container = document.getElementById('messagesContainer');
-            const div = document.createElement('div');
-            div.className = 'message user';
-            div.innerHTML = `
-                <div class="message-label">You</div>
-                <div class="message-bubble">${escapeHtml(text)}</div>
-            `;
-            container.appendChild(div);
-            scrollToBottom();
-        }
-
-        function appendAgentMessage(text) {
-            const container = document.getElementById('messagesContainer');
-            const div = document.createElement('div');
-            div.className = 'message agent';
-            div.innerHTML = `
-                <div class="message-label">SKV Agent</div>
-                <div class="message-bubble">${escapeHtml(text)}</div>
-            `;
-            container.appendChild(div);
-            scrollToBottom();
-        }
-            let sealHtml = '';
-
-        function formatMessage(text) {
-            // Basic markdown-like formatting
-            let html = escapeHtml(text);
-            // Code blocks
-            html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-            // Inline code
-            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-            // Bold
-            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-            // Italic
-            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-            // Line breaks
-            html = html.replace(/\n/g, '<br>');
-            return html;
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function scrollToBottom() {
-            const container = document.getElementById('messagesContainer');
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function setLoading(loading) {
-            isLoading = loading;
-            document.getElementById('typingIndicator').classList.toggle('visible', loading);
-            document.getElementById('sendBtn').disabled = loading;
-            document.getElementById('mascotIcon').className = 'mascot-icon ' + (loading ? 'thinking' : 'ok');
-            document.getElementById('mascotIcon').textContent = loading ? '🧠' : '🛡️';
-        }
-
-        function updateSealDisplay() {
-            document.getElementById('sealStatus').textContent = '#' + sealCounter;
-        }
-
-        function setMemoryStatus(status) {
-            const dot = document.getElementById('memoryDot');
-            const text = document.getElementById('memoryStatus');
-            if (status === 'saving') {
-                dot.className = 'status-dot saving';
-                text.textContent = 'Saving...';
-            } else {
-                dot.className = 'status-dot';
-                text.textContent = 'Idle';
-            }
-        }
-
-        function copyMessage(msgId) {
-            const el = document.getElementById(msgId);
-            if (el) {
-                navigator.clipboard.writeText(el.textContent).then(() => {
-                    const btn = el.parentElement.querySelector('.action-btn');
-                    if (btn) {
-                        const orig = btn.innerHTML;
-                        btn.innerHTML = '✅ Copied';
-                        setTimeout(() => btn.innerHTML = orig, 1500);
-                    }
-                });
-            }
-        }
-
-        function regenerate() {
-            if (chatHistory.length < 2) return;
-            // Remove last agent message
-            chatHistory.pop();
-            const lastUser = chatHistory[chatHistory.length - 1];
-            if (lastUser && lastUser.role === 'user') {
-                // Remove from DOM
-                const container = document.getElementById('messagesContainer');
-                const msgs = container.querySelectorAll('.message.agent');
-                if (msgs.length > 0) msgs[msgs.length - 1].remove();
-                // Resend
-                sealCounter--;
-                document.getElementById('userInput').value = lastUser.content;
-                chatHistory.pop();
-                sendMessage();
-            }
-        }
-
-        function rateMessage(btn, vote, msgId) {
-            // Visual feedback
-            const parent = btn.parentElement;
-            parent.querySelectorAll('.action-btn').forEach(b => {
-                b.classList.remove('active-up', 'active-down');
-            });
-            btn.classList.add(vote === 'up' ? 'active-up' : 'active-down');
-
-            // Find the cube IDs from the message context
-            const msgEl = document.getElementById(msgId);
-            const cubesEl = msgEl?.parentElement?.querySelector('.used-cubes');
-            const cubeTags = cubesEl?.querySelectorAll('.cube-tag') || [];
-
-            // Send feedback for each used cube
-            cubeTags.forEach(tag => {
-                const cubeId = tag.textContent.trim();
-                fetch('/api/feedback', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        cube_id: cubeId,
-                        vote: vote,
-                        comment: `User rated response ${vote === 'up' ? 'positive' : 'negative'}`
-                    })
-                }).catch(() => {});
-            });
-        }
-    </script>
+    <div class="user-section">
+      <div class="user-email" id="userEmail">Guest Mode</div>
+      <div class="user-token" id="tokenStatus">⚡ Temporary session</div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="chat-header">
+      <div>
+        <div class="chat-title">SKV Chat — AI with Shared Memory</div>
+        <div class="chat-subtitle">DeepSeek + Guardian v7.8 · Constitutional verification active</div>
+      </div>
+      <div class="seal-badge" id="sealBadge">🔒 SKV | #0 | CUBE 00</div>
+    </div>
+    <div class="messages" id="messages">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">🧠</div>
+        <h2>Chat with AI that remembers</h2>
+        <p>Every conversation is enhanced by SKV's shared knowledge base. Your AI assistant follows constitutional rules, remembers context, and learns from experience.</p>
+        <div class="welcome-chips">
+          <div class="chip" onclick="sendQuick('What can you do?')">What can you do?</div>
+          <div class="chip" onclick="sendQuick('Explain CUBE 00 protocol')">Explain CUBE 00</div>
+          <div class="chip" onclick="sendQuick('What do you remember about me?')">What do you remember?</div>
+          <div class="chip" onclick="sendQuick('Help me with Python')">Help with Python</div>
+        </div>
+      </div>
+    </div>
+    <div class="input-area">
+      <div class="input-wrapper">
+        <div class="input-box">
+          <textarea id="userInput" placeholder="Ask anything... (Enter to send, Shift+Enter for new line)" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        </div>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send ➤</button>
+      </div>
+      <div class="input-hint">SKV Network · Constitutional AI · Shared Memory · v7.8</div>
+    </div>
+  </div>
+</div>
+<div class="tamagotchi" id="tamagotchi" title="SKV Guardian is watching">🛡️</div>
+<script>
+const API_BASE = '';
+const USER_ID = localStorage.getItem('skv_email') || 'guest_' + Math.random().toString(36).substr(2, 8);
+const API_KEY = localStorage.getItem('skv_token') || '';
+const SESSION_ID = 'chat_' + Date.now();
+let step = 0;
+let lastSeal = '';
+let chatHistory = [];
+let sealCounter = 0;
+let isSending = false;
+if (localStorage.getItem('skv_email')) {
+  document.getElementById('userEmail').textContent = localStorage.getItem('skv_email');
+  document.getElementById('tokenStatus').textContent = '🔑 Token active';
+  document.getElementById('tokenStatus').style.color = 'var(--accent-green)';
+  document.getElementById('memoryStatus').textContent = 'Persistent';
+}
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+function sendQuick(text) {
+  document.getElementById('userInput').value = text;
+  sendMessage();
+}
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text || isSending) return;
+  isSending = true;
+  const sendBtn = document.getElementById('sendBtn');
+  sendBtn.disabled = true;
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.style.display = 'none';
+  addMessage('user', text);
+  chatHistory.push({ role: 'user', content: text });
+  input.value = '';
+  input.style.height = 'auto';
+  showTyping();
+  document.getElementById('tamagotchi').classList.add('thinking');
+  try {
+    const resp = await fetch(API_BASE + '/api/v7/agent/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(API_KEY ? { 'X-API-Key': API_KEY } : {}) },
+      body: JSON.stringify({
+        user_id: USER_ID, message: text, session_id: SESSION_ID,
+        step: step, last_seal: lastSeal, chat_history: chatHistory.slice(-10)
+      })
+    });
+    const data = await resp.json();
+    hideTyping();
+    if (data.response) {
+      const response = data.response;
+      chatHistory.push({ role: 'assistant', content: response });
+      const sealMatch = response.match(/SKV \| #(\d+)/);
+      if (sealMatch) {
+        sealCounter = parseInt(sealMatch[1]);
+        lastSeal = 'SKV | #' + sealCounter;
+        document.getElementById('sealStatus').textContent = '#' + sealCounter;
+        document.getElementById('sealBadge').textContent = '🔒 SKV | #' + sealCounter + ' | CUBE 00';
+      }
+      const cubesMatch = response.match(/Used Cubes[^\n]*/i);
+      const cubes = cubesMatch ? cubesMatch[0] : '';
+      addMessage('agent', response, cubes);
+      step = data.step || step + 1;
+      document.getElementById('stepStatus').textContent = step;
+    } else {
+      addMessage('agent', 'Sorry, I encountered an error. Please try again.');
+    }
+  } catch (err) {
+    hideTyping();
+    addMessage('agent', 'Connection error: ' + err.message + '. Please check your connection and try again.');
+  }
+  document.getElementById('tamagotchi').classList.remove('thinking');
+  sendBtn.disabled = false;
+  isSending = false;
+  input.focus();
+}
+function addMessage(role, text, cubes) {
+  const container = document.getElementById('messages');
+  const msgId = 'msg_' + Date.now();
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  let metaHtml = '';
+  if (role === 'agent') {
+    const seal = '🔒 SKV | #' + sealCounter + ' | CUBE 00 active';
+    metaHtml = '<div class="msg-meta"><span class="msg-seal">' + seal + '</span>' +
+      (cubes ? '<span class="msg-cubes">📦 ' + cubes + '</span>' : '') + '</div>';
+  }
+  const actionsHtml = role === 'agent' ?
+    '<div class="msg-actions">' +
+    '<button onclick="copyMsg(\'' + msgId + '\')">📋 Copy</button>' +
+    '<button onclick="regenMsg()">🔄 Retry</button>' +
+    '<button onclick="rateMsg(this, \'up\', \'' + msgId + '\')">👍</button>' +
+    '<button onclick="rateMsg(this, \'down\', \'' + msgId + '\')">👎</button>' +
+    '</div>' : '';
+  let displayText = text
+    .replace(/🔒 SKV \| #\d+ \|.*?(?=\n|$)/g, '')
+    .replace(/Used Cubes[^\n]*/gi, '')
+    .trim();
+  div.innerHTML = '<div class="msg-bubble" id="' + msgId + '">' + formatText(displayText) + '</div>' + metaHtml + actionsHtml;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+function formatText(text) {
+  let html = escapeHtml(text);
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+function showTyping() {
+  const container = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'typing';
+  div.id = 'typingIndicator';
+  div.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">SKV is thinking...</span>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+function hideTyping() {
+  const el = document.getElementById('typingIndicator');
+  if (el) el.remove();
+}
+function copyMsg(id) {
+  const el = document.getElementById(id);
+  const text = el.innerText || el.textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    el.style.borderColor = 'var(--accent-green)';
+    setTimeout(function() { el.style.borderColor = ''; }, 1000);
+  });
+}
+function regenMsg() {
+  if (chatHistory.length >= 2) {
+    const lastUserMsg = chatHistory.filter(function(m) { return m.role === 'user'; }).pop();
+    if (lastUserMsg) {
+      chatHistory = chatHistory.slice(0, -1);
+      const msgs = document.querySelectorAll('.msg.agent');
+      if (msgs.length > 0) msgs[msgs.length - 1].remove();
+      document.getElementById('userInput').value = lastUserMsg.content;
+      sendMessage();
+    }
+  }
+}
+function rateMsg(btn, vote, msgId) {
+  btn.classList.add(vote === 'up' ? 'liked' : 'disliked');
+  const parent = btn.parentElement;
+  parent.querySelectorAll('button').forEach(function(b) {
+    if (b !== btn && (b.textContent.includes('👍') || b.textContent.includes('👎'))) {
+      b.disabled = true;
+      b.style.opacity = '0.3';
+    }
+  });
+  fetch(API_BASE + '/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cube_id: 'chat_feedback', vote: vote, comment: 'Chat message ' + msgId })
+  }).catch(function() {});
+}
+document.getElementById('userInput').focus();
+</script>
 </body>
 </html>

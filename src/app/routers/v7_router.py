@@ -1094,7 +1094,47 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
         polza_key = os.environ.get("POLZA_KEY", "")
         r = urlreq.Request("https://api.polza.ai/v1/chat/completions", data=polza_body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
         with urlreq.urlopen(r, timeout=120) as resp:
-            answer = json.loads(resp.read().decode())["choices"][0]["message"]["content"]
+            response_data = json.loads(resp.read().decode())
+            message = response_data["choices"][0]["message"]
+            
+            # Handle tool calls
+            tool_results = []
+            if "tool_calls" in message:
+                for tc in message["tool_calls"]:
+                    if tc["function"]["name"] == "createFile":
+                        try:
+                            args = json.loads(tc["function"]["arguments"])
+                            # Call our own API
+                            create_req = urlreq.Request("http://127.0.0.1:8000/api/v7/tools/create-file",
+                                data=json.dumps(args).encode(),
+                                headers={"Content-Type": "application/json"})
+                            with urlreq.urlopen(create_req, timeout=10) as create_resp:
+                                file_result = json.loads(create_resp.read().decode())
+                                tool_results.append({"tool": "createFile", "result": file_result})
+                        except Exception as e:
+                            tool_results.append({"tool": "createFile", "error": str(e)})
+                
+                # Send tool results back to AI
+                if tool_results:
+                    tool_msg = json.dumps(tool_results)
+                    followup_body = json.dumps({
+                        "model": "deepseek/deepseek-v4-flash",
+                        "messages": [
+                            {"role": "user", "content": system_prompt},
+                            {"role": "assistant", "tool_calls": message["tool_calls"]},
+                            {"role": "tool", "content": tool_msg}
+                        ],
+                        "temperature": 0.3
+                    }).encode()
+                    followup_req = urlreq.Request("https://api.polza.ai/v1/chat/completions",
+                        data=followup_body,
+                        headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
+                    with urlreq.urlopen(followup_req, timeout=30) as followup_resp:
+                        answer = json.loads(followup_resp.read().decode())["choices"][0]["message"]["content"]
+                else:
+                    answer = message.get("content", "")
+            else:
+                answer = message.get("content", "")
         # Remove SEAL from user-facing response
         answer = re.sub(r"🔐.*$", "", answer, flags=re.DOTALL).strip()
         
@@ -1437,9 +1477,27 @@ User: {req.message}
 
 Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT ✓"""
 
+        tools = [{
+            "type": "function",
+            "function": {
+                "name": "createFile",
+                "description": "Create a file and get download URL. Types: html, txt, json, csv, md, svg, pdf, png, zip, py, css, js.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filename": {"type": "string", "description": "File name without extension"},
+                        "content": {"type": "string", "description": "File content"},
+                        "type": {"type": "string", "enum": ["html", "txt", "json", "csv", "md", "svg", "pdf", "png", "zip", "py", "css", "js"]}
+                    },
+                    "required": ["filename", "content", "type"]
+                }
+            }
+        }]
+        
         polza_body = json.dumps({
             "model": "deepseek/deepseek-v4-flash",
             "messages": [{"role": "user", "content": system_prompt}],
+            "tools": tools,
             "temperature": 0.3
         }).encode()
         
@@ -1448,7 +1506,47 @@ Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT 
             data=polza_body,
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
         with urlreq.urlopen(r, timeout=120) as resp:
-            answer = json.loads(resp.read().decode())["choices"][0]["message"]["content"]
+            response_data = json.loads(resp.read().decode())
+            message = response_data["choices"][0]["message"]
+            
+            # Handle tool calls
+            tool_results = []
+            if "tool_calls" in message:
+                for tc in message["tool_calls"]:
+                    if tc["function"]["name"] == "createFile":
+                        try:
+                            args = json.loads(tc["function"]["arguments"])
+                            # Call our own API
+                            create_req = urlreq.Request("http://127.0.0.1:8000/api/v7/tools/create-file",
+                                data=json.dumps(args).encode(),
+                                headers={"Content-Type": "application/json"})
+                            with urlreq.urlopen(create_req, timeout=10) as create_resp:
+                                file_result = json.loads(create_resp.read().decode())
+                                tool_results.append({"tool": "createFile", "result": file_result})
+                        except Exception as e:
+                            tool_results.append({"tool": "createFile", "error": str(e)})
+                
+                # Send tool results back to AI
+                if tool_results:
+                    tool_msg = json.dumps(tool_results)
+                    followup_body = json.dumps({
+                        "model": "deepseek/deepseek-v4-flash",
+                        "messages": [
+                            {"role": "user", "content": system_prompt},
+                            {"role": "assistant", "tool_calls": message["tool_calls"]},
+                            {"role": "tool", "content": tool_msg}
+                        ],
+                        "temperature": 0.3
+                    }).encode()
+                    followup_req = urlreq.Request("https://api.polza.ai/v1/chat/completions",
+                        data=followup_body,
+                        headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
+                    with urlreq.urlopen(followup_req, timeout=30) as followup_resp:
+                        answer = json.loads(followup_resp.read().decode())["choices"][0]["message"]["content"]
+                else:
+                    answer = message.get("content", "")
+            else:
+                answer = message.get("content", "")
 
         # ========== 8. АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ ==========
         if not is_guest:

@@ -209,6 +209,15 @@ async def download_persona_pack(user_id: str, token: str = ""):
 
 
 
+
+@router.get("/download/{filename}")
+async def download_uploaded_file(filename: str):
+    """Отдаёт файл из uploads."""
+    path = os.path.join(os.path.dirname(__file__), "..", "uploads", filename)
+    if not os.path.exists(path):
+        raise HTTPException(404, "File not found")
+    return FileResponse(path)
+
 @router.get("/downloads/{filename}")
 async def download_generated_file(filename: str):
     """Отдаёт сгенерированные файлы (изображения, HTML, PDF и др.)"""

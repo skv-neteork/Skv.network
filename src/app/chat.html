@@ -672,7 +672,7 @@
             setLoading(true);
             
             try {
-                const resp = await fetch('/api/v7/chat', {
+                const resp = await fetch('/api/v7/agent/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -795,7 +795,7 @@
             setLoading(true);
 
             try {
-                const resp = await fetch('/api/v7/chat', {
+                const resp = await fetch('/api/v7/agent/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

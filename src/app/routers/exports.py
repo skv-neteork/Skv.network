@@ -142,6 +142,7 @@ async def system_status():
     }
 
 @router.post("/api/tools/create-file")
+@router.post("/api/v7/tools/create-file")
 async def create_file(request: Request):
     """Создаёт файл на сервере и возвращает ссылку для скачивания."""
     import os

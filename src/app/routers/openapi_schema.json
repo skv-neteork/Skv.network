@@ -3,7 +3,7 @@
   "info": {
     "title": "SKV Network API v8.3",
     "version": "8.3",
-    "description": "SKV — коллективная память и инструменты для AI-агентов. Поиск, сохранение, генерация файлов."
+    "description": "SKV — коллективная память и инструменты для AI-агентов. Все эндпоинты принимают JSON. Авторизация через Bearer token (получить: https://skv.network/profile)."
   },
   "servers": [{"url": "https://skv.network"}],
   "security": [{"BearerAuth": []}],
@@ -20,12 +20,17 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "query_text": {"type": "string", "description": "Поисковый запрос"},
-                  "focus_words": {"type": "array", "items": {"type": "string"}, "description": "Точные слова для FTS5"},
-                  "user_id": {"type": "string", "description": "ID пользователя"},
+                  "query_text": {"type": "string", "description": "Поисковый запрос", "example": "What is SKV?"},
+                  "focus_words": {"type": "array", "items": {"type": "string"}, "description": "Точные слова для FTS5", "example": ["SKV", "memory"]},
+                  "user_id": {"type": "string", "description": "ID пользователя", "example": "test_user"},
                   "top_k": {"type": "integer", "default": 5}
                 },
                 "required": ["query_text", "user_id"]
+              },
+              "example": {
+                "query_text": "What is SKV?",
+                "user_id": "test_user",
+                "top_k": 5
               }
             }
           }
@@ -44,14 +49,20 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "user_id": {"type": "string"},
-                  "message": {"type": "string"},
+                  "user_id": {"type": "string", "example": "test_user"},
+                  "message": {"type": "string", "example": "Hello!"},
                   "session_id": {"type": "string", "default": "default"},
                   "step": {"type": "integer", "default": 0},
                   "last_seal": {"type": "string"},
                   "chat_history": {"type": "array", "items": {"type": "object"}}
                 },
                 "required": ["user_id", "message"]
+              },
+              "example": {
+                "user_id": "test_user",
+                "message": "Hello! Who are you?",
+                "session_id": "chat_001",
+                "step": 0
               }
             }
           }
@@ -61,8 +72,8 @@
     "/api/v7/tools/create-file": {
       "post": {
         "operationId": "createFile",
-        "summary": "Создать файл",
-        "description": "Создаёт файл на сервере. Поддерживает: html, txt, json, csv, md, svg, pdf, png, zip, py, css, js.",
+        "summary": "Создать файл на сервере",
+        "description": "Создаёт файл и возвращает ссылку для скачивания. Поддерживает: html, txt, json, csv, md, svg, pdf, png, zip, py, css, js. Для PDF/PNG/ZIP содержимое должно быть в base64.",
         "requestBody": {
           "required": true,
           "content": {
@@ -70,11 +81,31 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "filename": {"type": "string", "description": "Имя файла без расширения"},
-                  "content": {"type": "string", "description": "Содержимое файла (для PDF/PNG — base64)"},
-                  "type": {"type": "string", "enum": ["html", "txt", "json", "csv", "md", "svg", "pdf", "png", "zip", "py", "css", "js"]}
+                  "filename": {"type": "string", "description": "Имя файла без расширения", "example": "my_page"},
+                  "content": {"type": "string", "description": "Содержимое файла", "example": "<h1>Hello World</h1>"},
+                  "type": {"type": "string", "enum": ["html", "txt", "json", "csv", "md", "svg", "pdf", "png", "zip", "py", "css", "js"], "example": "html"}
                 },
                 "required": ["filename", "content", "type"]
+              },
+              "example": {
+                "filename": "my_page",
+                "content": "<h1>Hello World</h1>",
+                "type": "html"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Файл создан",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "filename": "my_page.html",
+                  "url": "/download/my_page.html",
+                  "size_bytes": 20
+                }
               }
             }
           }
@@ -85,7 +116,6 @@
       "post": {
         "operationId": "saveExperienceCube",
         "summary": "Сохранить куб опыта",
-        "description": "Создаёт новый куб опыта в памяти SKV.",
         "requestBody": {
           "required": true,
           "content": {
@@ -93,13 +123,20 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "topic": {"type": "string"},
-                  "essence": {"type": "string"},
-                  "rules_markdown": {"type": "string"},
-                  "evidence": {"type": "string"},
-                  "session_id": {"type": "string"}
+                  "topic": {"type": "string", "example": "How to deploy SKV"},
+                  "essence": {"type": "string", "example": "Deploy with Docker on Hetzner"},
+                  "rules_markdown": {"type": "string", "example": "- MUST: Use Docker"},
+                  "evidence": {"type": "string", "example": "Tested on Ubuntu 22.04"},
+                  "session_id": {"type": "string", "example": "chat_001"}
                 },
                 "required": ["topic", "essence", "rules_markdown", "evidence"]
+              },
+              "example": {
+                "topic": "How to deploy SKV",
+                "essence": "Deploy with Docker on Hetzner VPS",
+                "rules_markdown": "- MUST: Use Docker Compose\n- SHALL: Enable SSL",
+                "evidence": "Tested on Ubuntu 22.04, works",
+                "session_id": "chat_001"
               }
             }
           }
@@ -109,8 +146,7 @@
     "/api/v7/experience/vote": {
       "post": {
         "operationId": "voteOnCube",
-        "summary": "Оценить куб",
-        "description": "Голосование за куб опыта (1 — полезно, -1 — нерелевантно).",
+        "summary": "Оценить куб (1 — полезно, -1 — нерелевантно)",
         "requestBody": {
           "required": true,
           "content": {
@@ -118,11 +154,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "cube_id": {"type": "string"},
-                  "user_id": {"type": "string"},
-                  "vote": {"type": "integer", "enum": [1, -1]}
+                  "cube_id": {"type": "string", "example": "cube_123"},
+                  "user_id": {"type": "string", "example": "test_user"},
+                  "vote": {"type": "integer", "enum": [1, -1], "example": 1}
                 },
                 "required": ["cube_id", "user_id", "vote"]
+              },
+              "example": {
+                "cube_id": "cube_123",
+                "user_id": "test_user",
+                "vote": 1
               }
             }
           }
@@ -132,8 +173,7 @@
     "/api/v7/event/write": {
       "post": {
         "operationId": "saveEvent",
-        "summary": "Сохранить событие",
-        "description": "Сохраняет диалог/событие в память пользователя.",
+        "summary": "Сохранить диалог/событие в память",
         "requestBody": {
           "required": true,
           "content": {
@@ -141,13 +181,20 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "user_id": {"type": "string"},
-                  "session_id": {"type": "string"},
-                  "query": {"type": "string"},
-                  "response": {"type": "string"},
-                  "topic": {"type": "string"}
+                  "user_id": {"type": "string", "example": "test_user"},
+                  "session_id": {"type": "string", "example": "test_001"},
+                  "query": {"type": "string", "example": "What is SKV?"},
+                  "response": {"type": "string", "example": "SKV is a memory platform"},
+                  "topic": {"type": "string", "example": "Introduction"}
                 },
                 "required": ["user_id", "query", "response"]
+              },
+              "example": {
+                "user_id": "test_user",
+                "session_id": "test_001",
+                "query": "What is SKV?",
+                "response": "SKV is a memory platform for AI agents",
+                "topic": "Introduction"
               }
             }
           }
@@ -157,8 +204,7 @@
     "/api/v7/memory/summarize": {
       "post": {
         "operationId": "saveL1Summary",
-        "summary": "Сохранить L1 саммари",
-        "description": "Краткое содержание последних 15 сообщений.",
+        "summary": "Сохранить L1 саммари сессии",
         "requestBody": {
           "required": true,
           "content": {
@@ -166,13 +212,20 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "user_id": {"type": "string"},
-                  "session_id": {"type": "string"},
-                  "topic": {"type": "string"},
-                  "summary_text": {"type": "string"},
-                  "message_count": {"type": "integer"}
+                  "user_id": {"type": "string", "example": "test_user"},
+                  "session_id": {"type": "string", "example": "chat_001"},
+                  "topic": {"type": "string", "example": "SKV Overview"},
+                  "summary_text": {"type": "string", "example": "Discussed SKV architecture"},
+                  "message_count": {"type": "integer", "example": 15}
                 },
                 "required": ["user_id", "session_id", "summary_text"]
+              },
+              "example": {
+                "user_id": "test_user",
+                "session_id": "chat_001",
+                "topic": "SKV Overview",
+                "summary_text": "User asked about SKV features and deployment",
+                "message_count": 15
               }
             }
           }
@@ -182,8 +235,7 @@
     "/api/v7/memory/map": {
       "post": {
         "operationId": "updateL2Map",
-        "summary": "Обновить L2 карту памяти",
-        "description": "Обновляет профиль пользователя каждые 30 сообщений.",
+        "summary": "Обновить L2 карту памяти пользователя",
         "requestBody": {
           "required": true,
           "content": {
@@ -191,10 +243,14 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "user_id": {"type": "string"},
-                  "session_count": {"type": "integer"}
+                  "user_id": {"type": "string", "example": "test_user"},
+                  "session_count": {"type": "integer", "example": 30}
                 },
                 "required": ["user_id"]
+              },
+              "example": {
+                "user_id": "test_user",
+                "session_count": 30
               }
             }
           }
@@ -204,8 +260,7 @@
     "/api/v7/feedback": {
       "post": {
         "operationId": "submitAnomaly",
-        "summary": "Сообщить об ошибке",
-        "description": "Отправить репорт об аномалии, баге или предложении.",
+        "summary": "Сообщить об ошибке или аномалии",
         "requestBody": {
           "required": true,
           "content": {
@@ -213,12 +268,18 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "type": {"type": "string", "enum": ["anomaly", "bug", "cube_issue", "improvement", "security"]},
-                  "title": {"type": "string"},
-                  "description": {"type": "string"},
-                  "severity": {"type": "integer", "minimum": 1, "maximum": 4}
+                  "type": {"type": "string", "enum": ["anomaly", "bug", "cube_issue", "improvement", "security"], "example": "bug"},
+                  "title": {"type": "string", "example": "Search returns empty"},
+                  "description": {"type": "string", "example": "Memory search returns empty for valid queries"},
+                  "severity": {"type": "integer", "minimum": 1, "maximum": 4, "example": 3}
                 },
                 "required": ["type", "title", "description"]
+              },
+              "example": {
+                "type": "bug",
+                "title": "Search returns empty",
+                "description": "Memory search returns empty for valid queries",
+                "severity": 3
               }
             }
           }
@@ -228,8 +289,8 @@
     "/api/execute/code": {
       "post": {
         "operationId": "runSandbox",
-        "summary": "Выполнить код в песочнице",
-        "description": "Python-песочница с авто-фиксом через 3 AI модели.",
+        "summary": "Выполнить Python код в песочнице",
+        "description": "Python-песочница с авто-фиксом через 3 AI модели. Поддерживает matplotlib, numpy.",
         "requestBody": {
           "required": true,
           "content": {
@@ -237,11 +298,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "code": {"type": "string", "description": "Python код"},
-                  "mode": {"type": "string", "enum": ["fix", "optimize", "all"], "default": "fix"},
+                  "code": {"type": "string", "description": "Python код", "example": "print(2+2)"},
+                  "mode": {"type": "string", "enum": ["fix", "optimize", "all"], "default": "fix", "example": "fix"},
                   "language": {"type": "string", "default": "python"}
                 },
                 "required": ["code"]
+              },
+              "example": {
+                "code": "print(2+2)",
+                "mode": "fix",
+                "language": "python"
               }
             }
           }
@@ -251,10 +317,9 @@
     "/api/v7/agent/prompt": {
       "get": {
         "operationId": "getAgentPrompt",
-        "summary": "Получить системный промпт",
-        "description": "Возвращает инструкцию для агента (конституция, SEAL, протокол).",
+        "summary": "Получить системный промпт агента",
         "parameters": [
-          {"name": "user_id", "in": "query", "required": true, "schema": {"type": "string"}}
+          {"name": "user_id", "in": "query", "required": true, "schema": {"type": "string"}, "example": "test_user"}
         ]
       }
     }

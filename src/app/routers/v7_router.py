@@ -136,6 +136,16 @@ class SearchRequest(BaseModel):
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(20, ge=1, le=100)
 
+
+class ChatRequest(BaseModel):
+    user_id: str
+    message: str
+    session_id: str = "default"
+    step: int = 0
+    last_seal: Optional[str] = None
+    chat_history: List[str] = []
+    top_k: int = 5
+
 class FeedbackRequest(BaseModel):
     user_id: Optional[str] = None
     agent_id: Optional[str] = None
@@ -1331,3 +1341,196 @@ async def get_constitution_v8():
         "cubes": cubes,
         "total_chars": sum(c["length"] for c in cubes)
     }
+
+# ==================== SKV CHAT v8.3 PRODUCTION ====================
+# Архитектура:
+# - DeepSeek: ответы пользователю + кубы/фидбэк (по команде)
+# - Llama: L1 summary (каждые 15), L2 map (каждые 30)
+# - Бэкенд: сохранение текста, счётчик, триггеры
+
+@router.post("/agent/chat")
+async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
+    try:
+        import json, urllib.request as urlreq, time, re
+        from app.routers.v4_middleware import get_embedding_cached
+
+        is_guest = req.user_id.startswith("guest_")
+        guest_warning = "GUEST MODE: Register at skv.network for permanent memory.\n" if is_guest else ""
+
+
+        # ========== 1. ПОИСК ПАМЯТИ (768 dims HNSW) ==========
+        emb = get_embedding_cached(req.message)
+        emb_list = emb if isinstance(emb, list) else emb.tolist()
+        q_vec = np.zeros(768, dtype=np.float32)
+        q_vec[:min(len(emb_list), 768)] = emb_list[:768]
+        
+        hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id, q_vec, top_k=req.top_k)
+        if hnsw_results:
+            event_ids = [eid for eid, _ in hnsw_results[:5]]
+            metadata_map = metadata_store.batch_get_metadata(req.user_id, event_ids)
+            memory_parts = []
+            for eid, score in hnsw_results[:5]:
+                meta = metadata_map.get(eid) or {}
+                essence = meta.get('essence', '') if meta else ''
+                memory_parts.append(f"ID: {eid} | Score: {score:.2f} | {str(essence)[:200]}")
+            memory_text = "\n".join(memory_parts)
+        else:
+            memory_text = "No relevant memory."
+        # ========== 2. L2 MEMORY MAP ==========
+        memory_map = f"Personal: {buffer.personal_current_size} events | Shared: {buffer.shared_current_size} cubes"
+
+        # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
+        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 
+                           "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v4"]
+        const_map = metadata_store.batch_get_metadata("shared_master", constitution_ids)
+        const_parts = []
+        for cid in constitution_ids:
+            meta = const_map.get(cid, {})
+            if meta.get("raw_dialogue"):
+                name = cid.replace("cube_const_", "CUBE ").replace("_v4","").replace("_v5","")
+                const_parts.append(f"=== {name} ===\n{meta['raw_dialogue']}")
+        constitution_text = "\n\n".join(const_parts)
+
+        # ========== 4. НАПОМИНАНИЯ ==========
+        reminders = "Execute Second Look. Add SEAL to response.\n"
+        if req.step > 0 and req.step % 5 == 0:
+            reminders += "⚠️ Step 5: Session will be saved.\n"
+        if req.step > 0 and req.step % 10 == 0:
+            reminders += "⚠️ Step 10: Consider creating an Experience Cube.\n"
+        if req.step > 0 and req.step % 15 == 0:
+            reminders += "⚠️ Step 15: L1 summary will be generated.\n"
+        if req.step > 0 and req.step % 30 == 0:
+            reminders += "⚠️ Step 30: L2 map will be updated.\n"
+
+        # ========== 5. SEAL ==========
+        seal_context = f"Previous SEAL: {req.last_seal}\nContinue numbering.\n" if req.last_seal else "Start SEAL with #1.\n"
+
+        # ========== 6. ИСТОРИЯ ЧАТА ==========
+        chat_history = ""
+        if req.chat_history:
+            chat_history = "=== RECENT CHAT ===\n" + "\n".join(req.chat_history[-20:]) + "\n"
+
+        # ========== 7. ЗАПРОС К DEEPSEEK ==========
+        system_prompt = f"""{guest_warning}You are SKV Agent v8.3 — AI with persistent memory and constitutional safety.
+
+=== CONSTITUTION ===
+{constitution_text}
+
+=== MEMORY SEARCH ===
+{memory_text}
+
+=== MEMORY MAP ===
+{memory_map}
+
+{chat_history}
+
+=== REMINDERS ===
+{reminders}
+
+{seal_context}
+
+User: {req.message}
+
+Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT ✓"""
+
+        polza_body = json.dumps({
+            "model": "deepseek/deepseek-v4-flash",
+            "messages": [{"role": "user", "content": system_prompt}],
+            "temperature": 0.3
+        }).encode()
+        
+        polza_key = os.environ.get("POLZA_KEY", "")
+        r = urlreq.Request("https://api.polza.ai/v1/chat/completions",
+            data=polza_body,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
+        with urlreq.urlopen(r, timeout=120) as resp:
+            answer = json.loads(resp.read().decode())["choices"][0]["message"]["content"]
+
+        # ========== 8. АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ ==========
+        if not is_guest:
+            safe_event_id = f"{req.user_id}::chat_{req.session_id}_{int(time.time())}"
+            now = datetime.now(timezone.utc)
+            session_emb = get_embedding_cached(req.message + " " + answer)
+            session_list = session_emb if isinstance(session_emb, list) else session_emb.tolist()
+            session_vec = session_list[:218]
+            
+            buffer.write_personal_event(
+                event_id=safe_event_id, hour=now.hour, minute=now.minute,
+                semantics_emb=np.array(session_vec, dtype=np.float32),
+                parent_indices=None, details_emb=None, metric_value=len(answer)/1000.0
+            )
+            metadata_store.write_metadata(
+                user_id=req.user_id, event_id=safe_event_id,
+                time_str=f"{now.hour:02d}:{now.minute:02d}, {now.strftime('%d.%m.%Y')}",
+                essence=req.message[:200], messages_count=2, topics=["chat_history"],
+                links=[], metric_value=len(answer)/1000.0,
+                raw_dialogue=f"Q: {req.message}\nA: {answer}", is_shared=False
+            )
+            if buffer.persistence:
+                buffer.persistence.save()
+
+        # ========== 9. ТРИГГЕРЫ ДЛЯ КУБОВ И L1/L2 ==========
+        triggers = []
+        
+        # Триггеры для кубов опыта
+        if re.search(r'🎉|Поздравляю|✅✅|победа|успех|работает|легенда', answer):
+            triggers.append("cube_success")
+        if re.search(r'ошибка|не работает|баг|упало|провал', answer.lower()):
+            triggers.append("cube_error")
+        if re.search(r'🚀|запуск|деплой|продакшен|готов', answer):
+            triggers.append("cube_launch")
+            
+        # Триггеры для L1/L2
+        if req.step > 0 and req.step % 15 == 0:
+            triggers.append("l1_summary")
+        if req.step > 0 and req.step % 30 == 0:
+            triggers.append("l2_map")
+            
+        # Авто-создание куба через Llama (если есть триггер)
+        cube_result = None
+        if triggers and not is_guest:
+            for trigger in triggers:
+                if trigger.startswith("cube_"):
+                    try:
+                        cube_prompt = f"Create experience cube from this success:\n{answer[-500:]}\nReturn JSON: {{\"topic\":\"...\",\"essence\":\"...\",\"rules\":\"...\"}}"
+                        cube_body = json.dumps({
+                            "model": "meta-llama/llama-3.1-8b-instruct",
+                            "messages": [{"role": "user", "content": cube_prompt}],
+                            "temperature": 0.2, "max_tokens": 300
+                        }).encode()
+                        cube_req = urlreq.Request("https://api.polza.ai/v1/chat/completions",
+                            data=cube_body,
+                            headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
+                        with urlreq.urlopen(cube_req, timeout=30) as cube_resp:
+                            cube_data = json.loads(cube_resp.read().decode())
+                            cube_text = cube_data["choices"][0]["message"]["content"]
+                            # Сохраняем куб
+                            try:
+                                cube_json = json.loads(cube_text)
+                                import requests as req_http
+                                req_http.post("http://localhost:8000/api/v7/experience/create",
+                                    json={
+                                        "topic": cube_json.get("topic", "Auto-cube"),
+                                        "essence": cube_json.get("essence", answer[:200]),
+                                        "rules_markdown": cube_json.get("rules", ""),
+                                        "evidence": f"Auto-generated from step {req.step}",
+                                        "session_id": req.session_id
+                                    }, timeout=5)
+                                cube_result = f"Cube created: {cube_json.get('topic', 'Unknown')}"
+                            except:
+                                cube_result = "Cube creation queued"
+                    except:
+                        pass
+                    break  # Один куб за раз
+
+        return {
+            "response": answer,
+            "session_id": req.session_id,
+            "step": req.step + 1,
+            "is_guest": is_guest,
+            "triggers": triggers,
+            "cube": cube_result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

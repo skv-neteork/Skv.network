@@ -1446,6 +1446,32 @@ async def vote_experience(req: VoteRequest):
     }
 
 
+
+@router.get("/event/{event_id}")
+async def get_event_detail(event_id: str):
+    """Возвращает полный текст события по ID."""
+    import sqlite3
+    user_part = event_id.split("::")[0] if "::" in event_id else "test_user"
+    db_name = user_part.replace("@", "").replace(".", "")
+    
+    conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+    cur = conn.cursor()
+    cur.execute("SELECT event_id, time_str, essence, raw_dialogue, links_json, messages_count FROM event_metadata WHERE event_id = ?", (event_id,))
+    row = cur.fetchone()
+    conn.close()
+    
+    if not row:
+        raise HTTPException(404, "Event not found")
+    
+    return {
+        "event_id": row[0],
+        "time": row[1],
+        "essence": row[2],
+        "full_text": row[3],
+        "links": json.loads(row[4]) if row[4] and row[4].strip() else [],
+        "messages_count": row[5]
+    }
+
 @router.get("/constitution")
 async def get_constitution_v8():
     """Возвращает кубы конституции CUBE 00-05"""
@@ -1511,7 +1537,12 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
             for eid, score in hnsw_results[:5]:
                 meta = metadata_map.get(eid) or {}
                 essence = meta.get('essence', '') if meta else ''
-                memory_parts.append(f"ID: {eid} | Score: {score:.2f} | {str(essence)[:200]}")
+                # Топ-1: полный текст, остальные: essence
+                if len(memory_parts) == 0:
+                    raw = meta.get('raw_dialogue', essence) or ''
+                    memory_parts.append(f"=== TOP MATCH (Score: {score:.2f}) ===\nID: {eid}\n{str(raw)[:3000]}")
+                else:
+                    memory_parts.append(f"ID: {eid} | Score: {score:.2f} | {str(essence)[:500]}")
             memory_text = "\n".join(memory_parts)
         else:
             memory_text = "No relevant memory."

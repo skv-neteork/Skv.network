@@ -1600,9 +1600,9 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
                         if meta:
                             if i == 0:
                                 raw = meta.get('raw_dialogue', meta.get('essence', ''))
-                                fts_parts.append(f"TOP: {eid}\n{str(raw)[:2000]}")
+                                fts_parts.append(f"TOP: {eid}\n{str(raw)[:3000]}")
                             else:
-                                fts_parts.append(f"ID: {eid} | {meta.get('essence', '')[:200]}")
+                                fts_parts.append(f"ID: {eid} | {str(meta.get('essence', ''))[:500]}")
                     fts_text = "\n".join(fts_parts) + "\n"
                 fts_conn.close()
         except:

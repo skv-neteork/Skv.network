@@ -1002,14 +1002,16 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     constitution_text = "\n\n".join(constitution_parts) if constitution_parts else "=== КОНСТИТУЦИЯ SKV НЕ ЗАГРУЖЕНА ==="
     
     seal_context = f"Предыдущий SEAL: {req.last_seal}\nПродолжи нумерацию.\n" if req.last_seal else "Начни SEAL с #1.\n"
-    reminders = "=== GUARDIAN L1 ===\n"
-    reminders += "📝 Сохрани сессию (POST /api/v7/event/write)\n"
-    reminders += "📦 Создай experience cube если было важное\n"
-    reminders += "🗺 Обнови Memory Map L2\n"
+    reminders = "=== GUARDIAN REMINDERS ===\n"
+    reminders += "📜 Constitution loaded (CUBE 00-05)\n"
+    reminders += "🔐 Execute Second Look and put SEAL\n"
     if has_cubes:
-        reminders += "⭐ Оставь feedback на использованные кубы\n"
-    reminders += "📜 Все кубы конституции загружены\n"
-    reminders += "🔐 Выполни Second Look и поставь SEAL\n"
+        reminders += "⭐ Vote on used cubes\n"
+    reminders += "\n💡 Tips:\n"
+    reminders += "• Topic complete → L1 summary\n"
+    reminders += "• Profile changes → L2 map\n"
+    reminders += "• Pattern discovered → cube\n"
+    reminders += "• Auto-save every 5 messages\n"
     # Load L2 Memory Map
     memory_map_text = ""
     try:

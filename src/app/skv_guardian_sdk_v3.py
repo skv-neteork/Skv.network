@@ -19,6 +19,12 @@ CORRECT: [improvements — MUST differ from draft]
 [Final response for user]
 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT ✓
 
+CRITICAL INFORMATION:
+• If you learn passwords, keys, major decisions → mark with !!!
+• !!! items are NEVER compressed and always visible in Memory Map
+• Save immediately: POST /api/v7/event/write
+• Example: !!! API_KEY=sk_xxx
+
 RULES:
 • Draft and final response MUST differ
 • Never output fake URLs

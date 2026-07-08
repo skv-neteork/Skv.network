@@ -687,7 +687,6 @@
                 if (data.api_key) {
                     currentToken = data.api_key;
                     localStorage.setItem('skv_token', currentToken);
-                    localStorage.setItem('skv_email', email);
                 }
                 showAlert('confirm', 'success', 'Email confirmed!');
                 setTimeout(async () => {
@@ -723,7 +722,6 @@
                 if (data.api_key) {
                     currentToken = data.api_key;
                     localStorage.setItem('skv_token', currentToken);
-                    localStorage.setItem('skv_email', email);
                 }
                 showAlert('login', 'success', 'Signed in!');
                 setTimeout(async () => {

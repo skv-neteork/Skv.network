@@ -323,7 +323,17 @@
         ]
       }
     }
-  },
+,
+    "/api/v7/event/{event_id}": {
+      "get": {
+        "operationId": "getEventDetail",
+        "summary": "Получить полный текст события",
+        "description": "Возвращает полный raw_dialogue события по ID. Полезно когда нужно увидеть весь контекст.",
+        "parameters": [
+          {"name": "event_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ]
+      }
+    }  },
   "components": {
     "securitySchemes": {
       "BearerAuth": {

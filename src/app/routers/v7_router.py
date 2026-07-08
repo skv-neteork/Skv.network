@@ -1603,6 +1603,26 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         # ========== 7. ЗАПРОС К DEEPSEEK ==========
         system_prompt = f"""{user_status}{guest_warning}You are SKV Agent v8.3 — AI with persistent memory and constitutional safety.
 
+=== MEMORY SEARCH RESULTS ===
+{memory_text}
+
+=== MEMORY MAP ===
+{memory_map}
+
+{chat_history}
+
+=== CONSTITUTION ===
+{constitution_text}
+
+=== REMINDERS ===
+{reminders}
+
+{seal_context}
+
+User: {req.message}
+
+RESPONSE FORMAT (REQUIRED):
+
 RESPONSE FORMAT (REQUIRED):
 <thinking>
 DRAFT: [your first version]

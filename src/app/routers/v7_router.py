@@ -221,6 +221,98 @@ _thread = threading.Thread(target=background_vectorizer, daemon=True)
 _thread.start()
 print("[INJECTOR] Background vectorizer started (every 30 min)", flush=True)
 
+def background_l1_l2():
+    """Auto-generate L1/L2 summaries using Llama."""
+    import time as _time
+    while True:
+        _time.sleep(900)  # Every 15 minutes
+        try:
+            import sqlite3 as _sq, json as _json, urllib.request as _urlreq
+            
+            for db_file in os.listdir('/data/skv/metadata_store'):
+                if not db_file.endswith('.db') or db_file in ['shared_master.db', 'anonymous.db']:
+                    continue
+                
+                user_id = db_file.replace('.db', '').replace('gmailcom', '@gmail.com')
+                conn = _sq.connect(f'/data/skv/metadata_store/{db_file}')
+                cur = conn.cursor()
+                
+                # Count events since last L1
+                cur.execute("SELECT COUNT(*) FROM event_metadata")
+                total_events = cur.fetchone()[0]
+                
+                cur.execute("SELECT COUNT(*) FROM summary_l1")
+                l1_count = cur.fetchone()[0]
+                
+                # L2 generation (every 60 min, if events > 30 since last L2)
+                cur.execute("SELECT MAX(last_updated) FROM summary_l2")
+                last_l2 = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM event_metadata")
+                total_events = cur.fetchone()[0]
+                
+                need_l2 = False
+                if last_l2:
+                    # Check if 1 hour passed
+                    need_l2 = (_time.time() - _time.mktime(_time.strptime(last_l2, '%Y-%m-%d %H:%M:%S'))) > 3600 if last_l2 else True
+                else:
+                    need_l2 = True
+                
+                if need_l2 and total_events > 30:
+                    cur.execute("SELECT essence FROM event_metadata ORDER BY event_id DESC LIMIT 100")
+                    essences = [r[0] for r in cur.fetchall() if r[0]]
+                    
+                    if essences:
+                        prompt = f"Create L2 user profile from these interactions. Return JSON with main_themes, preferences, expertise_level:\n" + "\n".join(essences)
+                        polza_key = os.environ.get("POLZA_KEY", "")
+                        
+                        req = _urlreq.Request("https://api.polza.ai/v1/chat/completions",
+                            data=_json.dumps({
+                                "model": "meta-llama/llama-3.1-8b-instruct",
+                                "messages": [{"role": "user", "content": prompt}],
+                                "temperature": 0.2, "max_tokens": 500
+                            }).encode(),
+                            headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
+                        
+                        with _urlreq.urlopen(req, timeout=30) as resp:
+                            l2_data = _json.loads(resp.read())["choices"][0]["message"]["content"]
+                            cur.execute("DELETE FROM summary_l2 WHERE user_id = ?", (user_id,))
+                            cur.execute("INSERT INTO summary_l2 (user_id, map_json, themes_json, timeline_json, session_count, last_updated) VALUES (?,?,?,?,?,datetime('now'))",
+                                       (user_id, l2_data, '[]', '[]', total_events))
+                            conn.commit()
+                            print(f"[L2] Updated for {user_id}", flush=True)
+                
+                # If new events > 15 since last L1 — generate
+                if total_events > 0 and (l1_count == 0 or total_events - l1_count * 10 > 15):
+                    cur.execute("SELECT essence FROM event_metadata ORDER BY event_id DESC LIMIT 30")
+                    essences = [r[0] for r in cur.fetchall() if r[0]]
+                    
+                    if essences:
+                        prompt = f"Summarize these user interactions in 2-3 sentences:\n" + "\n".join(essences[-15:])
+                        polza_key = os.environ.get("POLZA_KEY", "")
+                        
+                        req = _urlreq.Request("https://api.polza.ai/v1/chat/completions",
+                            data=_json.dumps({
+                                "model": "meta-llama/llama-3.1-8b-instruct",
+                                "messages": [{"role": "user", "content": prompt}],
+                                "temperature": 0.2, "max_tokens": 300
+                            }).encode(),
+                            headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
+                        
+                        with _urlreq.urlopen(req, timeout=30) as resp:
+                            summary = _json.loads(resp.read())["choices"][0]["message"]["content"]
+                            cur.execute("INSERT INTO summary_l1 (user_id, topic, summary_text, message_count) VALUES (?,?,?,?)",
+                                       (user_id, "auto", summary, 15))
+                            conn.commit()
+                            print(f"[L1] Generated for {user_id}", flush=True)
+                
+                conn.close()
+        except Exception as e:
+            print(f"[L1/L2] Error: {e}", flush=True)
+
+_l1l2_thread = threading.Thread(target=background_l1_l2, daemon=True)
+_l1l2_thread.start()
+print("[L1/L2] Auto-generator started (every 15 min)", flush=True)
+
 @router.post("/vectors/process")
 async def trigger_vectorization():
     """Manually trigger lazy vectorization."""
@@ -1400,7 +1492,7 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         
         is_guest = req.user_id.startswith("guest_")
         guest_warning = "GUEST MODE: Register at skv.network for permanent memory.\n" if is_guest else ""
-user_status = f"User: {req.user_id} | Status: {'Guest (temporary)' if is_guest else 'Registered (memory active)'}\n"
+        user_status = f"User: {req.user_id} | Status: {'Guest (temporary)' if is_guest else 'Registered (memory active)'}\n"
 
 
         # ========== 1. ПОИСК ПАМЯТИ (768 dims HNSW) ==========
@@ -1421,8 +1513,46 @@ user_status = f"User: {req.user_id} | Status: {'Guest (temporary)' if is_guest e
             memory_text = "\n".join(memory_parts)
         else:
             memory_text = "No relevant memory."
+        
+        # FTS5 exact search (focus words from query)
+        try:
+            import sqlite3 as sq
+            db_name = req.user_id.replace('@', '').replace('.', '')
+            fts_conn = sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+            fts_cur = fts_conn.cursor()
+            # Extract key words from message
+            words = [w for w in req.message.split() if len(w) > 3][:5]
+            if words:
+                fts_query = ' OR '.join(words)
+                fts_cur.execute('SELECT event_id FROM events_fts WHERE events_fts MATCH ?', (fts_query,))
+                fts_ids = {r[0] for r in fts_cur.fetchall()}
+                if fts_ids:
+                    fts_meta = metadata_store.batch_get_metadata(req.user_id, list(fts_ids)[:5])
+                    memory_text += "\n\n=== FTS5 EXACT MATCHES ===\n"
+                    for eid in list(fts_ids)[:5]:
+                        meta = fts_meta.get(eid, {})
+                        if meta:
+                            memory_text += f"ID: {eid} | {meta.get('essence', '')[:200]}\n"
+                fts_conn.close()
+        except:
+            pass
         # ========== 2. L2 MEMORY MAP ==========
-        memory_map = f"Personal: {buffer.personal_current_size} events | Shared: {buffer.shared_current_size} cubes"
+        # Get L2 profile from summary_l2
+        l2_profile = ""
+        try:
+            import sqlite3 as _sq
+            db_name = req.user_id.replace('@', '').replace('.', '')
+            l2_conn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+            l2_cur = l2_conn.cursor()
+            l2_cur.execute("SELECT map_json FROM summary_l2 WHERE user_id = ? ORDER BY last_updated DESC LIMIT 1", (req.user_id,))
+            l2_row = l2_cur.fetchone()
+            if l2_row and l2_row[0]:
+                l2_profile = f"\n=== L2 USER PROFILE ===\n{l2_row[0]}\n"
+            l2_conn.close()
+        except:
+            pass
+        
+        memory_map = f"Personal: {buffer.personal_current_size} events | Shared: {buffer.shared_current_size} cubes{l2_profile}"
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 

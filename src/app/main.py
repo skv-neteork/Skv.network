@@ -16,9 +16,7 @@ signal.signal(signal.SIGINT, graceful_shutdown)
 
 from starlette.middleware import Middleware
 from app.startup import startup
-from fastapi import FastAPI
-from fastapi import Request
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request
 from app.middleware.rate_limit import rate_limit_middleware
 from app.routers.entries import router as entries_router, get_cubes_count
 from app.routers.pages import router as pages_router
@@ -389,7 +387,6 @@ async def add_server_time(request: Request, call_next):
 async def rate_limit_handler(request: Request, call_next):
     return await rate_limit_middleware(request, call_next)
 
-app.mount("/download", StaticFiles(directory="/app/uploads"), name="downloads")
 app.include_router(pages_router)
 app.include_router(entries_router)
 app.include_router(trials_router)

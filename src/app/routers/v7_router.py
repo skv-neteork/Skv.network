@@ -1554,7 +1554,26 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         except:
             pass
         
-        memory_map = f"Personal: {buffer.personal_current_size} events | Shared: {buffer.shared_current_size} cubes{l2_profile}"
+                # Search for CRITICAL items (!!!) in all events
+        critical_items = ""
+        try:
+            import sqlite3 as _sq
+            db_name = req.user_id.replace('@', '').replace('.', '')
+            crit_conn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+            crit_cur = crit_conn.cursor()
+            crit_cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%!!!%' ORDER BY event_id DESC LIMIT 10")
+            crit_rows = crit_cur.fetchall()
+            if crit_rows:
+                critical_items = "\n=== 🔴 CRITICAL (never compressed) ===\n"
+                for time_str, text in crit_rows:
+                    for line in text.split('\n'):
+                        if '!!!' in line:
+                            critical_items += f"[{time_str or '?'}] {line.strip()}\n"
+            crit_conn.close()
+        except:
+            pass
+        
+        memory_map = f"Personal: {buffer.personal_current_size} events | Shared: {buffer.shared_current_size} cubes{critical_items}{l2_profile}"
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 

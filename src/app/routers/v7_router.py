@@ -972,7 +972,18 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             metadata_map = metadata_store.batch_get_metadata(req.user_id, candidate_ids)
             for r in filtered_dicts:
                 r["metadata"] = metadata_map.get(r["event_id"], {})
-            memory_text = ChronoCognitiveDecoder.decode_search_results(filtered_dicts)
+            # Enhanced output: top-1 full text, rest essence
+            memory_parts_v7 = []
+            for i, r in enumerate(filtered_dicts[:5]):
+                meta = r.get("metadata", {})
+                eid = r.get("event_id", "?")
+                score = r.get("score", 0)
+                if i == 0:
+                    raw = meta.get('raw_dialogue', meta.get('essence', ''))
+                    memory_parts_v7.append(f"=== TOP MATCH (Score: {score:.2f}) ===\nID: {eid}\n{str(raw)[:3000]}")
+                else:
+                    memory_parts_v7.append(f"ID: {eid} | Score: {score:.2f} | {str(meta.get('essence', ''))[:500]}")
+            memory_text = "\n".join(memory_parts_v7)
             has_cubes = len(filtered_dicts) > 0
     except Exception:
         memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"

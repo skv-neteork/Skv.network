@@ -1400,6 +1400,7 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         
         is_guest = req.user_id.startswith("guest_")
         guest_warning = "GUEST MODE: Register at skv.network for permanent memory.\n" if is_guest else ""
+user_status = f"User: {req.user_id} | Status: {'Guest (temporary)' if is_guest else 'Registered (memory active)'}\n"
 
 
         # ========== 1. ПОИСК ПАМЯТИ (768 dims HNSW) ==========
@@ -1455,7 +1456,7 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
             chat_history = "=== RECENT CHAT ===\n" + "\n".join(req.chat_history[-20:]) + "\n"
 
         # ========== 7. ЗАПРОС К DEEPSEEK ==========
-        system_prompt = f"""{guest_warning}You are SKV Agent v8.3 — AI with persistent memory and constitutional safety.
+        system_prompt = f"""{user_status}{guest_warning}You are SKV Agent v8.3 — AI with persistent memory and constitutional safety.
 
 RESPONSE FORMAT (REQUIRED):
 <thinking>
@@ -1654,8 +1655,12 @@ Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT 
                         pass
                     break  # Один куб за раз
 
+                # Strip <thinking> block from user-facing response
+        import re
+        clean_answer = re.sub(r'<thinking>.*?</thinking>\s*', '', answer, flags=re.DOTALL).strip()
+        
         return {
-            "response": answer,
+            "response": clean_answer,
             "session_id": req.session_id,
             "step": req.step + 1,
             "is_guest": is_guest,

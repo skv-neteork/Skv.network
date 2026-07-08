@@ -237,6 +237,19 @@ def background_l1_l2():
                 conn = _sq.connect(f'/data/skv/metadata_store/{db_file}')
                 cur = conn.cursor()
                 
+                # Ensure tables exist
+                cur.execute("""CREATE TABLE IF NOT EXISTS summary_l1 (
+                    session_id TEXT, user_id TEXT, topic TEXT,
+                    summary_text TEXT, summary_json TEXT,
+                    message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""")
+                cur.execute("""CREATE TABLE IF NOT EXISTS summary_l2 (
+                    user_id TEXT, map_json TEXT, themes_json TEXT,
+                    timeline_json TEXT, session_count INTEGER,
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""")
+                conn.commit()
+                
                 # Count events since last L1
                 cur.execute("SELECT COUNT(*) FROM event_metadata")
                 total_events = cur.fetchone()[0]

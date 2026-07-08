@@ -142,7 +142,6 @@ async def system_status():
     }
 
 @router.post("/api/tools/create-file")
-@router.post("/api/v7/tools/create-file")
 async def create_file(request: Request):
     """Создаёт файл на сервере и возвращает ссылку для скачивания."""
     import os
@@ -155,7 +154,7 @@ async def create_file(request: Request):
         return {"error": "Content required"}
     
     # Определяем расширение
-    ext_map = {"html": "html", "txt": "txt", "json": "json", "md": "md", "csv": "csv", "svg": "svg", "pdf": "pdf", "png": "png", "zip": "zip", "py": "py", "css": "css", "js": "js"}
+    ext_map = {"html": "html", "txt": "txt", "json": "json", "md": "md", "csv": "csv", "svg": "svg"}
     ext = ext_map.get(filetype, "txt")
     if not filename.endswith(f".{ext}"):
         filename = f"{filename}.{ext}"
@@ -163,13 +162,8 @@ async def create_file(request: Request):
     fpath = f"/app/uploads/{filename}"
     os.makedirs("/app/uploads", exist_ok=True)
     
-    if ext in ("pdf", "png", "zip"):
-        import base64
-        with open(fpath, "wb") as f:
-            f.write(base64.b64decode(content))
-    else:
-        with open(fpath, "w") as f:
-            f.write(content)
+    with open(fpath, "w") as f:
+        f.write(content)
     
     return {
         "status": "ok",

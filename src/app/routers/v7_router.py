@@ -1546,7 +1546,7 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         user_status = f"User: {req.user_id} | Status: {'Guest (temporary)' if is_guest else 'Registered (memory active)'}\n"
 
 
-        # ========== 1. ПОИСК ПАМЯТИ (768 dims HNSW) ==========
+        # ========== 1. ПОИСК ПАМЯТИ (FTS5 first, then HNSW) ==========
         emb = get_embedding_cached(req.message)
         emb_list = emb if isinstance(emb, list) else emb.tolist()
         q_vec = np.zeros(768, dtype=np.float32)
@@ -1580,13 +1580,13 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         else:
             memory_text = "No relevant memory."
         
-        # FTS5 exact search (focus words from query)
+        # FTS5 exact search FIRST (better for names, terms)
+        fts_text = ""
         try:
             import sqlite3 as sq
             db_name = req.user_id.replace('@', '').replace('.', '')
             fts_conn = sq.connect(f'/data/skv/metadata_store/{db_name}.db')
             fts_cur = fts_conn.cursor()
-            # Extract key words from message
             words = [w for w in req.message.split() if len(w) > 3][:5]
             if words:
                 fts_query = ' OR '.join(words)
@@ -1594,14 +1594,23 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
                 fts_ids = {r[0] for r in fts_cur.fetchall()}
                 if fts_ids:
                     fts_meta = metadata_store.batch_get_metadata(req.user_id, list(fts_ids)[:5])
-                    memory_text += "\n\n=== FTS5 EXACT MATCHES ===\n"
-                    for eid in list(fts_ids)[:5]:
+                    fts_parts = ["=== 🎯 FTS5 EXACT MATCHES ==="]
+                    for i, eid in enumerate(list(fts_ids)[:5]):
                         meta = fts_meta.get(eid, {})
                         if meta:
-                            memory_text += f"ID: {eid} | {meta.get('essence', '')[:200]}\n"
+                            if i == 0:
+                                raw = meta.get('raw_dialogue', meta.get('essence', ''))
+                                fts_parts.append(f"TOP: {eid}\n{str(raw)[:2000]}")
+                            else:
+                                fts_parts.append(f"ID: {eid} | {meta.get('essence', '')[:200]}")
+                    fts_text = "\n".join(fts_parts) + "\n"
                 fts_conn.close()
         except:
             pass
+        
+        # Prepend FTS5 results before HNSW
+        if fts_text:
+            memory_text = fts_text + "\n=== 🔍 HNSW SEMANTIC MATCHES ===\n" + memory_text
         # ========== 2. L2 MEMORY MAP ==========
         # Get L2 profile from summary_l2
         l2_profile = ""

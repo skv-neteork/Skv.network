@@ -978,11 +978,23 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
                 meta = r.get("metadata", {})
                 eid = r.get("event_id", "?")
                 score = r.get("score", 0)
+                links = meta.get('links_json', '')
+                link_str = ""
+                if links and links.strip() and links != '[]':
+                    try:
+                        links_data = json.loads(links) if isinstance(links, str) else links
+                        if isinstance(links_data, dict):
+                            link_str = " | 🔗 " + ", ".join(list(links_data.keys())[:3])
+                        elif isinstance(links_data, list):
+                            link_str = " | 🔗 " + ", ".join([str(l)[:30] for l in links_data[:3]])
+                    except:
+                        pass
+                
                 if i == 0:
                     raw = meta.get('raw_dialogue', meta.get('essence', ''))
-                    memory_parts_v7.append(f"=== TOP MATCH (Score: {score:.2f}) ===\nID: {eid}\n{str(raw)[:3000]}")
+                    memory_parts_v7.append(f"=== TOP MATCH (Score: {score:.2f}) ===\nID: {eid}{link_str}\n{str(raw)[:3000]}")
                 else:
-                    memory_parts_v7.append(f"ID: {eid} | Score: {score:.2f} | {str(meta.get('essence', ''))[:500]}")
+                    memory_parts_v7.append(f"ID: {eid}{link_str} | Score: {score:.2f} | {str(meta.get('essence', ''))[:500]}")
             memory_text = "\n".join(memory_parts_v7)
             has_cubes = len(filtered_dicts) > 0
     except Exception:
@@ -1548,12 +1560,22 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
             for eid, score in hnsw_results[:5]:
                 meta = metadata_map.get(eid) or {}
                 essence = meta.get('essence', '') if meta else ''
-                # Топ-1: полный текст, остальные: essence
+                # Топ-1: полный текст, остальные: essence + links
+                links_data = meta.get('links_json', '')
+                link_str = ""
+                if links_data and links_data.strip() and links_data != '[]':
+                    try:
+                        links_parsed = json.loads(links_data) if isinstance(links_data, str) else links_data
+                        if isinstance(links_parsed, dict):
+                            link_str = " | 🔗 " + ", ".join(list(links_parsed.keys())[:3])
+                    except:
+                        pass
+                
                 if len(memory_parts) == 0:
                     raw = meta.get('raw_dialogue', essence) or ''
-                    memory_parts.append(f"=== TOP MATCH (Score: {score:.2f}) ===\nID: {eid}\n{str(raw)[:3000]}")
+                    memory_parts.append(f"=== TOP MATCH (Score: {score:.2f}) ===\nID: {eid}{link_str}\n{str(raw)[:3000]}")
                 else:
-                    memory_parts.append(f"ID: {eid} | Score: {score:.2f} | {str(essence)[:500]}")
+                    memory_parts.append(f"ID: {eid}{link_str} | Score: {score:.2f} | {str(essence)[:500]}")
             memory_text = "\n".join(memory_parts)
         else:
             memory_text = "No relevant memory."

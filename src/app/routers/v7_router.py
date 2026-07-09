@@ -1071,7 +1071,12 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     except:
         pass
     
-    prompt_text = f"{memory_text}\n\n{memory_map_text}\n{constitution_text}\n\n{seal_context}\n{reminders}"
+    # Smart Memory Map: full on step 0/20, short otherwise
+    if step == 0 or step % 20 == 0:
+        prompt_text = f"{memory_text}\n\n{memory_map_text}\n{constitution_text}\n\n{seal_context}\n{reminders}"
+    else:
+        # Short version: only search results + critical + reminders
+        prompt_text = f"{memory_text}\n\n{seal_context}\n{reminders}"
     # Раздельная выдача
     vector_top = raw_results[:10] if raw_results else []
     fts_top = []

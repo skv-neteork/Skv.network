@@ -1737,7 +1737,12 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         except:
             pass
         
-        memory_map = build_memory_map(req.user_id)
+        # Smart context: short for simple, full for memory questions
+        is_memory_question = any(w in req.message.lower() for w in ['помнишь', 'память', 'знаешь', 'обо мне', 'кто я', 'memory', 'remember', 'profile', 'истори'])
+        if is_memory_question or req.step == 0:
+            memory_map = build_memory_map(req.user_id)  # Full 128K
+        else:
+            memory_map = f"Active memory. Use searchMemory tool if needed."  # Short 500 tokens
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 

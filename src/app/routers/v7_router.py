@@ -878,6 +878,73 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
         raise HTTPException(status_code=403, detail="Invalid API key")
     return 3
 
+
+def build_memory_map(user_id: str) -> str:
+    """Memory Pyramid: Raw(50K) + L1(50K) + L2(20K) + Critical(4K) in chronological order."""
+    import sqlite3, os
+    
+    db_name = user_id.replace("@", "").replace(".", "")
+    db_path = f"/data/skv/metadata_store/{db_name}.db"
+    
+    if not os.path.exists(db_path):
+        return "No memory yet."
+    
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    
+    parts = []
+    total_chars = 0
+    limit = 128000 * 4  # 128K tokens ≈ 512K chars
+    
+    # 1. RAW — последние 50K токенов (≈200K chars) — в хронологическом порядке
+    cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue IS NOT NULL ORDER BY event_id DESC LIMIT 150")
+    raw_lines = []
+    raw_chars = 0
+    for time_str, raw in cur.fetchall():
+        line = f"[{time_str or '?'}] {raw[:500]}"
+        raw_lines.append(line)
+        raw_chars += len(line)
+        if raw_chars > 200000:
+            break
+    if raw_lines:
+        parts.append("=== RECENT ACTIVITY ===" + "".join(reversed(raw_lines)))
+        total_chars += raw_chars
+    
+    # 2. L1 — 50K токенов — в хронологическом порядке
+    cur.execute("SELECT created_at, topic, summary_text FROM summary_l1 ORDER BY created_at DESC LIMIT 300")
+    l1_lines = []
+    l1_chars = 0
+    for created, topic, summary in cur.fetchall():
+        line = f"[{created or '?'}] {topic}: {summary[:300]}"
+        l1_lines.append(line)
+        l1_chars += len(line)
+        if l1_chars > 200000:
+            break
+    if l1_lines:
+        parts.append("=== SUMMARIES (L1) ===" + "".join(reversed(l1_lines)))
+        total_chars += l1_chars
+    
+    # 3. L2 — 20K токенов
+    cur.execute("SELECT map_json FROM summary_l2 ORDER BY last_updated DESC LIMIT 1")
+    l2_row = cur.fetchone()
+    if l2_row and l2_row[0] and len(l2_row[0]) > 10:
+        parts.append(f"=== L2 PROFILE ===\n{l2_row[0][:80000]}")
+        total_chars += min(len(l2_row[0]), 80000)
+    
+    # 4. CRITICAL — 4K токенов
+    cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' ORDER BY event_id DESC LIMIT 30")
+    crit = []
+    for time_str, raw in cur.fetchall():
+        for line in raw.split("\n"):
+            if ">>>" in line:
+                crit.append(f"[{time_str or '?'}] {line.strip()}")
+    if crit:
+        parts.append("=== >>> CRITICAL ===" + "\n".join(crit[:20]))
+    
+    conn.close()
+    return "\n\n".join(parts)
+
+
 @router.post("/memory")
 async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
     # Извлекаем user_id из токена
@@ -1670,7 +1737,7 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         except:
             pass
         
-        memory_map = f"Personal: {buffer.personal_current_size} events | Shared: {buffer.shared_current_size} cubes{critical_items}{l2_profile}"
+        memory_map = build_memory_map(req.user_id)
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 

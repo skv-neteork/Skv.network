@@ -686,6 +686,7 @@
                 const data = await apiCall('/api/v7/auth/confirm', 'POST', { email, code });
                 if (data.api_key) {
                     currentToken = data.api_key;
+                    localStorage.setItem('skv_email', email);
                     localStorage.setItem('skv_token', currentToken);
                 }
                 showAlert('confirm', 'success', 'Email confirmed!');
@@ -721,6 +722,7 @@
                 const data = await apiCall('/api/v7/auth/login', 'POST', { email, password });
                 if (data.api_key) {
                     currentToken = data.api_key;
+                    localStorage.setItem('skv_email', email);
                     localStorage.setItem('skv_token', currentToken);
                 }
                 showAlert('login', 'success', 'Signed in!');

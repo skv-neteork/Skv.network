@@ -1651,14 +1651,14 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         except:
             pass
         
-                # Search for CRITICAL items (>>>) in all events
+                # Search for CRITICAL items (>>> ✅) in all events
         critical_items = ""
         try:
             import sqlite3 as _sq
             db_name = req.user_id.replace('@', '').replace('.', '')
             crit_conn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
             crit_cur = crit_conn.cursor()
-            crit_cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' ORDER BY event_id DESC LIMIT 10")
+            crit_cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>> ✅ ✅%' ORDER BY event_id DESC LIMIT 10")
             crit_rows = crit_cur.fetchall()
             if crit_rows:
                 critical_items = "\n=== 🔴 CRITICAL (never compressed) ===\n"

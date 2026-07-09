@@ -230,6 +230,12 @@ def background_l1_l2():
             import sqlite3 as _sq, json as _json, urllib.request as _urlreq
             
             for db_file in os.listdir('/data/skv/metadata_store'):
+                if not db_file.endswith('.db') or db_file in ['shared_master.db', 'anonymous.db', 'test.txt']:
+                    continue
+                # Skip empty or invalid DBs
+                db_path = f'/data/skv/metadata_store/{db_file}'
+                if os.path.getsize(db_path) < 1024:
+                    continue
                 if not db_file.endswith('.db') or db_file in ['shared_master.db', 'anonymous.db']:
                     continue
                 

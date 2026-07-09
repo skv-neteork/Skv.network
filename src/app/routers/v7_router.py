@@ -1633,7 +1633,7 @@ async def get_constitution_v8():
 # - Бэкенд: сохранение текста, счётчик, триггеры
 
 @router.post("/agent/chat")
-async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
+async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
     try:
         import json, urllib.request as urlreq, time, re
         from app.routers.v4_middleware import get_embedding_cached
@@ -1748,7 +1748,7 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
             pass
         
         # Smart context: short for simple, full for memory questions
-        memory_map = build_memory_map(req.user_id)  # Always full Memory Pyramid
+        memory_map = "Memory active. Use searchMemory tool."  # No buffer needed
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 

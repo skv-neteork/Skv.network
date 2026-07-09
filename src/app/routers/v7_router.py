@@ -667,6 +667,22 @@ async def register(req: RegisterRequest):
         
         send_confirmation_email(req.email, confirmation_code)
         
+                # Create personal database for new user
+        try:
+            db_name = req.email.replace('@', '').replace('.', '')
+            user_conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+            user_cur = user_conn.cursor()
+            user_cur.execute("CREATE TABLE IF NOT EXISTS event_metadata (event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, messages_count INTEGER, links_json TEXT, topics_json TEXT, raw_dialogue TEXT, subject TEXT, action TEXT, object TEXT, status TEXT, metric_value REAL)")
+            user_cur.execute("CREATE TABLE IF NOT EXISTS personal_vectors (event_id TEXT PRIMARY KEY, vector_blob BLOB)")
+            user_cur.execute("CREATE TABLE IF NOT EXISTS summary_l1 (session_id TEXT, user_id TEXT, topic TEXT, summary_text TEXT, summary_json TEXT, message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+            user_cur.execute("CREATE TABLE IF NOT EXISTS summary_l2 (user_id TEXT, map_json TEXT, themes_json TEXT, timeline_json TEXT, session_count INTEGER, last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+            user_cur.execute("CREATE TABLE IF NOT EXISTS chat_sessions (session_id TEXT PRIMARY KEY, user_id TEXT, messages_json TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+            user_cur.execute("CREATE TABLE IF NOT EXISTS experience_cubes (cube_id TEXT PRIMARY KEY, topic TEXT, essence TEXT, rules_markdown TEXT, evidence TEXT, session_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+            user_conn.commit()
+            user_conn.close()
+        except Exception as e:
+            print(f"Failed to create user DB: {e}")
+        
         return {"status": "ok", "message": "Registration successful. Check email for confirmation code."}
     except HTTPException:
         raise
@@ -1270,7 +1286,10 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
             if meta.get("raw_dialogue"):
                 clean_name = cid.replace("cube_const_", "CUBE ").replace("_v4","").replace("_v5","")
                 const_parts.append(f"=== {clean_name} ===\n{meta['raw_dialogue']}")
-        constitution_text = "\n\n".join(const_parts)
+        if req.step == 0:
+            constitution_text = "\n\n".join(const_parts)
+        else:
+            constitution_text = "CUBE 00-05 active (loaded at step 0)"
         
         reminders = ""
         if req.step == 0:
@@ -1741,7 +1760,10 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
             if meta.get("raw_dialogue"):
                 name = cid.replace("cube_const_", "CUBE ").replace("_v4","").replace("_v5","")
                 const_parts.append(f"=== {name} ===\n{meta['raw_dialogue']}")
-        constitution_text = "\n\n".join(const_parts)
+        if req.step == 0:
+            constitution_text = "\n\n".join(const_parts)
+        else:
+            constitution_text = "CUBE 00-05 active (loaded at step 0)"
 
         # ========== 4. НАПОМИНАНИЯ ==========
         reminders = "🔐 Execute Second Look and put SEAL.\n"

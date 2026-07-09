@@ -745,6 +745,17 @@ function rateMsg(btn, vote, msgId) {
   }).catch(function() {});
 }
 document.getElementById('userInput').focus();
+// Save history
+    function saveHistory() {
+        try { localStorage.setItem('skv_chat', JSON.stringify(chatHistory.slice(-30))); } catch(e) {}
+    }
+    window.addEventListener('load', () => {
+        try {
+            const saved = localStorage.getItem('skv_chat');
+            if (saved) { JSON.parse(saved).forEach(m => addMessage(m.role, m.content)); }
+        } catch(e) {}
+    });
+    const _push = chatHistory.push; chatHistory.push = function(...a) { const r = _push.apply(this, a); saveHistory(); return r; };
 </script>
 </body>
 </html>

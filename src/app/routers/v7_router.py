@@ -1286,10 +1286,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
             if meta.get("raw_dialogue"):
                 clean_name = cid.replace("cube_const_", "CUBE ").replace("_v4","").replace("_v5","")
                 const_parts.append(f"=== {clean_name} ===\n{meta['raw_dialogue']}")
-        if req.step == 0:
-            constitution_text = "\n\n".join(const_parts)
-        else:
-            constitution_text = "CUBE 00-05 active (loaded at step 0)"
+constitution_text = "\n\n".join(const_parts)
         
         reminders = ""
         if req.step == 0:
@@ -1748,7 +1745,42 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
             pass
         
         # Smart context: short for simple, full for memory questions
-        memory_map = "Memory active. Use searchMemory tool."  # No buffer needed
+        # Memory Map: L1(10K) + L2(10K) + Critical
+        memory_map = "Memory active.\n"
+        try:
+            db_name = req.user_id.replace('@', '').replace('.', '')
+            mm_conn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+            mm_cur = mm_conn.cursor()
+            
+            # L1 summaries
+            mm_cur.execute("SELECT topic, summary_text FROM summary_l1 ORDER BY created_at DESC LIMIT 30")
+            l1_parts = []
+            for topic, summary in mm_cur.fetchall():
+                l1_parts.append(f"## {topic}: {summary[:300]}")
+                if len('\n'.join(l1_parts)) > 40000:  # ~10K tokens
+                    break
+            if l1_parts:
+                memory_map += "\n=== L1 SUMMARIES ===\n" + "\n".join(l1_parts) + "\n"
+            
+            # L2 profile
+            mm_cur.execute("SELECT map_json FROM summary_l2 ORDER BY last_updated DESC LIMIT 1")
+            l2_row = mm_cur.fetchone()
+            if l2_row and l2_row[0]:
+                memory_map += f"\n=== L2 PROFILE ===\n{l2_row[0][:40000]}\n"  # ~10K tokens
+            
+            # Critical
+            mm_cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' LIMIT 20")
+            crit = []
+            for time_str, raw_text in mm_cur.fetchall():
+                for line in raw_text.split("\n"):
+                    if ">>>" in line and line not in crit:
+                        crit.append(f"[{time_str or '?'}] {line.strip()}")
+            if crit:
+                memory_map += "\n=== >>> CRITICAL ===\n" + "\n".join(crit)
+            
+            mm_conn.close()
+        except:
+            pass
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 
@@ -1760,10 +1792,7 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
             if meta.get("raw_dialogue"):
                 name = cid.replace("cube_const_", "CUBE ").replace("_v4","").replace("_v5","")
                 const_parts.append(f"=== {name} ===\n{meta['raw_dialogue']}")
-        if req.step == 0:
-            constitution_text = "\n\n".join(const_parts)
-        else:
-            constitution_text = "CUBE 00-05 active (loaded at step 0)"
+constitution_text = "\n\n".join(const_parts)
 
         # ========== 4. НАПОМИНАНИЯ ==========
         reminders = "🔐 Execute Second Look and put SEAL.\n"

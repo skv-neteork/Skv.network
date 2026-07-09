@@ -584,6 +584,17 @@ const SESSION_ID = 'chat_' + Date.now();
 let step = 0;
 let lastSeal = '';
 let chatHistory = [];
+(function loadHistory() {
+    try {
+        const saved = localStorage.getItem('skv_chat');
+        if (saved) {
+            chatHistory = JSON.parse(saved);
+            chatHistory.forEach(function(m) {
+                addMessage(m.role, m.content);
+            });
+        }
+    } catch(e) {}
+})();
 let sealCounter = 0;
 let isSending = false;
 if (localStorage.getItem('skv_email')) {

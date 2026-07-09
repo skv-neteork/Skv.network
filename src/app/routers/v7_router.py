@@ -880,66 +880,57 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
 
 
 def build_memory_map(user_id: str) -> str:
-    """Memory Pyramid: Raw(50K) + L1(50K) + L2(20K) + Critical(4K) in chronological order."""
+    """Memory Pyramid: Raw 50K + L1 50K + L2 20K + Critical 4K."""
     import sqlite3, os
     
     db_name = user_id.replace("@", "").replace(".", "")
     db_path = f"/data/skv/metadata_store/{db_name}.db"
     
     if not os.path.exists(db_path):
-        return "No memory yet."
+        return "Memory not available."
     
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-    
     parts = []
-    total_chars = 0
-    limit = 128000 * 4  # 128K tokens ≈ 512K chars
     
-    # 1. RAW — последние 50K токенов (≈200K chars) — в хронологическом порядке
-    cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue IS NOT NULL ORDER BY event_id DESC LIMIT 150")
-    raw_lines = []
-    raw_chars = 0
-    for time_str, raw in cur.fetchall():
-        line = f"[{time_str or '?'}] {raw[:500]}"
-        raw_lines.append(line)
-        raw_chars += len(line)
-        if raw_chars > 200000:
+    # 1. RAW: последние 50K токенов — уникальные диалоги
+    cur.execute("SELECT DISTINCT substr(raw_dialogue, 1, 500) FROM event_metadata WHERE raw_dialogue IS NOT NULL ORDER BY event_id DESC LIMIT 100")
+    raw = []
+    for (text,) in cur.fetchall():
+        if text and text not in raw:
+            raw.append(text)
+        if len(raw) >= 50:
             break
-    if raw_lines:
-        parts.append("=== RECENT ACTIVITY ===" + "".join(reversed(raw_lines)))
-        total_chars += raw_chars
+    if raw:
+        parts.append("=== RECENT ACTIVITY ===\n" + "\n---\n".join(raw))
     
-    # 2. L1 — 50K токенов — в хронологическом порядке
-    cur.execute("SELECT created_at, topic, summary_text FROM summary_l1 ORDER BY created_at DESC LIMIT 300")
-    l1_lines = []
-    l1_chars = 0
-    for created, topic, summary in cur.fetchall():
-        line = f"[{created or '?'}] {topic}: {summary[:300]}"
-        l1_lines.append(line)
-        l1_chars += len(line)
-        if l1_chars > 200000:
+    # 2. L1: последние саммари
+    cur.execute("SELECT DISTINCT topic, summary_text FROM summary_l1 ORDER BY created_at DESC LIMIT 100")
+    l1 = []
+    for topic, summary in cur.fetchall():
+        line = f"## {topic}: {summary}"
+        if line not in l1:
+            l1.append(line)
+        if len(l1) >= 100:
             break
-    if l1_lines:
-        parts.append("=== SUMMARIES (L1) ===" + "".join(reversed(l1_lines)))
-        total_chars += l1_chars
+    if l1:
+        parts.append("=== SUMMARIES ===\n" + "\n".join(l1))
     
-    # 3. L2 — 20K токенов
+    # 3. L2: профиль
     cur.execute("SELECT map_json FROM summary_l2 ORDER BY last_updated DESC LIMIT 1")
     l2_row = cur.fetchone()
-    if l2_row and l2_row[0] and len(l2_row[0]) > 10:
+    if l2_row and l2_row[0]:
         parts.append(f"=== L2 PROFILE ===\n{l2_row[0][:80000]}")
-        total_chars += min(len(l2_row[0]), 80000)
     
-    # 4. CRITICAL — 4K токенов
-    cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' ORDER BY event_id DESC LIMIT 30")
+    # 4. CRITICAL
+    cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' ORDER BY event_id DESC LIMIT 20")
     crit = []
-    for time_str, raw in cur.fetchall():
-        for line in raw.split("\n"):
-            if ">>>" in line:
+    for time_str, raw_text in cur.fetchall():
+        for line in raw_text.split("\n"):
+            if ">>>" in line and line not in crit:
                 crit.append(f"[{time_str or '?'}] {line.strip()}")
     if crit:
-        parts.append("=== >>> CRITICAL ===" + "\n".join(crit[:20]))
+        parts.append("=== >>> CRITICAL ===\n" + "\n".join(crit[:20]))
     
     conn.close()
     return "\n\n".join(parts)
@@ -1643,7 +1634,7 @@ async def agent_chat(req: ChatRequest, buffer: ChronoBufferV77Ultimate = Depends
         q_vec = np.zeros(768, dtype=np.float32)
         q_vec[:min(len(emb_list), 768)] = emb_list[:768]
         
-        hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id, q_vec, top_k=req.top_k)
+        hnsw_results = []  # Agent uses searchMemory tool
         if hnsw_results:
             event_ids = [eid for eid, _ in hnsw_results[:5]]
             metadata_map = metadata_store.batch_get_metadata(req.user_id, event_ids)

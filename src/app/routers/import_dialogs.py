@@ -45,17 +45,27 @@ async def import_process(data: dict):
 DO IN ONE PASS:
 1. L1 SUMMARIES (3-8%): Group by topics, 2-4 sentences each
 2. L2 PROFILE (0.3-0.8%): main_themes(3-5), preferences, expertise
-3. CRITICAL (>>> ✅) NEVER DELETED: passwords, keys, decisions, poems
-   SHORT(<500)→critical_short list, MEDIUM(500-3000)→L1 as ">>> ✅ CRITICAL: title", LONG(>3000)→permanent_chunks
+3. CRITICAL (>>> ✅) NEVER DELETED — YOU MUST FIND AND MARK:
+   LOOK FOR: passwords, API keys (sk_..., key_..., token_...), major decisions, poems
+   YOU MARK them with >>> ✅ prefix even if user did not mark them
+   Examples: "sk_1234567890abcdef" is API key → mark as >>> ✅, "password: secret" → mark as >>> ✅
+   HOW TO SAVE BY SIZE:
+   SHORT (<500 chars): put in critical_short list → saved in L2 FOREVER, never compressed
+   MEDIUM (500-3000 chars): put in L1 as topic ">>> ✅ CRITICAL: title" with full text in summary
+   LONG (>3000 chars, poems, documents):
+     - Put FULL TEXT in permanent_chunks (never deleted)
+     - In L1 add: ">>> ✅ CRITICAL: title — full text saved as permanent chunk"
+     - In L2 add: reference to chunk_id
+   ALL critical items MUST have >>> ✅ prefix
 
 Return ONLY JSON: {{"l1_summaries":[{{"topic":"...","summary":"..."}}],"l2_profile":{{"main_themes":[],"preferences":{{}},"expertise":[]}},"critical_short":[],"permanent_chunks":[]}}
 
-DIALOGUES:\n{all_text[:200000]}"""
+DIALOGUES:\n{all_text[:50000]}"""
     
     try:
         polza_key = os.environ.get("POLZA_KEY", "")
         r = urlreq.Request("https://api.polza.ai/v1/chat/completions",
-            data=json.dumps({"model":"meta-llama/llama-3.1-8b-instruct","messages":[{"role":"user","content":prompt}],"temperature":0.2,"max_tokens":4000}).encode(),
+            data=json.dumps({"model":"meta-llama/llama-3.1-70b-instruct","messages":[{"role":"user","content":prompt}],"temperature":0.2,"max_tokens":200000}).encode(),
             headers={"Content-Type":"application/json","Authorization":f"Bearer {polza_key}"})
         with urlreq.urlopen(r, timeout=180) as resp:
             result = json.loads(resp.read())["choices"][0]["message"]["content"]

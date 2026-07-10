@@ -1771,6 +1771,8 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
                 for line in raw.split("\n"):
                     if ">>>" in line and line not in crit: crit.append(line.strip())
             if crit: memory_map += "=== >>> CRITICAL ===\n" + "\n".join(crit) + "\n"
+            
+            memory_map += "\n💡 More data: searchMemory tool | Full event: GET /api/v7/event/{id}\n"
             memory_map += "\n💡 More data: searchMemory | GET /api/v7/event/{id}\n"
             
             mm_conn.close()

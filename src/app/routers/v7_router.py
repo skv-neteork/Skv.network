@@ -1747,7 +1747,35 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
             pass
         
         # Smart context: short for simple, full for memory questions
-        memory_map = "Memory active. Use searchMemory tool."  # No buffer needed
+        memory_map = ""
+        try:
+            db_name = req.user_id.replace('@', '').replace('.', '')
+            mm_conn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+            mm_cur = mm_conn.cursor()
+            
+            # L1 — last 60K chars (~15K tokens)
+            mm_cur.execute("SELECT topic, summary_text FROM summary_l1 ORDER BY created_at DESC LIMIT 150")
+            l1 = [f"## {t or '?'}: {s or ''}" for t,s in mm_cur.fetchall()]
+            l1_text = "\n".join(l1)[:60000]
+            if l1_text: memory_map += f"=== L1 SUMMARIES ===\n{l1_text}\n\n"
+            
+            # L2 — 40K chars (~10K tokens)
+            mm_cur.execute("SELECT map_json FROM summary_l2 ORDER BY last_updated DESC LIMIT 1")
+            l2 = mm_cur.fetchone()
+            if l2 and l2[0]: memory_map += f"=== L2 PROFILE ===\n{l2[0][:40000]}\n\n"
+            
+            # Critical
+            mm_cur.execute("SELECT raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' LIMIT 10")
+            crit = []
+            for (raw,) in mm_cur.fetchall():
+                for line in raw.split("\n"):
+                    if ">>>" in line and line not in crit: crit.append(line.strip())
+            if crit: memory_map += "=== >>> CRITICAL ===\n" + "\n".join(crit) + "\n"
+            
+            mm_conn.close()
+        except:
+            memory_map = "Memory active."
+        if not memory_map: memory_map = "Memory active."  # No buffer needed
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 

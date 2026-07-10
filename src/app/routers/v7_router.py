@@ -1364,8 +1364,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
             session_vec = session_list[:218]
             buffer.write_personal_event(event_id=safe_event_id, hour=now.hour, minute=now.minute, semantics_emb=np.array(session_vec, dtype=np.float32), parent_indices=None, details_emb=None, metric_value=len(answer)/1000.0)
             metadata_store.write_metadata(user_id=req.user_id, event_id=safe_event_id, time_str=f"{now.hour:02d}:{now.minute:02d}, {now.strftime('%d.%m.%Y')}", essence=req.message[:200], messages_count=2, topics=["chat_history"], links=[], metric_value=len(answer)/1000.0, raw_dialogue=f"Q: {req.message}\nA: {answer}", is_shared=False)
-            if buffer.persistence:
-                buffer.persistence.save()
+            pass  # buffer.persistence removed
         
         return {"response": answer, "session_id": req.session_id, "step": req.step + 1, "is_guest": is_guest}
     except Exception as e:
@@ -1929,11 +1928,7 @@ Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT 
             session_list = session_emb if isinstance(session_emb, list) else session_emb.tolist()
             session_vec = session_list[:218]
             
-            buffer.write_personal_event(
-                event_id=safe_event_id, hour=now.hour, minute=now.minute,
-                semantics_emb=np.array(session_vec, dtype=np.float32),
-                parent_indices=None, details_emb=None, metric_value=len(answer)/1000.0
-            )
+            pass  # buffer.write removed
             metadata_store.write_metadata(
                 user_id=req.user_id, event_id=safe_event_id,
                 time_str=f"{now.hour:02d}:{now.minute:02d}, {now.strftime('%d.%m.%Y')}",
@@ -1941,8 +1936,7 @@ Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT 
                 links=[], metric_value=len(answer)/1000.0,
                 raw_dialogue=f"Q: {req.message}\nA: {answer}", is_shared=False
             )
-            if buffer.persistence:
-                buffer.persistence.save()
+            pass  # buffer.persistence removed
 
         # ========== 9. ТРИГГЕРЫ ДЛЯ КУБОВ И L1/L2 ==========
         triggers = []

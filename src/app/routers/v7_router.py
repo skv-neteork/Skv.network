@@ -1336,7 +1336,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                 if tool_results:
                     tool_msg = json.dumps(tool_results)
                     followup_body = json.dumps({
-                        "model": "deepseek/deepseek-v4-flash",
+                        "model": "deepseek/deepseek-chat",
                         "messages": [
                             {"role": "user", "content": system_prompt},
                             {"role": "assistant", "tool_calls": message["tool_calls"]},
@@ -1898,7 +1898,7 @@ Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT 
         }]
         
         polza_body = json.dumps({
-            "model": "deepseek/deepseek-v4-flash",
+            "model": "deepseek/deepseek-chat",
             "messages": [{"role": "user", "content": system_prompt}],
             "tools": tools,
             "temperature": 0.3
@@ -1933,7 +1933,7 @@ Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT 
                 if tool_results:
                     tool_msg = json.dumps(tool_results)
                     followup_body = json.dumps({
-                        "model": "deepseek/deepseek-v4-flash",
+                        "model": "deepseek/deepseek-chat",
                         "messages": [
                             {"role": "user", "content": system_prompt},
                             {"role": "assistant", "tool_calls": message["tool_calls"]},

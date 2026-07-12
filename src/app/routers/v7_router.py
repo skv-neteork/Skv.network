@@ -2025,7 +2025,7 @@ Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT 
 
                 # Strip <thinking> block from user-facing response
         import re
-        clean_answer = re.sub(r'<thinking>.*?</thinking>\s*', '', answer, flags=re.DOTALL).strip()
+        clean_answer = re.sub(r'<thinking>.*?</thinking>\s*', '', answer, flags=re.DOTALL).strip() or answer.strip()
         
         return {
             "response": clean_answer,

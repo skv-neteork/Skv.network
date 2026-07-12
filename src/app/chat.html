@@ -580,7 +580,7 @@ body {
 const API_BASE = '';
 const USER_ID = localStorage.getItem('skv_email') || 'guest_' + Math.random().toString(36).substr(2, 8);
 const API_KEY = localStorage.getItem('skv_token') || '';
-const SESSION_ID = localStorage.getItem('skv_session') || (() => { const id = 'chat_' + Date.now(); localStorage.setItem('skv_session', id); return id; })();
+const SESSION_ID = localStorage.getItem('skv_session') || 'default';
 let step = 0;
 let lastSeal = '';
 let chatHistory = [];
@@ -641,6 +641,7 @@ async function sendMessage() {
     const data = await resp.json();
     hideTyping();
     if (data.response) {
+      if (data.session_id && data.session_id !== 'default') { localStorage.setItem('skv_session', data.session_id); SESSION_ID = data.session_id; }
       const response = data.response;
       chatHistory.push({ role: 'assistant', content: response });
       const sealMatch = response.match(/SKV \| #(\d+)/);

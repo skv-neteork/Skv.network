@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse, FileResponse
 import os
 
 router = APIRouter()
@@ -33,7 +33,7 @@ async def guardian_page():
 
 @router.get("/deepseek")
 async def deepseek_page():
-    from fastapi.responses import HTMLResponse
+    from fastapi.responses import HTMLResponse, FileResponse, FileResponse
     import os
     path = os.path.join(os.path.dirname(__file__), "..", "deepseek.html")
     if os.path.exists(path):
@@ -87,6 +87,13 @@ async def sitemap():
     import os
     path = os.path.join(os.path.dirname(__file__), "..", "downloads", "sitemap.xml")
     return FileResponse(path, filename="sitemap.xml", media_type="application/xml")
+@router.get("/download/{filename}")
+async def download_file(filename: str):
+    import os
+    path = os.path.join("/app/uploads", filename)
+    if not os.path.exists(path): raise HTTPException(404, "File not found")
+    return FileResponse(path)
+
 @router.get("/downloads/skv-constitution-compact.txt")
 async def download_constitution():
     from fastapi.responses import FileResponse
@@ -399,7 +406,7 @@ async def get_project_memory(user_id: str, project_name: str):
 
 @router.get("/bureau")
 async def bureau_page():
-    from fastapi.responses import HTMLResponse
+    from fastapi.responses import HTMLResponse, FileResponse, FileResponse
     import os
     path = os.path.join(os.path.dirname(__file__), "..", "bureau.html")
     if os.path.exists(path):

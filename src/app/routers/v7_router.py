@@ -1569,6 +1569,7 @@ async def vote_experience(req: VoteRequest):
 
 @router.get("/event/{event_id}")
 async def get_event_detail(event_id: str):
+    import json
     """Возвращает полный текст события по ID."""
     import sqlite3
     user_part = event_id.split("::")[0] if "::" in event_id else "test_user"

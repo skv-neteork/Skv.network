@@ -217,8 +217,8 @@ def background_vectorizer():
             print(f"[INJECTOR] Error: {e}", flush=True)
 
 # Start background thread
-_thread = threading.Thread(target=background_vectorizer, daemon=True)
-_thread.start()
+#_thread = threading.Thread(target=background_vectorizer, daemon=True)
+#_thread.start()
 print("[INJECTOR] Background vectorizer started (every 30 min)", flush=True)
 
 def background_l1_l2():
@@ -328,8 +328,8 @@ def background_l1_l2():
         except Exception as e:
             print(f"[L1/L2] Error: {e}", flush=True)
 
-_l1l2_thread = threading.Thread(target=background_l1_l2, daemon=True)
-_l1l2_thread.start()
+#_l1l2_thread = threading.Thread(target=background_l1_l2, daemon=True)
+#_l1l2_thread.start()
 print("[L1/L2] Auto-generator started (every 15 min)", flush=True)
 
 @router.post("/vectors/process")
@@ -670,7 +670,7 @@ async def register(req: RegisterRequest):
                 # Create personal database for new user
         try:
             db_name = req.email.replace('@', '').replace('.', '')
-            user_conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+            user_conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=30)
             user_cur = user_conn.cursor()
             user_cur.execute("CREATE TABLE IF NOT EXISTS event_metadata (event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, messages_count INTEGER, links_json TEXT, topics_json TEXT, raw_dialogue TEXT, subject TEXT, action TEXT, object TEXT, status TEXT, metric_value REAL)")
             user_cur.execute("CREATE TABLE IF NOT EXISTS personal_vectors (event_id TEXT PRIMARY KEY, vector_blob BLOB)")
@@ -773,7 +773,7 @@ async def get_profile(authorization: str = Header(None)):
         # Get stats from user's DB
         db_name = user_id.replace("@", "").replace(".", "")
         try:
-            user_conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+            user_conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=30)
             user_cur = user_conn.cursor()
             user_cur.execute("SELECT COUNT(*) FROM event_metadata")
             events = user_cur.fetchone()[0]
@@ -1409,11 +1409,11 @@ async def write_event(req: EventWriteRequest):
     try:
         import sqlite3
         db_name = req.user_id.replace("@", "").replace(".", "")
-        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=30)
         cur = conn.cursor()
-        cur.execute("INSERT OR REPLACE INTO event_metadata (event_id, essence, raw_dialogue, status, messages_count) VALUES (?,?,?,?,?)",
-                   (f"{req.user_id}::{req.session_id}", req.topic or req.query[:100],
-                    f"Q: {req.query}\nA: {req.response}", "active", 1))
+        cur.execute("INSERT OR REPLACE INTO event_metadata (event_id, time_str, essence, raw_dialogue, status, messages_count, links_json, topics_json, subject, action, object, metric_value) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                   (f"{req.user_id}::{req.session_id}", "", req.topic or req.query[:100],
+                    f"Q: {req.query}\nA: {req.response}", "active", 1, "[]", "[]", "", "", "", 0))
         conn.commit()
         conn.close()
         return {"status": "ok", "event_id": f"{req.user_id}::{req.session_id}"}
@@ -1425,7 +1425,7 @@ async def store_summary(req: SummarizeRequest):
     try:
         import sqlite3
         db_name = req.user_id.replace("@", "").replace(".", "")
-        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=30)
         cur = conn.cursor()
         cur.execute("""CREATE TABLE IF NOT EXISTS summary_l1
             (session_id TEXT PRIMARY KEY, user_id TEXT, topic TEXT, summary_text TEXT,
@@ -1443,7 +1443,7 @@ async def update_memory_map(req: MapUpdateRequest):
     try:
         import sqlite3
         db_name = req.user_id.replace("@", "").replace(".", "")
-        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=30)
         cur = conn.cursor()
         cur.execute("""CREATE TABLE IF NOT EXISTS summary_l2
             (user_id TEXT PRIMARY KEY, map_json TEXT, session_count INTEGER,
@@ -1477,11 +1477,11 @@ async def create_experience_cube(req: ExperienceCreateRequest):
 async def agent_batch_flush(req: BatchFlushRequest):
     import sqlite3
     db_name = req.user_id.replace("@", "").replace(".", "")
-    conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+    conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=30)
     cur = conn.cursor()
     if req.batch_logs:
         text = "\n".join([f"Q: {log.get('q','')}\nA: {log.get('a','')}" for log in req.batch_logs])
-        cur.execute("INSERT OR REPLACE INTO event_metadata (event_id, essence, raw_dialogue, status, messages_count) VALUES (?,?,?,?,?)",
+        cur.execute("INSERT OR REPLACE INTO event_metadata (event_id, time_str, essence, raw_dialogue, status, messages_count, links_json, topics_json, subject, action, object, metric_value) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                    (f"{req.user_id}::{req.session_id}", req.query or "batch", text, "active", len(req.batch_logs)))
         conn.commit()
     conn.close()
@@ -1574,7 +1574,7 @@ async def get_event_detail(event_id: str):
     user_part = event_id.split("::")[0] if "::" in event_id else "test_user"
     db_name = user_part.replace("@", "").replace(".", "")
     
-    conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
+    conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=30)
     cur = conn.cursor()
     cur.execute("SELECT event_id, time_str, essence, raw_dialogue, links_json, messages_count FROM event_metadata WHERE event_id = ?", (event_id,))
     row = cur.fetchone()

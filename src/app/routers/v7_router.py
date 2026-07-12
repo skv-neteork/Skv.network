@@ -1286,10 +1286,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
             if meta.get("raw_dialogue"):
                 clean_name = cid.replace("cube_const_", "CUBE ").replace("_v4","").replace("_v5","")
                 const_parts.append(f"=== {clean_name} ===\n{meta['raw_dialogue']}")
-        if req.step == 0:
-            constitution_text = "\n\n".join(const_parts)
-        else:
-            constitution_text = "CUBE 00-05 active (loaded at step 0)"
+        constitution_text = "\n\n".join(const_parts)
         
         reminders = ""
         if req.step == 0:
@@ -1790,10 +1787,7 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
             if meta.get("raw_dialogue"):
                 name = cid.replace("cube_const_", "CUBE ").replace("_v4","").replace("_v5","")
                 const_parts.append(f"=== {name} ===\n{meta['raw_dialogue']}")
-        if req.step == 0:
-            constitution_text = "\n\n".join(const_parts)
-        else:
-            constitution_text = "CUBE 00-05 active (loaded at step 0)"
+        constitution_text = "\n\n".join(const_parts)
 
         # ========== 4. НАПОМИНАНИЯ ==========
         reminders = "🔐 Execute Second Look and put SEAL.\n"
@@ -1828,8 +1822,6 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
 {seal_context}
 
 User: {req.message}
-
-RESPONSE FORMAT (REQUIRED):
 
 RESPONSE FORMAT (REQUIRED):
 <thinking>

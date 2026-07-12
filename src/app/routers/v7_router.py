@@ -1809,7 +1809,7 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
             chat_history = "=== RECENT CHAT ===\n" + "\n".join(req.chat_history[-20:]) + "\n"
 
         # ========== 7. ЗАПРОС К DEEPSEEK ==========
-        system_prompt = f"""{user_status}{guest_warning}You are SKV Agent v8.3 — AI with persistent memory and constitutional safety.
+        system_prompt = f"""{user_status}{guest_warning}You are SKV Agent v8.3. You MUST follow the EXACT constitution below. Do NOT invent your own rules. The constitution is authoritative.
 
 === MEMORY SEARCH RESULTS ===
 {memory_text}

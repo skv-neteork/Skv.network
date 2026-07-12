@@ -60,12 +60,12 @@ DO IN ONE PASS:
 
 Return ONLY JSON: {{"l1_summaries":[{{"topic":"...","summary":"..."}}],"l2_profile":{{"main_themes":[],"preferences":{{}},"expertise":[]}},"critical_short":[],"permanent_chunks":[]}}
 
-DIALOGUES:\n{all_text[:50000]}"""
+DIALOGUES:\n{all_text[:500000]}"""
     
     try:
         polza_key = os.environ.get("POLZA_KEY", "")
         r = urlreq.Request("https://api.polza.ai/v1/chat/completions",
-            data=json.dumps({"model":"meta-llama/llama-3.1-70b-instruct","messages":[{"role":"user","content":prompt}],"temperature":0.2,"max_tokens":200000}).encode(),
+            data=json.dumps({"model":"deepseek/deepseek-v4-flash","messages":[{"role":"user","content":prompt}],"temperature":0.2,"max_tokens":50000}).encode(),
             headers={"Content-Type":"application/json","Authorization":f"Bearer {polza_key}"})
         with urlreq.urlopen(r, timeout=180) as resp:
             result = json.loads(resp.read())["choices"][0]["message"]["content"]

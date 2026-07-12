@@ -1638,6 +1638,23 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
         if req.chat_history and isinstance(req.chat_history[0], dict):
             req.chat_history = [f"{h.get('role', '?')}: {h.get('content', '')}" for h in req.chat_history]
         
+        # Find or create session for this user
+        db_name = req.user_id.replace('@', '').replace('.', '')
+        if req.session_id == 'default' or not req.session_id:
+            # Auto-find last active session or create new
+            try:
+                sconn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+                scur = sconn.cursor()
+                scur.execute("SELECT session_id FROM chat_sessions WHERE user_id=? ORDER BY updated_at DESC LIMIT 1", (req.user_id,))
+                srow = scur.fetchone()
+                if srow:
+                    req.session_id = srow[0]
+                else:
+                    req.session_id = f"{req.user_id}_chat_{int(time.time())}"
+                sconn.close()
+            except:
+                req.session_id = f"{req.user_id}_chat_{int(time.time())}"
+        
         is_guest = req.user_id.startswith("guest_")
         guest_warning = "GUEST MODE: Register at skv.network for permanent memory.\n" if is_guest else ""
         user_status = f"User: {req.user_id} | Status: {'Guest (temporary)' if is_guest else 'Registered (memory active)'}\n"
@@ -1797,10 +1814,34 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
         # ========== 5. SEAL ==========
         seal_context = f"Previous SEAL: {req.last_seal}\nContinue numbering.\n" if req.last_seal else "Start SEAL with #1.\n"
 
-        # ========== 6. ИСТОРИЯ ЧАТА ==========
+        # ========== 6. ИСТОРИЯ ЧАТА (from server) ==========
         chat_history = ""
-        if req.chat_history:
-            chat_history = "=== RECENT CHAT ===\n" + "\n".join(req.chat_history[-20:]) + "\n"
+        try:
+            sconn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+            scur = sconn.cursor()
+            scur.execute("SELECT messages_json FROM chat_sessions WHERE session_id=?", (req.session_id,))
+            srow = scur.fetchone()
+            
+            if srow and srow[0]:
+                msgs = json.loads(srow[0])
+                # Check if history is large — refresh constitution
+                total_chars = sum(len(m.get('content','')) for m in msgs)
+                if total_chars > 400000:
+                    msgs.append({"role":"system","content":f"=== CONSTITUTION ===\n{constitution_text[:5000]}\n\n=== MEMORY MAP ===\n{memory_map}"})
+                    msgs = msgs[-60:]
+                
+                chat_history = "=== CHAT HISTORY ===\n" + "\n".join([f"{m['role']}: {m['content'][:300]}" for m in msgs[-50:]]) + "\n"
+            else:
+                # New session — start with constitution
+                system_msg = {"role":"system","content":f"=== CONSTITUTION ===\n{constitution_text[:5000]}\n\n=== MEMORY MAP ===\n{memory_map}"}
+                scur.execute("INSERT INTO chat_sessions (session_id, user_id, messages_json, updated_at) VALUES (?,?,?,datetime('now'))",
+                           (req.session_id, req.user_id, json.dumps([system_msg])))
+                sconn.commit()
+                chat_history = f"=== SYSTEM ===\n{system_msg['content']}\n\n"
+            
+            sconn.close()
+        except:
+            pass
 
         # ========== 7. ЗАПРОС К DEEPSEEK ==========
         system_prompt = f"""{user_status}{guest_warning}You are SKV Agent v8.3. You MUST follow the EXACT constitution below. Do NOT invent your own rules. The constitution is authoritative.
@@ -2018,6 +2059,24 @@ Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT 
                 # Strip <thinking> block from user-facing response
         import re
         clean_answer = re.sub(r'<thinking>.*?</thinking>\s*', '', answer, flags=re.DOTALL).strip() or answer.strip()
+        
+        # Save to server history (async)
+        import threading
+        def save_to_history():
+            try:
+                sconn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
+                scur = sconn.cursor()
+                scur.execute("SELECT messages_json FROM chat_sessions WHERE session_id=?", (req.session_id,))
+                srow = scur.fetchone()
+                msgs = json.loads(srow[0]) if srow and srow[0] else []
+                msgs.append({"role":"user","content":req.message})
+                msgs.append({"role":"assistant","content":clean_answer})
+                scur.execute("INSERT OR REPLACE INTO chat_sessions (session_id, user_id, messages_json, updated_at) VALUES (?,?,?,datetime('now'))",
+                           (req.session_id, req.user_id, json.dumps(msgs[-100:])))
+                sconn.commit()
+                sconn.close()
+            except: pass
+        threading.Thread(target=save_to_history, daemon=True).start()
         
         return {
             "response": clean_answer,

@@ -856,23 +856,59 @@
         }
 
         init();
-    </script>
+    
+    async function fetchFromUrl() {
+        const url = document.getElementById('importUrl').value;
+        if (!url) return;
+        const status = document.getElementById('importStatus');
+        status.innerHTML = '⏳ Fetching...';
+        try {
+            const resp = await fetch(url);
+            const html = await resp.text();
+            const text = html.replace(/<[^>]*>/g, '\n');
+            const lines = text.split('\n').filter(l => l.trim().length > 15);
+            const messages = lines.map((l, i) => ({role: i % 2 === 0 ? 'user' : 'assistant', content: l.trim()}));
+            document.getElementById('importData').value = JSON.stringify(messages, null, 2);
+            status.innerHTML = '✅ Found ' + messages.length + ' messages!';
+        } catch(e) {
+            status.innerHTML = '❌ Error: ' + e.message;
+        }
+    }
+    
+    async function importDialogs() {
+        const data = document.getElementById('importData').value;
+        const source = document.getElementById('importSource').value || 'web_import';
+        try {
+            const messages = JSON.parse(data);
+            const resp = await fetch('/import/dialogs', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_id: localStorage.getItem('skv_email') || 'test_user', source, messages})
+            });
+            const result = await resp.json();
+            document.getElementById('importStatus').innerHTML = '✅ Imported: ' + result.imported + ' messages';
+        } catch(e) {
+            document.getElementById('importStatus').innerHTML = '❌ Error: ' + e.message;
+        }
+    }
+    
+    async function processImport() {
+        document.getElementById('importStatus').innerHTML = '⏳ Processing...';
+        const resp = await fetch('/import/process', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({user_id: localStorage.getItem('skv_email') || 'test_user'})
+        });
+        const result = await resp.json();
+        document.getElementById('importStatus').innerHTML = '✅ L1:' + (result.l1||0) + ' L2:' + (result.l2?'yes':'no') + ' Crit:' + (result.critical||0);
+    }
+
+</script>
 
     <script>
         function toggleMenu() {
             document.getElementById('mobile-menu').classList.toggle('active');
         }
-    </script>
+    
 
-<div style="text-align:center;margin:30px 0;padding:20px;background:rgba(240,136,62,0.05);border:2px dashed #f0883e;border-radius:12px;">
-    <p style="font-size:16px;color:#f0883e;font-weight:bold;margin-bottom:10px;">🔖 Step 1: Drag to bookmarks</p>
-    <a href="javascript:(function(){const msgs=[];document.querySelectorAll('div[class*=message],div[class*=bubble],.markdown,.prose,[role=article]').forEach(el=>{const isUser=el.className.toLowerCase().includes('user')||el.className.toLowerCase().includes('human');const text=el.innerText.trim();if(text.length>20)msgs.push({role:isUser?'user':'assistant',content:text})});if(msgs.length===0){alert('No messages found');return;}const payload={source_url:window.location.href,messages:msgs};fetch('https://skv.network/import/dialog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json()).then(d=>{if(d.status==='ok')alert('✅ Imported '+d.message_count+' messages!');else alert('Error');}).catch(e=>{navigator.clipboard.writeText(JSON.stringify(payload));alert('JSON copied to clipboard! Paste in SKV profile.');});})();" 
-       style="display:inline-block;padding:14px 35px;background:#f0883e;color:white;text-decoration:none;border-radius:10px;font-weight:bold;font-size:18px;cursor:grab;"
-       onclick="alert('🖱️ Drag this button to your bookmarks bar!\n\nThen open any chat share → click bookmark → auto-import!');return false;">
-       📥 SKV Import (drag me)
-    </a>
-    <p style="color:#8b949e;margin-top:10px;font-size:13px;">Step 2: Open chat share → click SKV Import in bookmarks → done!</p>
-</div>
-
-</body>
-</html>
+</script>

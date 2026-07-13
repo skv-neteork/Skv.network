@@ -911,7 +911,7 @@ def build_memory_map(user_id: str) -> str:
     parts = []
     
     # 1. RAW — last 20K tokens (~80K chars)
-    cur.execute("SELECT DISTINCT substr(raw_dialogue, 1, 300) FROM event_metadata WHERE raw_dialogue IS NOT NULL ORDER BY event_id DESC LIMIT 30")
+    cur.execute("SELECT DISTINCT substr(raw_dialogue, 1, 200) FROM event_metadata WHERE raw_dialogue IS NOT NULL AND raw_dialogue NOT LIKE '%Выяснилось%' AND raw_dialogue NOT LIKE '%Принято решение%' ORDER BY event_id DESC LIMIT 40")
     raw = []
     for (text,) in cur.fetchall():
         if text and text not in raw:
@@ -920,7 +920,7 @@ def build_memory_map(user_id: str) -> str:
         parts.append("=== RECENT ACTIVITY ===\n" + "\n---\n".join(raw))
     
     # 2. L1 — 20K tokens (~80K chars)
-    cur.execute("SELECT DISTINCT topic, summary_text FROM summary_l1 ORDER BY created_at DESC LIMIT 30")
+    cur.execute("SELECT topic, summary_text FROM summary_l1 GROUP BY topic ORDER BY MAX(created_at) DESC LIMIT 40")
     l1 = []
     for topic, summary in cur.fetchall():
         line = f"## {topic or '?'}: {summary or ''}"

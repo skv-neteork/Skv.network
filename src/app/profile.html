@@ -658,6 +658,7 @@ async function importDialogs() { {
         });
         const result = await resp.json();
         document.getElementById('importStatus').innerHTML = '✅ L1: ' + (result.l1||0) + ' | L2: ' + (result.l2?'yes':'no') + ' | Critical: ' + (result.critical||0);
+        }
     }
     </script>
 

@@ -152,6 +152,37 @@ async def import_from_text(data: dict):
     else:
         return {"error": "No messages found in text"}
 
+
+@router.post("/import/dialog")
+async def import_dialog_raw(data: dict):
+    """Accept parsed dialog from bookmarklet."""
+    user_id = data.get("user_id", "bookmarklet_user")
+    messages = data.get("messages", [])
+    source_url = data.get("source_url", "bookmarklet")
+    
+    if not messages:
+        return {"status": "error", "detail": "messages required"}
+    
+    # Save using existing logic
+    db_name = user_id.replace("@", "").replace(".", "")
+    conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=10)
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS event_metadata (event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, raw_dialogue TEXT, messages_count INTEGER, topics_json TEXT, links_json TEXT, status TEXT)")
+    
+    saved = 0
+    for i, msg in enumerate(messages):
+        if msg.get("role") == "user" and i+1 < len(messages) and messages[i+1].get("role") == "assistant":
+            q = msg.get("content", "")
+            a = messages[i+1].get("content", "")
+            eid = f"{user_id}::bookmarklet_{i}_{int(time.time())}"
+            cur.execute("INSERT OR IGNORE INTO event_metadata (event_id, time_str, essence, raw_dialogue, messages_count, topics_json, links_json, status) VALUES (?,?,?,?,?,?,?,?)",
+                       (eid, "", q[:200], f"Q: {q}\nA: {a}", 2, '["bookmarklet"]', "[]", "active"))
+            saved += 1
+    
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "message_count": saved, "source_url": source_url}
+
 @router.post("/import/process")
 async def import_process(data: dict):
     user_id = data.get("user_id", "")

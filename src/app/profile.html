@@ -568,7 +568,59 @@
                 <button class="btn btn-secondary" onclick="logout()" style="margin-top: 20px;">Sign Out</button>
             </div>
         </div>
-    </main>
+    
+    <div class="card" style="margin-top: 20px;">
+        <h2 style="color: #f0883e; margin-bottom: 16px;">📥 Import Chat History</h2>
+        <p style="color: #8b949e; margin-bottom: 12px;">Paste your chat history in JSON format. Each message must have "role" and "content". Optional: "timestamp".</p>
+        <textarea id="importData" placeholder='[
+  {"role":"user","content":"Hello!","timestamp":"2024-01-15"},
+  {"role":"assistant","content":"Hi there!","timestamp":"2024-01-15"}
+]' style="width:100%;height:150px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;"></textarea>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+            <input type="text" id="importSource" placeholder="Source (e.g., chatgpt, claude)" style="flex:1;padding:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;">
+            <button onclick="importDialogs()" style="padding:10px 20px;background:#238636;color:white;border:none;border-radius:6px;cursor:pointer;">Import</button>
+            <button onclick="processImport()" style="padding:10px 20px;background:#1f6feb;color:white;border:none;border-radius:6px;cursor:pointer;">Process with AI</button>
+        </div>
+        <div id="importStatus" style="margin-top:10px;color:#8b949e;"></div>
+    </div>
+
+    <script>
+    async function importDialogs() {
+        const data = document.getElementById('importData').value;
+        const source = document.getElementById('importSource').value || 'web_import';
+        try {
+            const messages = JSON.parse(data);
+            const resp = await fetch('/import/dialogs', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: localStorage.getItem('skv_email') || 'test_user',
+                    source: source,
+                    messages: messages
+                })
+            });
+            const result = await resp.json();
+            document.getElementById('importStatus').innerHTML = '✅ Imported: ' + result.imported + ' messages';
+        } catch(e) {
+            document.getElementById('importStatus').innerHTML = '❌ Error: ' + e.message;
+        }
+    }
+    
+    async function processImport() {
+        document.getElementById('importStatus').innerHTML = '⏳ Processing with AI...';
+        const resp = await fetch('/import/process', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: localStorage.getItem('skv_email') || 'test_user'
+            })
+        });
+        const result = await resp.json();
+        document.getElementById('importStatus').innerHTML = '✅ L1: ' + (result.l1||0) + ' | L2: ' + (result.l2?'yes':'no') + ' | Critical: ' + (result.critical||0);
+    }
+    </script>
+
+</main>
 
     <!-- Revoke confirmation modal -->
     <div id="revoke-modal" class="modal">

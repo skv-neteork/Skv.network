@@ -32,6 +32,126 @@ async def import_dialogs(data: dict):
     conn.commit(); conn.close()
     return {"status": "ok", "imported": saved}
 
+
+@router.post("/import/url")
+async def import_from_url(data: dict):
+    """Import chat from URL (DeepSeek Share, ChatGPT Share, etc.)"""
+    user_id = data.get("user_id", "")
+    url = data.get("url", "")
+    source = data.get("source", "url_import")
+    
+    if not user_id or not url:
+        return {"error": "user_id and url required"}
+    
+    try:
+        import urllib.request as _urlreq
+        req = _urlreq.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with _urlreq.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode('utf-8', errors='ignore')
+        
+        # Try to find JSON data in the page
+        import re
+        messages = []
+        
+        # Pattern 1: DeepSeek Share — JSON in script tag
+        json_match = re.search(r'{"messages":\s*\[(.*?)\]\s*}', html, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+                messages = data.get("messages", [])
+            except:
+                pass
+        
+        # Pattern 2: ChatGPT Share — look for conversation data
+        if not messages:
+            chat_match = re.search(r'{"conversation":\s*{(.*?)}\s*}', html, re.DOTALL)
+            if chat_match:
+                try:
+                    data = json.loads(chat_match.group(0))
+                    messages = data.get("conversation", {}).get("messages", [])
+                except:
+                    pass
+        
+        # Pattern 3: Plain text — split by newlines
+        if not messages:
+            lines = re.findall(r'(?:User|Assistant|Human|AI|Q|A)[:\s]+(.+)', html)
+            for i, line in enumerate(lines):
+                role = "user" if i % 2 == 0 else "assistant"
+                messages.append({"role": role, "content": line.strip()})
+        
+        if messages:
+            # Save to DB
+            db_name = user_id.replace("@", "").replace(".", "")
+            conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=10)
+            cur = conn.cursor()
+            saved = 0
+            for i, msg in enumerate(messages):
+                if msg.get("role") == "user" and i+1 < len(messages) and messages[i+1].get("role") == "assistant":
+                    q = msg.get("content", "")
+                    a = messages[i+1].get("content", "")
+                    eid = f"{user_id}::{source}_{i}"
+                    cur.execute("INSERT OR IGNORE INTO event_metadata (event_id, time_str, essence, raw_dialogue, messages_count, topics_json, links_json, status) VALUES (?,?,?,?,?,?,?,?)",
+                               (eid, "", q[:200], f"Q: {q}\nA: {a}", 2, f'["{source}"]', "[]", "active"))
+                    saved += 1
+            conn.commit()
+            conn.close()
+            return {"status": "ok", "imported": saved, "source": source}
+        else:
+            return {"error": "No messages found at this URL"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.post("/import/text")
+async def import_from_text(data: dict):
+    """Import from raw text. Format: User: ... \n Assistant: ..."""
+    user_id = data.get("user_id", "")
+    text = data.get("text", "")
+    source = data.get("source", "text_import")
+    
+    if not user_id or not text:
+        return {"error": "user_id and text required"}
+    
+    import re
+    messages = []
+    
+    # Parse format: "User: ... \n Assistant: ..."
+    parts = re.split(r'\n(?=(?:User|Assistant|Human|AI|Q|A)[:\s])', text)
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        if re.match(r'(?:User|Human|Q)[:\s]', part):
+            messages.append({"role": "user", "content": re.sub(r'^(?:User|Human|Q)[:\s]+', '', part)})
+        elif re.match(r'(?:Assistant|AI|A)[:\s]', part):
+            messages.append({"role": "assistant", "content": re.sub(r'^(?:Assistant|AI|A)[:\s]+', '', part)})
+    
+    if not messages:
+        # Fallback: split by double newline
+        lines = text.strip().split('\n\n')
+        for i, line in enumerate(lines):
+            role = "user" if i % 2 == 0 else "assistant"
+            messages.append({"role": role, "content": line.strip()})
+    
+    if messages:
+        db_name = user_id.replace("@", "").replace(".", "")
+        conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=10)
+        cur = conn.cursor()
+        saved = 0
+        for i, msg in enumerate(messages):
+            if msg.get("role") == "user" and i+1 < len(messages) and messages[i+1].get("role") == "assistant":
+                q = msg.get("content", "")
+                a = messages[i+1].get("content", "")
+                eid = f"{user_id}::{source}_{i}"
+                cur.execute("INSERT OR IGNORE INTO event_metadata (event_id, time_str, essence, raw_dialogue, messages_count, topics_json, links_json, status) VALUES (?,?,?,?,?,?,?,?)",
+                           (eid, "", q[:200], f"Q: {q}\nA: {a}", 2, f'["{source}"]', "[]", "active"))
+                saved += 1
+        conn.commit()
+        conn.close()
+        return {"status": "ok", "imported": saved}
+    else:
+        return {"error": "No messages found in text"}
+
 @router.post("/import/process")
 async def import_process(data: dict):
     user_id = data.get("user_id", "")

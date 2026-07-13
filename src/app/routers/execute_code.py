@@ -184,7 +184,13 @@ async def execute_code(payload: dict, request: Request = None):
                     current = safe
             if history:
                 await save_cube(history[-1].get("error", ""), history[-1].get("fix", ""))
-            return {"status": "success", "stdout": result.get("stdout", ""), "final_code": current, "original_code": code, "metrics": metrics, "attempts": attempt, "fixes": history, "security_check": "PASS"}
+            stdout_text = result.get("stdout", "")
+            images = []
+            import re as _re
+            for m in _re.finditer(r'__SKV_IMAGE__:([^:]+):(.+)', stdout_text):
+                images.append({"filename": m.group(1), "base64": m.group(2)})
+                stdout_text = stdout_text.replace(m.group(0), f"[Image: {m.group(1)}]")
+            return {"status": "success", "stdout": stdout_text, "images": images, "final_code": current, "original_code": code, "metrics": metrics, "attempts": attempt, "fixes": history, "security_check": "PASS"}
 
         error = result.get("stderr") or result.get("status", "Unknown error")
         if error == last_error:

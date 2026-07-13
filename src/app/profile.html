@@ -572,6 +572,10 @@
     <div class="card" style="margin-top: 20px;">
         <h2 style="color: #f0883e; margin-bottom: 16px;">📥 Import Chat History</h2>
         <p style="color: #8b949e; margin-bottom: 12px;">Paste your chat history in JSON format. Each message must have "role" and "content". Optional: "timestamp".</p>
+        <div style="margin-bottom:10px;">
+            <input type="text" id="importUrl" placeholder="Or paste DeepSeek/ChatGPT share URL..." style="width:100%;padding:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;">
+            <button onclick="fetchFromUrl()" style="margin-top:8px;padding:10px 20px;background:#1f6feb;color:white;border:none;border-radius:6px;cursor:pointer;">Fetch from URL</button>
+        </div>
         <textarea id="importData" placeholder='[
   {"role":"user","content":"Hello!","timestamp":"2024-01-15"},
   {"role":"assistant","content":"Hi there!","timestamp":"2024-01-15"}
@@ -585,7 +589,44 @@
     </div>
 
     <script>
-    async function importDialogs() {
+    async function fetchFromUrl() {
+    const url = document.getElementById('importUrl').value;
+    if (!url) return;
+    document.getElementById('importStatus').innerHTML = '⏳ Fetching...';
+    try {
+        // Fetch from user's browser (bypasses CloudFront)
+        const resp = await fetch(url);
+        const html = await resp.text();
+        
+        // Try to find JSON data
+        let messages = [];
+        const jsonMatch = html.match(/{"messages":\s*\[(.*?)\]\s*}/s);
+        if (jsonMatch) {
+            const data = JSON.parse(jsonMatch[0]);
+            messages = data.messages || [];
+        } else {
+            // Fallback: look for User/Assistant patterns
+            const lines = html.match(/(?:User|Assistant|Human|AI)[:\s]+(.+)/g);
+            if (lines) {
+                messages = lines.map((l, i) => ({
+                    role: i % 2 === 0 ? 'user' : 'assistant',
+                    content: l.replace(/^(?:User|Assistant|Human|AI)[:\s]+/, '')
+                }));
+            }
+        }
+        
+        if (messages.length > 0) {
+            document.getElementById('importData').value = JSON.stringify(messages, null, 2);
+            document.getElementById('importStatus').innerHTML = '✅ Found ' + messages.length + ' messages. Click Import.';
+        } else {
+            document.getElementById('importStatus').innerHTML = '❌ No messages found. Try copying text manually.';
+        }
+    } catch(e) {
+        document.getElementById('importStatus').innerHTML = '❌ Error: ' + e.message + '. Try copying text manually.';
+    }
+}
+
+async function importDialogs() { {
         const data = document.getElementById('importData').value;
         const source = document.getElementById('importSource').value || 'web_import';
         try {

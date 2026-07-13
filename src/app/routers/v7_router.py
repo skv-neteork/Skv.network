@@ -1412,7 +1412,7 @@ async def write_event(req: EventWriteRequest):
         conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=30)
         cur = conn.cursor()
         cur.execute("INSERT OR REPLACE INTO event_metadata (event_id, time_str, essence, raw_dialogue, status, messages_count, links_json, topics_json, subject, action, object, metric_value) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                   (f"{req.user_id}::{req.session_id}", "", req.topic or req.query[:100],
+                   (f"{req.user_id}::{req.session_id}", datetime.now().strftime("%Y-%m-%d %H:%M"), req.topic or req.query[:100],
                     f"Q: {req.query}\nA: {req.response}", "active", 1, "[]", "[]", "", "", "", 0))
         conn.commit()
         conn.close()
@@ -1593,6 +1593,62 @@ async def get_event_detail(event_id: str):
         "messages_count": row[5]
     }
 
+
+@router.post("/memory/search/date")
+async def search_by_date(data: dict):
+    """Fuzzy search by date/time. Day→week, time→+-2h, month→month."""
+    user_id = data.get("user_id", "")
+    date_query = data.get("date", "")
+    event_prefix = data.get("event_prefix", "")
+    limit = data.get("limit", 20)
+    
+    if not user_id:
+        return {"error": "user_id required"}
+    
+    db_name = user_id.replace("@", "").replace(".", "")
+    conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=10)
+    cur = conn.cursor()
+    
+    query = "SELECT event_id, time_str, essence, substr(raw_dialogue,1,300) FROM event_metadata WHERE 1=1"
+    params = []
+    
+    if date_query:
+        if len(date_query) == 16:  # YYYY-MM-DD HH:MM → +-2h
+            query += " AND time_str >= ? AND time_str <= ?"
+            params.append(date_query)
+            try:
+                dt = datetime.strptime(date_query, "%Y-%m-%d %H:%M")
+                params.append((dt + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M"))
+            except:
+                params.append(date_query + ":99")
+        elif len(date_query) == 10:  # YYYY-MM-DD → +-7 days
+            query += " AND time_str >= ? AND time_str <= ?"
+            params.append(date_query)
+            try:
+                dt = datetime.strptime(date_query, "%Y-%m-%d")
+                params.append((dt + timedelta(days=7)).strftime("%Y-%m-%d"))
+            except:
+                params.append(date_query + "z")
+        elif len(date_query) == 7:  # YYYY-MM → whole month
+            query += " AND time_str LIKE ?"
+            params.append(f"{date_query}%")
+        else:
+            query += " AND time_str LIKE ?"
+            params.append(f"%{date_query}%")
+    
+    if event_prefix:
+        query += " AND event_id LIKE ?"
+        params.append(f"%{event_prefix}%")
+    
+    query += " ORDER BY event_id DESC LIMIT ?"
+    params.append(limit)
+    
+    cur.execute(query, params)
+    results = [{"event_id": eid, "time": ts, "essence": essence, "preview": raw[:200]} 
+               for eid, ts, essence, raw in cur.fetchall()]
+    conn.close()
+    return {"results": results, "count": len(results)}
+
 @router.get("/constitution")
 async def get_constitution_v8():
     """Возвращает кубы конституции CUBE 00-05"""
@@ -1633,6 +1689,7 @@ async def get_constitution_v8():
 async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
     try:
         import json, urllib.request as urlreq, time, re
+        from datetime import datetime, timedelta
         from app.routers.v4_middleware import get_embedding_cached
 
         # Normalize chat history to strings

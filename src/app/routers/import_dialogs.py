@@ -22,8 +22,12 @@ async def import_dialogs(data: dict):
         if msg.get("role") == "user" and i+1 < len(messages) and messages[i+1].get("role") == "assistant":
             q, a, ts = msg.get("content",""), messages[i+1].get("content",""), msg.get("timestamp","")
             eid = f"{user_id}::{source}_{i}"
+            # Create NEXT link
+            prev_eid = f"{user_id}::{source}_{i-2}" if i >= 2 else None
+            links = json.dumps({prev_eid: "NEXT"}) if prev_eid else "[]"
+            
             cur.execute("INSERT OR IGNORE INTO event_metadata (event_id, time_str, essence, raw_dialogue, messages_count, topics_json, links_json, status) VALUES (?,?,?,?,?,?,?,?)",
-                       (eid, ts or "?", q[:200], f"Q: {q}\nA: {a}", 2, f'["{source}"]', "[]", "active"))
+                       (eid, ts or "?", q[:200], f"Q: {q}\nA: {a}", 2, f'["{source}"]', links, "active"))
             saved += 1
     conn.commit(); conn.close()
     return {"status": "ok", "imported": saved}

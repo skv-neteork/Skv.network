@@ -569,6 +569,25 @@
             </div>
         </div>
     
+    <div class="card" style="margin-top: 24px; border: 1px solid #1f2937;">
+        <h3 style="color: #f0883e; margin-bottom: 12px;">📥 Import Chat from DeepSeek / ChatGPT</h3>
+        <p style="color: #8b949e; font-size: 14px; margin-bottom: 16px;">
+            1. Open your chat share link<br>
+            2. Click the <b>"SKV Import"</b> bookmarklet → text is copied as JSON<br>
+            3. Paste JSON below and click Import
+        </p>
+        
+        <textarea id="importData" rows="6" placeholder='[{"role":"user","content":"..."},{"role":"assistant","content":"..."}]' 
+            style="width:100%;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:8px;padding:12px;font-family:monospace;font-size:13px;resize:vertical;"></textarea>
+        
+        <div style="display:flex;gap:10px;margin-top:12px;">
+            <input type="text" id="importSource" placeholder="Source (e.g., deepseek, chatgpt)" style="flex:1;padding:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;">
+            <button onclick="importDialogs()" style="padding:10px 20px;background:#238636;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Import</button>
+            <button onclick="processImport()" style="padding:10px 20px;background:#1f6feb;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Process with AI</button>
+        </div>
+        <div id="importStatus" style="margin-top:10px;font-size:14px;"></div>
+    </div>
+
     <div class="card" style="margin-top: 20px;">
         <h2 style="color: #f0883e; margin-bottom: 16px;">📥 Import Chat History</h2>
         <p style="color: #8b949e; margin-bottom: 12px;">Paste your chat history in JSON format. Each message must have "role" and "content". Optional: "timestamp".</p>

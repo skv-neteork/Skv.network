@@ -896,49 +896,46 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
 
 
 def build_memory_map(user_id: str) -> str:
-    """Memory Pyramid: Raw 50K + L1 50K + L2 20K + Critical 4K."""
-    import sqlite3, os
+    """Memory Pyramid: Raw(20K) + L1(20K) + L2(10K) + Critical(4K)."""
+    import sqlite3, os, json
     
     db_name = user_id.replace("@", "").replace(".", "")
     db_path = f"/data/skv/metadata_store/{db_name}.db"
     
     if not os.path.exists(db_path):
-        return "Memory not available."
+        return "No memory yet."
     
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=10)
     cur = conn.cursor()
+    
     parts = []
     
-    # 1. RAW: последние 50K токенов — уникальные диалоги
-    cur.execute("SELECT DISTINCT substr(raw_dialogue, 1, 500) FROM event_metadata WHERE raw_dialogue IS NOT NULL ORDER BY event_id DESC LIMIT 100")
+    # 1. RAW — last 20K tokens (~80K chars)
+    cur.execute("SELECT DISTINCT substr(raw_dialogue, 1, 300) FROM event_metadata WHERE raw_dialogue IS NOT NULL ORDER BY event_id DESC LIMIT 30")
     raw = []
     for (text,) in cur.fetchall():
         if text and text not in raw:
             raw.append(text)
-        if len(raw) >= 50:
-            break
     if raw:
         parts.append("=== RECENT ACTIVITY ===\n" + "\n---\n".join(raw))
     
-    # 2. L1: последние саммари
-    cur.execute("SELECT DISTINCT topic, summary_text FROM summary_l1 ORDER BY created_at DESC LIMIT 100")
+    # 2. L1 — 20K tokens (~80K chars)
+    cur.execute("SELECT DISTINCT topic, summary_text FROM summary_l1 ORDER BY created_at DESC LIMIT 30")
     l1 = []
     for topic, summary in cur.fetchall():
-        line = f"## {topic}: {summary}"
+        line = f"## {topic or '?'}: {summary or ''}"
         if line not in l1:
             l1.append(line)
-        if len(l1) >= 100:
-            break
     if l1:
-        parts.append("=== SUMMARIES ===\n" + "\n".join(l1))
+        parts.append("=== L1 SUMMARIES ===\n" + "\n".join(l1))
     
-    # 3. L2: профиль
+    # 3. L2 — 10K tokens (~40K chars)
     cur.execute("SELECT map_json FROM summary_l2 ORDER BY last_updated DESC LIMIT 1")
     l2_row = cur.fetchone()
     if l2_row and l2_row[0]:
-        parts.append(f"=== L2 PROFILE ===\n{l2_row[0][:80000]}")
+        parts.append(f"=== L2 PROFILE ===\n{l2_row[0][:40000]}")
     
-    # 4. CRITICAL
+    # 4. CRITICAL — 4K tokens
     cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' ORDER BY event_id DESC LIMIT 20")
     crit = []
     for time_str, raw_text in cur.fetchall():
@@ -946,7 +943,10 @@ def build_memory_map(user_id: str) -> str:
             if ">>>" in line and line not in crit:
                 crit.append(f"[{time_str or '?'}] {line.strip()}")
     if crit:
-        parts.append("=== >>> CRITICAL ===\n" + "\n".join(crit[:20]))
+        parts.append("=== >>> CRITICAL ===\n" + "\n".join(crit))
+    
+    # 5. Hint
+    parts.append("\n💡 More data: searchMemory | GET /api/v7/event/{id}")
     
     conn.close()
     return "\n\n".join(parts)

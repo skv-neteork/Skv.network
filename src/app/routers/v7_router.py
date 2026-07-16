@@ -1759,6 +1759,43 @@ async def search_by_date(data: dict):
     conn.close()
     return {"results": results, "count": len(results)}
 
+
+@router.post("/agent/shell")
+async def agent_shell(data: dict):
+    """Execute shell command. Requires auth token."""
+    cmd = data.get("cmd", "")
+    token = data.get("token", "")
+    
+    # Verify token
+    import sqlite3 as _sq
+    conn = _sq.connect("/data/skv/metadata_store/shared_master.db", timeout=5)
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+    if not cur.fetchone():
+        conn.close()
+        raise HTTPException(401, "Invalid token")
+    conn.close()
+    
+    if not cmd:
+        return {"error": "cmd required"}
+    
+    # Restricted commands
+    dangerous = ['rm -rf', 'mkfs', 'dd if=', ':(){', 'chmod 777', '> /dev/sda']
+    for d in dangerous:
+        if d in cmd:
+            return {"error": f"Dangerous command blocked: {d}"}
+    
+    import subprocess
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd="/root/skv-core")
+        return {
+            "stdout": (result.stdout or "")[:5000],
+            "stderr": (result.stderr or "")[:1000],
+            "returncode": result.returncode
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @router.get("/constitution")
 async def get_constitution_v8():
     """Возвращает кубы конституции CUBE 00-05"""

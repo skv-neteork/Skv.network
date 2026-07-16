@@ -1,5 +1,5 @@
-from fastapi import APIRouter
-from fastapi.responses import HTMLResponse, FileResponse, FileResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse, FileResponse
 import os
 
 router = APIRouter()
@@ -90,8 +90,13 @@ async def sitemap():
 @router.get("/download/{filename}")
 async def download_file(filename: str):
     import os
-    path = os.path.join("/app/uploads", filename)
-    if not os.path.exists(path): raise HTTPException(404, "File not found")
+    from app.security import safe_file_under
+    try:
+        path = safe_file_under("/app/uploads", filename)
+    except ValueError:
+        raise HTTPException(400, "Invalid filename")
+    if not os.path.exists(path):
+        raise HTTPException(404, "File not found")
     return FileResponse(path)
 
 @router.get("/downloads/skv-constitution-compact.txt")
@@ -121,98 +126,129 @@ async def download_guide():
     return FileResponse(path, filename="skv-agent-guide.txt", media_type="text/plain")
 
 
-@router.get("/downloads/skv-persona-pack-{user_id:path}.txt")
-async def download_persona_pack(user_id: str, token: str = ""):
-    """Генерирует и отдаёт файл с портфелем пользователя + конституцией + Agent Guide + Memory Index"""
-    print("[SKV] FUNCTION STARTED")
-    import os, json as json_lib, asyncpg
-    print("[SKV] IMPORTS OK")
-
-    DATABASE_URL = os.getenv("DATABASE_URL", "")
-    search_id = user_id.split("@")[0] if "@" in user_id else user_id
-    persona_text = f"USER PERSONA FOR: {user_id}\n"
-    memory_index = ""
+@router.get("/downloads/skv-persona-pack-{user_id}.txt")
+async def download_persona_pack(user_id: str, request: Request = None, token: str = ""):
+    """Personal pack for the authenticated owner only (IDOR-safe). Never mints API keys here."""
+    import os
+    import json as json_lib
+    import asyncpg
+    from fastapi.responses import PlainTextResponse
+    from fastapi import HTTPException
+    from app.security import (
+        sanitize_path_component,
+        get_database_url,
+        extract_bearer_or_api_key,
+        constant_time_equals,
+    )
 
     try:
+        user_id = sanitize_path_component(user_id, allow_email=True)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user_id")
+
+    # Auth: Bearer / X-API-Key / ?token= must match owner
+    provided = ""
+    if request is not None:
+        provided = extract_bearer_or_api_key(request.headers)
+    if not provided:
+        provided = (token or "").strip()
+    if not provided:
+        raise HTTPException(status_code=401, detail="API token required")
+
+    DATABASE_URL = get_database_url()
+    if not DATABASE_URL:
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    conn = None
+    indexes = []
+    persona_text = f"USER PERSONA FOR: {user_id}\n"
+    memory_index = ""
+    try:
         conn = await asyncpg.connect(DATABASE_URL)
-        
-        # Получаем persona
+        owner = await conn.fetchrow(
+            "SELECT user_id FROM user_api_keys WHERE api_key = $1 LIMIT 1",
+            provided,
+        )
+        if not owner:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        auth_uid = str(owner["user_id"]).strip().lower()
+        req_uid = user_id.strip().lower()
+        if auth_uid != req_uid and auth_uid.split("@")[0] != req_uid.split("@")[0]:
+            raise HTTPException(status_code=403, detail="Access denied for this user_id")
+
+        search_id = user_id.split("@")[0] if "@" in user_id else user_id
         row = await conn.fetchrow(
             "SELECT persona FROM user_personas WHERE user_id = $1 OR user_id = $2 OR user_id LIKE $3 LIMIT 1",
-            user_id, search_id, search_id + "@%"
+            user_id, search_id, search_id + "@%",
         )
-        if row and row['persona']:
-            persona = json_lib.loads(row['persona']) if isinstance(row['persona'], str) else row['persona']
+        if row and row["persona"]:
+            persona = json_lib.loads(row["persona"]) if isinstance(row["persona"], str) else row["persona"]
             persona_text += f"Traits: {', '.join(persona.get('traits', []))}\n"
             persona_text += f"History: {persona.get('history_summary', '')}\n"
             persona_text += f"Preferences: {', '.join(persona.get('preferences', []))}\n\n"
         else:
             persona_text += "No persona data yet.\n\n"
-        
-        # Получаем Memory Index
+
         mi_row = await conn.fetchrow(
             "SELECT memory_indexes FROM user_personas WHERE user_id = $1",
-            user_id
+            user_id,
         )
-        if mi_row and mi_row['memory_indexes']:
-            indexes = json_lib.loads(mi_row['memory_indexes']) if isinstance(mi_row['memory_indexes'], str) else mi_row['memory_indexes']
+        if mi_row and mi_row["memory_indexes"]:
+            indexes = (
+                json_lib.loads(mi_row["memory_indexes"])
+                if isinstance(mi_row["memory_indexes"], str)
+                else mi_row["memory_indexes"]
+            )
             projects = {}
             for m in indexes:
-                pname = m.get('project', 'Other')
-                if pname not in projects:
-                    projects[pname] = []
-                projects[pname].append(m)
+                pname = m.get("project", "Other")
+                projects.setdefault(pname, []).append(m)
             for pname, sessions in projects.items():
-                memory_index += f"\n📁 {pname}:\n"
+                memory_index += f"\n{pname}:\n"
                 for m in sessions:
-                    memory_index += f"  Session {m.get('session_number','?')}: {m.get('key_outcome','')}\n"
-        
+                    memory_index += f"  Session {m.get('session_number', '?')}: {m.get('key_outcome', '')}\n"
+    except HTTPException:
+        raise
     except Exception as e:
-        persona_text += f"Error: {e}\n\n"
-        memory_index = f"Error: {e}"
+        persona_text += f"Error loading persona.\n\n"
+        memory_index = "Unavailable"
+        print(f"[SKV] persona pack error: {e}", flush=True)
+    finally:
+        if conn is not None:
+            try:
+                await conn.close()
+            except Exception:
+                pass
 
     if not memory_index:
         memory_index = "No sessions recorded yet."
 
     constitution_path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-constitution-compact.txt")
     guide_path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-agent-guide.txt")
-    print(f"[SKV] Constitution path: {constitution_path}"); constitution = open(constitution_path).read() if os.path.exists(constitution_path) else "Constitution not found"
+    constitution = open(constitution_path).read() if os.path.exists(constitution_path) else "Constitution not found"
     guide = open(guide_path).read() if os.path.exists(guide_path) else "Agent Guide not found"
 
-        # L0: последний запрос/ответ
-    # L0: последняя сессия из memory_indexes
     l0_cache = ""
     try:
         if indexes:
             last = indexes[-1]
             l0_cache = f"Last session: {last.get('session_title', '?')} — {last.get('key_outcome', '?')}"
-    except:
+    except Exception:
         pass
-    
-    # Генерация API-ключа
-    import uuid
-    api_token = "DEBUG_CONN_OPEN"
-    try:
-        print(f"[SKV] Querying token for {user_id}", flush=True)
-        row = await conn.fetchrow("SELECT api_key FROM user_api_keys WHERE user_id = $1", user_id)
-        print(f"[SKV] Row found: {row is not None}", flush=True)
-        if row and row['api_key']:
-            api_token = row['api_key']
-        else:
-            api_token = str(uuid.uuid4())
-            await conn.execute("INSERT INTO user_api_keys (user_id, api_key) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING", user_id, api_token)
-    except Exception as _e:
-        print(f'[SKV] API key error: {_e}', flush=True)
-        api_token = str(uuid.uuid4())  # fallback
-    
-    api_section = f"\nAPI KEY: {api_token}\nUse this key in X-API-Key header for memory access.\n"
-    
-    import uuid
-    api_token = str(uuid.uuid4())
-    full_text = f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n\nAPI KEY: {api_token}\nUse this key in X-API-Key header for memory access.\n\n{'='*50}\n\n{persona_text}\nL0 CACHE (Last Request/Response):\n{l0_cache}\n\n---\n\nMEMORY INDEX (Session History):\n{memory_index}\n---\n\n{constitution}\n\n---\n\n{guide}\n\n---\n\nAPI KEY: {api_token}\nUse this key in X-API-Key header for memory access.\n"
 
-    from fastapi.responses import PlainTextResponse
-    return PlainTextResponse(full_text, headers={"Content-Disposition": f"attachment; filename=skv-pack-{user_id}.txt"})
+    # Never mint or expose a new API key from this endpoint.
+    safe_name = user_id.replace("/", "_").replace("\\", "_")[:80]
+    full_text = (
+        f"SKV NETWORK — PERSONAL PACK FOR {user_id}\n\n"
+        f"{'=' * 50}\n\n{persona_text}\n"
+        f"L0 CACHE (Last Request/Response):\n{l0_cache}\n\n---\n\n"
+        f"MEMORY INDEX (Session History):\n{memory_index}\n---\n\n"
+        f"{constitution}\n\n---\n\n{guide}\n"
+    )
+    return PlainTextResponse(
+        full_text,
+        headers={"Content-Disposition": f'attachment; filename="skv-pack-{safe_name}.txt"'},
+    )
 
 
 
@@ -220,14 +256,19 @@ async def download_persona_pack(user_id: str, token: str = ""):
 async def download_generated_file(filename: str):
     """Отдаёт сгенерированные файлы (изображения, HTML, PDF и др.)"""
     from fastapi.responses import FileResponse
+    from fastapi import HTTPException
     import os
-    path = os.path.join(os.path.dirname(__file__), "..", "downloads", filename)
+    from app.security import safe_file_under, sanitize_filename
+    base = os.path.join(os.path.dirname(__file__), "..", "downloads")
+    try:
+        safe_name = sanitize_filename(filename)
+        path = safe_file_under(base, safe_name)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid filename")
     if not os.path.exists(path):
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="File not found")
-    
-    # Определяем тип контента по расширению
-    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+
+    ext = safe_name.rsplit('.', 1)[-1].lower() if '.' in safe_name else ''
     media_types = {
         'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
         'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml',
@@ -236,7 +277,7 @@ async def download_generated_file(filename: str):
         'json': 'application/json', 'txt': 'text/plain'
     }
     media_type = media_types.get(ext, 'application/octet-stream')
-    return FileResponse(path, filename=filename, media_type=media_type)
+    return FileResponse(path, filename=safe_name, media_type=media_type)
 
 
 

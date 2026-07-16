@@ -2,95 +2,114 @@ from fastapi import APIRouter, Request, HTTPException
 import asyncpg
 import os
 import secrets
-import hashlib
 import uuid
 import requests
-import json
-import uuid
+
+from app.security import (
+    get_database_url,
+    get_resend_api_key,
+    hash_password,
+    verify_password,
+    needs_rehash,
+    generate_confirmation_code,
+    generate_api_token,
+    constant_time_equals,
+)
 
 router = APIRouter()
 
-DATABASE_URL = os.getenv("DATABASE_URL", os.getenv("DATABASE_URL", ""))
-RESEND_KEY = "re_3pC1mjQB_9s1ziEbMVSHpnv2WU6qrBNMY"
+DATABASE_URL = get_database_url()
+
 
 async def get_db():
-    return await asyncpg.connect(DATABASE_URL)
+    url = get_database_url()
+    if not url:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    return await asyncpg.connect(url)
 
-def hash_password(password: str) -> str:
-    salt = os.getenv("SKV_SALT", "skv_default_salt_2026")
-    return hashlib.sha256((password + salt).encode()).hexdigest()
-
-def generate_code() -> str:
-    return secrets.token_hex(3).upper()
 
 def send_email(email: str, code: str) -> bool:
+    resend_key = get_resend_api_key()
+    if not resend_key:
+        # Never log full code in production if possible; log only that email was queued.
+        print(f"[SKV] RESEND_API_KEY not set — confirmation email not sent for {email}")
+        return False
     try:
         resp = requests.post(
             "https://api.resend.com/emails",
             headers={
-                "Authorization": f"Bearer {RESEND_KEY}",
+                "Authorization": f"Bearer {resend_key}",
                 "Content-Type": "application/json",
-                "User-Agent": "SKV-Network/2.0"
+                "User-Agent": "SKV-Network/2.0",
             },
             json={
                 "from": "SKV Network <noreply@skv.network>",
                 "to": email,
                 "subject": "SKV Network - Email Confirmation",
-                "text": f"Your SKV confirmation code: {code}"
+                "text": f"Your SKV confirmation code: {code}",
             },
-            timeout=10
+            timeout=10,
         )
         if resp.status_code == 200:
             print(f"[SKV] Email sent to {email}: {resp.json().get('id', 'ok')}")
             return True
-        else:
-            print(f"[SKV] Email error: {resp.status_code} {resp.text[:100]}")
-            return False
+        print(f"[SKV] Email error: {resp.status_code} {resp.text[:100]}")
+        return False
     except Exception as e:
         print(f"[SKV] Email error for {email}: {e}")
         return False
 
+
 @router.post("/api/auth/register")
 async def register(request: Request):
-    import uuid
     data = await request.json()
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")
 
-    if not email or "@" not in email:
+    if not email or "@" not in email or len(email) > 254:
         raise HTTPException(status_code=400, detail="Valid email required")
-    if not password or len(password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if not password or len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if len(password) > 256:
+        raise HTTPException(status_code=400, detail="Password too long")
 
     password_hash = hash_password(password)
-    confirmation_code = "000000"
-    api_token = str(uuid.uuid4())
+    confirmation_code = generate_confirmation_code(3)
+    api_token = generate_api_token()
 
+    conn = None
     try:
         conn = await get_db()
         existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
         if existing:
-            await conn.close()
             raise HTTPException(status_code=409, detail="Email already registered")
 
         await conn.execute(
             "INSERT INTO users (email, password_hash, confirmation_code) VALUES ($1, $2, $3)",
-            email, password_hash, confirmation_code
+            email, password_hash, confirmation_code,
         )
         await conn.execute(
             "INSERT INTO user_api_keys (user_id, api_key) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
-            email, api_token
+            email, api_token,
         )
-        await conn.close()
 
-        send_email(email, confirmation_code)
-        return {"status": "ok", "message": "Confirmation code sent to email", "api_key": api_token}
+        # Do not return API key before email confirmation.
+        emailed = send_email(email, confirmation_code)
+        return {
+            "status": "ok",
+            "message": "Confirmation code sent to email" if emailed else "Registered. Check email for confirmation code.",
+            "email_sent": emailed,
+        }
     except HTTPException:
         raise
     except Exception as e:
-        try: await conn.close()
-        except: pass
-        raise HTTPException(status_code=500, detail=f"Registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Registration error: {str(e)[:200]}")
+    finally:
+        if conn is not None:
+            try:
+                await conn.close()
+            except Exception:
+                pass
 
 
 @router.post("/api/auth/confirm")
@@ -102,29 +121,47 @@ async def confirm(request: Request):
     if not email or not code:
         raise HTTPException(status_code=400, detail="Email and code required")
 
+    conn = None
     try:
         conn = await get_db()
         user = await conn.fetchrow(
             "SELECT id, confirmation_code, confirmed FROM users WHERE email = $1", email
         )
         if not user:
-            await conn.close()
             raise HTTPException(status_code=404, detail="User not found")
         if user["confirmed"]:
-            await conn.close()
             return {"status": "ok", "message": "Already confirmed"}
-        if user["confirmation_code"] != code:
-            await conn.close()
+        if not user["confirmation_code"] or not constant_time_equals(
+            str(user["confirmation_code"]).upper(), code
+        ):
             raise HTTPException(status_code=400, detail="Invalid confirmation code")
 
-        await conn.execute("UPDATE users SET confirmed = TRUE, confirmation_code = NULL WHERE id = $1", user["id"])
-        
-        await conn.close()
-        return {"status": "ok", "message": "Email confirmed"}
+        await conn.execute(
+            "UPDATE users SET confirmed = TRUE, confirmation_code = NULL WHERE id = $1",
+            user["id"],
+        )
+        row = await conn.fetchrow(
+            "SELECT api_key FROM user_api_keys WHERE user_id = $1", email
+        )
+        api_key = row["api_key"] if row else None
+        if not api_key:
+            api_key = generate_api_token()
+            await conn.execute(
+                "INSERT INTO user_api_keys (user_id, api_key) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET api_key = $2",
+                email, api_key,
+            )
+        return {"status": "ok", "message": "Email confirmed", "api_key": api_key}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
+    finally:
+        if conn is not None:
+            try:
+                await conn.close()
+            except Exception:
+                pass
+
 
 @router.post("/api/auth/login")
 async def login(request: Request):
@@ -135,31 +172,43 @@ async def login(request: Request):
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email and password required")
 
-    password_hash = hash_password(password)
-
+    conn = None
     try:
         conn = await get_db()
         user = await conn.fetchrow(
-            "SELECT id, confirmed FROM users WHERE email = $1 AND password_hash = $2",
-            email, password_hash
+            "SELECT id, confirmed, password_hash FROM users WHERE email = $1",
+            email,
         )
-        if not user:
-            await conn.close()
+        if not user or not verify_password(password, user["password_hash"] or ""):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         if not user["confirmed"]:
-            await conn.close()
             raise HTTPException(status_code=403, detail="Email not confirmed")
 
-        # Генерируем и сохраняем постоянный API-токен
-        api_token = str(__import__('uuid').uuid4())
+        # Upgrade legacy weak hashes on successful login
+        if needs_rehash(user["password_hash"] or ""):
+            try:
+                await conn.execute(
+                    "UPDATE users SET password_hash = $1 WHERE id = $2",
+                    hash_password(password),
+                    user["id"],
+                )
+            except Exception as e:
+                print(f"[SKV] password rehash failed: {e}")
+
+        api_token = generate_api_token()
         await conn.execute(
             "INSERT INTO user_api_keys (user_id, api_key) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET api_key = $2",
-            email, api_token
+            email, api_token,
         )
-        await conn.close()
-        
+
         return {"status": "ok", "api_token": api_token, "email": email}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
+    finally:
+        if conn is not None:
+            try:
+                await conn.close()
+            except Exception:
+                pass

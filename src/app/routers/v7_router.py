@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/v7", tags=["ChronoMemory"])
 from fastapi.responses import HTMLResponse
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def homepage_v8():
+async def homepage_v7():
     """SKV v8.0 PRO — Zero-Code AI Memory Network"""
     html = """<!DOCTYPE html>
 <html lang="en">

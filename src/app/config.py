@@ -6,14 +6,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
+    # No default credentials — must come from environment / .env (not committed secrets).
+    DATABASE_URL: str = ""
     POLZA_KEY: str = ""
+    RESEND_API_KEY: str = ""
+    SKV_SALT: str = ""
     DEBUG: bool = False
-    
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=True
+        case_sensitive=True,
+        extra="ignore",
     )
 
 @lru_cache()

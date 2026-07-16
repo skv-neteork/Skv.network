@@ -1,3 +1,4 @@
+import os
 import signal
 import sys
 
@@ -39,13 +40,10 @@ from app.routers.execute_code import router as code_executor_router
 from app.routers.constructor import router as constructor_router
 from app.routers.bureau import router as bureau_router
 from app.routers.formula_validator import router as formula_validator_router
-from app.routers.bureau import router as bureau_router
 import io, zipfile, os
-app = FastAPI(title="SKV Network", version="2.0")
 
 from fastapi.responses import HTMLResponse
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def homepage_v8():
     """SKV v8.0 PRO — Zero-Code AI Memory Network"""
     html = """<!DOCTYPE html>
@@ -153,7 +151,6 @@ async def homepage_v8():
 </body>
 </html>"""
     return html
-app = FastAPI(title="SKV Network", version="2.0")
 
 
 from contextlib import asynccontextmanager
@@ -244,8 +241,14 @@ async def lifespan(app):
     except Exception as e:
         print(f"[SLEEP] {e}", flush=True)
 
-    
-    # Сохраняем граф перед остановкой
+
+    yield
+
+    # Shutdown: cancel background neuro loop and persist graph
+    try:
+        _task.cancel()
+    except Exception:
+        pass
     try:
         from app.routers.v4_graph import _v4_graph
         import json
@@ -258,6 +261,7 @@ async def lifespan(app):
             }
         _total = sum(len(_c.get('connections', {})) for _c in _data.values())
         if _total > 1000:
+            os.makedirs('/data/skv', exist_ok=True)
             with open('/data/skv/graph.json', 'w') as _f:
                 json.dump(_data, _f)
             print(f"[SHUTDOWN] Graph saved: {len(_data)} cubes, {_total} edges", flush=True)
@@ -265,12 +269,8 @@ async def lifespan(app):
             print(f"[SHUTDOWN] Graph NOT saved: only {_total} edges (protection)", flush=True)
     except Exception as _e:
         print(f"[SHUTDOWN] Save error: {_e}", flush=True)
-    
-    yield
-    _task.cancel()
 
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.middleware import Middleware
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -300,6 +300,10 @@ app = FastAPI(
     license_info={"name": "MIT"}
 )
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Single app instance — register homepage on the lifespan-backed app
+app.add_api_route("/", homepage_v8, methods=["GET"], response_class=HTMLResponse, include_in_schema=False)
+app.add_middleware(AuthMiddleware)
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 
@@ -343,39 +347,37 @@ async def rate_limit_middleware(request, call_next):
     if request.url.path.startswith("/api/v4/sessions") or request.url.path.startswith("/api/v4/cubes"):
         api_key = request.headers.get("X-API-Key", "") or request.query_params.get("api_key", "")
         valid = False
-        if api_key:
+        db_url = os.environ.get("DATABASE_URL", "").strip()
+        if not api_key:
+            if request.method != "GET":
+                return JSONResponse({"detail": "API key required. Get yours at /profile"}, status_code=401)
+        elif not db_url:
+            return JSONResponse({"detail": "Auth database unavailable"}, status_code=503)
+        else:
             try:
                 import asyncpg
-                conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
-                row = await conn.fetchrow("SELECT api_key FROM user_api_keys WHERE api_key = $1", api_key)
-                valid = row is not None
-                await conn.close()
-            except:
-                pass
-        if not valid and request.method != "GET":
-            return JSONResponse({"detail": "API key required. Get yours at /profile"}, status_code=401)
+                conn = await asyncpg.connect(db_url)
+                try:
+                    row = await conn.fetchrow(
+                        "SELECT user_id FROM user_api_keys WHERE api_key = $1 LIMIT 1",
+                        api_key,
+                    )
+                    valid = row is not None
+                    if valid:
+                        request.state.user_id = row["user_id"]
+                finally:
+                    await conn.close()
+            except Exception as e:
+                print(f"[AUTH] rate_limit db error: {e}", flush=True)
+                return JSONResponse({"detail": "Auth database unavailable"}, status_code=503)
+            if not valid and request.method != "GET":
+                return JSONResponse({"detail": "Invalid API key"}, status_code=401)
     
     response = await call_next(request)
     response.headers["X-RateLimit-Remaining"] = str(30 - len(_rate_limits[client_ip]))
     return response
 
 app.add_middleware(GZipMiddleware, minimum_size=256)
-
-@app.on_event("startup")
-async def start_background_services():
-    """Запуск фоновых сервисов (обходит баг lifespan)."""
-    try:
-        start_bg_task(run_session_evolver())
-        print("[EVOLVER] Started via startup event", flush=True)
-    except Exception as e:
-        print(f"[EVOLVER] {e}", flush=True)
-    try:
-        from app.routers.sleep_cycle import run_sleep_cycle
-        start_bg_task(run_sleep_cycle())
-        print("[SLEEP] Started via startup event", flush=True)
-    except Exception as e:
-        print(f"[SLEEP] {e}", flush=True)
-
 
 @app.middleware("http")
 async def add_server_time(request: Request, call_next):
@@ -409,7 +411,6 @@ app.include_router(code_executor_router)
 app.include_router(constructor_router)
 app.include_router(bureau_router)
 app.include_router(formula_validator_router)
-app.include_router(bureau_router)
 app.include_router(execute_router)
 
 @app.get("/api/v1/info")
@@ -448,7 +449,7 @@ async def discovery():
             "search": "GET /api/cubes/search?query=...",
             "upload": "POST /api/v1/entries",
             "consult": "POST /api/consult",
-            "execute": "POST /api/execute (with action=execute_code)",
+            "execute": "POST /api/execute (generate_image|generate_html|generate_pdf)",
             "execute_code": "POST /api/execute/code",
             "sandbox": "POST /api/execute/code (direct code execution)",
             "feedback": "POST /api/feedback",
@@ -508,7 +509,7 @@ async def discovery():
         },
         "admin": {
             "access": "Requires admin authentication",
-            "endpoints": ["CMD execution", "graph management", "cube deletion"],
+            "endpoints": ["graph management", "cube deletion"],
             "how_to": "Login via /profile with admin credentials",
         }
     },

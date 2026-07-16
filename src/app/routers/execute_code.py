@@ -129,32 +129,73 @@ async def save_cube(error, fix):
     except Exception as e:
         print(f"[AutoCube] Save failed: {e}", file=sys.stderr, flush=True)
 
+async def _require_api_auth(request: Request) -> str:
+    """Require a valid API key. Fail closed — no hardcoded keys, no silent pass."""
+    from app.security import extract_bearer_or_api_key, get_database_url
+
+    token = extract_bearer_or_api_key(request.headers) if request else ""
+    if not token:
+        raise HTTPException(401, "API key required (Authorization: Bearer or X-API-Key)")
+
+    # Prefer middleware-resolved principal
+    if request is not None and getattr(request.state, "user_id", None):
+        return str(request.state.user_id)
+
+    # SQLite store (v7)
+    try:
+        import sqlite3
+        db_path = os.environ.get(
+            "SKV_MASTER_DB", "/data/skv/metadata_store/shared_master.db"
+        )
+        if os.path.exists(db_path):
+            conn = sqlite3.connect(db_path, timeout=5)
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT user_id FROM user_api_keys WHERE api_key = ? AND COALESCE(is_active, 1) = 1",
+                    (token,),
+                )
+                user = cur.fetchone()
+            finally:
+                conn.close()
+            if user:
+                return str(user[0])
+    except Exception as e:
+        print(f"[Auth] SQLite error: {e}", file=sys.stderr)
+
+    # PostgreSQL store
+    try:
+        import asyncpg
+        url = get_database_url()
+        if url:
+            conn = await asyncpg.connect(url)
+            try:
+                row = await conn.fetchrow(
+                    "SELECT user_id FROM user_api_keys WHERE api_key = $1 LIMIT 1",
+                    token,
+                )
+            finally:
+                await conn.close()
+            if row:
+                return str(row["user_id"])
+    except Exception as e:
+        print(f"[Auth] Postgres error: {e}", file=sys.stderr)
+
+    raise HTTPException(401, "Invalid API key")
+
+
 @router.post("/api/execute/code")
 async def execute_code(payload: dict, request: Request = None):
-    if request:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            try:
-                import sqlite3
-                conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
-                cur = conn.cursor()
-                cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
-                user = cur.fetchone()
-                conn.close()
-                if not user:
-                    raise HTTPException(401, "Invalid API key")
-            except Exception as e:
-                print(f"[Auth] DB error: {e}", file=sys.stderr)
-                pass
-        else:
-            key = request.headers.get("X-API-Key", "")
-            if key and key != "skv_sandbox_key_2026":
-                raise HTTPException(403, "Invalid API key")
+    if request is None:
+        raise HTTPException(401, "API key required")
+    await _require_api_auth(request)
 
     code = (payload.get("code") or "").strip()
     if not code:
         raise HTTPException(400, "No code provided")
+    # Hard limit to reduce abuse
+    if len(code) > 100_000:
+        raise HTTPException(400, "Code too large")
 
     mode = payload.get("mode", "fix")
     task = payload.get("task", "Make the code correct and safe")

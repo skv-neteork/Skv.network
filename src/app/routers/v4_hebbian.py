@@ -58,7 +58,7 @@ async def background_hebbian(activated_cubes: list, _v4_graph: dict):
         
         # Сохраняем в БД пачкой
         db_url = os.environ.get('DATABASE_URL',
-            'postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db')
+            os.environ.get("DATABASE_URL", ""))
         conn = await asyncpg.connect(db_url)
         try:
             batch = [(s, t, w) for s, t, w in updates]

@@ -24,3 +24,4 @@ psycopg2-binary>=2.9.9
 aiohttp>=3.9.0
 fastembed>=0.8.0
 hnswlib
+bcrypt>=4.0.0

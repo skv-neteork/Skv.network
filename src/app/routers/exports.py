@@ -143,33 +143,48 @@ async def system_status():
 
 @router.post("/api/tools/create-file")
 async def create_file(request: Request):
-    """Создаёт файл на сервере и возвращает ссылку для скачивания."""
+    """Creates a file under /app/uploads only (path-traversal safe)."""
     import os
+    from fastapi import HTTPException
+    from app.security import sanitize_filename, safe_file_under
+
     data = await request.json()
     filename = data.get("filename", "output.txt")
     content = data.get("content", "")
     filetype = data.get("type", "txt")
-    
+
     if not content:
         return {"error": "Content required"}
-    
-    # Определяем расширение
+    if len(content) > 2_000_000:
+        raise HTTPException(400, "Content too large")
+
     ext_map = {"html": "html", "txt": "txt", "json": "json", "md": "md", "csv": "csv", "svg": "svg"}
     ext = ext_map.get(filetype, "txt")
+    try:
+        filename = sanitize_filename(str(filename))
+    except ValueError:
+        raise HTTPException(400, "Invalid filename")
     if not filename.endswith(f".{ext}"):
-        filename = f"{filename}.{ext}"
-    
-    fpath = f"/app/uploads/{filename}"
+        base = filename.rsplit(".", 1)[0] if "." in filename else filename
+        try:
+            filename = sanitize_filename(f"{base}.{ext}")
+        except ValueError:
+            raise HTTPException(400, "Invalid filename")
+
     os.makedirs("/app/uploads", exist_ok=True)
-    
-    with open(fpath, "w") as f:
+    try:
+        fpath = safe_file_under("/app/uploads", filename)
+    except ValueError:
+        raise HTTPException(400, "Invalid filename")
+
+    with open(fpath, "w", encoding="utf-8") as f:
         f.write(content)
-    
+
     return {
         "status": "ok",
         "filename": filename,
         "url": f"/download/{filename}",
-        "size_bytes": len(content)
+        "size_bytes": len(content),
     }
 
 @router.get("/api/tools/list-files")
@@ -178,17 +193,29 @@ async def list_files():
     uploads = "/app/uploads"
     if not os.path.exists(uploads):
         return {"files": []}
-    files = [{"name": f, "url": f"/download/{f}"} for f in os.listdir(uploads) if os.path.isfile(os.path.join(uploads, f))]
+    files = []
+    for f in os.listdir(uploads):
+        if ".." in f or "/" in f or "\\" in f:
+            continue
+        path = os.path.join(uploads, f)
+        if os.path.isfile(path):
+            files.append({"name": f, "url": f"/download/{f}"})
     return {"files": files, "count": len(files)}
 
 @router.delete("/api/tools/delete-file/{filename}")
 async def delete_file(filename: str):
-    """Удаляет файл."""
+    """Deletes a file under /app/uploads only (path-traversal safe)."""
     import os
-    fpath = f"/app/uploads/{filename}"
-    if os.path.exists(fpath):
+    from fastapi import HTTPException
+    from app.security import safe_file_under
+
+    try:
+        fpath = safe_file_under("/app/uploads", filename)
+    except ValueError:
+        raise HTTPException(400, "Invalid filename")
+    if os.path.exists(fpath) and os.path.isfile(fpath):
         os.remove(fpath)
-        return {"status": "deleted", "filename": filename}
+        return {"status": "deleted", "filename": os.path.basename(fpath)}
     return {"error": "File not found"}
 
 @router.get("/api/tools")

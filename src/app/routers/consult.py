@@ -1,7 +1,7 @@
 import os
 import json
 import json, urllib.request as _req, time as _time
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 from app.routers.tensor_cube import TensorCube, spread_activation
 from app.routers.v4_middleware import get_embedding_cached
 import numpy as np
@@ -467,7 +467,7 @@ async def consult_rag(request: Request):
                     try:
                         import asyncpg, asyncio, json
                         async def _save():
-                            conn = await asyncpg.connect('postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db')
+                            conn = await asyncpg.connect(os.environ.get("DATABASE_URL", ""))
                             await conn.execute("""
                                 INSERT INTO user_sessions (user_id, session_id, project_ref, data, updated_at)
                                 VALUES ($1, $2, 'chat', $3, NOW())
@@ -514,12 +514,11 @@ async def consult_rag(request: Request):
 
 @router.post('/api/exec')
 async def exec_command(request: Request):
-    import subprocess
-    body = await request.json()
-    cmd = body.get('command','')
-    if not cmd: return {'error':'No command'}
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-    return {'stdout': result.stdout[-5000:], 'stderr': result.stderr[-1000:]}
+    """Remote shell execution permanently disabled (RCE risk)."""
+    raise HTTPException(
+        status_code=403,
+        detail="Remote command execution is disabled. Use POST /api/execute/code for sandboxed Python only.",
+    )
 
 
 @router.post("/api/deepseek")
@@ -596,7 +595,7 @@ async def mark_important(request: Request):
         # Сохраняем в PostgreSQL для персистентности
         try:
             import psycopg2, os
-            conn = psycopg2.connect(os.getenv("DATABASE_URL", "postgresql://skv_user:skv_pass@localhost:5432/skv_db"))
+            conn = psycopg2.connect(os.getenv("DATABASE_URL", ""))
             cur = conn.cursor()
             print(f"[search_memory] SQL: user={user_id} query={query}", flush=True)
             cur.execute(
@@ -628,7 +627,7 @@ async def search_memory(request: Request):
     # Поиск в PostgreSQL
     try:
         import psycopg2, os
-        conn = psycopg2.connect("postgresql://skv_user:skv_pass@skv_postgres:5432/skv_db")
+        conn = psycopg2.connect(os.environ.get("DATABASE_URL", ""))
         cur = conn.cursor()
         cur.execute(
             "SELECT cube_id, user_id, pii_type, value, context FROM pii_cubes WHERE user_id=%s AND (context ILIKE %s OR value ILIKE %s) LIMIT 10",

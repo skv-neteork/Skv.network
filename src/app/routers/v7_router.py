@@ -588,11 +588,16 @@ import hashlib, secrets, os
 
 
 def hash_password(password: str) -> str:
-    salt = os.environ.get("SKV_SALT", "skv_secret_salt_2026")
-    return hashlib.sha256((password + salt).encode()).hexdigest()
+    from app.security import hash_password as _hp
+    return _hp(password)
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    from app.security import verify_password as _vp
+    return _vp(password, stored_hash)
 
 def generate_api_key() -> str:
-    return f"sk_{secrets.token_hex(16)}"
+    from app.security import generate_api_token
+    return generate_api_token()
 
 def send_confirmation_email(email: str, code: str):
     try:
@@ -723,16 +728,28 @@ async def confirm_email(req: ConfirmRequest):
 async def login(req: LoginRequest):
     try:
         import sqlite3
-        password_hash = hash_password(req.password)
+        from app.security import needs_rehash
         conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
         cur = conn.cursor()
-        cur.execute("SELECT email FROM users WHERE email = ? AND password_hash = ? AND confirmed = 1",
-                   (req.email, password_hash))
+        cur.execute(
+            "SELECT email, password_hash FROM users WHERE email = ? AND confirmed = 1",
+            (req.email,),
+        )
         row = cur.fetchone()
-        if not row:
+        if not row or not verify_password(req.password, row[1] or ""):
             conn.close()
             raise HTTPException(status_code=401, detail="Invalid email or password")
-        
+
+        if needs_rehash(row[1] or ""):
+            try:
+                cur.execute(
+                    "UPDATE users SET password_hash = ? WHERE email = ?",
+                    (hash_password(req.password), req.email),
+                )
+                conn.commit()
+            except Exception:
+                pass
+
         # Return existing active key or create new one
         cur.execute("SELECT api_key FROM user_api_keys WHERE user_id = ? AND is_active = 1 LIMIT 1", (req.email,))
         key_row = cur.fetchone()
@@ -895,61 +912,172 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
     return 3
 
 
-def build_memory_map(user_id: str) -> str:
-    """Memory Pyramid: Raw(20K) + L1(20K) + L2(10K) + Critical(4K)."""
-    import sqlite3, os, json
-    
+def build_memory_map(user_id: str, step: int = 0) -> str:
+    """Memory Pyramid for external agents — 4 non-overlapping layers.
+
+    Layers (no content reuse between them):
+      1. Raw      — recent dialogues WITHOUT >>> lines (those go to Critical)
+      2. L1       — topic summaries from summary_l1 only
+      3. L2       — user profile / map from summary_l2 only
+      4. Critical — only lines containing >>> (never compressed away)
+
+    step=0  → full map (Raw + L1 + L2 + Critical)
+    step>0  → short map (L2 compact + Critical + agent hint)
+
+    Char budgets (~4 chars/token):
+      full:  raw[:80000], l1[:80000], l2[:40000], crit[:16000]
+      short: l2[:4000], crit[:16000]
+    """
+    import sqlite3
+    import json as _json
+
+    AGENT_HINT = (
+        "\n💡 NEED MORE DATA?\n"
+        "• searchMemory tool (POST /api/v7/memory) — hybrid HNSW+FTS5 search by query\n"
+        "• GET /api/v7/event/{id} — full event text by event_id from search results"
+    )
+
     db_name = user_id.replace("@", "").replace(".", "")
     db_path = f"/data/skv/metadata_store/{db_name}.db"
-    
+
     if not os.path.exists(db_path):
-        return "No memory yet."
-    
-    conn = sqlite3.connect(db_path, timeout=10)
-    cur = conn.cursor()
-    
-    parts = []
-    
-    # 1. RAW — last 20K tokens (~80K chars)
-    cur.execute("SELECT DISTINCT substr(raw_dialogue, 1, 200) FROM event_metadata WHERE raw_dialogue IS NOT NULL AND raw_dialogue NOT LIKE '%Выяснилось%' AND raw_dialogue NOT LIKE '%Принято решение%' ORDER BY event_id DESC LIMIT 40")
-    raw = []
-    for (text,) in cur.fetchall():
-        if text and text not in raw:
-            raw.append(text)
-    if raw:
-        parts.append("=== RECENT ACTIVITY ===\n" + "\n---\n".join(raw))
-    
-    # 2. L1 — 20K tokens (~80K chars)
-    cur.execute("SELECT topic, summary_text FROM summary_l1 GROUP BY topic ORDER BY MAX(created_at) DESC LIMIT 40")
-    l1 = []
-    for topic, summary in cur.fetchall():
-        line = f"## {topic or '?'}: {summary or ''}"
-        if line not in l1:
-            l1.append(line)
-    if l1:
-        parts.append("=== L1 SUMMARIES ===\n" + "\n".join(l1))
-    
-    # 3. L2 — 10K tokens (~40K chars)
-    cur.execute("SELECT map_json FROM summary_l2 ORDER BY last_updated DESC LIMIT 1")
-    l2_row = cur.fetchone()
-    if l2_row and l2_row[0]:
-        parts.append(f"=== L2 PROFILE ===\n{l2_row[0][:40000]}")
-    
-    # 4. CRITICAL — 4K tokens
-    cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' ORDER BY event_id DESC LIMIT 20")
-    crit = []
-    for time_str, raw_text in cur.fetchall():
-        for line in raw_text.split("\n"):
-            if ">>>" in line and line not in crit:
-                crit.append(f"[{time_str or '?'}] {line.strip()}")
-    if crit:
-        parts.append("=== >>> CRITICAL ===\n" + "\n".join(crit))
-    
-    # 5. Hint
-    parts.append("\n💡 More data: searchMemory | GET /api/v7/event/{id}")
-    
-    conn.close()
-    return "\n\n".join(parts)
+        return "No memory yet." + AGENT_HINT
+
+    full = step == 0
+    parts: List[str] = []
+
+    try:
+        with sqlite3.connect(db_path, timeout=10) as conn:
+            cur = conn.cursor()
+
+            # ── 4. CRITICAL first (collect set so Raw can exclude these lines) ──
+            cur.execute(
+                "SELECT time_str, raw_dialogue FROM event_metadata "
+                "WHERE raw_dialogue LIKE '%>>>%' ORDER BY event_id DESC LIMIT 30"
+            )
+            crit: List[str] = []
+            crit_line_set: set = set()
+            for time_str, raw_text in cur.fetchall():
+                if not raw_text:
+                    continue
+                for line in raw_text.split("\n"):
+                    stripped = line.strip()
+                    if ">>>" in stripped and stripped not in crit_line_set:
+                        crit_line_set.add(stripped)
+                        crit.append(f"[{time_str or '?'}] {stripped}")
+
+            # ── 1. RAW (full only) — dialogues without >>> / L1-debug noise ──
+            if full:
+                cur.execute(
+                    """SELECT essence, raw_dialogue FROM event_metadata
+                       WHERE raw_dialogue IS NOT NULL
+                         AND raw_dialogue NOT LIKE '%Выяснилось%'
+                         AND raw_dialogue NOT LIKE '%Принято решение%'
+                       ORDER BY event_id DESC LIMIT 40"""
+                )
+                raw: List[str] = []
+                seen_raw: set = set()
+                for essence, dialogue in cur.fetchall():
+                    # Strip Critical (>>>) from BOTH essence and dialogue —
+                    # >>> content lives only in the Critical layer (no overlap)
+                    essence_str = "\n".join(
+                        ln for ln in (essence or "").split("\n") if ">>>" not in ln
+                    ).strip()
+                    dialogue_lines = [
+                        ln for ln in (dialogue or "").split("\n") if ">>>" not in ln
+                    ]
+                    dialogue_str = "\n".join(dialogue_lines).strip()
+                    if not dialogue_str and not essence_str:
+                        continue  # pure-Critical event → skip in Raw
+                    # Tail keeps latest turn context
+                    tail = dialogue_str[-800:] if len(dialogue_str) > 800 else dialogue_str
+                    if essence_str and tail and essence_str not in tail:
+                        text = (
+                            f"{essence_str}\n…{tail}"
+                            if len(dialogue_str) > 800
+                            else f"{essence_str}\n{tail}"
+                        )
+                    else:
+                        text = essence_str or tail
+                    text = text.strip()
+                    if text and ">>>" not in text and text not in seen_raw:
+                        seen_raw.add(text)
+                        raw.append(text)
+                if raw:
+                    parts.append("=== RECENT ACTIVITY (Raw) ===\n" + ("\n---\n".join(raw))[:80000])
+
+            # ── 2. L1 (full only) — summaries table only, no raw reuse ──
+            if full:
+                cur.execute(
+                    "SELECT topic, summary_text FROM summary_l1 "
+                    "GROUP BY topic ORDER BY MAX(created_at) DESC LIMIT 40"
+                )
+                l1: List[str] = []
+                seen_l1: set = set()
+                for topic, summary in cur.fetchall():
+                    # Skip L1 rows that are pure Critical markers
+                    topic_s = (topic or "").strip()
+                    summary_s = (summary or "").strip()
+                    if ">>>" in topic_s or ">>>" in summary_s:
+                        continue
+                    line = f"## {topic_s or '?'}: {summary_s}"
+                    if line not in seen_l1:
+                        seen_l1.add(line)
+                        l1.append(line)
+                if l1:
+                    parts.append("=== L1 SUMMARIES ===\n" + ("\n".join(l1))[:80000])
+
+            # ── 3. L2 PROFILE — always (compact when step>0) ──
+            cur.execute("SELECT map_json FROM summary_l2 ORDER BY last_updated DESC LIMIT 1")
+            l2_row = cur.fetchone()
+            if l2_row and l2_row[0]:
+                l2_budget = 40000 if full else 4000
+                l2_raw = l2_row[0]
+                if not full:
+                    # Compact: themes + short profile if JSON; else truncate
+                    try:
+                        l2_map = _json.loads(l2_raw) if isinstance(l2_raw, str) else l2_raw
+                        if isinstance(l2_map, dict):
+                            compact_bits = []
+                            themes = l2_map.get("main_themes") or l2_map.get("themes") or []
+                            if themes:
+                                compact_bits.append(
+                                    "Themes: " + ", ".join(str(t) for t in themes[:8])
+                                )
+                            profile = l2_map.get("user_profile") or l2_map.get("profile") or ""
+                            if profile:
+                                compact_bits.append(f"Profile: {str(profile)[:800]}")
+                            facts = l2_map.get("key_facts") or l2_map.get("facts") or []
+                            if facts:
+                                compact_bits.append(
+                                    "Facts: " + "; ".join(str(f)[:80] for f in facts[:5])
+                                )
+                            l2_text = "\n".join(compact_bits) if compact_bits else str(l2_raw)[:l2_budget]
+                        else:
+                            l2_text = str(l2_raw)[:l2_budget]
+                    except Exception:
+                        l2_text = str(l2_raw)[:l2_budget]
+                else:
+                    l2_text = str(l2_raw)[:l2_budget]
+                parts.append(f"=== L2 PROFILE ===\n{l2_text}")
+
+            # ── 4. CRITICAL — always included (never drop) ──
+            if crit:
+                parts.append("=== >>> CRITICAL ===\n" + ("\n".join(crit))[:16000])
+
+            # ── 5. Agent hint — always ──
+            mode_note = (
+                "\n[Memory Map: FULL — step=0]"
+                if full
+                else "\n[Memory Map: SHORT — step>0; call with step=0 for full Raw+L1+L2+Critical]"
+            )
+            parts.append(mode_note + AGENT_HINT)
+
+    except Exception as e:
+        logger.warning("[build_memory_map] %s: %s", user_id, e)
+        return "No memory yet." + AGENT_HINT
+
+    return "\n\n".join(parts) if parts else ("No memory yet." + AGENT_HINT)
 
 
 @router.post("/memory")
@@ -1128,35 +1256,17 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     reminders += "• Profile changes → L2 map\n"
     reminders += "• Pattern discovered → cube\n"
     reminders += "• Auto-save every 5 messages\n"
-    # Load L2 Memory Map
-    memory_map_text = ""
-    try:
-        import sqlite3 as sq
-        db_name = req.user_id.replace("@", "").replace(".", "")
-        l2_conn = sq.connect(f"/data/skv/metadata_store/{db_name}.db")
-        l2_cur = l2_conn.cursor()
-        l2_cur.execute("SELECT map_json FROM summary_l2 WHERE user_id = ?", (req.user_id,))
-        l2_row = l2_cur.fetchone()
-        if l2_row and l2_row[0]:
-            import json as jn
-            l2_map = jn.loads(l2_row[0])
-            memory_map_text = "=== MEMORY MAP L2 ===\n"
-            themes = l2_map.get("main_themes", [])[:5]
-            if themes:
-                memory_map_text += f"Основные темы: {', '.join(themes)}\n"
-            profile = l2_map.get("user_profile", "")
-            if profile:
-                memory_map_text += f"Профиль: {profile[:300]}\n"
-        l2_conn.close()
-    except:
-        pass
-    
-    # Smart Memory Map: full on step 0/20, short otherwise
+    reminders += "• Need more data → searchMemory tool | GET /api/v7/event/{id}\n"
+
+    # Memory Pyramid via single source (full at step=0, short at step>0)
+    memory_map_text = build_memory_map(req.user_id, step=step)
+
+    # Smart assembly: full constitution+map at step 0 / every 20; short map always when step>0
     if step == 0 or step % 20 == 0:
         prompt_text = f"{memory_text}\n\n{memory_map_text}\n{constitution_text}\n\n{seal_context}\n{reminders}"
     else:
-        # Short version: only search results + critical + reminders
-        prompt_text = f"{memory_text}\n\n{seal_context}\n{reminders}"
+        # Short: search hits + compact Memory Map (L2+Critical+hint) + reminders
+        prompt_text = f"{memory_text}\n\n{memory_map_text}\n\n{seal_context}\n{reminders}"
     # Раздельная выдача
     vector_top = raw_results[:10] if raw_results else []
     fts_top = []
@@ -1689,6 +1799,7 @@ async def get_constitution_v8():
 async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
     try:
         import json, urllib.request as urlreq, time, re
+        import sqlite3 as _sq
         from datetime import datetime, timedelta
         from app.routers.v4_middleware import get_embedding_cached
 
@@ -1783,74 +1894,12 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
         # Prepend FTS5 results before HNSW
         if fts_text:
             memory_text = fts_text + "\n=== 🔍 HNSW SEMANTIC MATCHES ===\n" + memory_text
-        # ========== 2. L2 MEMORY MAP ==========
-        # Get L2 profile from summary_l2
-        l2_profile = ""
-        try:
-            import sqlite3 as _sq
-            db_name = req.user_id.replace('@', '').replace('.', '')
-            l2_conn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
-            l2_cur = l2_conn.cursor()
-            l2_cur.execute("SELECT map_json FROM summary_l2 WHERE user_id = ? ORDER BY last_updated DESC LIMIT 1", (req.user_id,))
-            l2_row = l2_cur.fetchone()
-            if l2_row and l2_row[0]:
-                l2_profile = f"\n=== L2 USER PROFILE ===\n{l2_row[0]}\n"
-            l2_conn.close()
-        except:
-            pass
-        
-                # Search for CRITICAL items (>>>) in all events
-        critical_items = ""
-        try:
-            import sqlite3 as _sq
-            db_name = req.user_id.replace('@', '').replace('.', '')
-            crit_conn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
-            crit_cur = crit_conn.cursor()
-            crit_cur.execute("SELECT time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' ORDER BY event_id DESC LIMIT 10")
-            crit_rows = crit_cur.fetchall()
-            if crit_rows:
-                critical_items = "\n=== 🔴 CRITICAL (never compressed) ===\n"
-                for time_str, text in crit_rows:
-                    for line in text.split('\n'):
-                        if '>>> ✅' in line:
-                            critical_items += f"[{time_str or '?'}] {line.strip()}\n"
-            crit_conn.close()
-        except:
-            pass
-        
-        # Smart context: short for simple, full for memory questions
-        memory_map = ""
-        try:
-            db_name = req.user_id.replace('@', '').replace('.', '')
-            mm_conn = _sq.connect(f'/data/skv/metadata_store/{db_name}.db')
-            mm_cur = mm_conn.cursor()
-            
-            # L1 — last 60K chars (~15K tokens)
-            mm_cur.execute("SELECT topic, summary_text FROM summary_l1 ORDER BY created_at DESC LIMIT 150")
-            l1 = [f"## {t or '?'}: {s or ''}" for t,s in mm_cur.fetchall()]
-            l1_text = "\n".join(l1)[:60000]
-            if l1_text: memory_map += f"=== L1 SUMMARIES ===\n{l1_text}\n\n"
-            
-            # L2 — 40K chars (~10K tokens)
-            mm_cur.execute("SELECT map_json FROM summary_l2 ORDER BY last_updated DESC LIMIT 1")
-            l2 = mm_cur.fetchone()
-            if l2 and l2[0]: memory_map += f"=== L2 PROFILE ===\n{l2[0][:40000]}\n\n"
-            
-            # Critical
-            mm_cur.execute("SELECT raw_dialogue FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' LIMIT 10")
-            crit = []
-            for (raw,) in mm_cur.fetchall():
-                for line in raw.split("\n"):
-                    if ">>>" in line and line not in crit: crit.append(line.strip())
-            if crit: memory_map += "=== >>> CRITICAL ===\n" + "\n".join(crit) + "\n"
-            
-            memory_map += "\n💡 More data: searchMemory tool | Full event: GET /api/v7/event/{id}\n"
-            memory_map += "\n💡 More data: searchMemory | GET /api/v7/event/{id}\n"
-            
-            mm_conn.close()
-        except:
-            memory_map = "Memory active."
-        if not memory_map: memory_map = "Memory active."  # No buffer needed
+
+        # ========== 2. MEMORY MAP (single source: build_memory_map) ==========
+        # step=0 → full Raw+L1+L2+Critical; step>0 → short L2+Critical+hint
+        memory_map = build_memory_map(req.user_id, step=getattr(req, "step", 0) or 0)
+        if not memory_map:
+            memory_map = "Memory active. Use searchMemory tool | GET /api/v7/event/{id}"
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 

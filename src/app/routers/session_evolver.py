@@ -1,3 +1,4 @@
+import os
 """Session Evolver v4.5 — PostgreSQL-backed consolidation."""
 
 import asyncio
@@ -8,7 +9,7 @@ async def consolidate_session(user_id: str, project: str):
     """Сжать сессии из PostgreSQL в experience cube."""
     try:
         import asyncpg
-        conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+        conn = await asyncpg.connect(os.environ.get("DATABASE_URL", ""))
         
         # Считаем количество сессий
         row = await conn.fetchrow(
@@ -80,7 +81,7 @@ async def run_session_evolver():
         await asyncio.sleep(60)
         try:
             import asyncpg
-            conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+            conn = await asyncpg.connect(os.environ.get("DATABASE_URL", ""))
             
             # Находим пользователей с >10 сессиями
             rows = await conn.fetch(

@@ -1,3 +1,4 @@
+import os
 """Memory Tools API — агент сам управляет памятью (как Letta)."""
 
 from fastapi import APIRouter, HTTPException
@@ -38,7 +39,7 @@ async def core_memory_save(request: dict):
     try:
         import asyncpg, asyncio
         async def _save():
-            conn = await asyncpg.connect("postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db")
+            conn = await asyncpg.connect(os.environ.get("DATABASE_URL", ""))
             await conn.execute("""INSERT INTO cubes (cube_id, title, content, type, importance, embedding)
                 VALUES ($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (cube_id) DO UPDATE SET content=$3, importance=$5, embedding=$6""" ,

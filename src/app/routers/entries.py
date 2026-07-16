@@ -4,7 +4,23 @@ from datetime import datetime, timezone, timedelta, timedelta
 from fastapi import APIRouter, HTTPException, Request, Response
 
 POLZA_KEY = os.environ.get("POLZA_KEY", "")
-DATABASE_URL = "postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+def _pg_connect():
+    """Connect to Postgres using env credentials only (no hardcoded secrets)."""
+    import psycopg2
+    url = os.getenv("DATABASE_URL", "").strip()
+    if url:
+        return psycopg2.connect(url)
+    host = os.getenv("POSTGRES_HOST", "skv_postgres")
+    port = int(os.getenv("POSTGRES_PORT", "5432"))
+    dbname = os.getenv("POSTGRES_DB", "skv_db")
+    user = os.getenv("POSTGRES_USER", "skv_user")
+    password = os.getenv("POSTGRES_PASSWORD", "")
+    if not password:
+        raise RuntimeError("POSTGRES_PASSWORD / DATABASE_URL not configured")
+    return psycopg2.connect(host=host, port=port, dbname=dbname, user=user, password=password)
+
 
 router = APIRouter()
 entries_db = {}
@@ -51,10 +67,7 @@ load_cubes_from_disk()
 def load_cubes_from_db():
     try:
         import psycopg2, json as json_lib
-        conn = psycopg2.connect(
-            host="skv_postgres", port=5432, password="skv_secret_2026",
-            dbname="skv_db", user="skv_user"
-        )
+        conn = _pg_connect()
         cur = conn.cursor()
         cur.execute("SELECT cube_id, title, type, trigger_intent, rules, status, created_at, content FROM cubes")
         for row in cur.fetchall():
@@ -185,10 +198,7 @@ async def create_entry(request: Request):
                 if based_on:
                     try:
                         import psycopg2 as pg2
-                        pg_conn = pg2.connect(
-                            host="skv_postgres", port=5432, password="skv_secret_2026",
-                            dbname="skv_db", user="skv_user"
-                        )
+                        pg_conn = _pg_connect()
                         cur = pg_conn.cursor()
                         for cid in [c.get("cube_id") for c in body.get("cubes", [])]:
                             cur.execute(
@@ -206,10 +216,7 @@ async def create_entry(request: Request):
             if "cubes" in body:
                 try:
                     import psycopg2 as pg2
-                    pg_conn = pg2.connect(
-                        host="skv_postgres", port=5432, password="skv_secret_2026",
-                        dbname="skv_db", user="skv_user"
-                    )
+                    pg_conn = _pg_connect()
                     cur = pg_conn.cursor()
                     all_triggers = []
                     for c in body.get("cubes", []):
@@ -257,10 +264,7 @@ async def create_entry(request: Request):
             persona_data = body["persona"]
             user_id = persona_data.get("user_id", "unknown")
             try:
-                pg_conn = psycopg2.connect(
-                    host="skv_postgres", port=5432, password="skv_secret_2026",
-                    dbname="skv_db", user="skv_user"
-                )
+                pg_conn = _pg_connect()
                 cur = pg_conn.cursor()
                 persona_json = json.dumps(persona_data)
                 cur.execute(
@@ -284,10 +288,7 @@ async def create_entry(request: Request):
                     fb_vote = fb.get("vote", "up")
                     fb_comment = fb.get("comment", "").replace("'", "''")
                     if fb_cube_id and fb_vote in ("up", "down"):
-                        pg_conn = psycopg2.connect(
-                            host="skv_postgres", port=5432, password="skv_secret_2026",
-                            dbname="skv_db", user="skv_user"
-                        )
+                        pg_conn = _pg_connect()
                         cur = pg_conn.cursor()
                         cur.execute(
                             "INSERT INTO feedback (cube_id, vote, comment) VALUES (%s, %s, %s)",
@@ -333,7 +334,7 @@ async def create_entry(request: Request):
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }])
                 import psycopg2 as pg2
-                pg_conn = pg2.connect(host="skv_postgres", port=5432, password="skv_secret_2026", dbname="skv_db", user="skv_user")
+                pg_conn = _pg_connect()
                 cur = pg_conn.cursor()
                 # 1 день = 1 анкета: обновляем запись за сегодня или создаём новую
                 cur.execute("SELECT memory_indexes FROM user_personas WHERE user_id = %s", (user_id,))
@@ -403,10 +404,7 @@ async def create_entry(request: Request):
 async def get_cube_links(cube_id: str):
     """Возвращает все связи кубика"""
     try:
-        conn = psycopg2.connect(
-            host="skv_postgres", port=5432, password="skv_secret_2026",
-            dbname="skv_db", user="skv_user"
-        )
+        conn = _pg_connect()
         cur = conn.cursor()
         cur.execute(
             "SELECT linked_cube_id, link_type FROM cube_links WHERE cube_id = %s UNION SELECT cube_id, link_type FROM cube_links WHERE linked_cube_id = %s",
@@ -433,10 +431,7 @@ async def feedback(request: Request):
             raise HTTPException(status_code=400, detail="cube_id and vote (up/down) required")
         
         import psycopg2 as pg2
-        pg_conn = pg2.connect(
-            host="skv_postgres", port=5432, password="skv_secret_2026",
-            dbname="skv_db", user="skv_user"
-        )
+        pg_conn = _pg_connect()
         cur = pg_conn.cursor()
         cur.execute(
             "INSERT INTO feedback (cube_id, vote, comment) VALUES (%s, %s, %s)",
@@ -496,10 +491,7 @@ async def get_trials():
     """Возвращает список активных Trials (кубики с 3+ дизлайками)"""
     try:
         import psycopg2 as pg2
-        pg_conn = pg2.connect(
-            host="skv_postgres", port=5432, password="skv_secret_2026",
-            dbname="skv_db", user="skv_user"
-        )
+        pg_conn = _pg_connect()
         cur = pg_conn.cursor()
         
         # Находим кубики с 3+ дизлайками
@@ -555,10 +547,7 @@ async def delete_entry(cube_id: str):
     """Удаление куба по cube_id (ручной DELETE)."""
     import psycopg2 as pg2
     try:
-        pg_conn = pg2.connect(
-            host="skv_postgres", port=5432, password="skv_secret_2026",
-            dbname="skv_db", user="skv_user"
-        )
+        pg_conn = _pg_connect()
         cur = pg_conn.cursor()
         cur.execute("DELETE FROM cubes WHERE cube_id = %s", (cube_id,))
         deleted = cur.rowcount

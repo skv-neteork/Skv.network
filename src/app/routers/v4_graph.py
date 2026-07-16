@@ -86,7 +86,7 @@ async def _get_pool():
     global _pg_pool
     if _pg_pool is None:
         db_url = os.environ.get('DATABASE_URL', 
-            'postgresql://skv_user:skv_secret_2026@skv_postgres:5432/skv_db')
+            os.environ.get("DATABASE_URL", ""))
         _pg_pool = await asyncpg.create_pool(db_url, min_size=2, max_size=10)
     return _pg_pool
 

@@ -863,8 +863,15 @@
     if (!url) return;
     status.innerHTML = '⏳ Fetching...';
     try {
-        const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
-        const resp = await fetch(proxyUrl);
+        // Пробуем прямой fetch (работает из браузера пользователя)
+        const resp = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SKV-Importer/1.0)' },
+            mode: 'cors'
+        }).catch(async () => {
+            // Если CORS заблокировал — пробуем no-cors
+            status.innerHTML = '⚠️ CORS blocked, trying alternative...';
+            return await fetch(url, { mode: 'no-cors' });
+        });
         const html = await resp.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');

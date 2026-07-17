@@ -286,7 +286,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
-        response.headers["Content-Security-Policy"] = "default-src 'self' https://chat.deepseek.com https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com fonts.googleapis.com fonts.gstatic.com; connect-src 'self' https://chat.deepseek.com; font-src 'self' fonts.gstatic.com; font-src 'self' cdnjs.cloudflare.com"
+        response.headers["Content-Security-Policy"] = "default-src 'self' https://chat.deepseek.com https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com fonts.googleapis.com fonts.gstatic.com; connect-src 'self' https://corsproxy.io https://api.allorigins.win https://proxy.cors.sh https://chat.deepseek.com; font-src 'self' fonts.gstatic.com; font-src 'self' cdnjs.cloudflare.com"
         return response
 
 app = FastAPI(

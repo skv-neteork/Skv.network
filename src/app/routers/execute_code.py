@@ -5,7 +5,7 @@ import asyncio
 import re
 import time
 import sys
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from typing import Dict, List, Optional
 
 router = APIRouter()

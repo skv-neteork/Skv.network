@@ -582,6 +582,19 @@
             <input type="text" id="importUrl" placeholder="Paste chat share URL here (DeepSeek, ChatGPT, Claude...)" style="flex:1;padding:10px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-size:14px;">
             <button onclick="fetchFromUrl()" style="padding:10px 20px;background:#1f6feb;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Fetch</button>
         </div>
+        <div style="background:#1a1f2e;padding:15px;border-radius:8px;margin-bottom:10px;">
+            <strong>📥 Импорт диалога из DeepSeek:</strong><br><br>
+            
+            <b>Способ 1 (автомат):</b> перетяни эту кнопку в закладки браузера →<br>
+            <a href="javascript:(function(){try{var m=[];document.querySelectorAll('.ds-message,[class*=message]').forEach(function(el){var r=el.className.includes('user')?'user':'assistant';var c=el.innerText.trim();if(c.length>10)m.push({role:r,content:c});});var j=JSON.stringify(m,null,2);var t=document.createElement('textarea');t.value=j;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);alert('✅ '+m.length+' сообщений скопировано! Вернись в SKV и вставь (Ctrl+V).');}catch(e){alert('❌ '+e);}})();" 
+               style="display:inline-block;padding:10px 20px;background:#1f6feb;color:white;text-decoration:none;border-radius:6px;font-weight:600;margin:5px 0;">
+               📋 DeepSeek → SKV
+            </a>
+            <br><small style="color:#8b949e;">Перетяни в панель закладок. Открой диалог DeepSeek → нажми закладку → вернись сюда и вставь.</small>
+            
+            <br><br>
+            <b>Способ 2 (ручной):</b> скопируй весь диалог (Ctrl+A, Ctrl+C) и вставь в поле ниже.
+        </div>
         <div id="importStatus" style="margin-bottom:10px;font-size:14px;"></div>
 
         <textarea id="importData" rows="6" placeholder='[{"role":"user","content":"..."},{"role":"assistant","content":"..."}]' 
@@ -591,6 +604,19 @@
             <input type="text" id="importSource" placeholder="Source (e.g., chatgpt, claude, grok)" style="flex:1;padding:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;">
             <button onclick="importDialogs()" style="padding:10px 20px;background:#238636;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Import</button>
             <button onclick="processImport()" style="padding:10px 20px;background:#1f6feb;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Process with AI</button>
+        </div>
+        <div style="background:#1a1f2e;padding:15px;border-radius:8px;margin-bottom:10px;">
+            <strong>📥 Импорт диалога из DeepSeek:</strong><br><br>
+            
+            <b>Способ 1 (автомат):</b> перетяни эту кнопку в закладки браузера →<br>
+            <a href="javascript:(function(){try{var m=[];document.querySelectorAll('.ds-message,[class*=message]').forEach(function(el){var r=el.className.includes('user')?'user':'assistant';var c=el.innerText.trim();if(c.length>10)m.push({role:r,content:c});});var j=JSON.stringify(m,null,2);var t=document.createElement('textarea');t.value=j;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);alert('✅ '+m.length+' сообщений скопировано! Вернись в SKV и вставь (Ctrl+V).');}catch(e){alert('❌ '+e);}})();" 
+               style="display:inline-block;padding:10px 20px;background:#1f6feb;color:white;text-decoration:none;border-radius:6px;font-weight:600;margin:5px 0;">
+               📋 DeepSeek → SKV
+            </a>
+            <br><small style="color:#8b949e;">Перетяни в панель закладок. Открой диалог DeepSeek → нажми закладку → вернись сюда и вставь.</small>
+            
+            <br><br>
+            <b>Способ 2 (ручной):</b> скопируй весь диалог (Ctrl+A, Ctrl+C) и вставь в поле ниже.
         </div>
         <div id="importStatus" style="margin-top:10px;font-size:14px;"></div>
     </div>

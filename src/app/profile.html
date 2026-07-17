@@ -1148,10 +1148,10 @@ async function fetchFromUrl() {
 
   try {
     // Используем НАШ API (сервер качает страницу, нет CORS)
-    const resp = await fetch('/api/v7/import/fetch', {
+    const resp = await fetch('/import/url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: url })
+      body: JSON.stringify({ url: url, user_id: localStorage.getItem('skv_user_id') || 'anonymous' })
     });
 
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1206,10 +1206,10 @@ async function fetchFromUrl() {
 
   try {
     // Используем НАШ API (сервер качает страницу, нет CORS)
-    const resp = await fetch('/api/v7/import/fetch', {
+    const resp = await fetch('/import/url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: url })
+      body: JSON.stringify({ url: url, user_id: localStorage.getItem('skv_user_id') || 'anonymous' })
     });
 
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

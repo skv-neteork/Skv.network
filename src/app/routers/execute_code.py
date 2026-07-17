@@ -185,7 +185,7 @@ async def _require_api_auth(request: Request) -> str:
 
 
 @router.post("/api/execute/code")
-async def execute_code(payload: dict, request: Request = None, token: str = Depends(verify_token)):
+async def execute_code(payload: dict, request: Request = None):
     if request is None:
         raise HTTPException(401, "API key required")
     await _require_api_auth(request)

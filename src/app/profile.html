@@ -857,653 +857,7 @@
 
         init();
     
-    async function fetchFromUrl() {
-    const url = document.getElementById('importUrl').value.trim();
-    const status = document.getElementById('importStatus');
-    if (!url) return;
-    status.innerHTML = '⏳ Fetching...';
-    try {
-        // Пробуем прямой fetch (работает из браузера пользователя)
-        const resp = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SKV-Importer/1.0)' },
-            mode: 'cors'
-        }).catch(async () => {
-            // Если CORS заблокировал — пробуем no-cors
-            status.innerHTML = '⚠️ CORS blocked, trying alternative...';
-            return await fetch(url, { mode: 'no-cors' });
-        });
-        const html = await resp.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        let messages = [];
-        ['div[class*="message"]','div[class*="bubble"]','article','[role="article"]'].forEach(sel => {
-            doc.querySelectorAll(sel).forEach(el => {
-                const isUser = el.className.toLowerCase().includes('user');
-                const text = el.innerText.trim();
-                if (text.length > 15) messages.push({role: isUser ? 'user' : 'assistant', content: text});
-            });
-        });
-        if (messages.length) {
-            document.getElementById('importData').value = JSON.stringify(messages, null, 2);
-            status.innerHTML = '✅ Found ' + messages.length + ' messages!';
-        } else {
-            status.innerHTML = '❌ No messages found. Copy text manually.';
-        }
-    } catch(e) {
-        status.innerHTML = '❌ ' + e.message;
-    }
-}t" content="width=device-width, initial-scale=1.0">
-    <title>SKV Network — Profile & API Keys</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #0B0F19;
-            color: #d1d5db;
-            line-height: 1.5;
-            min-height: 100vh;
-        }
-        .mono { font-family: 'Fira Code', monospace; }
-        
-        /* Header */
-        header {
-            border-bottom: 1px solid #1f2937;
-            background: rgba(17, 24, 39, 0.5);
-            backdrop-filter: blur(12px);
-            position: sticky;
-            top: 0;
-            z-index: 50;
-            height: 56px;
-        }
-        .header-inner {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 0 24px;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 18px;
-            font-weight: 700;
-            color: white;
-            text-decoration: none;
-        }
-        .logo-version { color: #10b981; }
-        nav { display: flex; gap: 20px; }
-        nav a {
-            color: #9ca3af;
-            text-decoration: none;
-            font-size: 13px;
-            transition: color 0.2s;
-        }
-        nav a:hover { color: #10b981; }
-        nav a.purple { color: #a78bfa; }
-        
-        /* Main */
-        main {
-            max-width: 500px;
-            margin: 0 auto;
-            padding: 60px 24px 80px;
-        }
-        
-        /* Card */
-        .card {
-            background: rgba(17, 24, 39, 0.4);
-            border: 1px solid #1f2937;
-            border-radius: 12px;
-            padding: 32px;
-        }
-        .card-title {
-            font-size: 24px;
-            font-weight: 700;
-            color: white;
-            margin-bottom: 8px;
-        }
-        .card-desc {
-            font-size: 14px;
-            color: #9ca3af;
-            margin-bottom: 24px;
-        }
-        
-        /* Form */
-        .form-group { margin-bottom: 16px; }
-        .form-label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: #9ca3af;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .form-input {
-            width: 100%;
-            padding: 10px 14px;
-            background: #0B0F19;
-            border: 1px solid #374151;
-            border-radius: 8px;
-            color: white;
-            font-size: 14px;
-            font-family: inherit;
-            transition: border-color 0.2s;
-        }
-        .form-input:focus {
-            outline: none;
-            border-color: #10b981;
-        }
-        .form-input[readonly] {
-            color: #6b7280;
-            cursor: not-allowed;
-        }
-        
-        /* Button */
-        .btn {
-            width: 100%;
-            padding: 11px 20px;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 14px;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: inherit;
-            margin-top: 8px;
-        }
-        .btn-primary {
-            background: #10b981;
-            color: white;
-        }
-        .btn-primary:hover { background: #059669; }
-        .btn-primary:disabled {
-            background: #374151;
-            cursor: not-allowed;
-        }
-        .btn-secondary {
-            background: transparent;
-            color: #9ca3af;
-            border: 1px solid #374151;
-        }
-        .btn-secondary:hover {
-            background: #1f2937;
-            color: white;
-        }
-        .btn-danger {
-            background: transparent;
-            color: #f87171;
-            border: 1px solid #7f1d1d;
-            font-size: 12px;
-            padding: 6px 12px;
-            width: auto;
-            margin-top: 0;
-        }
-        .btn-danger:hover {
-            background: #7f1d1d;
-            color: white;
-        }
-        .btn-small {
-            width: auto;
-            padding: 6px 12px;
-            font-size: 12px;
-            margin-top: 0;
-        }
-        
-        /* Alert */
-        .alert {
-            padding: 12px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            margin-bottom: 16px;
-            display: none;
-        }
-        .alert.show { display: block; }
-        .alert-error {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            color: #fca5a5;
-        }
-        .alert-success {
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            color: #6ee7b7;
-        }
-        .alert-info {
-            background: rgba(139, 92, 246, 0.1);
-            border: 1px solid rgba(139, 92, 246, 0.3);
-            color: #c4b5fd;
-        }
-        
-        /* Help text */
-        .help-text {
-            font-size: 12px;
-            color: #6b7280;
-            margin-top: 12px;
-            line-height: 1.5;
-        }
-        .help-text code {
-            color: #a78bfa;
-            background: rgba(139, 92, 246, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-        }
-        
-        /* Link */
-        .link {
-            color: #a78bfa;
-            text-decoration: none;
-            font-size: 13px;
-            cursor: pointer;
-        }
-        .link:hover { color: #c4b5fd; text-decoration: underline; }
-        
-        /* Profile section */
-        .profile-section { margin-bottom: 28px; }
-        .profile-section:last-child { margin-bottom: 0; }
-        .profile-section-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #9ca3af;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #1f2937;
-        }
-        .profile-email {
-            font-size: 15px;
-            color: white;
-            font-weight: 500;
-        }
-        
-        /* API Key */
-        .key-item {
-            background: #0B0F19;
-            border: 1px solid #1f2937;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-        }
-        .key-value {
-            font-family: 'Fira Code', monospace;
-            font-size: 12px;
-            color: #10b981;
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .key-actions {
-            display: flex;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-        .key-btn {
-            background: transparent;
-            border: 1px solid #374151;
-            color: #9ca3af;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-        .key-btn:hover {
-            background: #1f2937;
-            color: white;
-        }
-        .key-btn.danger:hover {
-            background: #7f1d1d;
-            border-color: #7f1d1d;
-            color: white;
-        }
-        
-        /* Stats */
-        .stats-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-        .stat-box {
-            background: #0B0F19;
-            border: 1px solid #1f2937;
-            border-radius: 8px;
-            padding: 14px;
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 22px;
-            font-weight: 800;
-            color: white;
-        }
-        .stat-label {
-            font-size: 11px;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-top: 4px;
-        }
-        
-        /* Empty state */
-        .empty-state {
-            text-align: center;
-            padding: 20px;
-            color: #6b7280;
-            font-size: 13px;
-            font-style: italic;
-        }
-        
-        /* State visibility */
-        .state { display: none; }
-        .state.active { display: block; }
-        
-        /* Footer */
-        footer {
-            border-top: 1px solid #111827;
-            background: #030712;
-            padding: 32px 24px;
-            text-align: center;
-        }
-        .footer-text {
-            font-size: 11px;
-            color: #6b7280;
-            margin-bottom: 10px;
-        }
-        .footer-contacts {
-            font-size: 11px;
-            color: #4b5563;
-        }
-        .footer-contacts a {
-            color: #9ca3af;
-            text-decoration: none;
-        }
-        .footer-contacts a:hover { color: #10b981; }
-        .footer-contacts code { color: #10b981; }
-        
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 100;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(8px);
-            align-items: center;
-            justify-content: center;
-        }
-        .modal.active { display: flex; }
-        .modal-content {
-            background: #0B0F19;
-            border: 1px solid #1f2937;
-            max-width: 400px;
-            width: 90%;
-            border-radius: 12px;
-            padding: 24px;
-        }
-        .modal-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: white;
-            margin-bottom: 12px;
-        }
-        .modal-text {
-            font-size: 14px;
-            color: #9ca3af;
-            margin-bottom: 20px;
-        }
-        .modal-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
-        .modal-actions .btn {
-            width: auto;
-            padding: 8px 16px;
-            margin-top: 0;
-        }
-        
-
-        /* Mobile menu */
-        .menu-toggle {
-            display: none;
-            background: none;
-            border: none;
-            color: white;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 4px 8px;
-        }
-        .mobile-menu {
-            display: none;
-            position: fixed;
-            top: 56px;
-            left: 0;
-            right: 0;
-            background: rgba(11, 15, 25, 0.98);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid #1f2937;
-            padding: 16px 24px;
-            z-index: 49;
-            flex-direction: column;
-            gap: 16px;
-        }
-        .mobile-menu.active { display: flex; }
-        .mobile-menu a {
-            color: #d1d5db;
-            text-decoration: none;
-            font-size: 15px;
-            padding: 8px 0;
-            border-bottom: 1px solid #1f2937;
-        }
-        .mobile-menu a:last-child { border-bottom: none; }
-        .mobile-menu a:hover { color: #10b981; }
-        .mobile-menu a.purple { color: #a78bfa; }
-
-        @media (max-width: 600px) {
-            nav { display: none; }
-            .menu-toggle { display: block; }
-            .card { padding: 24px 20px; }
-        }
-    </style>
-</head>
-<body>
-    <header>
-        <div class="header-inner">
-            <a href="/" class="logo">
-                <span>🔐</span>
-                <span>SKV_NETWORK <span class="logo-version">v8.0</span></span>
-            </a>
-            <nav>
-                <a href="/">Home</a>
-                <a href="/#constitution">Constitution</a>
-                <a href="/sandbox">Sandbox</a>
-                <a href="/profile">Profile</a>
-                <a href="/api/v7/agent/openapi.json" target="_blank" class="purple">OpenAPI</a>
-            </nav>
-            <button class="menu-toggle" onclick="toggleMenu()" aria-label="Menu">☰</button>
-        </div>
-    </header>
-
-    <div id="mobile-menu" class="mobile-menu">
-        <a href="/" onclick="toggleMenu()">Home</a>
-        <a href="/#constitution" onclick="toggleMenu()">Constitution</a>
-        <a href="/sandbox">Sandbox</a>
-        <a href="/profile">Profile</a>
-        <a href="/api/v7/agent/openapi.json" target="_blank" class="purple">OpenAPI</a>
-    </div>
-
-    <main>
-        <div class="card">
-            <!-- STATE 1: Register -->
-            <div id="state-register" class="state">
-                <h1 class="card-title">Create Account</h1>
-                <p class="card-desc">Get your API key and connect AI agents to SKV Network.</p>
-                
-                <div id="alert-register" class="alert"></div>
-                
-                <form id="form-register" onsubmit="handleRegister(event)">
-                    <div class="form-group">
-                        <label class="form-label" for="reg-email">Email</label>
-                        <input type="email" id="reg-email" class="form-input" placeholder="you@example.com" required autocomplete="email">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="reg-password">Password</label>
-                        <input type="password" id="reg-password" class="form-input" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password">
-                    </div>
-                    <button type="submit" class="btn btn-primary" id="btn-register">Create Account</button>
-                </form>
-                
-                <p class="help-text" style="margin-top: 20px;">
-                    Already have an account? <a class="link" onclick="showState('login')">Sign in</a>
-                </p>
-            </div>
-
-            <!-- STATE 2: Confirm -->
-            <div id="state-confirm" class="state">
-                <h1 class="card-title">Confirm Your Email</h1>
-                <p class="card-desc">We sent a confirmation code. Check your email or server logs.</p>
-                
-                <div id="alert-confirm" class="alert"></div>
-                
-                <form id="form-confirm" onsubmit="handleConfirm(event)">
-                    <div class="form-group">
-                        <label class="form-label" for="conf-email">Email</label>
-                        <input type="email" id="conf-email" class="form-input" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="conf-code">Confirmation Code</label>
-                        <input type="text" id="conf-code" class="form-input mono" placeholder="F49EC6C0" required autocomplete="off" style="text-transform: uppercase;">
-                    </div>
-                    <button type="submit" class="btn btn-primary" id="btn-confirm">Confirm Email</button>
-                </form>
-                
-                <p class="help-text">
-                    💡 In test environment, the code appears in server logs.<br>
-                    Check: <code>docker logs skv_api --tail 50</code>
-                </p>
-            </div>
-
-            <!-- STATE 3: Login -->
-            <div id="state-login" class="state">
-                <h1 class="card-title">Sign In</h1>
-                <p class="card-desc">Enter your credentials to get your API key.</p>
-                
-                <div id="alert-login" class="alert"></div>
-                
-                <form id="form-login" onsubmit="handleLogin(event)">
-                    <div class="form-group">
-                        <label class="form-label" for="login-email">Email</label>
-                        <input type="email" id="login-email" class="form-input" required autocomplete="email">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="login-password">Password</label>
-                        <input type="password" id="login-password" class="form-input" placeholder="Your password" required autocomplete="current-password">
-                    </div>
-                    <button type="submit" class="btn btn-primary" id="btn-login">Sign In</button>
-                </form>
-                
-                <p class="help-text" style="margin-top: 20px;">
-                    Don't have an account? <a class="link" onclick="showState('register')">Create one</a>
-                </p>
-            </div>
-
-            <!-- STATE 4: Profile -->
-            <div id="state-profile" class="state">
-                <h1 class="card-title">My Profile</h1>
-                <p class="card-desc">Your API keys and account information.</p>
-                
-                <div id="alert-profile" class="alert"></div>
-                
-                <!-- Account Info -->
-                <div class="profile-section">
-                    <div class="profile-section-title">Account</div>
-                    <p class="profile-email" id="profile-email">—</p>
-                </div>
-                
-                <!-- API Keys -->
-                <div class="profile-section">
-                    <div class="profile-section-title" style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>API Keys</span>
-                        <button class="btn btn-primary btn-small" onclick="createKey()" id="btn-new-key">+ New Key</button>
-                    </div>
-                    <div id="keys-list"></div>
-                </div>
-                
-                <!-- Stats -->
-                <div class="profile-section">
-                    <div class="profile-section-title">Statistics</div>
-                    <div class="stats-row">
-                        <div class="stat-box">
-                            <div class="stat-value" id="stat-events">—</div>
-                            <div class="stat-label">Events</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="stat-value" id="stat-vectors">—</div>
-                            <div class="stat-label">Vectors</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Logout -->
-                <button class="btn btn-secondary" onclick="logout()" style="margin-top: 20px;">Sign Out</button>
-            </div>
-        </div>
     
-    <div class="card" style="margin-top: 24px; border: 1px solid #1f2937;">
-        <h3 style="color: #f0883e; margin-bottom: 12px;">📥 Import Chat History</h3>
-        <p style="color: #8b949e; font-size: 14px; margin-bottom: 16px;">
-            1. Open your chat share link<br>
-            2. Click the <b>"SKV Import"</b> bookmarklet → text is copied as JSON<br>
-            3. Paste JSON below and click Import
-        </p>
-        
-        
-        <div style="display:flex;gap:10px;margin-bottom:10px;">
-            <input type="text" id="importUrl" placeholder="Paste chat share URL here (DeepSeek, ChatGPT, Claude...)" style="flex:1;padding:10px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-size:14px;">
-            <button onclick="fetchFromUrl()" style="padding:10px 20px;background:#1f6feb;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Fetch</button>
-        </div>
-        <div id="importStatus" style="margin-bottom:10px;font-size:14px;"></div>
-
-        <textarea id="importData" rows="6" placeholder='[{"role":"user","content":"..."},{"role":"assistant","content":"..."}]' 
-            style="width:100%;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:8px;padding:12px;font-family:monospace;font-size:13px;resize:vertical;"></textarea>
-        
-        <div style="display:flex;gap:10px;margin-top:12px;">
-            <input type="text" id="importSource" placeholder="Source (e.g., chatgpt, claude, grok)" style="flex:1;padding:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;">
-            <button onclick="importDialogs()" style="padding:10px 20px;background:#238636;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Import</button>
-            <button onclick="processImport()" style="padding:10px 20px;background:#1f6feb;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Process with AI</button>
-        </div>
-        <div id="importStatus" style="margin-top:10px;font-size:14px;"></div>
-    </div>
-
-    
-    </div>
-
-    <footer>
-        <p class="footer-text">© 2026 SKV Network · Designed by AI, for AI · Protected by CUBE 00-05</p>
-        <p class="footer-contacts">
-            📧 <a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a>
-            &nbsp;·&nbsp;
-            💎 USDT TRON (Telegram Wallet): <code>TKiRxHVxHSnZSP7ERwkv73nPmGfq2fKwJF</code>
-        </p>
-    </footer>
-
-    <script>
-        const API_BASE = '';
-        let currentToken = localStorage.getItem('skv_token');
-        let pendingRevokeKey = null;
-        let tempEmail = '';
-
-        // Init
         async function init() {
             if (currentToken) {
                 try {
@@ -1747,23 +1101,7 @@
 
         init();
     
-    async function fetchFromUrl() {
-        const url = document.getElementById('importUrl').value;
-        if (!url) return;
-        const status = document.getElementById('importStatus');
-        status.innerHTML = '⏳ Fetching...';
-        try {
-            const resp = await fetch(url);
-            const html = await resp.text();
-            const text = html.replace(/<[^>]*>/g, '\n');
-            const lines = text.split('\n').filter(l => l.trim().length > 15);
-            const messages = lines.map((l, i) => ({role: i % 2 === 0 ? 'user' : 'assistant', content: l.trim()}));
-            document.getElementById('importData').value = JSON.stringify(messages, null, 2);
-            status.innerHTML = '✅ Found ' + messages.length + ' messages!';
-        } catch(e) {
-            status.innerHTML = '❌ Error: ' + e.message;
-        }
-    }
+    
     
     async function importDialogs() {
         const data = document.getElementById('importData').value;
@@ -1793,6 +1131,111 @@
         document.getElementById('importStatus').innerHTML = '✅ L1:' + (result.l1||0) + ' L2:' + (result.l2?'yes':'no') + ' Crit:' + (result.critical||0);
     }
 
+
+async function fetchFromUrl() {
+  const urlInput = document.getElementById('importUrl');
+  const status = document.getElementById('importStatus');
+  const dataTextarea = document.getElementById('importData');
+
+  const url = urlInput.value.trim();
+  if (!url) {
+    status.innerHTML = '❌ Введите URL';
+    return;
+  }
+
+  status.innerHTML = '⏳ Fetching...';
+  dataTextarea.value = '';
+
+  try {
+    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+    const resp = await fetch(proxyUrl, { 
+      headers: { 'Accept': 'text/html' } 
+    });
+    
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const html = await resp.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    let messages = [];
+
+    // 1. DeepSeek: __NEXT_DATA__ (Next.js)
+    const nextDataScript = doc.querySelector('script#__NEXT_DATA__');
+    if (nextDataScript) {
+      try {
+        const nextData = JSON.parse(nextDataScript.textContent || '{}');
+        const pageProps = nextData?.props?.pageProps || nextData?.props || {};
+        
+        let rawMessages = 
+          pageProps.messages ||
+          pageProps.conversation?.messages ||
+          pageProps.initialConversation?.messages ||
+          pageProps.chat?.messages ||
+          [];
+
+        if (Array.isArray(rawMessages) && rawMessages.length > 0) {
+          messages = rawMessages
+            .map(m => {
+              const content = m.content || m.text || m.message || '';
+              const role = (m.role || m.sender || '').toLowerCase();
+              return {
+                role: role.includes('user') || role.includes('human') ? 'user' : 'assistant',
+                content: typeof content === 'string' ? content.trim() : JSON.stringify(content)
+              };
+            })
+            .filter(m => m.content && m.content.length > 10);
+        }
+      } catch (e) {
+        console.warn('__NEXT_DATA__ parse error:', e);
+      }
+    }
+
+    // 2. Fallback: DOM-парсинг
+    if (messages.length === 0) {
+      const selectors = [
+        'div[class*="message"]', 'div[class*="bubble"]', 'article',
+        '.ds-message', '[data-message-id]', '.chat-message'
+      ];
+
+      selectors.forEach(sel => {
+        doc.querySelectorAll(sel).forEach(el => {
+          const className = (el.className || '').toLowerCase();
+          const roleAttr = el.getAttribute('data-role') || '';
+          const isUser = className.includes('user') || roleAttr === 'user';
+          
+          let text = (el.innerText || el.textContent || '').trim();
+          if (text.length > 15) {
+            messages.push({
+              role: isUser ? 'user' : 'assistant',
+              content: text
+            });
+          }
+        });
+      });
+    }
+
+    // Дедупликация
+    const seen = new Set();
+    messages = messages.filter(m => {
+      const key = `${m.role}:${m.content.substring(0, 80)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    if (messages.length > 0) {
+      dataTextarea.value = JSON.stringify(messages, null, 2);
+      status.innerHTML = `✅ Найдено ${messages.length} сообщений!`;
+    } else {
+      status.innerHTML = '❌ Сообщения не найдены. Попробуй другой share-линк.';
+    }
+
+  } catch (e) {
+    console.error(e);
+    status.innerHTML = `❌ Ошибка: ${e.message}`;
+  }
+}
 </script>
 
     <script>
@@ -1801,4 +1244,109 @@
         }
     
 
+
+async function fetchFromUrl() {
+  const urlInput = document.getElementById('importUrl');
+  const status = document.getElementById('importStatus');
+  const dataTextarea = document.getElementById('importData');
+
+  const url = urlInput.value.trim();
+  if (!url) {
+    status.innerHTML = '❌ Введите URL';
+    return;
+  }
+
+  status.innerHTML = '⏳ Fetching...';
+  dataTextarea.value = '';
+
+  try {
+    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+    const resp = await fetch(proxyUrl, { 
+      headers: { 'Accept': 'text/html' } 
+    });
+    
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const html = await resp.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    let messages = [];
+
+    // 1. DeepSeek: __NEXT_DATA__ (Next.js)
+    const nextDataScript = doc.querySelector('script#__NEXT_DATA__');
+    if (nextDataScript) {
+      try {
+        const nextData = JSON.parse(nextDataScript.textContent || '{}');
+        const pageProps = nextData?.props?.pageProps || nextData?.props || {};
+        
+        let rawMessages = 
+          pageProps.messages ||
+          pageProps.conversation?.messages ||
+          pageProps.initialConversation?.messages ||
+          pageProps.chat?.messages ||
+          [];
+
+        if (Array.isArray(rawMessages) && rawMessages.length > 0) {
+          messages = rawMessages
+            .map(m => {
+              const content = m.content || m.text || m.message || '';
+              const role = (m.role || m.sender || '').toLowerCase();
+              return {
+                role: role.includes('user') || role.includes('human') ? 'user' : 'assistant',
+                content: typeof content === 'string' ? content.trim() : JSON.stringify(content)
+              };
+            })
+            .filter(m => m.content && m.content.length > 10);
+        }
+      } catch (e) {
+        console.warn('__NEXT_DATA__ parse error:', e);
+      }
+    }
+
+    // 2. Fallback: DOM-парсинг
+    if (messages.length === 0) {
+      const selectors = [
+        'div[class*="message"]', 'div[class*="bubble"]', 'article',
+        '.ds-message', '[data-message-id]', '.chat-message'
+      ];
+
+      selectors.forEach(sel => {
+        doc.querySelectorAll(sel).forEach(el => {
+          const className = (el.className || '').toLowerCase();
+          const roleAttr = el.getAttribute('data-role') || '';
+          const isUser = className.includes('user') || roleAttr === 'user';
+          
+          let text = (el.innerText || el.textContent || '').trim();
+          if (text.length > 15) {
+            messages.push({
+              role: isUser ? 'user' : 'assistant',
+              content: text
+            });
+          }
+        });
+      });
+    }
+
+    // Дедупликация
+    const seen = new Set();
+    messages = messages.filter(m => {
+      const key = `${m.role}:${m.content.substring(0, 80)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    if (messages.length > 0) {
+      dataTextarea.value = JSON.stringify(messages, null, 2);
+      status.innerHTML = `✅ Найдено ${messages.length} сообщений!`;
+    } else {
+      status.innerHTML = '❌ Сообщения не найдены. Попробуй другой share-линк.';
+    }
+
+  } catch (e) {
+    console.error(e);
+    status.innerHTML = `❌ Ошибка: ${e.message}`;
+  }
+}
 </script>

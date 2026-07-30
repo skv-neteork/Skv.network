@@ -46,6 +46,11 @@ from fastapi.responses import HTMLResponse
 
 async def homepage_v8():
     """SKV v8.0 PRO — Zero-Code AI Memory Network"""
+    try:
+        with open("app/home.html", "r", encoding="utf-8") as _f:
+            return HTMLResponse(_f.read())
+    except:
+        pass
     html = """<!DOCTYPE html>
 <html lang="en">
 <head>

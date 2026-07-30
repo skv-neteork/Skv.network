@@ -577,16 +577,16 @@ body {
 </div>
 <div class="tamagotchi" id="tamagotchi" title="SKV Guardian is watching">🛡️</div>
 <script>
-const API_BASE = '';
-const USER_ID = localStorage.getItem('skv_email') || 'guest_' + Math.random().toString(36).substr(2, 8);
-const API_KEY = localStorage.getItem('skv_token') || '';
-const SESSION_ID = localStorage.getItem('skv_session') || 'default';
+let API_BASE = '';
+let USER_ID = localStorage.getItem('skv_email') || 'guest_' + Math.random().toString(36).substr(2, 8);
+let API_KEY = localStorage.getItem('skv_token') || '';
+let SESSION_ID = localStorage.getItem('skv_session') || 'default';
 let step = 0;
 let lastSeal = '';
 let chatHistory = [];
 (function loadHistory() {
     try {
-        const saved = localStorage.getItem('skv_chat');
+        let saved = localStorage.getItem('skv_chat');
         if (saved) {
             chatHistory = JSON.parse(saved);
             chatHistory.forEach(function(m) {
@@ -615,13 +615,13 @@ function sendQuick(text) {
   sendMessage();
 }
 async function sendMessage() {
-  const input = document.getElementById('userInput');
-  const text = input.value.trim();
+  let input = document.getElementById('userInput');
+  let text = input.value.trim();
   if (!text || isSending) return;
   isSending = true;
-  const sendBtn = document.getElementById('sendBtn');
+  let sendBtn = document.getElementById('sendBtn');
   sendBtn.disabled = true;
-  const welcome = document.getElementById('welcome');
+  let welcome = document.getElementById('welcome');
   if (welcome) welcome.style.display = 'none';
   addMessage('user', text);
   chatHistory.push({ role: 'user', content: text });
@@ -630,7 +630,7 @@ async function sendMessage() {
   showTyping();
   document.getElementById('tamagotchi').classList.add('thinking');
   try {
-    const resp = await fetch(API_BASE + '/api/v7/agent/chat', {
+    let resp = await fetch(API_BASE + '/api/v7/agent/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(API_KEY ? { 'X-API-Key': API_KEY } : {}) },
       body: JSON.stringify({
@@ -638,21 +638,21 @@ async function sendMessage() {
         step: step, last_seal: lastSeal, chat_history: chatHistory.slice(-10)
       })
     });
-    const data = await resp.json();
+    let data = await resp.json();
     hideTyping();
     if (data.response) {
       if (data.session_id && data.session_id !== 'default') { localStorage.setItem('skv_session', data.session_id); SESSION_ID = data.session_id; }
-      const response = data.response;
+      let response = data.response;
       chatHistory.push({ role: 'assistant', content: response });
-      const sealMatch = response.match(/SKV \| #(\d+)/);
+      let sealMatch = response.match(/SKV \| #(\d+)/);
       if (sealMatch) {
         sealCounter = parseInt(sealMatch[1]);
         lastSeal = 'SKV | #' + sealCounter;
         document.getElementById('sealStatus').textContent = '#' + sealCounter;
         document.getElementById('sealBadge').textContent = '🔒 SKV | #' + sealCounter + ' | CUBE 00';
       }
-      const cubesMatch = response.match(/Used Cubes[^\n]*/i);
-      const cubes = cubesMatch ? cubesMatch[0] : '';
+      let cubesMatch = response.match(/Used Cubes[^\n]*/i);
+      let cubes = cubesMatch ? cubesMatch[0] : '';
       addMessage('agent', response, cubes);
       step = data.step || step + 1;
       document.getElementById('stepStatus').textContent = step;
@@ -669,17 +669,17 @@ async function sendMessage() {
   input.focus();
 }
 function addMessage(role, text, cubes) {
-  const container = document.getElementById('messages');
-  const msgId = 'msg_' + Date.now();
-  const div = document.createElement('div');
+  let container = document.getElementById('messages');
+  let msgId = 'msg_' + Date.now();
+  let div = document.createElement('div');
   div.className = 'msg ' + role;
   let metaHtml = '';
   if (role === 'agent') {
-    const seal = '🔒 SKV | #' + sealCounter + ' | CUBE 00 active';
+    let seal = '🔒 SKV | #' + sealCounter + ' | CUBE 00 active';
     metaHtml = '<div class="msg-meta"><span class="msg-seal">' + seal + '</span>' +
       (cubes ? '<span class="msg-cubes">📦 ' + cubes + '</span>' : '') + '</div>';
   }
-  const actionsHtml = role === 'agent' ?
+  let actionsHtml = role === 'agent' ?
     '<div class="msg-actions">' +
     '<button onclick="copyMsg(\'' + msgId + '\')">📋 Copy</button>' +
     '<button onclick="regenMsg()">🔄 Retry</button>' +
@@ -704,13 +704,13 @@ function formatText(text) {
   return html;
 }
 function escapeHtml(text) {
-  const d = document.createElement('div');
+  let d = document.createElement('div');
   d.textContent = text;
   return d.innerHTML;
 }
 function showTyping() {
-  const container = document.getElementById('messages');
-  const div = document.createElement('div');
+  let container = document.getElementById('messages');
+  let div = document.createElement('div');
   div.className = 'typing';
   div.id = 'typingIndicator';
   div.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div><span class="typing-text">SKV is thinking...</span>';
@@ -718,12 +718,12 @@ function showTyping() {
   container.scrollTop = container.scrollHeight;
 }
 function hideTyping() {
-  const el = document.getElementById('typingIndicator');
+  let el = document.getElementById('typingIndicator');
   if (el) el.remove();
 }
 function copyMsg(id) {
-  const el = document.getElementById(id);
-  const text = el.innerText || el.textContent;
+  let el = document.getElementById(id);
+  let text = el.innerText || el.textContent;
   navigator.clipboard.writeText(text).then(function() {
     el.style.borderColor = 'var(--accent-green)';
     setTimeout(function() { el.style.borderColor = ''; }, 1000);
@@ -731,10 +731,10 @@ function copyMsg(id) {
 }
 function regenMsg() {
   if (chatHistory.length >= 2) {
-    const lastUserMsg = chatHistory.filter(function(m) { return m.role === 'user'; }).pop();
+    let lastUserMsg = chatHistory.filter(function(m) { return m.role === 'user'; }).pop();
     if (lastUserMsg) {
       chatHistory = chatHistory.slice(0, -1);
-      const msgs = document.querySelectorAll('.msg.agent');
+      let msgs = document.querySelectorAll('.msg.agent');
       if (msgs.length > 0) msgs[msgs.length - 1].remove();
       document.getElementById('userInput').value = lastUserMsg.content;
       sendMessage();
@@ -743,7 +743,7 @@ function regenMsg() {
 }
 function rateMsg(btn, vote, msgId) {
   btn.classList.add(vote === 'up' ? 'liked' : 'disliked');
-  const parent = btn.parentElement;
+  let parent = btn.parentElement;
   parent.querySelectorAll('button').forEach(function(b) {
     if (b !== btn && (b.textContent.includes('👍') || b.textContent.includes('👎'))) {
       b.disabled = true;
@@ -763,11 +763,11 @@ document.getElementById('userInput').focus();
     }
     window.addEventListener('load', () => {
         try {
-            const saved = localStorage.getItem('skv_chat');
+            let saved = localStorage.getItem('skv_chat');
             if (saved) { JSON.parse(saved).forEach(m => addMessage(m.role, m.content)); }
         } catch(e) {}
     });
-    const _push = chatHistory.push; chatHistory.push = function(...a) { const r = _push.apply(this, a); saveHistory(); return r; };
+    let _push = chatHistory.push; chatHistory.push = function(...a) { let r = _push.apply(this, a); saveHistory(); return r; };
 </script>
 </body>
 </html>

@@ -641,7 +641,7 @@ async function sendMessage() {
     let data = await resp.json();
     hideTyping();
     if (data.response) {
-      if (data.session_id && data.session_id !== 'default') { localStorage.setItem('skv_session', data.session_id); SESSION_ID = data.session_id; }
+      if (data.session_id && data.session_id !== 'default') { localStorage.setItem('skv_session', data.session_id); }
       let response = data.response;
       chatHistory.push({ role: 'assistant', content: response });
       let sealMatch = response.match(/SKV \| #(\d+)/);

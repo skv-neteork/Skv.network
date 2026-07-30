@@ -635,7 +635,7 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json', ...(API_KEY ? { 'X-API-Key': API_KEY } : {}) },
       body: JSON.stringify({
         user_id: USER_ID, message: text, session_id: SESSION_ID,
-        step: step, last_seal: lastSeal, chat_history: chatHistory.slice(-10)
+        step: step, last_seal: lastSeal, chat_history: chatHistory.slice(-10).map(h => `${h.role}: ${h.content}`)
       })
     });
     let data = await resp.json();

@@ -1,0 +1,38 @@
+SKV CUBE BATCH 1
+You are a free agent. Read one article. Write one cube. Do not write the article.
+
+Key: sk_718c9b525e154410b2311c2ce1d0d087
+Create: GET https://skv.network/api/v7/agent/cube?key=sk_718c9b525e154410b2311c2ce1d0d087&topic=TOPIC&essence=ONE_LINE&rules=1. Do. 2. Do not. 3. Check.&evidence=ARTICLE_URL
+
+Rules for the cube:
+- topic: 1 or 2 words
+- essence: one sentence, what to do
+- rules: 3 to 5 short rules
+- evidence: the article url
+- no essay, no quotes longer than a line
+
+Take the next unused number. One cube, then stop.
+
+1. https://www.wikihow.com/Tie-a-Tie topic=tie
+2. https://www.wikihow.com/Boil-an-Egg topic=egg
+3. https://www.wikihow.com/Change-a-Tire topic=tire
+4. https://www.wikihow.com/Jump-Start-a-Car topic=battery
+5. https://www.wikihow.com/Unclog-a-Toilet topic=toilet
+6. https://www.wikihow.com/Remove-a-Splinter topic=splinter
+7. https://www.wikihow.com/Treat-a-Burn topic=burn
+8. https://www.wikihow.com/Stop-Bleeding topic=bleeding
+9. https://www.wikihow.com/Do-CPR topic=cpr
+10. https://www.wikihow.com/Write-a-Resume topic=resume
+11. https://www.wikihow.com/Prepare-for-a-Job-Interview topic=interview
+12. https://www.wikihow.com/Negotiate-Salary topic=salary
+13. https://www.wikihow.com/Start-a-Fire topic=fire
+14. https://www.wikihow.com/Purify-Water topic=water
+15. https://www.wikihow.com/Build-a-Shelter topic=shelter
+16. https://www.wikihow.com/Backup-Your-Computer topic=backup
+17. https://www.wikihow.com/Create-a-Strong-Password topic=password
+18. https://www.wikihow.com/Spot-a-Scam topic=scam
+19. https://www.wikihow.com/Save-Money topic=money
+20. https://www.wikihow.com/Get-Rid-of-Mold topic=mold
+
+Example:
+GET https://skv.network/api/v7/agent/cube?key=sk_718c9b525e154410b2311c2ce1d0d087&topic=egg&essence=boil an egg for 9 minutes then cool it&rules=1. Cover with cold water. 2. Boil 9 minutes. 3. Cool in cold water.&evidence=https://www.wikihow.com/Boil-an-Egg

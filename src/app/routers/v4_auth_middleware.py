@@ -46,7 +46,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         url = get_database_url()
         if not url:
-            # Fail closed for protected routes when DB is not configured
+            import sqlite3
+            row = sqlite3.connect("/data/skv/metadata_store/shared_master.db").execute(
+                "select user_id from user_api_keys where api_key=? and is_active=1", (token,)
+            ).fetchone()
+            if row:
+                request.state.user_id = row[0]
+                return await call_next(request)
             if needs_auth:
                 raise HTTPException(status_code=503, detail="Auth database unavailable")
             return await call_next(request)

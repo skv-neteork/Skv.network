@@ -637,6 +637,15 @@ def score_keyword_match(query: str, cube: dict) -> float:
 @router.get("/api/v1/entries/{cube_id}")
 async def get_entry(cube_id: str):
     """Возвращает данные куба по ID (для обратной совместимости)"""
+    import sqlite3
+    try:
+        conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+        row = conn.execute("select essence, rules_markdown, status from cubes_new where cube_id=?", (cube_id,)).fetchone()
+        conn.close()
+        if row:
+            return {"id": cube_id, "cube_id": cube_id, "title": row[0], "content": row[1], "status": row[2], "source": "cubes_new"}
+    except Exception:
+        pass
     from app.routers.v4_graph import get_graph
     get_graph()
     from app.routers.v4_graph import _v4_graph
@@ -703,6 +712,17 @@ async def search_cubes(query: str = "", response: Response = None):
             return cached
     results = []
     if query and len(query.strip()) > 0:
+        import sqlite3
+        try:
+            conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+            like = "%" + query + "%"
+            for cid, essence, rules in conn.execute("select cube_id, essence, rules_markdown from cubes_new where essence like ? or rules_markdown like ? or cube_id like ? limit 20", (like, like, like)):
+                results.append({"id": cid, "cube_id": cid, "title": essence, "content": (rules or "")[:400]})
+            conn.close()
+        except Exception:
+            pass
+        if results:
+            return {"results": results, "count": len(results), "query": query}
         # Гибридный поиск: keyword с score + Qdrant fallback
         q_lower = query.lower()
         kw_candidates = []

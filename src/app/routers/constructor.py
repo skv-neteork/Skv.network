@@ -107,8 +107,6 @@ async def constructor_think(payload: dict):
                     except Exception as e:
                         logging.warning(f"DIM_CHECK_ERROR: {e}")
                     break
-        else:
-            raise HTTPException(400, f"Unknown: {mode}")
     
     session_memory[user_id] = result[:500]  # Save for next request
     # Dimension check for physics formulas

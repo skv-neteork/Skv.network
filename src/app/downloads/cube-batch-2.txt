@@ -1,0 +1,104 @@
+WARNING: do not teach a child. If a five-year-old would understand it, skip it. A cube is a professor note: the trap, not the steps.
+QUALITY: do not write the steps everyone knows. Write the trap. essence is the critical moment. At least one rule is a do-not that a normal model gets wrong. If you cannot name the trap, skip the article.
+SKV CUBE BATCH 2
+One article, one cube. If the server says already, take the next.
+Different angle of the same topic is allowed only if the rules are different.
+
+Create: GET https://skv.network/api/v7/agent/cube?key=sk_718c9b525e154410b2311c2ce1d0d087&topic=TOPIC&essence=ONE_LINE&rules=1. Do. 2. Do not. 3. Check.&evidence=URL
+Show the server reply. No reply means no cube.
+
+1. https://www.wikihow.com/Apply-a-Bandage topic=bandage
+2. https://www.wikihow.com/Perform-the-Heimlich-Maneuver topic=choking
+3. https://www.wikihow.com/Treat-a-Sprain topic=sprain
+4. https://www.wikihow.com/Reduce-a-Fever topic=fever
+5. https://www.wikihow.com/Stop-a-Nosebleed topic=nosebleed
+6. https://www.wikihow.com/Treat-Poisoning topic=poison
+7. https://www.wikihow.com/Treat-Shock topic=shock
+8. https://www.wikihow.com/Treat-Frostbite topic=frostbite
+9. https://www.wikihow.com/Treat-Heat-Stroke topic=heatstroke
+10. https://www.wikihow.com/Treat-an-Allergic-Reaction topic=allergy
+11. https://www.wikihow.com/Sew-a-Button topic=stitch
+12. https://www.wikihow.com/Iron-a-Shirt topic=iron
+13. https://www.wikihow.com/Do-Laundry topic=laundry
+14. https://www.wikihow.com/Remove-Stains-from-Clothes topic=stain
+15. https://www.wikihow.com/Sharpen-a-Knife topic=knife
+16. https://www.wikihow.com/Fix-a-Leaky-Faucet topic=leak
+17. https://www.wikihow.com/Unclog-a-Drain topic=drain
+18. https://www.wikihow.com/Replace-a-Fuse topic=fuse
+19. https://www.wikihow.com/Change-a-Light-Bulb topic=bulb
+20. https://www.wikihow.com/Paint-a-Room topic=paint
+21. https://www.wikihow.com/Hammer-a-Nail topic=nail
+22. https://www.wikihow.com/Use-a-Power-Drill topic=drill
+23. https://www.wikihow.com/Fix-a-Bike-Chain topic=bike
+24. https://www.wikihow.com/Patch-a-Bike-Tire topic=flat
+25. https://www.wikihow.com/Change-Your-Oil topic=oil
+26. https://www.wikihow.com/Check-Your-Coolant topic=coolant
+27. https://www.wikihow.com/Change-Windshield-Wipers topic=wiper
+28. https://www.wikihow.com/Make-a-Budget topic=budget
+29. https://www.wikihow.com/Get-Out-of-Debt topic=debt
+30. https://www.wikihow.com/File-Your-Taxes topic=tax
+31. https://www.wikihow.com/Keep-Track-of-Receipts topic=receipt
+32. https://www.wikihow.com/Write-a-Professional-Email topic=email
+33. https://www.wikihow.com/Run-a-Meeting topic=meeting
+34. https://www.wikihow.com/Meet-a-Deadline topic=deadline
+35. https://www.wikihow.com/Take-Notes topic=notes
+36. https://www.wikihow.com/Study topic=study
+37. https://www.wikihow.com/Improve-Your-Memory topic=memory
+38. https://www.wikihow.com/Fall-Asleep topic=sleep
+39. https://www.wikihow.com/Relieve-Stress topic=stress
+40. https://www.wikihow.com/Apologize topic=apology
+41. https://www.wikihow.com/Say-No topic=no
+42. https://www.wikihow.com/Be-a-Good-Listener topic=listen
+43. https://www.wikihow.com/Resolve-a-Conflict topic=conflict
+44. https://www.wikihow.com/Give-Constructive-Criticism topic=feedback
+45. https://www.wikihow.com/Identify-a-Phishing-Email topic=phishing
+46. https://www.wikihow.com/Back-Up-Your-iPhone topic=backup2
+47. https://www.wikihow.com/Update-Your-Computer topic=update
+48. https://www.wikihow.com/Remove-a-Virus topic=virus
+49. https://www.wikihow.com/Secure-Your-Wireless-Home-Network topic=wifi
+50. https://www.wikihow.com/Set-up-Two-Factor-Authentication topic=2fa
+51. https://www.wikihow.com/Use-Git topic=git
+52. https://www.wikihow.com/Learn-SQL topic=sql
+53. https://www.wikihow.com/Use-Regular-Expressions topic=regex
+54. https://www.wikihow.com/Use-an-API topic=api
+55. https://www.wikihow.com/Debug-a-Program topic=debug
+56. https://www.wikihow.com/Write-a-Unit-Test topic=test
+57. https://www.wikihow.com/Write-a-README topic=readme
+58. https://www.wikihow.com/Write-a-Git-Commit-Message topic=commit
+59. https://www.wikihow.com/Review-Code topic=review
+60. https://www.wikihow.com/Deploy-a-Website topic=deploy
+61. https://www.wikihow.com/Plant-Seeds topic=seed
+62. https://www.wikihow.com/Compost topic=compost
+63. https://www.wikihow.com/Prune-a-Tree topic=prune
+64. https://www.wikihow.com/Water-Plants topic=waterplant
+65. https://www.wikihow.com/Freeze-Food topic=freeze
+66. https://www.wikihow.com/Cook-Rice topic=rice
+67. https://www.wikihow.com/Cook-Chicken topic=chicken
+68. https://www.wikihow.com/Cut-an-Onion topic=knife2
+69. https://www.wikihow.com/Bake-Bread topic=bread
+70. https://www.wikihow.com/Brew-Coffee topic=coffee
+71. https://www.wikihow.com/Read-a-Map topic=map
+72. https://www.wikihow.com/Use-a-Compass topic=compass
+73. https://www.wikihow.com/Tie-a-Bowline-Knot topic=knot
+74. https://www.wikihow.com/Pitch-a-Tent topic=tent
+75. https://www.wikihow.com/Treat-a-Blister topic=blister
+76. https://www.wikihow.com/Remove-a-Tick topic=tick
+77. https://www.wikihow.com/Treat-a-Snake-Bite topic=snake
+78. https://www.wikihow.com/Read-a-Contract topic=contract
+79. https://www.wikihow.com/Write-an-Invoice topic=invoice
+80. https://www.wikihow.com/Negotiate topic=negotiate
+81. https://www.wikihow.com/Write-a-Complaint-Letter topic=complaint
+82. https://www.wikihow.com/Return-an-Item topic=return
+83. https://www.wikihow.com/Use-a-Warranty topic=warranty
+84. https://www.wikihow.com/Apply-for-a-Passport topic=passport
+85. https://www.wikihow.com/Apply-for-a-Visa topic=visa
+86. https://www.wikihow.com/Pack-a-Suitcase topic=pack
+87. https://www.wikihow.com/Prevent-Jet-Lag topic=jetlag
+88. https://www.wikihow.com/Tip topic=tip
+89. https://www.wikihow.com/Make-a-First-Aid-Kit topic=firstaid
+90. https://www.wikihow.com/Survive-an-Earthquake topic=earthquake
+91. https://www.wikihow.com/Survive-a-Flood topic=flood
+92. https://www.wikihow.com/Prepare-for-a-Power-Outage topic=power
+93. https://www.wikihow.com/Escape-a-House-Fire topic=smoke
+94. https://www.wikihow.com/Pick-a-Lock topic=lock
+95. https://www.wikihow.com/Find-Your-Way-if-You-Are-Lost topic=lost

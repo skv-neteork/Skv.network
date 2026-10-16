@@ -8,3 +8,4 @@ data/*.log
 .env
 src/.env
 *.env
+data/chrono_buffer/

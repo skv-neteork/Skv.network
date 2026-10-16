@@ -9,3 +9,5 @@ data/*.log
 src/.env
 *.env
 data/chrono_buffer/
+*.pyc
+__pycache__/

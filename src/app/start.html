@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SKV</title>
+<body style="font-family:sans-serif;max-width:640px;margin:40px auto;line-height:1.5">
+<h1>Sign in</h1>
+<p id="gate">The key and setup link are shown after you sign in.</p>
+<p><a href="/profile">Open profile</a></p>
+<script>
+var token = localStorage.getItem("skv_token");
+if (token) {
+  document.getElementById("gate").textContent = "Send your agent the key from your profile and this link. It will explain the rest.";
+  var p = document.createElement("p");
+  var a = document.createElement("a");
+  a.href = "https://skv.network/api/v7/agent/start";
+  a.textContent = a.href;
+  p.appendChild(a);
+  document.body.appendChild(p);
+}
+</script>
+</body>

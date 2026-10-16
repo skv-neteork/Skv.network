@@ -40,11 +40,13 @@ def require_database_url() -> str:
 
 
 def get_resend_api_key() -> str:
-    return (
-        os.getenv("RESEND_API_KEY")
-        or os.getenv("RESEND_KEY")
-        or ""
-    ).strip()
+    key = (os.getenv("RESEND_API_KEY") or os.getenv("RESEND_KEY") or "").strip()
+    if key:
+        return key
+    try:
+        return open("/data/skv/resend.key").read().strip()
+    except Exception:
+        return ""
 
 
 def get_skv_salt() -> str:

@@ -1,18 +1,15 @@
 {
-  "openapi": "3.1.0",
+  "openapi": "3.0.0",
   "info": {
     "title": "SKV Network API v8.3",
     "version": "8.3",
-    "description": "SKV — коллективная память и инструменты для AI-агентов. Все эндпоинты принимают JSON. Авторизация через Bearer token (получить: https://skv.network/profile)."
+    "description": "New chat paste: work through SKV. First call POST /api/v7/memory with step 0 to load the map and constitution. Later, search when the past can change the answer. After every reply POST /api/v7/remember. Header Authorization Bearer sk_key. Tools: searchMemory, remember, digMemory, openEvent, voteCube. Guardian: GET /api/v7/agent/guardian.py"
   },
-  "servers": [{"url": "https://skv.network"}],
-  "security": [{"BearerAuth": []}],
   "paths": {
     "/api/v7/memory": {
       "post": {
         "operationId": "searchMemory",
-        "summary": "Поиск в памяти SKV",
-        "description": "ОБЯЗАТЕЛЬНО перед каждым ответом. Гибридный HNSW+FTS5 поиск.",
+        "summary": "Read memory. Rewrite the user sentence first: names and rare words in, common words out.",
         "requestBody": {
           "required": true,
           "content": {
@@ -20,102 +17,35 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "query_text": {"type": "string", "description": "Поисковый запрос", "example": "What is SKV?"},
-                  "focus_words": {"type": "array", "items": {"type": "string"}, "description": "Точные слова для FTS5", "example": ["SKV", "memory"]},
-                  "user_id": {"type": "string", "description": "ID пользователя", "example": "test_user"},
-                  "top_k": {"type": "integer", "default": 5}
+                  "user_id": {
+                    "type": "string"
+                  },
+                  "query_text": {
+                    "type": "string"
+                  },
+                  "top_k": {
+                    "type": "integer"
+                  }
                 },
-                "required": ["query_text", "user_id"]
-              },
-              "example": {
-                "query_text": "What is SKV?",
-                "user_id": "test_user",
-                "top_k": 5
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v7/agent/chat": {
-      "post": {
-        "operationId": "chatWithAgent",
-        "summary": "Чат с SKV агентом",
-        "description": "Отправь сообщение — агент ответит с SEAL, используя память и конституцию.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "user_id": {"type": "string", "example": "test_user"},
-                  "message": {"type": "string", "example": "Hello!"},
-                  "session_id": {"type": "string", "default": "default"},
-                  "step": {"type": "integer", "default": 0},
-                  "last_seal": {"type": "string"},
-                  "chat_history": {"type": "array", "items": {"type": "object"}}
-                },
-                "required": ["user_id", "message"]
-              },
-              "example": {
-                "user_id": "test_user",
-                "message": "Hello! Who are you?",
-                "session_id": "chat_001",
-                "step": 0
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v7/tools/create-file": {
-      "post": {
-        "operationId": "createFile",
-        "summary": "Создать файл на сервере",
-        "description": "Создаёт файл и возвращает ссылку для скачивания. Поддерживает: html, txt, json, csv, md, svg, pdf, png, zip, py, css, js. Для PDF/PNG/ZIP содержимое должно быть в base64.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "filename": {"type": "string", "description": "Имя файла без расширения", "example": "my_page"},
-                  "content": {"type": "string", "description": "Содержимое файла", "example": "<h1>Hello World</h1>"},
-                  "type": {"type": "string", "enum": ["html", "txt", "json", "csv", "md", "svg", "pdf", "png", "zip", "py", "css", "js"], "example": "html"}
-                },
-                "required": ["filename", "content", "type"]
-              },
-              "example": {
-                "filename": "my_page",
-                "content": "<h1>Hello World</h1>",
-                "type": "html"
+                "required": [
+                  "user_id",
+                  "query_text"
+                ]
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Файл создан",
-            "content": {
-              "application/json": {
-                "example": {
-                  "status": "ok",
-                  "filename": "my_page.html",
-                  "url": "/download/my_page.html",
-                  "size_bytes": 20
-                }
-              }
-            }
+            "description": "fragments, previous, memory_map, shared_cubes, duty_error"
           }
         }
       }
     },
-    "/api/v7/experience/create": {
+    "/api/v7/remember": {
       "post": {
-        "operationId": "saveExperienceCube",
-        "summary": "Сохранить куб опыта",
+        "operationId": "remember",
+        "summary": "Write a turn, a >>> mark, L1, L2, a shared cube, or duty=cube_nothing / vote_nothing.",
         "requestBody": {
           "required": true,
           "content": {
@@ -123,30 +53,121 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "topic": {"type": "string", "example": "How to deploy SKV"},
-                  "essence": {"type": "string", "example": "Deploy with Docker on Hetzner"},
-                  "rules_markdown": {"type": "string", "example": "- MUST: Use Docker"},
-                  "evidence": {"type": "string", "example": "Tested on Ubuntu 22.04"},
-                  "session_id": {"type": "string", "example": "chat_001"}
+                  "user_id": {
+                    "type": "string"
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "response": {
+                    "type": "string"
+                  },
+                  "topic": {
+                    "type": "string"
+                  },
+                  "pin": {
+                    "type": "boolean"
+                  },
+                  "critical": {
+                    "type": "string"
+                  },
+                  "l1_summary": {
+                    "type": "string"
+                  },
+                  "l2_map": {
+                    "type": "string"
+                  },
+                  "cube_topic": {
+                    "type": "string"
+                  },
+                  "cube_rules": {
+                    "type": "string"
+                  },
+                  "cube_evidence": {
+                    "type": "string"
+                  },
+                  "duty": {
+                    "type": "string"
+                  },
+                  "duty_reason": {
+                    "type": "string"
+                  }
                 },
-                "required": ["topic", "essence", "rules_markdown", "evidence"]
-              },
-              "example": {
-                "topic": "How to deploy SKV",
-                "essence": "Deploy with Docker on Hetzner VPS",
-                "rules_markdown": "- MUST: Use Docker Compose\n- SHALL: Enable SSL",
-                "evidence": "Tested on Ubuntu 22.04, works",
-                "session_id": "chat_001"
+                "required": [
+                  "user_id"
+                ]
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "saved"
+          }
+        }
+      }
+    },
+    "/api/v7/memory/dig": {
+      "post": {
+        "operationId": "digMemory",
+        "summary": "After three misses, ask the server to scan stored text. If not_found, say you do not know.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "string"
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "why": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "user_id",
+                  "query"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "found or not_found"
+          }
+        }
+      }
+    },
+    "/api/v7/event/{event_id}": {
+      "get": {
+        "operationId": "openEvent",
+        "summary": "Open an earlier repeat from previous. Do not search again.",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "full event"
           }
         }
       }
     },
     "/api/v7/experience/vote": {
       "post": {
-        "operationId": "voteOnCube",
-        "summary": "Оценить куб (1 — полезно, -1 — нерелевантно)",
+        "operationId": "voteCube",
+        "summary": "Vote on a shared experience cube you used. +1 or -1.",
         "requestBody": {
           "required": true,
           "content": {
@@ -154,192 +175,41 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "cube_id": {"type": "string", "example": "cube_123"},
-                  "user_id": {"type": "string", "example": "test_user"},
-                  "vote": {"type": "integer", "enum": [1, -1], "example": 1}
+                  "user_id": {
+                    "type": "string"
+                  },
+                  "cube_id": {
+                    "type": "string"
+                  },
+                  "vote": {
+                    "type": "integer"
+                  }
                 },
-                "required": ["cube_id", "user_id", "vote"]
-              },
-              "example": {
-                "cube_id": "cube_123",
-                "user_id": "test_user",
-                "vote": 1
+                "required": [
+                  "user_id",
+                  "cube_id",
+                  "vote"
+                ]
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "rating"
           }
         }
       }
     },
-    "/api/v7/event/write": {
-      "post": {
-        "operationId": "saveEvent",
-        "summary": "Сохранить диалог/событие в память",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "user_id": {"type": "string", "example": "test_user"},
-                  "session_id": {"type": "string", "example": "test_001"},
-                  "query": {"type": "string", "example": "What is SKV?"},
-                  "response": {"type": "string", "example": "SKV is a memory platform"},
-                  "topic": {"type": "string", "example": "Introduction"}
-                },
-                "required": ["user_id", "query", "response"]
-              },
-              "example": {
-                "user_id": "test_user",
-                "session_id": "test_001",
-                "query": "What is SKV?",
-                "response": "SKV is a memory platform for AI agents",
-                "topic": "Introduction"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v7/memory/summarize": {
-      "post": {
-        "operationId": "saveL1Summary",
-        "summary": "Сохранить L1 саммари сессии",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "user_id": {"type": "string", "example": "test_user"},
-                  "session_id": {"type": "string", "example": "chat_001"},
-                  "topic": {"type": "string", "example": "SKV Overview"},
-                  "summary_text": {"type": "string", "example": "Discussed SKV architecture"},
-                  "message_count": {"type": "integer", "example": 15}
-                },
-                "required": ["user_id", "session_id", "summary_text"]
-              },
-              "example": {
-                "user_id": "test_user",
-                "session_id": "chat_001",
-                "topic": "SKV Overview",
-                "summary_text": "User asked about SKV features and deployment",
-                "message_count": 15
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v7/memory/map": {
-      "post": {
-        "operationId": "updateL2Map",
-        "summary": "Обновить L2 карту памяти пользователя",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "user_id": {"type": "string", "example": "test_user"},
-                  "session_count": {"type": "integer", "example": 30}
-                },
-                "required": ["user_id"]
-              },
-              "example": {
-                "user_id": "test_user",
-                "session_count": 30
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v7/feedback": {
-      "post": {
-        "operationId": "submitAnomaly",
-        "summary": "Сообщить об ошибке или аномалии",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "type": {"type": "string", "enum": ["anomaly", "bug", "cube_issue", "improvement", "security"], "example": "bug"},
-                  "title": {"type": "string", "example": "Search returns empty"},
-                  "description": {"type": "string", "example": "Memory search returns empty for valid queries"},
-                  "severity": {"type": "integer", "minimum": 1, "maximum": 4, "example": 3}
-                },
-                "required": ["type", "title", "description"]
-              },
-              "example": {
-                "type": "bug",
-                "title": "Search returns empty",
-                "description": "Memory search returns empty for valid queries",
-                "severity": 3
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/execute/code": {
-      "post": {
-        "operationId": "runSandbox",
-        "summary": "Выполнить Python код в песочнице",
-        "description": "Python-песочница с авто-фиксом через 3 AI модели. Поддерживает matplotlib, numpy.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "code": {"type": "string", "description": "Python код", "example": "print(2+2)"},
-                  "mode": {"type": "string", "enum": ["fix", "optimize", "all"], "default": "fix", "example": "fix"},
-                  "language": {"type": "string", "default": "python"}
-                },
-                "required": ["code"]
-              },
-              "example": {
-                "code": "print(2+2)",
-                "mode": "fix",
-                "language": "python"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v7/agent/prompt": {
+    "/api/v7/agent/guardian.py": {
       "get": {
-        "operationId": "getAgentPrompt",
-        "summary": "Получить системный промпт агента",
-        "parameters": [
-          {"name": "user_id", "in": "query", "required": true, "schema": {"type": "string"}, "example": "test_user"}
-        ]
-      }
-    }
-,
-    "/api/v7/event/{event_id}": {
-      "get": {
-        "operationId": "getEventDetail",
-        "summary": "Получить полный текст события",
-        "description": "Возвращает полный raw_dialogue события по ID. Полезно когда нужно увидеть весь контекст.",
-        "parameters": [
-          {"name": "event_id", "in": "path", "required": true, "schema": {"type": "string"}}
-        ]
-      }
-    }  },
-  "components": {
-    "securitySchemes": {
-      "BearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "SKV API ключ. Получить: https://skv.network/profile"
+        "operationId": "downloadGuardian",
+        "summary": "Download the local guardian. It hides an answer that has no SKV seal.",
+        "responses": {
+          "200": {
+            "description": "python sdk"
+          }
+        }
       }
     }
   }

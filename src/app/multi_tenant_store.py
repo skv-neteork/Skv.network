@@ -60,6 +60,14 @@ class MultiTenantMetadataStore:
                 json.dumps(links), json.dumps(topics), raw_dialogue
             ))
             conn.commit()
+        try:
+            from app.account_memory import _fts_insert, _ensure_batch_thread
+            with sqlite3.connect(db_path, timeout=30) as conn2:
+                _fts_insert(conn2.cursor(), event_id, raw_dialogue or essence or "")
+                conn2.commit()
+            _ensure_batch_thread(self.base_dir)
+        except Exception as exc:
+            print(f"[memory] queue skipped: {exc}", flush=True)
 
     def batch_get_metadata(self, user_id: str, event_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         if not event_ids:

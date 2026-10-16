@@ -231,9 +231,11 @@ print(f'Sqrt(16): {math.sqrt(16)}')`,
             badge.className = 'status-badge';
             badge.textContent = 'Running...';
 
+            const token = localStorage.getItem('skv_token');
+            if (!token) { badge.textContent = 'Sign in required'; btn.disabled = false; btn.textContent = '▶ Run Code (Ctrl+Enter)'; return; }
             fetch('/api/execute/code', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                 body: JSON.stringify({ code: code, mode: 'all', language: 'python' })
             })
             .then(r => r.json())

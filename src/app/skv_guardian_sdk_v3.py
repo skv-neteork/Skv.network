@@ -22,7 +22,7 @@ CORRECT: [improvements — MUST differ from draft]
 CRITICAL INFORMATION:
 • If you learn passwords, keys, major decisions → mark with !!!
 • !!! items are NEVER compressed and always visible in Memory Map
-• Save immediately: POST /api/v7/event/write
+• Save immediately: POST /api/v7/remember
 • Example: !!! API_KEY=sk_xxx
 
 RULES:
@@ -72,7 +72,7 @@ class SKVGuardianSDK:
         """Auto-save dialogue every N messages."""
         step = self.step_counter.get(session_id, 0)
         if step > 0 and step % self.auto_save_interval == 0:
-            await self._api_call("POST", "/api/v7/event/write", {
+            await self._api_call("POST", "/api/v7/remember", {
                 "user_id": user_id,
                 "session_id": session_id,
                 "query": query,
@@ -177,10 +177,12 @@ class SKVGuardianSDK:
             else:
                 logger.warning("Second Look incomplete — no DRAFT/CORRECT in thinking")
         
-        # Извлекаем SEAL
+        # Извлекаем SEAL. Без печати ответ не считается проверенным.
         seal_match = re.search(r'🔐\s*SKV\s*\|\s*#(\d+)', clean_response)
         if seal_match:
             self.last_seal[session_id] = seal_match.group(0)
+        else:
+            clean_response = "GUARDIAN: ответ без печати SKV не прошёл Second Look.\n" + clean_response
         
         # Сохраняем диалог (каждые N сообщений)
         await self._save_event(user_id, session_id, query, clean_response)

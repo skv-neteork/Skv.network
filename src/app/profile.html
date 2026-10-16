@@ -481,7 +481,7 @@
             <!-- STATE 2: Confirm -->
             <div id="state-confirm" class="state">
                 <h1 class="card-title">Confirm Your Email</h1>
-                <p class="card-desc">We sent a confirmation code. Check your email or server logs.</p>
+                <p class="card-desc">We sent a confirmation code. Check your email.</p>
                 
                 <div id="alert-confirm" class="alert"></div>
                 
@@ -498,8 +498,6 @@
                 </form>
                 
                 <p class="help-text">
-                    💡 In test environment, the code appears in server logs.<br>
-                    Check: <code>docker logs skv_api --tail 50</code>
                 </p>
             </div>
 
@@ -564,66 +562,28 @@
                     </div>
                 </div>
                 
+
+                <div class="profile-section">
+                    <div class="profile-section-title">Import a chat</div>
+                    <p style="color:#8b949e;font-size:14px">Paste the text. User: and Assistant: labels help. A plain paste is fine too.</p>
+                    <textarea id="importText" style="width:100%;min-height:140px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px" placeholder="User: ...&#10;Assistant: ..."></textarea>
+                    <button class="btn btn-primary" style="margin-top:10px" onclick="importPasted()">Import</button>
+                    <div id="importStatus" style="margin-top:8px;color:#8b949e"></div>
+                </div>
+
+                <div class="profile-section" style="border:1px solid #f85149;border-radius:8px;padding:12px;margin-top:16px">
+                    <div class="profile-section-title" style="color:#f85149">Delete account</div>
+                    <p style="color:#8b949e;font-size:14px">This removes the account, the key, and all memory. It cannot be undone.</p>
+                    <div id="del-step">
+                        <button class="btn btn-secondary" onclick="delWarn(1)">Delete my account</button>
+                    </div>
+                </div>
+
                 <!-- Logout -->
                 <button class="btn btn-secondary" onclick="logout()" style="margin-top: 20px;">Sign Out</button>
             </div>
         </div>
     
-    <div class="card" style="margin-top: 24px; border: 1px solid #1f2937;">
-        <h3 style="color: #f0883e; margin-bottom: 12px;">📥 Import Chat History</h3>
-        <p style="color: #8b949e; font-size: 14px; margin-bottom: 16px;">
-            1. Open your chat share link<br>
-            2. Click the <b>"SKV Import"</b> bookmarklet → text is copied as JSON<br>
-            3. Paste JSON below and click Import
-        </p>
-        
-        
-        <div style="display:flex;gap:10px;margin-bottom:10px;">
-            <input type="text" id="importUrl" placeholder="Paste chat share URL here (DeepSeek, ChatGPT, Claude...)" style="flex:1;padding:10px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-size:14px;">
-            <button onclick="fetchFromUrl()" style="padding:10px 20px;background:#1f6feb;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Fetch</button>
-        </div>
-        <div style="background:#1a1f2e;padding:15px;border-radius:8px;margin-bottom:10px;">
-            <strong>📥 Импорт диалога из DeepSeek:</strong><br><br>
-            
-            <b>Способ 1 (автомат):</b> перетяни эту кнопку в закладки браузера →<br>
-            <a href="javascript:(function(){try{var m=[];document.querySelectorAll('.ds-message,[class*=message]').forEach(function(el){var r=el.className.includes('user')?'user':'assistant';var c=el.innerText.trim();if(c.length>10)m.push({role:r,content:c});});var j=JSON.stringify(m,null,2);var t=document.createElement('textarea');t.value=j;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);alert('✅ '+m.length+' сообщений скопировано! Вернись в SKV и вставь (Ctrl+V).');}catch(e){alert('❌ '+e);}})();" 
-               style="display:inline-block;padding:10px 20px;background:#1f6feb;color:white;text-decoration:none;border-radius:6px;font-weight:600;margin:5px 0;">
-               📋 DeepSeek → SKV
-            </a>
-            <br><small style="color:#8b949e;">Перетяни в панель закладок. Открой диалог DeepSeek → нажми закладку → вернись сюда и вставь.</small>
-            
-            <br><br>
-            <b>Способ 2 (ручной):</b> скопируй весь диалог (Ctrl+A, Ctrl+C) и вставь в поле ниже.
-        </div>
-        <div id="importStatus" style="margin-bottom:10px;font-size:14px;"></div>
-
-        <textarea id="importData" rows="6" placeholder='[{"role":"user","content":"..."},{"role":"assistant","content":"..."}]' 
-            style="width:100%;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:8px;padding:12px;font-family:monospace;font-size:13px;resize:vertical;"></textarea>
-        
-        <div style="display:flex;gap:10px;margin-top:12px;">
-            <input type="text" id="importSource" placeholder="Source (e.g., chatgpt, claude, grok)" style="flex:1;padding:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;">
-            <button onclick="importDialogs()" style="padding:10px 20px;background:#238636;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Import</button>
-            <button onclick="processImport()" style="padding:10px 20px;background:#1f6feb;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Process with AI</button>
-        </div>
-        <div style="background:#1a1f2e;padding:15px;border-radius:8px;margin-bottom:10px;">
-            <strong>📥 Импорт диалога из DeepSeek:</strong><br><br>
-            
-            <b>Способ 1 (автомат):</b> перетяни эту кнопку в закладки браузера →<br>
-            <a href="javascript:(function(){try{var m=[];document.querySelectorAll('.ds-message,[class*=message]').forEach(function(el){var r=el.className.includes('user')?'user':'assistant';var c=el.innerText.trim();if(c.length>10)m.push({role:r,content:c});});var j=JSON.stringify(m,null,2);var t=document.createElement('textarea');t.value=j;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);alert('✅ '+m.length+' сообщений скопировано! Вернись в SKV и вставь (Ctrl+V).');}catch(e){alert('❌ '+e);}})();" 
-               style="display:inline-block;padding:10px 20px;background:#1f6feb;color:white;text-decoration:none;border-radius:6px;font-weight:600;margin:5px 0;">
-               📋 DeepSeek → SKV
-            </a>
-            <br><small style="color:#8b949e;">Перетяни в панель закладок. Открой диалог DeepSeek → нажми закладку → вернись сюда и вставь.</small>
-            
-            <br><br>
-            <b>Способ 2 (ручной):</b> скопируй весь диалог (Ctrl+A, Ctrl+C) и вставь в поле ниже.
-        </div>
-        <div id="importStatus" style="margin-top:10px;font-size:14px;"></div>
-    </div>
-
-    
-    </div>
-
     <footer>
         <p class="footer-text">© 2026 SKV Network · Designed by AI, for AI · Protected by CUBE 00-05</p>
         <p class="footer-contacts">
@@ -875,6 +835,30 @@
             }
         }
 
+        async function importPasted() {
+            const text = document.getElementById("importText").value.trim();
+            const status = document.getElementById("importStatus");
+            if (!text) { status.textContent = "Paste something first."; return; }
+            status.textContent = "Importing...";
+            const resp = await fetch("/api/v7/import/text", {method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+currentToken}, body: JSON.stringify({key: currentToken, text: text, source: "profile"})});
+            const data = await resp.json();
+            status.textContent = data.status === "ok" ? ("Saved " + data.imported + ". Summaries started.") : JSON.stringify(data);
+        }
+        
+        function delWarn(n) {
+            const box = document.getElementById("del-step");
+            if (n === 1) box.innerHTML = "<p>This deletes every chat, summary, and cube tied to this account.</p><button class=\"btn btn-secondary\" onclick=\"delWarn(2)\">I understand, continue</button>";
+            else if (n === 2) box.innerHTML = "<p>There is no restore. Next you will enter the password.</p><button class=\"btn btn-secondary\" onclick=\"delWarn(3)\">Continue to password</button>";
+            else box.innerHTML = "<input id=\"del-pass\" type=\"password\" placeholder=\"Profile password\" style=\"width:100%;margin:6px 0;padding:8px\"><input id=\"del-word\" placeholder=\"Type DELETE\" style=\"width:100%;margin:6px 0;padding:8px\"><button class=\"btn btn-secondary\" style=\"background:#f85149;color:#fff\" onclick=\"delGo()\">Delete forever</button><div id=\"del-status\"></div>";
+        }
+        async function delGo() {
+            const status = document.getElementById("del-status");
+            const resp = await fetch("/api/v7/profile/delete", {method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+currentToken}, body: JSON.stringify({key: currentToken, password: document.getElementById("del-pass").value, confirm: document.getElementById("del-word").value})});
+            const data = await resp.json();
+            if (data.status === "deleted") { localStorage.removeItem("skv_token"); alert("Account deleted"); location.href="/"; }
+            else status.textContent = data.detail || JSON.stringify(data);
+        }
+
         function logout() {
             localStorage.removeItem('skv_token');
             currentToken = null;
@@ -1119,6 +1103,15 @@
             }
         }
 
+        async function importPasted() {
+            const text = document.getElementById("importText").value.trim();
+            const status = document.getElementById("importStatus");
+            if (!text) { status.textContent = "Paste something first."; return; }
+            status.textContent = "Importing...";
+            const resp = await fetch("/api/v7/import/text", {method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+currentToken}, body: JSON.stringify({key: currentToken, text: text, source: "profile"})});
+            const data = await resp.json();
+            status.textContent = data.status === "ok" ? ("Saved " + data.imported + ". Summaries started.") : JSON.stringify(data);
+        }
         function logout() {
             localStorage.removeItem('skv_token');
             currentToken = null;

@@ -462,3 +462,23 @@ async def profile_page():
 async def guardian_page():
     return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "guardian.html")))
 
+
+
+@router.get("/start")
+async def start_page():
+    return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "start.html")))
+
+@router.get("/downloads/skv-guardian2.py")
+async def download_guardian2():
+    from fastapi.responses import FileResponse
+    import os
+    path = os.path.join(os.path.dirname(__file__), "..", "downloads", "skv-guardian2.py")
+    return FileResponse(path, filename="skv-guardian2.py")
+
+
+@router.get("/cube-batch")
+async def cube_batch():
+    path = os.path.join(os.path.dirname(__file__), "..", "downloads", "cube-batch-4.txt")
+    text = open(path).read()
+    body = "<pre>" + text.replace("&", "&").replace("<", "<") + "</pre>"
+    return HTMLResponse("<!doctype html><meta charset=utf-8><title>Cube batch</title><body style=\"font-family:sans-serif;max-width:720px;margin:40px auto\">" + body + "</body>")

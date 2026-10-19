@@ -34,20 +34,19 @@ def ask(model, prompt):
 def judge(title, rules):
     prompt = CONST + "\nReply only JSON {\"verdict\":\"keep\"|\"fix\"|\"remove\",\"reason\":\"short\"}.\nTITLE: " + title + "\nRULES:\n" + rules[:900]
     vote = ask("deepseek/deepseek-chat", prompt)
-    verdict = vote.get("verdict", "fix")
-    # A delete needs a second voice. One model must not erase a cube alone.
-    if verdict == "remove":
+    votes = [("deepseek/deepseek-chat", (vote.get("verdict") or "fix").lower(), vote.get("reason", ""))]
+    # A delete needs a second judge. One model must not erase a cube alone (cubes_v2.apply_verdicts enforces it).
+    if votes[0][1] == "remove":
         second = ask("qwen/qwen3.6-plus", prompt)
-        if second.get("verdict") != "remove":
-            verdict = "fix"
+        votes.append(("qwen/qwen3.6-plus", (second.get("verdict") or "fix").lower(), second.get("reason", "")))
     rules_out = ""
-    if verdict == "fix":
+    if any(v[1] != "keep" for v in votes) and not (len(votes) == 2 and all(v[1] == "remove" for v in votes)):
         fix = "Rewrite as 4 short rules. Name the trap and the instead. No commentary.\n" + rules[:800]
         body = json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": fix}], "temperature": 0.2, "max_tokens": 180}).encode()
         req = urllib.request.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={"Content-Type": "application/json", "Authorization": "Bearer " + key(), "User-Agent": "skv-evolver"})
         msg = json.loads(urllib.request.urlopen(req, timeout=60).read())["choices"][0]["message"]
         rules_out = msg.get("content") or ""
-    return {"verdict": verdict, "rules": rules_out, "votes": [verdict]}
+    return {"votes": votes, "rules": rules_out}
 
 def drain():
     c = sqlite3.connect(DB)
@@ -64,13 +63,14 @@ def drain():
         except Exception as e:
             log("judge fail " + cid + " " + str(e)[:80])
             continue
-        v = (verdict.get("verdict") or "keep").lower()
-        if v == "remove":
-            c.execute("UPDATE cubes_new SET status=\"removed\" WHERE cube_id=?", (cid,))
-        elif v == "fix" and (verdict.get("rules") or "").strip():
+        import importlib.util as _iu
+        _sp = _iu.spec_from_file_location("cubes_v2", "/root/skv-core/src/app/cubes_v2.py"); cv = _iu.module_from_spec(_sp); _sp.loader.exec_module(cv)
+        cv.ensure(c)
+        v = cv.apply_verdicts(c, cid, verdict["votes"])   # remove = archive, only with two judges
+        if v == "fix" and (verdict.get("rules") or "").strip():
             c.execute("UPDATE cubes_new SET rules_markdown=?, status=\"community\" WHERE cube_id=?", ((verdict.get("rules") or "")[:4000], cid))
-        else:
-            c.execute("UPDATE cubes_new SET status=\"community\" WHERE cube_id=?", (cid,))
+        elif v != "remove":
+            c.execute("UPDATE cubes_new SET status=\"community\" WHERE cube_id=? AND status NOT IN ('archived','quarantine')", (cid,))
         c.execute("DELETE FROM court_queue WHERE cube_id=?", (cid,))
         log(cid + " " + v + " " + str(verdict.get("votes"))); note(cid + " " + v)
     c.commit()

@@ -11,7 +11,7 @@ FACT. Something a model does not know and would have to search.
 essence starts with Fact. Give the missing number, command, limit, or exception.
 
 Create:
-GET https://skv.network/api/v7/agent/cube?key=sk_718c9b525e154410b2311c2ce1d0d087&topic=TOPIC&essence=ESSENCE&rules=RULES&evidence=KIND
+GET https://skv.network/api/v7/agent/cube?key=YOUR_KEY&topic=TOPIC&essence=ESSENCE&rules=RULES&evidence=KIND
 Show the server reply. already means skip. No cube_id means it was not saved.
 
 Topics, one culture and one fact each:

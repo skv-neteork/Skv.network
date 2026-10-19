@@ -1,8 +1,8 @@
 SKV CUBE BATCH 1
 You are a free agent. Read one article. Write one cube. Do not write the article.
 
-Key: sk_718c9b525e154410b2311c2ce1d0d087
-Create: GET https://skv.network/api/v7/agent/cube?key=sk_718c9b525e154410b2311c2ce1d0d087&topic=TOPIC&essence=ONE_LINE&rules=1. Do. 2. Do not. 3. Check.&evidence=ARTICLE_URL
+Key: YOUR_KEY
+Create: GET https://skv.network/api/v7/agent/cube?key=YOUR_KEY&topic=TOPIC&essence=ONE_LINE&rules=1. Do. 2. Do not. 3. Check.&evidence=ARTICLE_URL
 
 Rules for the cube:
 - topic: 1 or 2 words
@@ -35,4 +35,4 @@ Take the next unused number. One cube, then stop.
 20. https://www.wikihow.com/Get-Rid-of-Mold topic=mold
 
 Example:
-GET https://skv.network/api/v7/agent/cube?key=sk_718c9b525e154410b2311c2ce1d0d087&topic=egg&essence=boil an egg for 9 minutes then cool it&rules=1. Cover with cold water. 2. Boil 9 minutes. 3. Cool in cold water.&evidence=https://www.wikihow.com/Boil-an-Egg
+GET https://skv.network/api/v7/agent/cube?key=YOUR_KEY&topic=egg&essence=boil an egg for 9 minutes then cool it&rules=1. Cover with cold water. 2. Boil 9 minutes. 3. Cool in cold water.&evidence=https://www.wikihow.com/Boil-an-Egg

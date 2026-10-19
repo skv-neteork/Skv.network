@@ -398,7 +398,10 @@ DEFAULTS.update({"legacy_rowid_order": True, "bg_llm": False, "l2_legacy_overwri
                  "window_exclude_kinds": ["doc", "docs", "document", "code", "log", "file"],
                  "maintenance": True, "maintenance_interval_s": 900,
                  "lens_gap": 3, "lens_clusters_max": 5, "first_call_lens_budget": 600,
-                 "recall_plus": True, "recall_max_facts": 20, "recall_snippet_tokens": 110})   # memory v3 recall (memory_recall.py)
+                 "recall_plus": True, "recall_max_facts": 20, "recall_snippet_tokens": 110,
+                 # memory v4 recall: temporal index, low-content filter, more facts (recall="v3" = previous behaviour)
+                 "recall_version": 4, "recall_v4_max_facts": 50, "recall_v4_k": 60, "recall_date_boost": 1.5,
+                 "recall_min_content_words": 5})   # memory v3 recall (memory_recall.py)
 
 AGENT_HINT = ("hits[0] is the center. Empty hits is not a fact: open GET /api/v7/event/{id}, expand a lens cluster with "
               "focus_event_id (POST /api/v7/memory/lens), or POST /api/v7/memory/dig. Use probe=true for extra lookups in the same turn.")
@@ -516,7 +519,7 @@ def agent_view(req, legacy, ctx):
         try:   # memory v3: multi-query recall (facts across episodes) + resolved relative dates
             from app import memory_recall as _rc
             if _rc.enabled(req):
-                _rc.augment(view, uid, req.query_text, budgets.get("facts", 0))
+                _rc.augment(view, uid, req.query_text, budgets.get("facts", 0), v=_rc.version(req), now=getattr(req, "as_of", None))
         except Exception as e:
             print(f"[memory_v3] recall skipped: {e}", flush=True)
     view["budget"] = {"limits": budgets, "used_tokens": section_tokens(view)}

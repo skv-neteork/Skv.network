@@ -251,6 +251,7 @@ class MemoryRequest(BaseModel):
     budget_followup: Optional[int] = None
     budget_facts: Optional[int] = None   # memory v3: dated facts across episodes
     recall: Optional[str] = None         # memory v3: plus (default) | basic
+    as_of: Optional[str] = None          # memory v4: "now" (ISO date) for relative dates in the query; default server time
 
 class SearchResultItem(BaseModel):
     event_id: str

@@ -4026,13 +4026,22 @@ class AgentRunRequest(BaseModel):
 
 @router.post("/agent/run")
 async def agent_run(req: AgentRunRequest):
-    """One grounded pass: search, open the center, dig if the topic is wide."""
+    """One grounded pass: /memory recall, open the center, dig if the topic is wide."""
     import sqlite3
     name = "".join(c for c in req.user_id if c.isalnum() or c in "_-")
     conn = sqlite3.connect(f"/data/skv/metadata_store/{name}.db")
-    word = "".join(ch for ch in (req.task or "").lower() if ch.isalnum())
-    rows = conn.execute("select event_id, raw_dialogue from event_metadata where raw_dialogue is not null").fetchall()
-    hits = [(eid, raw) for eid, raw in rows if word and word in (raw or "").lower().replace("-", "").replace(" ", "")]
+    hits = []
+    try:  # same hybrid recall as /memory (vector + FTS), not a one-word substring
+        _mem = await guardian_l1_memory(MemoryRequest(user_id=req.user_id, query_text=req.task or "", top_k=5, step=1, view="legacy"), get_memory_buffer(), None)
+        for _f in (_mem.get("fragments") or []):
+            if _f.get("event_id") and _f.get("source", "personal") == "personal":
+                hits.append((_f["event_id"], _f.get("text") or ""))
+    except Exception:
+        hits = []
+    if not hits:  # fallback: old substring scan
+        word = "".join(ch for ch in (req.task or "").lower() if ch.isalnum())
+        rows = conn.execute("select event_id, raw_dialogue from event_metadata where raw_dialogue is not null").fetchall()
+        hits = [(eid, raw) for eid, raw in rows if word and word in (raw or "").lower().replace("-", "").replace(" ", "")]
     center = hits[0] if hits else (None, "")
     around = []
     if center[0]:

@@ -3183,6 +3183,11 @@ async def remember(req: RememberRequest):
         text_a = req.response
         if req.pin or req.critical:
             text_a = (text_a + "\n>>> " + (req.critical or req.topic or "pinned")).strip()
+    elif req.critical:
+        # a Critical item on its own (no turn text): store it as its own pinned record
+        text_q = req.topic or "critical"
+        text_a = ">>> " + req.critical
+    if req.query or req.response or req.critical:
         eid = f"{req.user_id}::remember_{time.time_ns()}"
         _ts = _event_time_str(req.ts or req.occurred_at)
         queue_turn("/data/skv/metadata_store", req.user_id, eid, text_q, text_a, source="agent", topic=req.topic, time_str=_ts)

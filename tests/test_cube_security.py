@@ -201,6 +201,28 @@ except HTTPException as e:
 check("future ts -> 422", fut)
 check("RememberRequest accepts ts and occurred_at", v.RememberRequest(user_id="u", ts="2026-01-01T00:00:00Z").ts and v.RememberRequest(user_id="u", occurred_at="x").occurred_at == "x")
 shutil.rmtree(SD, ignore_errors=True)
+
+# ---------- part 4 (profile chat import, critical-only remember) ----------
+import app.account_memory as am2
+if os.environ.get("IMD"):
+    _sp = importlib.util.spec_from_file_location("_imd_candidate", os.environ["IMD"]); imd = importlib.util.module_from_spec(_sp); _sp.loader.exec_module(imd)
+else:
+    import app.routers.import_dialogs as imd
+calls = []
+_oq = am2.queue_turn; _osc = imd.schedule_import_cycle
+am2.queue_turn = lambda base, uid, eid, q, a, **k: calls.append((eid, q, a))
+imd.schedule_import_cycle = lambda *a, **k: None
+txt = open(os.environ["IMPORT_FILE"]).read() if os.environ.get("IMPORT_FILE") and os.path.exists(os.environ["IMPORT_FILE"]) else "User: a\nUser: b\nAssistant: c\nUser: d\n"
+r1 = asyncio.run(imd.import_from_text({"user_id": "imp_test@example.invalid", "text": txt, "source": "profile"}))
+ids1 = [c[0] for c in calls]; calls.clear()
+r2 = asyncio.run(imd.import_from_text({"user_id": "imp_test@example.invalid", "text": txt, "source": "profile"}))
+ids2 = [c[0] for c in calls]; calls.clear()
+check("import keeps user turns before a missing reply and trailing question (%s pairs)" % r1.get("imported"), r1.get("imported", 0) >= 2 and len(ids1) == r1["imported"])
+check("re-import of the same chat gives identical ids (idempotent)", ids1 == ids2)
+asyncio.run(imd.import_from_text({"user_id": "imp_test@example.invalid", "text": "User: other chat\nAssistant: other answer\n", "source": "profile"}))
+check("a different chat never reuses an existing id", calls and calls[0][0] not in ids1); calls.clear()
+am2.queue_turn = _oq; imd.schedule_import_cycle = _osc
+check("remember accepts a Critical item without turn text", "elif req.critical:" in inspect.getsource(v.remember))
 # 9. live constitution integrity vs backup
 bk = os.environ.get("BACKUP")
 hl, nl = const_hash(LIVE)

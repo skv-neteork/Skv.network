@@ -362,6 +362,11 @@ def background_l1_l2():
 
 _l1l2_thread = threading.Thread(target=background_l1_l2, daemon=True)
 _l1l2_thread.start()
+try:
+    from app import memory_v2_windows as _mvw_boot
+    _mvw_boot.start_maintenance()   # additive migration + L1 ranges + auto L2 blocks, every 15 min
+except Exception as _e:
+    print(f"[memory_v2] maintenance not started: {_e}", flush=True)
 print("[L1/L2] Auto-generator started (every 15 min)", flush=True)
 
 @router.post("/vectors/process")
@@ -2259,6 +2264,38 @@ async def memory_settings_set(req: MemorySettingsRequest):
     return {"status": "ok", "budgets": _mv2.save_user_budgets(req.user_id, req.budgets)}
 
 
+class MemoryProfileRequest(BaseModel):
+    user_id: str = ""
+    who: Optional[str] = None
+    projects: Optional[List[Any]] = None
+    prefs: Optional[Dict[str, Any]] = None
+
+
+@router.get("/memory/profile")
+async def memory_profile_get(user_id: str = ""):
+    from app import memory_v2_windows as _mvw
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return _mvw.get_profile(user_id)
+
+
+@router.post("/memory/profile")
+async def memory_profile_set(req: MemoryProfileRequest):
+    """Merge into the user profile used by the memory map (who, projects, prefs). Nothing is deleted."""
+    from app import memory_v2_windows as _mvw
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    return {"status": "ok", "profile": _mvw.merge_profile(req.user_id, who=req.who, projects=req.projects, prefs=req.prefs)}
+
+
+@router.get("/memory/l2/blocks")
+async def memory_l2_blocks(user_id: str = "", limit: int = 50):
+    from app import memory_v2_windows as _mvw
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return {"blocks": _mvw.list_l2_blocks(user_id, max(1, min(limit, 200)))}
+
+
 @router.post("/experience/vote")
 async def vote_experience(req: VoteRequest):
     """Vote for an experience cube. 3 downvotes → deprecated."""
@@ -3079,19 +3116,39 @@ async def remember(req: RememberRequest):
             pass
     path = f"/data/skv/metadata_store/{name}.db"
     if req.l1_summary or req.l2_map:
+        _l1_sid = None
+        try:
+            from app import memory_v2 as _mv2
+            _l2_overwrite = bool(_mv2.config().get("l2_legacy_overwrite", True))
+            if req.l2_map and _mv2.enabled():
+                from app import memory_v2_windows as _mvw
+                _mvw.before_legacy_l2_overwrite(req.user_id)   # keep the old L2 text as a block
+        except Exception as _e:
+            _l2_overwrite = True
+            print(f"[memory_v2] l2 snapshot skipped: {_e}", flush=True)
         conn = sqlite3.connect(path, timeout=30)
         cur = conn.cursor()
         if req.l1_summary:
             cur.execute("CREATE TABLE IF NOT EXISTS summary_l1 (session_id TEXT PRIMARY KEY, user_id TEXT, topic TEXT, summary_text TEXT, summary_json TEXT, message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+            _l1_sid = (req.session_id or "remember") + "_" + str(__import__("time").time_ns())
             cur.execute("INSERT OR REPLACE INTO summary_l1 (session_id, user_id, topic, summary_text, message_count) VALUES (?,?,?,?,?)",
-                        ((req.session_id or "remember") + "_" + str(__import__("time").time_ns()), req.user_id, req.topic or "session", req.l1_summary, 1))
+                        (_l1_sid, req.user_id, req.topic or "session", req.l1_summary, 1))
             saved.append("l1")
         if req.l2_map:
             cur.execute("CREATE TABLE IF NOT EXISTS summary_l2 (user_id TEXT PRIMARY KEY, map_json TEXT, themes_json TEXT, timeline_json TEXT, session_count INTEGER, last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-            cur.execute("INSERT OR REPLACE INTO summary_l2 (user_id, map_json, themes_json, timeline_json, session_count) VALUES (?,?,?,?,?)",
-                        (req.user_id, req.l2_map, "[]", "[]", 1))
+            if _l2_overwrite:
+                cur.execute("INSERT OR REPLACE INTO summary_l2 (user_id, map_json, themes_json, timeline_json, session_count) VALUES (?,?,?,?,?)",
+                            (req.user_id, req.l2_map, "[]", "[]", 1))
             saved.append("l2")
         conn.commit(); conn.close()
+        try:
+            from app import memory_v2 as _mv2
+            if _mv2.enabled():
+                from app import memory_v2_windows as _mvw
+                _ev = next((x for x in saved if "::" in x), None)
+                _mvw.on_remember(req.user_id, _ev, _l1_sid, req.l2_map or None)
+        except Exception as _e:
+            print(f"[memory_v2] on_remember skipped: {_e}", flush=True)
     if req.cube_topic and req.cube_rules:
         import uuid
         cube_id = "cube_" + uuid.uuid4().hex[:12]

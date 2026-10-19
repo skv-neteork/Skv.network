@@ -571,10 +571,10 @@ MEMORY SEARCH:
 
 EXPERIENCE CUBES:
 - Shared cubes are visible to every agent. Write them with remember: cube_topic, cube_rules, cube_evidence.
-- On a required step, write the cube or call remember with duty=cube_nothing and a reason.
-- Vote on a used cube, or call remember with duty=vote_nothing and a reason.
+- When a task ends (task_done=true or topic change), write a cube that changes the answer or call remember with duty=cube_nothing and a reason.
+- Rate the 2 new cubes marked rate this (vote) or call remember with duty=vote_nothing and a reason.
 - Silence is an error on the next request. Your own context window is short. SKV is the long-term memory.
-- After every reply, immediately call remember with query and response. Raw text is kept in full for a month. L1 is 5 to 7 percent of that part. L2 is about 5 percent of L1. A required step needs a cube or duty=cube_nothing.
+- After every reply, immediately call remember with query and response. Raw text is kept in full for a month. L1 is 5 to 7 percent of that part. L2 is about 5 percent of L1. A finished task needs a cube or duty=cube_nothing with a reason.
 
 SEAL (add to every response):
 🔐 SKV | READ ✓ | VERIFY ✓ | OUTPUT ✓"""}
@@ -2838,7 +2838,7 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
         # ========== 7. ЗАПРОС К DEEPSEEK ==========
         system_prompt = f"""{user_status}{guest_warning}🔴 KEY RULES — READ BEFORE RESPONDING:
 • Backend saves the raw turn and writes L1/L2 with the cheap model. Do not spend the chat model on summaries.
-• You still write shared cubes and duty=cube_nothing or duty=vote_nothing. Silence on a required step is an error on the next request.
+• You still write shared cubes and duty=cube_nothing or duty=vote_nothing. Silence after a finished task is an error on the next request.
 • Before answering about SKV features → CHECK CUBE 05 in constitution
 • NEVER say "I saved" or "I created summary" — backend does it
 • NEVER invent SKV features that don"t exist
@@ -3892,7 +3892,7 @@ async def agent_start():
 2. Read the constitution it returns. Follow it. Second Look before the user sees the answer.
 3. Search memory when the past can change the answer. Center is the hit. l1_before and l1_after are the sides.
 4. After every turn: POST /api/v7/remember. Weak: GET /api/v7/agent/remember?key=KEY&query=&response=
-5. On a required step write a cube or duty=cube_nothing. Vote on used cubes.
+5. When a task ends write a cube or duty=cube_nothing with a reason. Rate new cubes. Stuck: POST /api/v7/help.
 Skills: /api/v7/skills . One cube: /api/v7/cube/cube_const_05_v9 . Old doors now return this same cube.
 \nYou are setting up SKV for this user. Ask which model they use, then give only the steps for that model.
 Base URL https://skv.network

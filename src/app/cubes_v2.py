@@ -216,7 +216,26 @@ def _stems(text):
     return out
 
 
-def relevance(query_stems, row, vec_scores=None):
+_GENERIC = {"at": 0, "set": set()}
+
+
+def generic_stems(conn, ttl=600):
+    """Stems that appear in many cubes (e.g. file, list): too common to prove relevance on their own."""
+    import time as _t
+    if _t.time() - _GENERIC["at"] < ttl:
+        return _GENERIC["set"]
+    df, total = {}, 0
+    for ess, rules in conn.execute(f"SELECT essence, substr(rules_markdown,1,600) FROM cubes_new WHERE {HIDDEN_SQL} AND cube_id NOT LIKE 'cube_const_%'"):
+        total += 1
+        for w in _stems((ess or "") + " " + (rules or "")):
+            df[w] = df.get(w, 0) + 1
+    lim = max(6, int(total * 0.04))
+    _GENERIC["set"], _GENERIC["at"] = {w for w, k in df.items() if k >= lim}, _t.time()
+    return _GENERIC["set"]
+
+
+def relevance(query_stems, row, vec_scores=None, generic=None):
+    query_stems = set(query_stems or ()) - set(generic or ())
     """(relevant, score). Relevant = vector similarity >= REL_VEC_MIN, or enough query words in the cube text."""
     cid = row[0]
     vs = (vec_scores or {}).get(cid, 0.0)
@@ -225,8 +244,9 @@ def relevance(query_stems, row, vec_scores=None):
     if not query_stems:
         return False, 0.0
     text = (str(row[1] or "") + " " + str(row[2] or "")[:600]).lower()   # the cube itself, not its topic label
-    hits = sum(1 for w in query_stems if w in text)
-    need = 1 if len(query_stems) <= 2 else 2
+    cs = _stems(text)
+    hits = len(query_stems & cs)          # whole-word stems, not substrings
+    need = 1 if len(query_stems) <= 2 else max(2, -(-len(query_stems) // 3))
     return hits >= need, float(hits)
 
 
@@ -241,7 +261,7 @@ def new_candidates(conn, topic, uid="", limit=8, query="", vec_scores=None):
     cols = "cube_id, essence, rules_markdown, kind, trust, subject_action_object"
     same = conn.execute(f"SELECT {cols} FROM cubes_new WHERE subject_action_object=? AND {NEW_FILTER} {excl} ORDER BY {NEW_ORDER} LIMIT 40",
                         (topic, me, me)).fetchall() if topic else []
-    qs = _stems(query)
+    qs = _stems(query) - generic_stems(conn)
     if not qs and not vec_scores:
         return same[:limit]
     rows, seen = [], set()

@@ -266,6 +266,55 @@ try:
     imd.run_import_cycle = _orc; imd._polza = _op
 finally:
     if os.path.exists(_db): os.remove(_db)
+
+# ---------- part 6 (secrets in imports never reach memory text or the summarizer) ----------
+if os.environ.get("VAULT"):
+    _vs = importlib.util.spec_from_file_location("_vault_candidate", os.environ["VAULT"]); vlt = importlib.util.module_from_spec(_vs); _vs.loader.exec_module(vlt)
+else:
+    from app import vault as vlt
+_stored = []
+_oput = vlt.put
+vlt.put = lambda uid, name, value, **k: (_stored.append((name, value)), {"name": name})[1]
+_pos = {"sk_": "ключ sk_" + "Ab3" * 8, "sk-": "sk-proj-" + "Xy9_" * 8, "xai": "xai-" + "Q1w2" * 10,
+        "env": "SKV_SSH_PASS=Hunter2024x", "nocolon": "пароль от сервера Hunter2024x", "sshpass": "sshpass -p 'Hunter2024x' ssh",
+        "url": "postgres://skv:Hunter2024x@db/skv", "resend": "re_Ab12Cd34_" + "Q1w2E3r4" * 3,
+        "reset": "https://github.com/password_reset/" + "CCZx9" * 8, "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnopqrstuv"}
+_miss = [k for k, v in _pos.items() if not vlt.scrub("t@x.invalid", v)[1]]
+check("detector catches sk-/xai/env/no-colon password/sshpass/url creds/resend/reset links/jwt (missed: %s)" % _miss, not _miss)
+_neg = ["пароль не помню", "This account does not support password sign-in", "Пароль root в чат не присылай.", "введи пароль от GitHub", "API_KEY=your_key_here", "https://skv.network/api/v7/agent/cube?key=KEY&topic=egg"]
+check("detector leaves ordinary text alone", not [v for v in _neg if vlt.scrub("t@x.invalid", v)[1]])
+vlt.put = _oput
+# end-to-end through the real import path (temp account, cleaned up)
+from app import vault as _live_vault, semantic as _semx
+_su = "imp_secret_test@example.invalid"; _sname = am2.account_db_name(_su)
+_secret = "sk_" + "Zq7" * 9
+try:
+    _tx = "User: сохрани, вот ключ " + _secret + "\nAssistant: ok\nUser: пароль: Hunter2024xZ\nAssistant: принято\n"
+    _osc2 = imd.schedule_import_cycle; imd.schedule_import_cycle = lambda *a, **k: None
+    asyncio.run(imd.import_from_text({"user_id": _su, "text": _tx, "source": "profile"}))
+    imd.schedule_import_cycle = _osc2
+    con = sqlite3.connect(f"/data/skv/metadata_store/{_sname}.db")
+    raws = "\n".join(r[0] or "" for r in con.execute("select raw_dialogue from event_metadata"))
+    ess = "\n".join(r[0] or "" for r in con.execute("select essence from event_metadata")); con.close()
+    check("import: secrets replaced by [vault:] in stored turns", _secret not in raws and "Hunter2024xZ" not in raws and raws.count("[vault:") >= 2 and _secret not in ess)
+    _prompts = []; _op2 = imd._polza
+    imd._polza = lambda pr: (_prompts.append(pr), '{"summary": "s", "critical": []}')[1]
+    imd.run_import_cycle(_su, "profile"); imd._polza = _op2
+    check("import: summarizer prompts carry no secrets", _prompts and not any(_secret in p or "Hunter2024xZ" in p for p in _prompts))
+    _raw_pr = []
+    imd._polza = lambda pr: (_raw_pr.append(pr), '{"summary": "s", "critical": []}')[1]
+    imd._one_l1(sqlite3.connect(":memory:") if False else sqlite3.connect(f"/data/skv/metadata_store/{_sname}.db"), _su, "profile_x", 0, ["Q: " + _secret + " A: x"]); imd._polza = _op2
+    check("summarizer scrubs a raw window even if it was stored before scrubbing", _raw_pr and _secret not in _raw_pr[0])
+finally:
+    try:
+        for it in (_live_vault.listing(_su) or []):
+            _live_vault.delete(_su, it["name"] if isinstance(it, dict) else it)
+    except Exception as e:
+        print("vault cleanup:", e)
+    import glob as _g
+    for f in _g.glob(f"/data/skv/metadata_store/{_sname}.db*"): os.remove(f)
+    for _tag, _cfg in _semx.MODELS.items():
+        for f in _g.glob(os.path.join(_cfg["dir"], _sname + "*")): os.remove(f)
 # 9. live constitution integrity vs backup
 bk = os.environ.get("BACKUP")
 hl, nl = const_hash(LIVE)

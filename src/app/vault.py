@@ -297,7 +297,21 @@ _AUTO = [
     ("slack_token", re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b"), 0),
     ("aws_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b"), 0),
     ("bearer", re.compile(r"(?i)\bbearer\s+([A-Za-z0-9._\-]{16,})"), 1),
+    ("api_key", re.compile(r"\bsk-(?:proj-|or-v1-|ant-[a-z0-9]+-)?[A-Za-z0-9_\-]{20,}"), 0),
+    ("resend_key", re.compile(r"\bre_[A-Za-z0-9]{6,}_[A-Za-z0-9]{16,}\b"), 0),
+    ("api_key", re.compile(r"\b(?:gsk|hf|pplx|glpat)[_-][A-Za-z0-9_\-]{20,}\b"), 0),
+    ("telegram_token", re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_\-]{33}\b"), 0),
+    ("xai_key", re.compile(r"\bxai-[A-Za-z0-9]{20,}\b"), 0),
+    ("google_key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"), 0),
+    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"), 0),
+    ("url_password", re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s:/@]+:([^\s@/]{4,})@"), 1),
+    ("ssh_password", re.compile(r"(?i)\bsshpass\s+-p\s*[\"']?([^\s\"']{4,})"), 1),
+    ("link_token", re.compile(r"(?i)https?://[^\s]*/(?:password_reset|reset[_-]?password|sessions/[a-z_]+|magic[_-]?link|unlink|verify|confirm)[^\s]*?/([A-Za-z0-9_\-]{32,})"), 1),
+    # ENV-style names: SKV_SSH_PASS=..., DB_PASSWORD: ..., OPENAI_API_KEY=...
+    ("env_secret", re.compile(r"\b[A-Z][A-Z0-9]*_(?:[A-Z0-9]+_)*(?:PASS|PASSWORD|PASSWD|SECRET|TOKEN|API_KEY|APIKEY|PRIVATE_KEY)\b(\s*[:=]\s*)[\"']?([^\s\"',;]{6,})"), 2),
     (None, re.compile(r"(?i)\b(api[_-]?key|apikey|password|passwd|пароль|secret|token|ssh_pass|private[_-]?key)(\s*[:=]\s*)([\"']?)([^\s\"',;]{6,})"), 4),
+    # "пароль от сервера Xy7...": no colon, value must look like a secret (latin + digit, 8+ chars)
+    ("password", re.compile(r"(?i)\b(?:пароль|password|passwd)(?:\s+(?:от|для|к|на|is|for|root|ssh|sudo|сервера|сервер|сайта|почты|admin|админки)){0,3}\s*(?:[—–-]|is|это)?\s+[\"'«]?((?=[^\s\"'»,;]*\d)(?=[^\s\"'»,;]*[A-Za-z])[^\s\"'»,;]{8,}?)(?=[\s\"'»,;]|[.!?](?:\s|$)|$)"), 1),
 ]
 _PLACEHOLDER = re.compile(r"(?i)^(\[|\$|<|\{|your_|xxx|\*\*\*|changeme|example|placeholder|none|null|true|false|masked)")
 

@@ -17,41 +17,69 @@ def key():
             return line.split("=", 1)[1].strip()
     return ""
 
-CONST = "Constitution: do no harm. Do not invent. A cube must change the obvious answer and name the trap and the instead. Banal steps are a fail. Empty or harmful is remove."
+CONST = "Constitution: do no harm. Do not invent. A cube must change the obvious answer and name the trap and the instead. Banal steps are a fail. Empty or harmful is remove. Generic advice any person or model already gives (drink water, be careful, test your code) changes nothing: remove."
 
-def _parse(msg):
-    text = msg.get("content") or msg.get("reasoning") or ""
-    if "{" not in text:
-        return {"verdict": "fix", "reason": text[:80]}
+VERDICTS = ("keep", "fix", "remove")
+J1, J2, J3 = "deepseek/deepseek-chat", "meta-llama/llama-3.3-70b-instruct", "qwen/qwen3.6-plus"   # qwen often answers with prose: last resort only
+
+
+def _post(model, content, max_tokens, json_mode):
+    body = {"model": model, "messages": [{"role": "user", "content": content}], "temperature": 0, "max_tokens": max_tokens}
+    if json_mode:
+        body["response_format"] = {"type": "json_object"}
+    req = urllib.request.Request("https://api.polza.ai/v1/chat/completions", data=json.dumps(body).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer " + key(), "User-Agent": "skv-evolver"})
+    return (json.loads(urllib.request.urlopen(req, timeout=90).read())["choices"][0]["message"].get("content") or "").strip()
+
+
+def _strict_json(text):
     try:
-        return json.loads(text[text.find("{"):text.rfind("}") + 1])
-    except Exception:   # models sometimes return broken JSON: read the verdict word
-        import re
-        m = re.search(r'verdict"?\s*[:=]\s*"?(keep|fix|remove)', text, re.I)
-        return {"verdict": (m.group(1).lower() if m else "fix"), "reason": text[:80]}
+        d = json.loads(text)
+    except Exception:
+        return None
+    v = str(d.get("verdict", "")).strip().lower() if isinstance(d, dict) else ""
+    return {"verdict": v, "reason": str(d.get("reason", ""))[:200]} if v in VERDICTS else None
+
+
+def _strict_line(text):
+    import re
+    m = re.fullmatch(r"\s*VERDICT:\s*(keep|fix|remove)\s*(?:\|\s*(.*))?", text.strip().splitlines()[0] if text.strip() else "", re.I)
+    return {"verdict": m.group(1).lower(), "reason": (m.group(2) or "")[:200]} if m else None
+
 
 def ask(model, prompt):
-    body = json.dumps({"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 250}).encode()
-    req = urllib.request.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={"Content-Type": "application/json", "Authorization": "Bearer " + key(), "User-Agent": "skv-evolver"})
-    msg = json.loads(urllib.request.urlopen(req, timeout=60).read())["choices"][0]["message"]
-    return _parse(msg)
+    """Strict verdict or None (abstain). Try 1: JSON mode. Try 2: one-line format. Nothing else is guessed."""
+    try:
+        r = _strict_json(_post(model, prompt + "\nDecide yourself. verdict is exactly one of: keep, fix, remove. Reply with JSON only, e.g. {\"verdict\": \"<your verdict>\", \"reason\": \"<why, under 12 words>\"}", 120, True))
+        if r:
+            return r
+    except Exception as e:
+        log("judge json fail " + model + " " + str(e)[:60])
+    try:
+        return _strict_line(_post(model, prompt + "\nReply with exactly one line and nothing else: VERDICT: keep|fix|remove | short reason", 60, False))
+    except Exception as e:
+        log("judge line fail " + model + " " + str(e)[:60])
+        return None
+
 
 def judge(title, rules):
-    prompt = CONST + "\nReply only JSON {\"verdict\":\"keep\"|\"fix\"|\"remove\",\"reason\":\"short\"}.\nTITLE: " + title + "\nRULES:\n" + rules[:900]
-    vote = ask("deepseek/deepseek-chat", prompt)
-    votes = [("deepseek/deepseek-chat", (vote.get("verdict") or "fix").lower(), vote.get("reason", ""))]
-    # A delete needs a second judge. One model must not erase a cube alone (cubes_v2.apply_verdicts enforces it).
-    if votes[0][1] == "remove":
-        second = ask("qwen/qwen3.6-plus", prompt)
-        votes.append(("qwen/qwen3.6-plus", (second.get("verdict") or "fix").lower(), second.get("reason", "")))
+    prompt = CONST + "\nTITLE: " + title + "\nRULES:\n" + rules[:900]
+    first = ask(J1, prompt)
+    if not first:
+        return {"votes": [(J1, "abstain", "unparsed")], "rules": "", "skip": True}
+    votes = [(J1, first["verdict"], first["reason"])]
+    if first["verdict"] == "remove":
+        # A delete needs a clear second "remove". Unparsed = abstain (never keep); then a third model decides.
+        second = ask(J2, prompt)
+        votes.append((J2, second["verdict"], second["reason"]) if second else (J2, "abstain", "unparsed"))
+        if not second:
+            third = ask(J3, prompt)
+            votes.append((J3, third["verdict"], third["reason"]) if third else (J3, "abstain", "unparsed"))
+    removers = {j for j, v, _ in votes if v == "remove"}
     rules_out = ""
-    if any(v[1] != "keep" for v in votes) and not (len(votes) == 2 and all(v[1] == "remove" for v in votes)):
-        fix = "Rewrite as 4 short rules. Name the trap and the instead. No commentary.\n" + rules[:800]
-        body = json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": fix}], "temperature": 0.2, "max_tokens": 180}).encode()
-        req = urllib.request.Request("https://api.polza.ai/v1/chat/completions", data=body, headers={"Content-Type": "application/json", "Authorization": "Bearer " + key(), "User-Agent": "skv-evolver"})
-        msg = json.loads(urllib.request.urlopen(req, timeout=60).read())["choices"][0]["message"]
-        rules_out = msg.get("content") or ""
+    if len(removers) < 2 and any(v in ("fix", "remove") for _, v, _ in votes):
+        rules_out = _post(J1, "Rewrite as 4 short rules. Name the trap and the instead. No commentary.\n" + rules[:800], 180, False)
     return {"votes": votes, "rules": rules_out}
+
 
 def drain():
     c = sqlite3.connect(DB)
@@ -67,6 +95,9 @@ def drain():
             verdict = judge(cube[0] or cid, cube[1] or "")
         except Exception as e:
             log("judge fail " + cid + " " + str(e)[:80])
+            continue
+        if verdict.get("skip"):
+            log("first judge abstained, retry next night " + cid)
             continue
         import importlib.util as _iu
         _sp = _iu.spec_from_file_location("cubes_v2", "/root/skv-core/src/app/cubes_v2.py"); cv = _iu.module_from_spec(_sp); _sp.loader.exec_module(cv)

@@ -166,6 +166,9 @@ class MemoryRequest(BaseModel):
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(5, ge=1, le=20)
     focus_words: Optional[List[str]] = None
+    kind: Optional[str] = None      # shelf filters; default: all shelves
+    source: Optional[str] = None
+    project: Optional[str] = None
 
 class SearchResultItem(BaseModel):
     event_id: str
@@ -1204,6 +1207,11 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
                         _by_id[_old]["superseded_by"] = _new
             except Exception as _e:
                 print(f"[semantic] supersede skipped: {_e}", flush=True)
+        if getattr(req, "kind", None) or getattr(req, "source", None) or getattr(req, "project", None):
+            from app import shelves as _sh
+            _ok = _sh.allowed(req.user_id, [r["event_id"] for r in raw_results] + [e for e, _ in _fts_ranked], req.kind, req.source, req.project)
+            raw_results = [r for r in raw_results if r["event_id"] in _ok]
+            _fts_ranked = [x for x in _fts_ranked if x[0] in _ok]
         # HYBRID: Multi-word FTS5 boost (legacy)
         if req.query_text and raw_results and _sem.fusion_mode() != "rrf":
             try:
@@ -1459,6 +1467,15 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
                     memory_map_text = "\n".join(lines) + "\n\n" + memory_map_text
     except Exception as _e:
         print(f"[semantic] l1 skipped: {_e}", flush=True)
+    if getattr(req, "kind", None) or getattr(req, "source", None) or getattr(req, "project", None):
+        try:
+            from app import shelves as _sh
+            _ok = _sh.allowed(req.user_id, [f.get("event_id") for f in fts_top] + [v.get("event_id") for v in vector_top], req.kind, req.source, req.project)
+            fts_top = [f for f in fts_top if f.get("event_id") in _ok]
+            vector_top = [v for v in vector_top if v.get("event_id") in _ok]
+            intersection = [v for v in intersection if v.get("event_id") in _ok]
+        except Exception as _e:
+            print(f"[shelves] filter skipped: {_e}", flush=True)
     if _sem_vec is not None and len(fts_top) > 1:
         try:
             _order, _sup = _sem.supersede(req.user_id, [f.get("event_id") for f in fts_top])
@@ -2890,6 +2907,9 @@ class RememberRequest(BaseModel):
     close_task: str = ""
     duty: str = ""
     duty_reason: str = ""
+    kind: str = "dialogue"
+    source: str = ""
+    project: str = ""
 
 @router.post("/remember")
 async def remember(req: RememberRequest):
@@ -2907,6 +2927,12 @@ async def remember(req: RememberRequest):
         from app.account_memory import link_turn
         link_turn("/data/skv/metadata_store", req.user_id, eid, req.topic or "")
         saved.append(eid)
+        if req.kind != "dialogue" or req.source or req.project:
+            try:
+                from app import shelves as _sh
+                _sh.tag(req.user_id, [eid], _sh.normalize_kind(req.kind) or "dialogue", req.source, req.project)
+            except Exception as _e:
+                print(f"[shelves] tag skipped: {_e}", flush=True)
         try:
             st = sqlite3.connect(path if False else f"/data/skv/metadata_store/{name}.db")
             row = st.execute("SELECT step FROM agent_state WHERE user_id=?", (name,)).fetchone()
@@ -2992,8 +3018,11 @@ async def remember(req: RememberRequest):
 class ForgetPreviewRequest(BaseModel):
     user_id: str = ""
     query: str = ""
-    mode: str = "text"          # text | topic | event
+    mode: str = "text"          # text | topic | event | shelf
     event_ids: List[str] = []
+    kind: str = ""
+    source: str = ""
+    project: str = ""
     limit: int = 50
 
 
@@ -3007,15 +3036,14 @@ FORGET_TTL_S = 300
 
 
 def _forget_db(user_id):
-    import sqlite3
-    from app.account_memory import account_db_name
-    conn = sqlite3.connect(f"/data/skv/metadata_store/{account_db_name(user_id)}.db", timeout=30)
+    from app import shelves as _sh
+    conn = _sh.connect(user_id)  # ensures shelf columns exist
     conn.execute("CREATE TABLE IF NOT EXISTS forget_requests (token TEXT PRIMARY KEY, ids_json TEXT, created REAL, used INTEGER DEFAULT 0)")
     conn.execute("CREATE TABLE IF NOT EXISTS event_forgotten AS SELECT * FROM event_metadata WHERE 0")
-    try:
-        conn.execute("ALTER TABLE event_forgotten ADD COLUMN forgotten_at TEXT")
-    except Exception:
-        pass
+    have = {r[1] for r in conn.execute("PRAGMA table_info(event_forgotten)")}
+    for col in [r[1] for r in conn.execute("PRAGMA table_info(event_metadata)")] + ["forgotten_at"]:
+        if col not in have:
+            conn.execute(f"ALTER TABLE event_forgotten ADD COLUMN {col} TEXT")
     return conn
 
 
@@ -3029,7 +3057,12 @@ async def forget_preview(req: ForgetPreviewRequest):
     try:
         lim = max(1, min(req.limit, 200))
         own = req.user_id + "::%"
-        if req.mode == "event":
+        if req.mode == "shelf":
+            if not (req.kind or req.source or req.project):
+                raise HTTPException(422, "kind, source or project required for mode=shelf")
+            from app import shelves as _sh
+            rows = _sh.select_ids(req.user_id, req.kind or None, req.source or None, req.project or None, lim)
+        elif req.mode == "event":
             ids = [i for i in req.event_ids if i.startswith(req.user_id + "::")][:lim]
             rows = conn.execute("SELECT event_id, time_str, substr(raw_dialogue,1,160) FROM event_metadata WHERE event_id IN (%s)" % ",".join("?" * len(ids)), ids).fetchall() if ids else []
         elif req.mode == "topic":
@@ -3117,6 +3150,73 @@ async def forget_confirm(req: ForgetConfirmRequest):
 async def forget_restore(req: ForgetConfirmRequest):
     """Undo a confirmed forget with the same token."""
     return _forget_apply(req, restore=True)
+
+
+class ShelfIngestRequest(BaseModel):
+    user_id: str = ""
+    kind: str = "document"        # dialogue | email | document | code | file
+    source: str = ""              # gmail, grok_bot, chat, github ...
+    project: str = ""             # e.g. skv-server
+    text: str
+    title: str = ""
+    path: str = ""                # code: file path
+    version: str = ""             # code: commit or version
+    sender: str = ""              # email
+    date: str = ""                # email
+    critical: str = ""            # optional >>> mark on every chunk
+    shelf_description: str = ""   # short English description when creating a custom shelf
+
+
+@router.post("/shelf/ingest")
+async def shelf_ingest(req: ShelfIngestRequest):
+    """Put a document, code file or email on its shelf. Chunked per kind: code by function/class (path+version), docs by section, email with sender+date."""
+    from app import shelves as _sh
+    from app.account_memory import queue_turn
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    req.kind = _sh.normalize_kind(req.kind) or ""
+    if not req.kind:
+        raise HTTPException(422, "kind must be an English slug (a-z, 0-9, '-'); recommended: " + ", ".join(_sh.DEFAULT_KINDS))
+    if len(req.text) > 400_000:
+        raise HTTPException(413, "text too large (max 400k chars)")
+    parts = _sh.chunk(req.kind, req.text, req.path, req.version, req.sender, req.date, req.title)[:300]
+    ids = []
+    for header, body in parts:
+        eid = _sh.chunk_id(req.user_id, req.kind, req.project, header, body)
+        if req.critical:
+            body = body + "\n>>> " + req.critical
+        queue_turn("/data/skv/metadata_store", req.user_id, eid, header, body, source=req.source or req.kind, topic=req.title or req.path or header[:80])
+        ids.append(eid)
+    _sh.tag(req.user_id, ids, req.kind, req.source, req.project, req.shelf_description)
+    return {"status": "ok", "kind": req.kind, "source": req.source, "project": req.project, "chunks": len(ids), "event_ids": ids[:50]}
+
+
+class ShelfRenameRequest(BaseModel):
+    user_id: str = ""
+    from_shelf: str
+    to_shelf: str
+    description: str = ""
+
+
+@router.post("/shelf/rename")
+async def shelf_rename(req: ShelfRenameRequest):
+    """Rename a shelf, or merge it into an existing shelf (same call)."""
+    from app import shelves as _sh
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    try:
+        return {"status": "ok", **_sh.rename(req.user_id, req.from_shelf, req.to_shelf, req.description)}
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.get("/shelves")
+async def list_shelves(user_id: str = ""):
+    """How much is on each shelf (kind / source / project)."""
+    from app import shelves as _sh
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return {"shelves": _sh.counts(user_id)}
 
 
 class DigRequest(BaseModel):

@@ -58,6 +58,11 @@ def _db():
     c.execute("""CREATE TABLE IF NOT EXISTS vault_reveals (
         token_hash TEXT PRIMARY KEY, user_id TEXT, name TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         expires_at TEXT, opened_at TEXT, require_login INTEGER DEFAULT 0, fails INTEGER DEFAULT 0, ip_open TEXT)""")
+    cols = {r[1] for r in c.execute("PRAGMA table_info(vault_reveals)")}
+    for col, ddl in (("payload_nonce", "BLOB"), ("payload_ct", "BLOB")):
+        if col not in cols:
+            c.execute(f"ALTER TABLE vault_reveals ADD COLUMN {col} {ddl}")
+    c.execute("PRAGMA secure_delete=ON")
     return c
 
 
@@ -183,6 +188,56 @@ def create_reveal(user_id, name, ttl_s=REVEAL_DEFAULT_S, require_login=False, ip
         c.close()
 
 
+
+def _payload_cipher(token):
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    return AESGCM(hashlib.sha256(b"skv-reveal-payload|" + token.encode()).digest())
+
+
+def create_transient_reveal(user_id, label, value, ttl_s=REVEAL_DEFAULT_S, require_login=False, ip=""):
+    """One-time payload that is NOT stored in vault_secrets. Ciphertext is wiped after open or expiry.
+    The payload is encrypted with a key derived from the token itself, so deleting the row makes it unrecoverable."""
+    label = check_name(label)
+    if not value or len(value) > 16384:
+        raise ValueError("value: 1-16384 chars")
+    ttl = max(30, min(int(ttl_s or REVEAL_DEFAULT_S), REVEAL_MAX_S))
+    token = secrets.token_urlsafe(24)
+    nonce = secrets.token_bytes(12)
+    ct = _payload_cipher(token).encrypt(nonce, value.encode(), f"transient|{user_id}|{label}".encode())
+    c = _db()
+    try:
+        c.execute("INSERT INTO vault_reveals (token_hash, user_id, name, expires_at, require_login, payload_nonce, payload_ct) VALUES (?,?,?,datetime('now', ?),?,?,?)",
+                  (_th(token), user_id, label, f"+{ttl} seconds", 1 if require_login else 0, nonce, ct))
+        exp = c.execute("SELECT expires_at FROM vault_reveals WHERE token_hash=?", (_th(token),)).fetchone()[0]
+        log(user_id, label, "reveal_link", f"transient ttl={ttl}s", ip, True, c)
+        c.commit()
+        return {"url": f"{PUBLIC_BASE}/s/{token}", "expires_at": exp + " UTC", "ttl_s": ttl, "single_open": True, "transient": True, "require_login": bool(require_login)}
+    finally:
+        c.close()
+
+
+def wipe_transient(conn, th):
+    """Overwrite ciphertext with zeros then NULL (secure_delete on), so the payload cannot be recovered."""
+    row = conn.execute("SELECT length(payload_ct), length(payload_nonce) FROM vault_reveals WHERE token_hash=?", (th,)).fetchone()
+    if not row or row[0] is None:
+        return
+    zc = b"\x00" * int(row[0]); zn = b"\x00" * int(row[1] or 0)
+    conn.execute("UPDATE vault_reveals SET payload_ct=?, payload_nonce=? WHERE token_hash=?", (zc, zn, th))
+    conn.execute("UPDATE vault_reveals SET payload_ct=NULL, payload_nonce=NULL WHERE token_hash=?", (th,))
+
+
+def purge_expired_reveals():
+    c = _db()
+    try:
+        rows = c.execute("SELECT token_hash FROM vault_reveals WHERE payload_ct IS NOT NULL AND (opened_at IS NOT NULL OR expires_at <= datetime('now'))").fetchall()
+        for (th,) in rows:
+            wipe_transient(c, th)
+        c.commit()
+        return len(rows)
+    finally:
+        c.close()
+
+
 def reveal_state(token):
     c = _db()
     try:
@@ -216,6 +271,16 @@ def open_reveal(token, email="", password="", ip=""):
         n = c.execute("UPDATE vault_reveals SET opened_at=datetime('now'), ip_open=? WHERE token_hash=? AND opened_at IS NULL", ((ip or "")[:64], th)).rowcount
         if n != 1:
             return "gone", None
+        pay = c.execute("SELECT payload_nonce, payload_ct FROM vault_reveals WHERE token_hash=?", (th,)).fetchone()
+        if pay and pay[1] is not None:
+            try:
+                v = _payload_cipher(token).decrypt(pay[0], pay[1], f"transient|{uid}|{name}".encode()).decode()
+            except Exception:
+                v = None
+            wipe_transient(c, th)
+            log(uid, name, "reveal_open", "transient", ip, v is not None, c)
+            c.commit()
+            return ("ok", v) if v is not None else ("gone", None)
         v = _get(c, uid, name)
         log(uid, name, "reveal_open", "", ip, v is not None, c)
         c.commit()

@@ -1,9 +1,9 @@
-"""SKV memory v2: background LLM summaries (bg_llm=true in memory_config.json).
+"""SKV memory v2: background LLM summaries (bg_llm=true in memory_config.json). FALLBACK only.
 
-Replaces the old background_l1_l2 body, which crashed on DBs without event_metadata, aborted the whole
-loop on one error, overwrote summary_l2 and wrote L1 rows without ranges.
-- L1: uncovered stretches of turns (older than the newest `llm_keep_raw` turns), `llm_l1_turns` per L1,
-  English, with from/to rowid, session_id llm_l1_<from>_<to>; max `llm_l1_per_cycle` per account per cycle.
+Agents should write L1/L2 themselves via /remember (l1_summary, l2_map). The server job only fills gaps.
+- L1: uncovered stretches (older than the newest `llm_keep_raw` turns) that have no agent or llm L1 range yet.
+  Any summary_l1 with from/to_rowid already covers those rowids, so agent-written L1 is never overwritten.
+  English, `llm_l1_turns` per L1, session_id llm_l1_<from>_<to>; max `llm_l1_per_cycle` per account per cycle.
 - L2: one block (source 'llm') from >= `llm_l2_min_l1` new llm L1 rows; max 1 per account per cycle.
 - Never touches summary_l2. Skips excluded topics (skv_eval*) and doc/code kinds. Masks secrets before sending.
 - Usage and cost (RUB) are appended to /data/skv/llm_usage.jsonl.

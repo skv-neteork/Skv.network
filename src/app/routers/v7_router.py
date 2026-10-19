@@ -3020,6 +3020,19 @@ async def remember(req: RememberRequest):
     from app.account_memory import queue_turn, account_db_name
     saved = []
     name = account_db_name(req.user_id)
+    _vaulted = []
+    try:   # secrets never stay in memory: move them to the vault, keep [vault:<name>] references
+        from app import vault as _vault
+        if _vault.available():
+            for _f in ("query", "response", "critical", "l1_summary", "l2_map", "cube_rules", "cube_evidence", "topic"):
+                _v = getattr(req, _f, None)
+                if isinstance(_v, str) and _v:
+                    _new, _names = _vault.scrub(req.user_id, _v)
+                    if _names:
+                        setattr(req, _f, _new)
+                        _vaulted += _names
+    except Exception as _e:
+        print(f"[vault] remember scrub skipped: {_e}", flush=True)
     if req.query or req.response:
         text_q = req.query
         text_a = req.response
@@ -3135,7 +3148,11 @@ async def remember(req: RememberRequest):
                     (req.user_id, _duty_step(req.user_id), req.duty, req.duty_reason or ""))
         conn.commit(); conn.close()
         saved.append(req.duty)
-    return {"status": "ok", "saved": saved}
+    _out = {"status": "ok", "saved": saved}
+    if _vaulted:
+        _out["vaulted"] = list(dict.fromkeys(_vaulted))
+        _out["vault_note"] = "Secrets were moved to the vault; memory keeps [vault:<name>] references. Use POST /api/v7/vault/use."
+    return _out
 
 
 class ForgetPreviewRequest(BaseModel):

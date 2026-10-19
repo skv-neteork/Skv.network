@@ -39,6 +39,14 @@ def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response:
         raise ValueError("user_id and event_id required")
     os.makedirs(base_dir, exist_ok=True)
     path = os.path.join(base_dir, name + ".db")
+    try:   # chat turns too: secrets go to the vault, memory keeps [vault:<name>]
+        from app import vault as _vault
+        if _vault.available():
+            query, _ = _vault.scrub(user_id, query or "", event_id)
+            response, _ = _vault.scrub(user_id, response or "", event_id)
+            topic, _ = _vault.scrub(user_id, topic or "", event_id)
+    except Exception as exc:
+        print(f"[vault] turn scrub skipped: {exc}", flush=True)
     dialogue = f"Q: {query}\nA: {response}"
     with sqlite3.connect(path, timeout=30) as conn:
         conn.execute("PRAGMA journal_mode=WAL")

@@ -291,6 +291,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
+        if request.url.path.startswith("/s/"):   # one-time secret pages
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
         response.headers["Content-Security-Policy"] = "default-src 'self' https://chat.deepseek.com https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com fonts.googleapis.com fonts.gstatic.com; connect-src 'self' https://corsproxy.io https://api.allorigins.win https://proxy.cors.sh https://chat.deepseek.com; font-src 'self' fonts.gstatic.com; font-src 'self' cdnjs.cloudflare.com"
         return response
 
@@ -337,6 +341,11 @@ async def rate_limit_middleware(request, call_next):
         return await call_next(request)
     
     client_ip = request.client.host if request.client else "unknown"
+    # behind nginx-proxy every request comes from the proxy container: count the real client instead
+    if client_ip.startswith(("172.", "10.", "192.168.")):
+        _real = (request.headers.get("x-real-ip") or (request.headers.get("x-forwarded-for") or "").split(",")[0]).strip()
+        if _real:
+            client_ip = _real
     
     # Пропускаем внутренние запросы от самого себя
     if client_ip in ["127.0.0.1", "localhost", "::1"]:
@@ -430,6 +439,8 @@ app.include_router(formula_router)
 app.include_router(consult_router)
 app.include_router(import_router)
 app.include_router(v7_router)
+from app.routers.vault_router import router as vault_router
+app.include_router(vault_router)
 app.include_router(tensor_router)
 app.include_router(exports_router)
 app.include_router(code_executor_router)

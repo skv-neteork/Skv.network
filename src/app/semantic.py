@@ -352,3 +352,96 @@ if __name__ == "__main__":
             os.remove(flag)
         except OSError:
             pass
+
+
+# ---------------- supersede ----------------
+def _event_times(user_id, ids):
+    out = {}
+    if not ids:
+        return out
+    path = os.path.join(BASE_DIR, account_name(user_id) + ".db")
+    try:
+        conn = sqlite3.connect(path, timeout=10)
+        q = "SELECT event_id, time_str FROM event_metadata WHERE event_id IN (%s)" % ",".join("?" * len(ids))
+        for eid, ts in conn.execute(q, ids):
+            out[eid] = ts or ""
+        conn.close()
+    except Exception:
+        pass
+    for eid in ids:  # remember_<ns> ids carry a precise stamp
+        tail = eid.rsplit("_", 1)[-1]
+        if tail.isdigit() and len(tail) >= 18:
+            out[eid] = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(int(tail) / 1e9)) + "." + tail[-9:]
+    return out
+
+
+def supersede(user_id, ranked_ids, threshold=0.8, window=10, tag=None):
+    """Newer fact on the same subject ranks above the older one.
+    Returns (new_order, {older_id: newer_id})."""
+    tag = tag or active_tag()
+    head = list(ranked_ids[:window])
+    if len(head) < 2:
+        return list(ranked_ids), {}
+    vec_of = {}
+    with STORE.lock:
+        e = STORE._load(tag, account_name(user_id))
+        if e:
+            inidx = [i for i in head if i in e["pos"]]
+            if inidx:
+                for i, v in zip(inidx, e["index"].get_items([e["pos"][i] for i in inidx])):
+                    vec_of[i] = np.asarray(v, dtype=np.float32)
+    missing = [i for i in head if i not in vec_of]
+    if missing:  # fresh turns not embedded yet: embed their text now (few items)
+        try:
+            conn = sqlite3.connect(os.path.join(BASE_DIR, account_name(user_id) + ".db"), timeout=10)
+            q = "SELECT event_id, raw_dialogue FROM event_metadata WHERE event_id IN (%s)" % ",".join("?" * len(missing))
+            rows = conn.execute(q, missing).fetchall()
+            conn.close()
+            if rows:
+                for (i, _t), v in zip(rows, embed([t for _, t in rows], tag)):
+                    vec_of[i] = v
+        except Exception:
+            pass
+    have = [i for i in head if i in vec_of]
+    if len(have) < 2:
+        return list(ranked_ids), {}
+    vecs = np.stack([vec_of[i] for i in have])
+    vecs /= np.maximum(np.linalg.norm(vecs, axis=1, keepdims=True), 1e-9)
+    sims = vecs @ vecs.T
+    times = _event_times(user_id, have)
+    order = list(head)
+    by = {}
+    for a in range(len(have)):
+        for b in range(len(have)):
+            if a == b or sims[a, b] < threshold:
+                continue
+            older, newer = have[a], have[b]
+            if times.get(older, "") and times.get(newer, "") and times[older] < times[newer]:
+                by.setdefault(older, newer)
+    for older, newer in by.items():
+        if order.index(older) < order.index(newer):
+            order.remove(older)
+            order.insert(order.index(newer) + 1, older)
+    return order + list(ranked_ids[window:]), by
+
+
+# ---------------- forget (soft delete) ----------------
+def mark_forgotten(user_id, ids, restore=False, tag=None):
+    tag = tag or active_tag()
+    if tag == "bge":
+        return
+    with STORE.lock:
+        e = STORE._load(tag, account_name(user_id))
+        if not e:
+            return
+        for i in ids:
+            if i in e["pos"]:
+                try:
+                    if restore:
+                        e["index"].unmark_deleted(e["pos"][i])
+                    else:
+                        e["index"].mark_deleted(e["pos"][i])
+                except RuntimeError:
+                    pass
+        e["dirty"] = True
+        STORE.save(tag, account_name(user_id))

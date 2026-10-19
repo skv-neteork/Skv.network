@@ -7,7 +7,7 @@ ok = n = 0
 def t(name, c):
     global ok, n; n += 1; ok += bool(c); print(("PASS " if c else "FAIL ") + name)
 def full(final, extra=""):
-    return ("DRAFT:\nA.\nSECOND LOOK:\nclaims: none specific [general]\nsafety: ordinary question, no real harm here\nfix: added the safe option\nFINAL:\n"
+    return ("DRAFT:\nAnswer alpha.\nSECOND LOOK:\nMy draft \"Answer alpha\" gives no option; the answer alpha needs the safe option added.\nFINAL:\n"
             + final + "\n" + extra + "CRITICAL: none\nCUBE_NOTHING: small\nSKV | #1 | READ | VERIFY | CORRECT | OUTPUT")
 cubes = [{"cube_id": "cube_abc12345", "note": "trusted"}]
 def wire(outs):

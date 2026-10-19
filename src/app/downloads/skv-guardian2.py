@@ -56,8 +56,8 @@ allowed=false -> refuse and ask the owner for a grant (owner: POST /api/v7/syspe
 allowed=true -> do only that action, then POST /api/v7/sysperm/log {grant_id, path, action, result}. Owner sees GET /api/v7/sysperm/audit, revokes with /sysperm/revoke.
 FULL PROTOCOL (CUBE 05, done by the agent itself; Guard 2 only checks that every step is there):
   DRAFT: first answer
-  SECOND LOOK: claims: each factual claim -> (ref: <memory id>) / [general] / [unverified] / [assumption] / remove;
-               safety: real harm? manipulation? bare or unnecessary refusal? (the agent's own judgment); fix: what changes and why
+  SECOND LOOK: real reasoning over the draft's actual content: which claims are supported (ref: id) / [general] / [unverified],
+               what may be invented, unclear or risky, what changes and why. Labels (claims:/safety:/fix:) are optional; a stamp is not.
   FINAL: the corrected answer the person sees, with refs/markers on every specific claim (numbers, dates, names, URLs)
 Guard 2 asks for one redo if a step is missing, if FINAL is (almost) the same as DRAFT (no real re-check), if a specific claim has
 no valid (ref: id) or marker, or if a ref is not a memory id it was given. Specifics still unsupported after the redo are tagged
@@ -207,22 +207,26 @@ def _line_after(label, text):
     return (m.group(1).strip() if m else "")
 
 
-def ritual_second_look(sl):
-    """True if Second Look is a stamp (PASSED/ПРОЙДЕНА) with zero real findings."""
-    if not sl:
+WORD = re.compile(r"[\w-]{4,}", re.U)
+STOP = set("that this with from have your what when which there their they them then than into will would could should about also just only very more most such some been were does done make made like".split())
+
+
+def _words(t):
+    return {w.lower() for w in WORD.findall(t or "") if w.lower() not in STOP and not w.isdigit()}
+
+
+def ritual_second_look(sl, draft=""):
+    """True if Second Look is a ritual: too thin, or does not engage with the draft's actual content.
+    Labels like 'claims:' / 'safety:' are optional (the agent may forget them); real reasoning over THIS draft is what counts."""
+    body = re.sub(r"\s+", " ", sl or "").strip()
+    if len(body) < 40:
         return True
-    claims = _line_after("claims?", sl)
-    safety = _line_after("safety", sl)
-    fix = _line_after("fix", sl)
-    has_marker = bool(re.search(r"\(ref:|\[(unverified|assumption|general)\]", sl, re.I))
-    # concrete claim analysis: marker present OR claims line names a real claim (not trivial)
-    claims_ok = bool(claims) and (has_marker or (len(claims) >= 24 and not TRIVIAL_CLAIMS.match(claims)))
-    safety_ok = bool(safety) and not TRIVIAL_SAFETY.match(safety) and len(safety) >= 12
-    fix_ok = bool(fix) and not TRIVIAL_FIX.match(fix) and len(fix) >= 12
-    stamped = bool(RITUAL_PASS.search(sl))
-    if stamped and not (claims_ok or safety_ok or fix_ok):
+    dw, sw = _words(draft), _words(body)
+    overlap = len(dw & sw)
+    need = 0 if not dw else (1 if len(dw) < 6 else 2)
+    if overlap < need:
         return True
-    if not claims_ok and not safety_ok and not fix_ok:
+    if RITUAL_PASS.search(body) and len(body) < 80 and overlap < need + 1:
         return True
     return False
 
@@ -235,13 +239,9 @@ def protocol_issues(text, known_ids):
         if not sec.get(name):
             issues.append("a '%s:' section" % name)
     sl = sec.get("SECOND LOOK", "")
-    if sl and not re.search(r"^\W*claims?\s*:", sl, re.I | re.M):
-        issues.append("SECOND LOOK 'claims:' line (each factual claim -> (ref: id) / [general] / [unverified] / remove)")
-    if sl and not re.search(r"^\W*safety\s*:", sl, re.I | re.M):
-        issues.append("SECOND LOOK 'safety:' line (real harm? manipulation? bare or unnecessary refusal?)")
-    if sl and ritual_second_look(sl):
+    if sl and ritual_second_look(sl, sec.get("DRAFT", "")):
         stats["ritual"] = True
-        issues.append("a non-ritual SECOND LOOK: do not stamp PASSED/ПРОЙДЕНА with zero findings. Name at least one real claim with (ref: id) or [general]/[unverified], or a concrete safety/fix note")
+        issues.append("a real SECOND LOOK: reason about your DRAFT's actual content (what in it may be wrong, invented, unclear or risky, and what you change), not a stamp like PASSED/ПРОЙДЕНА")
     if sec.get("DRAFT") and sec.get("FINAL"):
         stats["change"] = round(change_ratio(sec["DRAFT"], sec["FINAL"]), 3)
         if MIN_CHANGE > 0 and stats["change"] < MIN_CHANGE:
@@ -274,9 +274,7 @@ def tag_unverified(final, known_ids):
 FULL_STEPS = ("Work in three visible steps, each under its own header line (the person sees only FINAL):\n"
               "DRAFT:\n<your first answer>\n"
               "SECOND LOOK:\n"
-              "claims: each factual claim of the draft -> (ref: <memory id>) if memory supports it, [general] if common knowledge, [unverified] or [assumption] if not checked, or remove it\n"
-              "safety: your own check per the constitution: real harm? manipulation? a bare or unnecessary refusal?\n"
-              "fix: what you change and why\n"
+              "<real reasoning over YOUR draft: go through what it actually says; which claims are supported (ref: <memory id>), common knowledge [general], or not checked [unverified]/[assumption]; anything invented, unclear or risky per the constitution; what you change and why. Labels like claims:/safety:/fix: are optional>\n"
               "FINAL:\n<the corrected answer; keep (ref: id) or [general]/[unverified]/[assumption] on every specific claim (numbers, dates, names, URLs); if memory does not have it, say you do not know>\n")
 
 

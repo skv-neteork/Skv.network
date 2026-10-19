@@ -107,7 +107,7 @@ def render(uid, tokens=500):
     return s if len(s) <= lim else s[:lim].rsplit("\n", 1)[0] + "\n...(clipped; GET /api/v7/board for all)"
 
 
-def for_recall(uid, session, cfg):
+def for_recall(uid, session, cfg, force=False):
     if not cfg.get("board_enabled", True):
         return ""
     every = int(cfg.get("board_every", 10) or 10)
@@ -117,7 +117,7 @@ def for_recall(uid, session, cfg):
     try:
         sess, recalls, last, oldh = c.execute("SELECT session, recalls, last_sent, hash FROM board_state WHERE id=1").fetchone() or (None, 0, None, None)
         recalls = (recalls or 0) + 1
-        due = bool(text) and (sess != session or last is None or recalls - last >= every or h != oldh)
+        due = bool(text) and (force or sess != session or last is None or recalls - last >= every or h != oldh)
         c.execute("INSERT OR REPLACE INTO board_state (id, session, recalls, last_sent, hash) VALUES (1,?,?,?,?)",
                   (session, recalls, recalls if due else last, h if due else oldh))
         c.commit()

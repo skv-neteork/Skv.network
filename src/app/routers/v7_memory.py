@@ -701,8 +701,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     try:   # pinned per-account board: first recall of a session, every board_every recalls, or when it changed
         from app import board as _board
         _ses = (_res.get("session") or {}) if isinstance(_res, dict) else {}
-        _key = str(_ses.get("id", "default")) + (":" + str(_res.get("trace_id", "")) if _ses.get("first") else "")
-        _bt = _board.for_recall(req.user_id, _key, _mv2.config())
+        _bt = _board.for_recall(req.user_id, str(_ses.get("id", "default")), _mv2.config(), force=bool(_ses.get("first")))
         if _bt and isinstance(_res, dict):
             _res["board"] = _bt
     except Exception as _e:

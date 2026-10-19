@@ -21,7 +21,7 @@ DEFAULTS = {
     "mask_secrets": True,         # mask keys/passwords in memory output (all views)
     "session_idle_s": 1800,       # a new conversation after 30 min of silence
     "budgets": {"map": 800, "raw": 3000, "l1": 2000, "l2": 1500, "critical": 400,
-                "constitution": 1200, "hits": 1000, "lens": 1500, "followup": 3000, "facts": 1200},
+                "constitution": 1200, "hits": 1000, "lens": 1500, "followup": 3000, "facts": 1800},
     "caps": {"map": 2000, "raw": 8000, "l1": 6000, "l2": 5000, "critical": 1200,
              "constitution": 3500, "hits": 3000, "lens": 5000, "followup": 8000, "facts": 4000},
 }
@@ -396,7 +396,7 @@ DEFAULTS.update({"legacy_rowid_order": True, "bg_llm": False, "l2_legacy_overwri
                  "window_exclude_kinds": ["doc", "docs", "document", "code", "log", "file"],
                  "maintenance": True, "maintenance_interval_s": 900,
                  "lens_gap": 3, "lens_clusters_max": 5, "first_call_lens_budget": 600,
-                 "recall_plus": True, "recall_max_facts": 24, "recall_snippet_tokens": 70})   # memory v3 recall (memory_recall.py)
+                 "recall_plus": True, "recall_max_facts": 20, "recall_snippet_tokens": 110})   # memory v3 recall (memory_recall.py)
 
 AGENT_HINT = ("hits[0] is the center. Empty hits is not a fact: open GET /api/v7/event/{id}, expand a lens cluster with "
               "focus_event_id (POST /api/v7/memory/lens), or POST /api/v7/memory/dig. Use probe=true for extra lookups in the same turn.")
@@ -495,13 +495,6 @@ def agent_view(req, legacy, ctx):
         view["hits"] = []
     if isinstance(lens, dict) and lens.get("clusters") is not None:
         view["lens"] = lens
-    if req.query_text:
-        try:   # memory v3: multi-query recall (facts across episodes) + resolved relative dates
-            from app import memory_recall as _rc
-            if _rc.enabled(req):
-                _rc.augment(view, uid, req.query_text, budgets.get("facts", 0))
-        except Exception as e:
-            print(f"[memory_v3] recall skipped: {e}", flush=True)
     elif isinstance(lens, dict):
         view["lens"] = {"windows": [{k: v for k, v in w.items() if k != "map"} for w in lens.get("windows", [])]}
     view["span"] = legacy.get("span", 0)
@@ -517,6 +510,13 @@ def agent_view(req, legacy, ctx):
     view = mask_obj(view)
     if not first:
         _fit_followup(view, budgets["followup"])
+    if req.query_text:   # facts have their own budget, added after the follow-up fit
+        try:   # memory v3: multi-query recall (facts across episodes) + resolved relative dates
+            from app import memory_recall as _rc
+            if _rc.enabled(req):
+                _rc.augment(view, uid, req.query_text, budgets.get("facts", 0))
+        except Exception as e:
+            print(f"[memory_v3] recall skipped: {e}", flush=True)
     view["budget"] = {"limits": budgets, "used_tokens": section_tokens(view)}
     fmt = (getattr(req, "format", None) or "json").lower()
     if fmt in ("text", "both"):

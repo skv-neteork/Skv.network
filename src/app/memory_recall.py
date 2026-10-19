@@ -178,7 +178,9 @@ def candidates(user_id, q, k=30):
         for rank, eid in enumerate(lst):
             fused[eid] = fused.get(eid, 0.0) + 1.0 / (60 + rank + 1)
     if names or content:
+        total = max(1, len(bodies))
         nn = [_norm(n) for n in names]
+        nn = [n for n in nn if sum(1 for _, _, b in bodies if n in b) / total < 0.3]   # boost only distinctive names
         rare = [t["norm"] for t in content if t.get("idf", 0) > 0.5][:6]
         body = {e: b for _, e, b in bodies if e in fused}
         for eid in list(fused):
@@ -192,13 +194,19 @@ def candidates(user_id, q, k=30):
     return [e for e, _ in ranked], qs, names, content
 
 
-def _best_snippet(text, words, cap_tokens):
+def _best_snippet(text, words, cap_tokens, names=()):
     text = strip_critical(text or "") or (text or "")
+    if est_tokens(text) <= cap_tokens:
+        return text
     parts = [p.strip() for p in _SENT.split(text) if p and p.strip()]
     if not parts:
         return clip(text, cap_tokens)
+    nl = {n.lower() for n in names}
     lw = [w.lower() for w in words if w]
-    scored = sorted(range(len(parts)), key=lambda i: -sum(1 for w in lw if w in parts[i].lower()))
+    def score(p):
+        pl = p.lower()
+        return sum((0.2 if w in nl else 1.0) for w in lw if w in pl)
+    scored = sorted(range(len(parts)), key=lambda i: (-score(parts[i]), i))
     keep, used = [], 0
     for i in scored:
         tk = est_tokens(parts[i])
@@ -208,14 +216,13 @@ def _best_snippet(text, words, cap_tokens):
         used += tk
         if used >= cap_tokens:
             break
-    out = " … ".join(parts[i] for i in sorted(keep))
-    return clip(out, cap_tokens)
+    return clip(" ".join(parts[i] for i in sorted(keep)), cap_tokens)
 
 
 def facts(user_id, q, budget, skip_ids=(), max_facts=None):
     cfg = config()
-    max_facts = max_facts or int(cfg.get("recall_max_facts", 24))
-    cap = int(cfg.get("recall_snippet_tokens", 70))
+    max_facts = max_facts or int(cfg.get("recall_max_facts", 20))
+    cap = int(cfg.get("recall_snippet_tokens", 110))
     ranked, qs, names, content = candidates(user_id, q)
     ids = [e for e in ranked if e not in set(skip_ids)][:max_facts * 2]
     if not ids:
@@ -233,7 +240,7 @@ def facts(user_id, q, budget, skip_ids=(), max_facts=None):
         if not r:
             continue
         date = norm_date(r[2])
-        sn = annotate(_best_snippet(r[3], words, cap), date)
+        sn = annotate(_best_snippet(r[3], words, cap, names), date)
         tk = est_tokens(sn) + 14
         if used + tk > budget or len(items) >= max_facts:
             break

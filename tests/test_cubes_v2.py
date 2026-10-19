@@ -35,7 +35,11 @@ n_before = c.execute("select count(*) from cubes_new").fetchone()[0]
 # duty per task
 cv.on_remember(c, A, 1, topic="backup")
 check("no duty without task end", not cv.duty_errors(c, A, 5))
-cv.on_remember(c, A, 2, topic="python deploy")
+cv.on_remember(c, A, 2, topic="python deploy", turn=True)
+check("topic change before 5 turns does not open duty", not cv._state(c, A)["pending_cube"])
+for i in range(5):
+    cv.on_remember(c, A, 2, topic="python deploy", turn=True)
+cv.on_remember(c, A, 2, topic="python deploy v2", turn=True)
 check("topic change opens duty, grace step ok", not cv.duty_errors(c, A, 3))
 check("silence is an error", any("task ended" in e for e in cv.duty_errors(c, A, 4)))
 notes = cv.on_remember(c, A, 4, duty="cube_nothing", duty_reason="")

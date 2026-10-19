@@ -23,6 +23,7 @@ VISIBLE_KIND_SQL = "COALESCE(kind,'moment') NOT IN ('help_request','project','pr
 TRUST_CONFIRMS = 3
 NEW_SHOWN_LIMIT = 6          # a cube stays in the 'new, rate this' slots until shown this many times
 RATE_GRACE_STEPS = 2         # new-slot cubes must be rated within this many steps
+TOPIC_MIN_TURNS = 5          # a topic change ends a task only after this many turns since the last cube / cube_nothing
 CUBE_GRACE_STEPS = 1         # after a task ends the agent has this many steps to write cube / cube_nothing
 
 
@@ -37,6 +38,9 @@ def ensure(conn):
                      ("shown", "INTEGER DEFAULT 0"), ("parent_id", "TEXT"), ("triviality", "TEXT")):
         if col not in have:
             conn.execute(f"ALTER TABLE cubes_new ADD COLUMN {col} {ddl}")
+    conn.execute("CREATE TABLE IF NOT EXISTS cube_duty_state (user_id TEXT PRIMARY KEY, last_topic TEXT, pending_cube INTEGER DEFAULT 0, pending_step INTEGER, pending_reason TEXT, rate_pending TEXT DEFAULT '[]', rate_step INTEGER)")
+    if "turns" not in _cols(conn, "cube_duty_state"):
+        conn.execute("ALTER TABLE cube_duty_state ADD COLUMN turns INTEGER DEFAULT 0")
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS cube_links (src TEXT, dst TEXT, kind TEXT, created_by TEXT, created_at TEXT, PRIMARY KEY (src, dst, kind));
     CREATE TABLE IF NOT EXISTS cube_tasks (task_id TEXT PRIMARY KEY, topic TEXT, question TEXT, tried TEXT, accept TEXT, status TEXT, created_by TEXT, created_at TEXT);
@@ -94,7 +98,7 @@ def _save_state(conn, uid, s):
                  (uid, s["last_topic"], s["pending_cube"], s["pending_step"], s["pending_reason"], json.dumps(s["rate_pending"][-10:]), s["rate_step"]))
 
 
-def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, duty="", duty_reason=""):
+def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, duty="", duty_reason="", turn=False):
     """Update the per-task cube duty. Returns a list of notes for the client."""
     notes = []
     s = _state(conn, uid)
@@ -114,7 +118,7 @@ def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, du
     ended = None
     if task_done:
         ended = "task_done"
-    elif t and s["last_topic"] and t != s["last_topic"]:
+    elif t and s["last_topic"] and t != s["last_topic"] and _turns(conn, uid) >= TOPIC_MIN_TURNS:
         ended = "topic_change"
     if closed:
         s["pending_cube"], s["pending_step"], s["pending_reason"] = 0, None, ""
@@ -125,7 +129,16 @@ def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, du
     if t:
         s["last_topic"] = t
     _save_state(conn, uid, s)
+    if closed:
+        conn.execute("UPDATE cube_duty_state SET turns=0 WHERE user_id=?", (uid,))
+    elif turn:
+        conn.execute("UPDATE cube_duty_state SET turns=COALESCE(turns,0)+1 WHERE user_id=?", (uid,))
     return notes
+
+
+def _turns(conn, uid):
+    r = conn.execute("SELECT COALESCE(turns,0) FROM cube_duty_state WHERE user_id=?", (uid,)).fetchone()
+    return r[0] if r else 0
 
 
 def on_rated(conn, uid, cube_id):

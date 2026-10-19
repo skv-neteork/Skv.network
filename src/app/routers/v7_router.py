@@ -3366,7 +3366,7 @@ async def remember(req: RememberRequest):
         if _wrote:
             _dc.execute("INSERT INTO agent_duty (user_id, step, duty, reason, created_at) VALUES (?,?,?,?,datetime('now'))", (req.user_id, _duty_step(req.user_id), "cube", _cube_info["cube_id"]))
         _duty_notes = _cv2.on_remember(_dc, req.user_id, _duty_step(req.user_id), topic=req.topic or req.cube_topic if not _wrote else req.topic,
-                                       task_done=req.task_done, wrote_cube=_wrote, duty=req.duty, duty_reason=req.duty_reason)
+                                       task_done=req.task_done, wrote_cube=_wrote, duty=req.duty, duty_reason=req.duty_reason, turn=bool(req.query or req.response))
         _dc.commit(); _dc.close()
     except Exception as _e:
         print(f"[cubes_v2] remember duty skipped: {_e}", flush=True)

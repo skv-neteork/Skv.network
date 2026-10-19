@@ -11,10 +11,13 @@ def save_pairs(user_id, messages, source):
     for i, msg in enumerate(messages):
         nxt = messages[i + 1] if i + 1 < len(messages) else {}
         if msg.get("role") == "user" and nxt.get("role") == "assistant":
+            # content-derived id: re-importing the same chat is idempotent, a different chat never overwrites it
+            import hashlib as _hl
+            _h = _hl.sha1((msg.get("content", "") + "\x00" + nxt.get("content", "")).encode("utf-8", "replace")).hexdigest()[:12]
             queue_turn(
                 "/data/skv/metadata_store",
                 user_id,
-                f"{user_id}::{source}_{i}",
+                f"{user_id}::{source}_{_h}",
                 msg.get("content", ""),
                 nxt.get("content", ""),
                 source="import",
@@ -147,6 +150,20 @@ async def import_from_text(data: dict):
             messages.append({"role": "user", "content": piece})
             messages.append({"role": "assistant", "content": "imported"})
     if messages:
+        # merge consecutive messages of the same role (a skipped/limit reply would otherwise drop the user turn)
+        merged = []
+        for m in messages:
+            if not m.get("content"):
+                continue
+            if merged and merged[-1]["role"] == m["role"]:
+                merged[-1]["content"] += "\n\n" + m["content"]
+            else:
+                merged.append(dict(m))
+        if merged and merged[0]["role"] == "assistant":
+            merged.insert(0, {"role": "user", "content": "(start of imported chat)"})
+        if merged and merged[-1]["role"] == "user":
+            merged.append({"role": "assistant", "content": "(no reply)"})
+        messages = merged
         saved = save_pairs(user_id, messages, source)
         schedule_import_cycle(user_id, source)
         return {"status": "ok", "imported": saved, "cycle": "started"}

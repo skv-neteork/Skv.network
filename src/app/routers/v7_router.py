@@ -1802,15 +1802,12 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         pass
     try:
         from app import memory_v2_lens as _mvl
-        if req.query_text or req.focus_event_id:
-            _ctx["lens"] = _mvl.lens(req.user_id, req.query_text or "", raw_results=raw_results,
-                                     budget=_mv2.resolve_budgets(req.user_id, {"lens": req.budget_lens})["lens"],
-                                     focus_event_id=req.focus_event_id, radius=req.radius, offset=req.lens_offset,
-                                     kind=req.kind, source=req.source, project=req.project)
+        if (req.query_text or req.focus_event_id) and _mv2.config().get("lens_v2", True):
+            _ctx["lens_fn"] = lambda _b: _mvl.lens(req.user_id, req.query_text or "", raw_results=raw_results, budget=_b,
+                                                   focus_event_id=req.focus_event_id, radius=req.radius, offset=req.lens_offset,
+                                                   kind=req.kind, source=req.source, project=req.project)
     except ImportError:
         pass
-    except Exception as _e:
-        print(f"[memory_v2] lens failed: {_e}", flush=True)
     return _mv2.agent_view(req, _legacy, _ctx)
 
 @router.post("/search", response_model=SearchResponse)
@@ -2262,6 +2259,36 @@ async def memory_settings_set(req: MemorySettingsRequest):
     if not req.user_id:
         raise HTTPException(401, "API key required")
     return {"status": "ok", "budgets": _mv2.save_user_budgets(req.user_id, req.budgets)}
+
+
+class MemoryLensRequest(BaseModel):
+    user_id: str = ""
+    query_text: str = ""
+    query: str = ""
+    focus_event_id: Optional[str] = None
+    radius: int = Field(2, ge=0, le=6)
+    offset: int = Field(0, ge=0, le=200)
+    budget_lens: Optional[int] = None
+    kind: Optional[str] = None
+    source: Optional[str] = None
+    project: Optional[str] = None
+
+
+@router.post("/memory/lens")
+async def memory_lens(req: MemoryLensRequest):
+    """Light follow-up: episodes for a query, or expand one episode with focus_event_id. No step bump."""
+    from app import memory_v2 as _mv2
+    from app import memory_v2_lens as _mvl
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    q = req.query_text or req.query
+    if not q and not req.focus_event_id:
+        raise HTTPException(422, "query_text or focus_event_id required")
+    b = _mv2.resolve_budgets(req.user_id, {"lens": req.budget_lens})["lens"]
+    out = _mvl.lens(req.user_id, q, budget=b, focus_event_id=req.focus_event_id, radius=req.radius, offset=req.offset,
+                    kind=req.kind, source=req.source, project=req.project)
+    out["budget"] = {"lens": b}
+    return _mv2.mask_obj(out)
 
 
 class MemoryProfileRequest(BaseModel):

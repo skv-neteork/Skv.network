@@ -402,15 +402,15 @@ def raw_window(conn, budget, min_msgs=10, max_msgs=30, msg_cap=600):
             break
     costs = [min(est_tokens(c["text"]), msg_cap) for c in cands]
     n, tot = 0, 0
-    while n < len(cands) and tot + costs[n] + 12 <= budget:
-        tot += costs[n] + 12
+    while n < len(cands) and tot + costs[n] + 28 <= budget:
+        tot += costs[n] + 28
         n += 1
     k = min(min_msgs, len(cands))
     if n < k:
         lo, hi = 20, msg_cap
         while lo < hi:
             mid = (lo + hi + 1) // 2
-            if sum(min(costs[i], mid) + 12 for i in range(k)) <= budget:
+            if sum(min(costs[i], mid) + 28 for i in range(k)) <= budget:
                 lo = mid
             else:
                 hi = mid - 1
@@ -420,7 +420,7 @@ def raw_window(conn, budget, min_msgs=10, max_msgs=30, msg_cap=600):
     out, used = [], 0
     for c, cap in zip(cands, caps):
         c["text"] = clip(c["text"], cap, headtail=True)
-        used += est_tokens(c["text"]) + 12
+        used += est_tokens(c["text"]) + 28
         out.append(c)
     return out, used
 
@@ -442,7 +442,7 @@ def l1_window(conn, b1, budget, entry_cap=150):
                 out.append(g)
                 gaps += 1
         t = clip(text or "", entry_cap)
-        cost = est_tokens(t) + 14
+        cost = est_tokens(t) + est_tokens(topic or "") + 40
         if used + cost > budget:
             break
         out.append({"kind": "l1", "topic": topic, "text": t, "from_rowid": fr, "to_rowid": to})
@@ -465,7 +465,7 @@ def _gap_entry(conn, fr, to):
         if e and e not in heads:
             heads.append(e)
     text = "; ".join(heads)
-    return {"kind": "gap", "count": len(rows), "text": text, "from_rowid": fr, "to_rowid": to, "_cost": est_tokens(text) + 18}
+    return {"kind": "gap", "count": len(rows), "text": text, "from_rowid": fr, "to_rowid": to, "_cost": est_tokens(text) + 45}
 
 
 def l2_window(conn, user_id, b2, budget):
@@ -476,7 +476,7 @@ def l2_window(conn, user_id, b2, budget):
         if to >= cursor:
             continue
         t = clip(text or "", L2_BLOCK_TOKENS)
-        cost = est_tokens(t) + 14
+        cost = est_tokens(t) + 32
         if used + cost > budget:
             break
         out.append({"source": src, "period": f"{(pf or '')[:10]}..{(pt or '')[:10]}", "from_rowid": fr, "to_rowid": to, "text": t})

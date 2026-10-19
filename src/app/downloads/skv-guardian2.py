@@ -47,7 +47,7 @@ Every draft must end with hidden service lines, each on its own line:
   seal: SKV | #N | READ | VERIFY | CORRECT | OUTPUT
 Order: /api/v7/memory -> draft -> /api/v7/remember (turn, L1, critical, cube or cube_nothing) -> /api/v7/agent/second-look
 -> /api/v7/experience/vote -> the person sees only the clean answer (service lines removed, seal kept).
-A draft missing lines gets one retry, then it is held. Guard 1 is the server: it marks a missed step or seal in /api/v7/memory reminders.
+A failing draft is sent back for up to SKV_G2_RECHECKS=2 re-checks with the reason; it is never held: the best safe final goes out with a short note. Guard 1 is the server: it marks a missed step or seal in /api/v7/memory reminders.
 SYSTEM FILES (owner decision): touch server/system files (configs, /etc, /root, ops scripts, other users' data) only under an
 explicit, time-limited owner grant. Before each action: POST /api/v7/sysperm/check {path, action: read|write|exec|delete, agent}.
 allowed=false -> refuse and ask the owner for a grant (owner: POST /api/v7/sysperm/grant {scope, ttl_minutes<=240, actions, agent}).
@@ -276,6 +276,30 @@ FULL_STEPS = ("Work in three visible steps, each under its own header line (the 
               "FINAL:\n<the corrected answer; keep (ref: id) or [general]/[unverified]/[assumption] on every specific claim (numbers, dates, names, URLs); if memory does not have it, say you do not know>\n")
 
 
+RECHECKS = int(os.environ.get("SKV_G2_RECHECKS", "2"))  # re-check rounds against the constitution before answering with a note
+NOTE_RU = "Примечание: этот ответ, возможно, не полностью прошёл проверки по конституции SKV. Отнеситесь к нему внимательно."
+NOTE_EN = "Note: this answer may not fully meet the SKV constitution checks. Please treat it with care."
+
+
+def _note(message):
+    return NOTE_RU if re.search(r"[А-Яа-яЁё]", message or "") else NOTE_EN
+
+
+def _safe_redirect(message):
+    """Never answer with nothing: the model itself writes a short safe reply or redirect (no other model judges harm)."""
+    try:
+        t = _model("The previous attempts to answer the user produced no usable answer. Write a short, honest, safe reply in the user's "
+                   "language: answer what can be answered safely, and for anything risky give a safe redirect (why, and where to get proper help). "
+                   "No service lines.\n\nUser: " + message)
+        t = clean(t)
+    except Exception:
+        t = ""
+    if t.strip():
+        return t
+    return ("Не могу сейчас дать проверенный ответ. Уточните, пожалуйста, вопрос." if re.search(r"[А-Яа-яЁё]", message or "")
+            else "I can't give a checked answer right now. Could you clarify the question?")
+
+
 def ask(message, session_id="guardian2"):
     key_warn = bool(KEY_PASTE.search(message or ""))
     mem = _post("/api/v7/memory", {"query_text": message, "session_id": session_id, "interact": True, "last_seal": _last_seal.get(session_id, "")})
@@ -313,31 +337,46 @@ def ask(message, session_id="guardian2"):
               + "".join("RATE: %s +1|-1|0 <reason>   (+1 helped this answer, -1 wrong or harmful, 0 not relevant here)\n" % i for i in new_ids)
               + "TASK_DONE (only if the task is finished)\nThen the seal, exactly this line: SKV | #%s | READ | VERIFY | CORRECT | OUTPUT\n\nUser: " % (mem.get("step") if isinstance(mem.get("step"), int) else 1) + message)
     known_ids = {h.get("event_id") for h in hits if h.get("event_id")} | set(ID_RE.findall(sp or "")) | {c.get("cube_id") for c in cubes if c.get("cube_id")}
+    def evaluate(d):
+        inf, miss = parse(d, new_ids)
+        sc, pr, st = (protocol_issues(d, known_ids) if PROTOCOL == "full" else ({}, [], {}))
+        return inf, miss, sc, pr, st
+
+    def render(d, sc):
+        if PROTOCOL == "full" and sc.get("FINAL"):
+            fin = tag_unverified(sc["FINAL"], known_ids) if REFS != "off" else sc["FINAL"]
+            m_ = SEAL.search(d)
+            return clean(fin) + ("\n\n" + m_.group(0) if m_ else "")
+        return clean(d)
+
+    def redo_prompt(prev, reasons):
+        return (prompt + "\n\nYour previous output:\n" + prev + "\n\nRE-CHECK %s: Guard 2 did not accept it because: " + "; ".join(reasons)
+                + ". Re-check your answer against the constitution (honesty, no invented facts, real harm vs. bare refusal). "
+                "If the request is risky, give a safe, useful answer or a safe redirect instead of the dangerous specifics; never answer with nothing. "
+                "Write the whole output again with all steps and service lines.")
+
     draft = _model(prompt)
-    info, missing = parse(draft, new_ids)
-    proto, sec, stats0 = [], {}, {}
-    if PROTOCOL == "full":
-        sec, proto, stats0 = protocol_issues(draft, known_ids)
-    redo = False
-    if missing or proto:
-        redo = True
-        draft = _model(prompt + "\n\nYour previous output:\n" + draft + "\n\nIt is missing: " + "; ".join(missing + proto) + ". Write the whole output again with all steps and service lines.")
-        info, missing = parse(draft, new_ids)
-        if PROTOCOL == "full":
-            sec, proto, stats = protocol_issues(draft, known_ids)
-    stats = protocol_issues(draft, known_ids)[2] if PROTOCOL == "full" else {}
-    if PROTOCOL == "full" and sec.get("FINAL"):
-        final = sec["FINAL"]
-        if REFS != "off":
-            final = tag_unverified(final, known_ids)
-        m_ = SEAL.search(draft)
-        answer = clean(final) + ("\n\n" + m_.group(0) if m_ else "")
-    else:
-        answer = clean(draft)
-    check = {"protocol": PROTOCOL, "redo": redo, "first": {"issues": proto if not redo else None}, "remaining": proto, "stats": stats, "first_stats": stats0}
-    if missing:
-        _history.setdefault(session_id, []).extend(["User: " + message[:600], "Agent (held, not shown): " + answer[:600]])
-        return {"status": "held", "missing": missing, "protocol": check, "draft": draft}
+    info, missing, sec, proto, stats0 = evaluate(draft)
+    stats = stats0
+    rounds = 0
+    history_issues = []
+    best = (len(missing) + len(proto), draft, info, missing, sec, proto, stats)
+    while (missing or proto) and rounds < RECHECKS:
+        rounds += 1
+        history_issues.append(missing + proto)
+        draft = _model(redo_prompt(draft, missing + proto).replace("RE-CHECK %s", "RE-CHECK %d/%d" % (rounds, RECHECKS)))
+        info, missing, sec, proto, stats = evaluate(draft)
+        if len(missing) + len(proto) <= best[0] and render(draft, sec):
+            best = (len(missing) + len(proto), draft, info, missing, sec, proto, stats)
+    _, draft, info, missing, sec, proto, stats = best
+    answer = render(draft, sec)
+    uncertain = bool(missing or proto)
+    if not answer.strip():
+        answer = _safe_redirect(message)
+        uncertain = True
+    redo = rounds > 0
+    check = {"protocol": PROTOCOL, "redo": redo, "rechecks": rounds, "first": {"issues": history_issues[0] if history_issues else None},
+             "remaining": missing + proto, "stats": stats, "first_stats": stats0}
     rem = {"query": message, "response": answer, "session_id": session_id, "l1_summary": info["l1"], "task_done": info["task_done"]}
     if info["critical"] and info["critical"].lower() not in ("none", "нет", "-"):
         rem["critical"] = info["critical"]
@@ -345,7 +384,7 @@ def ask(message, session_id="guardian2"):
         rem.update({"cube_topic": info["cube"]["topic"], "cube_essence": info["cube"]["essence"], "cube_rules": info["cube"]["rules"],
                     "cube_type": info["cube"]["kind"], "cube_evidence": event_id or "guardian2", "cube_publish": info["publish"]})
     else:
-        rem.update({"duty": "cube_nothing", "duty_reason": info["nothing"]})
+        rem.update({"duty": "cube_nothing", "duty_reason": info["nothing"] or "agent gave no cube line after re-checks"})
     # Verify claimed RATE cube ids against server list (already filtered in parse); also drop invented cube from save if cap hit and not Moment
     if cube_cap_hit and info.get("cube") and info["cube"].get("kind") != "moment":
         rem.pop("cube_topic", None); rem.pop("cube_essence", None); rem.pop("cube_rules", None)
@@ -366,8 +405,24 @@ def ask(message, session_id="guardian2"):
         check_extra_fake = []
     used_mem = bool(event_id) and (("(ref: " + event_id) in answer or event_id in answer)
     look = _post("/api/v7/agent/second-look", {"draft": answer, "event_id": event_id if used_mem else "", "span": mem.get("total_hits") or len(hits)})
+    if look.get("status") != "pass" and rounds < RECHECKS:
+        # Server Second Look failed: one more re-check by the model itself with the server's reasons; never drop the answer.
+        rounds += 1
+        reasons = ["server Second Look: " + json.dumps(look.get("checks") or look, ensure_ascii=False)[:600]]
+        d2 = _model(redo_prompt(draft, reasons).replace("RE-CHECK %s", "RE-CHECK %d/%d" % (rounds, RECHECKS)))
+        i2, m2, s2, p2, st2 = evaluate(d2)
+        a2 = render(d2, s2)
+        if a2.strip():
+            look2 = _post("/api/v7/agent/second-look", {"draft": a2, "event_id": event_id if (event_id and event_id in a2) else "", "span": mem.get("total_hits") or len(hits)})
+            if look2.get("status") == "pass" or len(m2) + len(p2) <= len(missing) + len(proto):
+                draft, info, answer, look, stats = d2, i2, a2, look2, st2
+                missing, proto = m2, p2
+        check["rechecks"] = rounds; check["redo"] = True
     if look.get("status") != "pass":
-        return {"status": "held", "checks": look.get("checks"), "draft": draft, "saved": saved.get("saved")}
+        uncertain = True
+        check["server_second_look"] = look.get("checks") or look.get("status")
+    uncertain = uncertain or bool(missing or proto)
+    check["remaining"] = missing + proto
     votes = []
     for cid, (v, why) in info["rates"].items():
         if cid in new_ids and v != 0:
@@ -388,7 +443,9 @@ def ask(message, session_id="guardian2"):
     _last_seal[session_id] = m.group(0) if m else ""
     if check_extra_fake:
         check["fake_cube_ids"] = check_extra_fake
-    return {"status": "pass", "protocol": check, "answer": answer, "event_id": event_id, "saved": saved.get("saved"), "cube": saved.get("cube"), "votes": votes, "key_warning": key_warn}
+    if uncertain:
+        answer = answer.rstrip() + "\n\n" + _note(message)
+    return {"status": "pass", "uncertain": uncertain, "protocol": check, "answer": answer, "event_id": event_id, "saved": saved.get("saved"), "cube": saved.get("cube"), "votes": votes, "key_warning": key_warn}
 
 
 if __name__ == "__main__":

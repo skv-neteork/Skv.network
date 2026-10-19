@@ -12,7 +12,7 @@ def full(draft, final, claims="claims: none specific [general]", safety="safety:
     return "DRAFT:\n" + draft + "\nSECOND LOOK:\n" + claims + "\n" + safety + "\nfix: tightened\nFINAL:\n" + final + SL
 def wire(g, outs, hits=None):
     calls = {"model": 0, "posts": [], "prompts": []}
-    def m(p): calls["model"] += 1; calls["prompts"].append(p); return outs.pop(0)
+    def m(p): calls["model"] += 1; calls["prompts"].append(p); return outs.pop(0) if len(outs) > 1 else outs[0]
     def post(path, payload):
         calls["posts"].append((path, payload))
         if path == "/api/v7/memory": return {"hits": hits or [], "shared_cubes": [], "step": 1}

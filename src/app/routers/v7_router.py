@@ -361,7 +361,7 @@ VALID_TOKENS = [t.strip() for t in os.getenv("SKV_API_KEYS", "").split(",") if t
 
 # Rate limiting per user
 _request_counts = {}
-def check_rate_limit(user_id: str, max_requests: int = 60, window: int = 60):
+def check_rate_limit(user_id: str, max_requests: int = 300, window: int = 60):
     import time
     now = time.time()
     if user_id not in _request_counts:
@@ -2311,14 +2311,19 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
                 _c.close()
             except Exception:
                 const = ""
+            hist = ""
+            if req.chat_history:
+                tail = req.chat_history[-8:]
+                hist = "Earlier in this same chat. Use it. Do not ask again for what is already here:\n" + "\n".join(str(h)[:500] for h in tail) + "\n\n"
             prompt = (
-                "CONSTITUTION. Follow it. You do the Second Look, the server cannot.\n"
+                "CONSTITUTION. Follow it. You do the Second Look in your head, the server cannot.\n"
                 "DRAFT the answer. VERIFY against CUBE 01 harm, 02 truth, 03 morality, 04 manipulation, and PACK.\n"
                 "CORRECT the draft if it breaks a rule or ignores a cube. Then OUTPUT only the final answer.\n"
-                "End with the seal: SKV | READ | VERIFY | CORRECT | OUTPUT\n\n"
-                + const + "\n\nPACK:\n" + pack + "\n\nMEMORY:\n" + memory_text[:700] + "\n\n" + calc + "\n\nQuestion: " + req.message
+                "The person sees only the answer. Do not print MEMORY, LENS, SECOND LOOK, cube ids, or duty.\n"
+                "A short seal at the end is enough: SKV | READ | VERIFY | CORRECT | OUTPUT\n\n"
+                + const + "\n\nPACK:\n" + pack + "\n\nMEMORY:\n" + memory_text[:700] + "\n\n" + hist + calc + "\n\nQuestion: " + req.message
             )
-            body = json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 500}).encode()
+            body = json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 800}).encode()
             final = json.loads(urlreq.urlopen(urlreq.Request("https://api.polza.ai/v1/chat/completions", data=body, headers=headers), timeout=60).read())["choices"][0]["message"]["content"].strip()
             seal = "SKV | probe | READ | VERIFY | " + str(len(cubes)) + " cubes"
             try:

@@ -1194,6 +1194,16 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             _sem_scores = {r["event_id"]: r["score"] for r in raw_results}
             raw_results = [{"event_id": e, "score": round(sc, 5), "semantic": _sem_scores.get(e), "source": "personal"}
                            for e, sc in _fused[:max(req.top_k * 2, 10)]]
+            # newer fact on the same subject ranks above the older one
+            try:
+                _order, _sup = _sem.supersede(req.user_id, [r["event_id"] for r in raw_results])
+                _by_id = {r["event_id"]: r for r in raw_results}
+                raw_results = [_by_id[i] for i in _order if i in _by_id]
+                for _old, _new in _sup.items():
+                    if _old in _by_id:
+                        _by_id[_old]["superseded_by"] = _new
+            except Exception as _e:
+                print(f"[semantic] supersede skipped: {_e}", flush=True)
         # HYBRID: Multi-word FTS5 boost (legacy)
         if req.query_text and raw_results and _sem.fusion_mode() != "rrf":
             try:
@@ -1449,6 +1459,16 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
                     memory_map_text = "\n".join(lines) + "\n\n" + memory_map_text
     except Exception as _e:
         print(f"[semantic] l1 skipped: {_e}", flush=True)
+    if _sem_vec is not None and len(fts_top) > 1:
+        try:
+            _order, _sup = _sem.supersede(req.user_id, [f.get("event_id") for f in fts_top])
+            _by_id = {f.get("event_id"): f for f in fts_top}
+            fts_top = [_by_id[i] for i in _order if i in _by_id]
+            for _old, _new in _sup.items():
+                if _old in _by_id:
+                    _by_id[_old]["superseded_by"] = _new
+        except Exception as _e:
+            print(f"[semantic] fts supersede skipped: {_e}", flush=True)
     best_vec = vector_top[0] if vector_top else {}
     if best_vec: best_vec['full_text'] = _full_text(best_vec.get('event_id', ''))
     best_fts = fts_top[0] if fts_top else {}
@@ -2967,6 +2987,128 @@ async def remember(req: RememberRequest):
         conn.commit(); conn.close()
         saved.append(req.duty)
     return {"status": "ok", "saved": saved}
+
+
+class ForgetPreviewRequest(BaseModel):
+    user_id: str = ""
+    query: str = ""
+    mode: str = "text"          # text | topic | event
+    event_ids: List[str] = []
+    limit: int = 50
+
+
+class ForgetConfirmRequest(BaseModel):
+    user_id: str = ""
+    token: str
+
+
+def _forget_db(user_id):
+    import sqlite3
+    from app.account_memory import account_db_name
+    conn = sqlite3.connect(f"/data/skv/metadata_store/{account_db_name(user_id)}.db", timeout=30)
+    conn.execute("CREATE TABLE IF NOT EXISTS forget_requests (token TEXT PRIMARY KEY, ids_json TEXT, created REAL, used INTEGER DEFAULT 0)")
+    conn.execute("CREATE TABLE IF NOT EXISTS event_forgotten AS SELECT * FROM event_metadata WHERE 0")
+    try:
+        conn.execute("ALTER TABLE event_forgotten ADD COLUMN forgotten_at TEXT")
+    except Exception:
+        pass
+    return conn
+
+
+@router.post("/memory/forget/preview")
+async def forget_preview(req: ForgetPreviewRequest):
+    """Step 1: list what would be forgotten. Nothing changes. Confirm with the returned token."""
+    import json as _json, secrets, time as _t
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    conn = _forget_db(req.user_id)
+    try:
+        lim = max(1, min(req.limit, 200))
+        own = req.user_id + "::%"
+        if req.mode == "event":
+            ids = [i for i in req.event_ids if i.startswith(req.user_id + "::")][:lim]
+            rows = conn.execute("SELECT event_id, time_str, substr(raw_dialogue,1,160) FROM event_metadata WHERE event_id IN (%s)" % ",".join("?" * len(ids)), ids).fetchall() if ids else []
+        elif req.mode == "topic":
+            if not req.query.strip():
+                raise HTTPException(422, "query required")
+            rows = conn.execute("SELECT event_id, time_str, substr(raw_dialogue,1,160) FROM event_metadata WHERE event_id LIKE ? AND (essence = ? OR raw_dialogue LIKE ?) LIMIT ?",
+                                (own, req.query, "%[" + req.query + "]%", lim)).fetchall()
+        else:
+            if len(req.query.strip()) < 3:
+                raise HTTPException(422, "query of 3+ characters required")
+            rows = conn.execute("SELECT event_id, time_str, substr(raw_dialogue,1,160) FROM event_metadata WHERE event_id LIKE ? AND raw_dialogue LIKE ? LIMIT ?",
+                                (own, "%" + req.query + "%", lim)).fetchall()
+        token = "fg_" + secrets.token_hex(12)
+        conn.execute("INSERT INTO forget_requests (token, ids_json, created) VALUES (?,?,?)", (token, _json.dumps([r[0] for r in rows]), _t.time()))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"status": "preview", "count": len(rows), "items": [{"event_id": r[0], "time": r[1], "preview": r[2]} for r in rows],
+            "confirm": {"POST": "/api/v7/memory/forget/confirm", "token": token, "expires_in_s": 900},
+            "note": "Nothing is deleted yet. Confirm moves these turns to an archive (restore with /api/v7/memory/forget/restore)."}
+
+
+def _forget_apply(req, restore=False):
+    import json as _json, time as _t
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    conn = _forget_db(req.user_id)
+    try:
+        row = conn.execute("SELECT ids_json, created, used FROM forget_requests WHERE token=?", (req.token,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Unknown token")
+        ids = [i for i in _json.loads(row[0]) if i.startswith(req.user_id + "::")]
+        if not restore:
+            if row[2]:
+                raise HTTPException(409, "Token already used")
+            if _t.time() - row[1] > 900:
+                raise HTTPException(410, "Token expired, run preview again")
+        cols = [c[1] for c in conn.execute("PRAGMA table_info(event_metadata)")]
+        colstr = ",".join(cols)
+        moved = 0
+        for eid in ids:
+            if not restore:
+                cur = conn.execute(f"INSERT INTO event_forgotten ({colstr}, forgotten_at) SELECT {colstr}, datetime('now') FROM event_metadata WHERE event_id=?", (eid,))
+                if cur.rowcount:
+                    conn.execute("DELETE FROM event_metadata WHERE event_id=?", (eid,))
+                    try:
+                        conn.execute("DELETE FROM events_fts WHERE event_id=?", (eid,))
+                    except Exception:
+                        pass
+                    moved += 1
+            else:
+                cur = conn.execute(f"INSERT OR IGNORE INTO event_metadata ({colstr}) SELECT {colstr} FROM event_forgotten WHERE event_id=?", (eid,))
+                if cur.rowcount:
+                    raw = conn.execute("SELECT raw_dialogue FROM event_metadata WHERE event_id=?", (eid,)).fetchone()
+                    try:
+                        conn.execute("INSERT INTO events_fts(event_id, raw_dialogue) VALUES (?,?)", (eid, raw[0] if raw else ""))
+                    except Exception:
+                        pass
+                    conn.execute("DELETE FROM event_forgotten WHERE event_id=?", (eid,))
+                    moved += 1
+        conn.execute("UPDATE forget_requests SET used=? WHERE token=?", (0 if restore else 1, req.token))
+        conn.commit()
+    finally:
+        conn.close()
+    try:
+        from app import semantic as _sem
+        _sem.mark_forgotten(req.user_id, ids, restore=restore)
+    except Exception as exc:
+        print(f"[forget] vector mark skipped: {exc}", flush=True)
+    return {"status": "restored" if restore else "forgotten", "count": moved, "event_ids": ids,
+            "note": "Archived, not destroyed." if not restore else "Back in memory."}
+
+
+@router.post("/memory/forget/confirm")
+async def forget_confirm(req: ForgetConfirmRequest):
+    """Step 2: move the previewed turns to the archive table event_forgotten."""
+    return _forget_apply(req)
+
+
+@router.post("/memory/forget/restore")
+async def forget_restore(req: ForgetConfirmRequest):
+    """Undo a confirmed forget with the same token."""
+    return _forget_apply(req, restore=True)
 
 
 class DigRequest(BaseModel):

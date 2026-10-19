@@ -801,7 +801,14 @@ async def get_profile(authorization: str = Header(None)):
             user_cur = user_conn.cursor()
             user_cur.execute("SELECT COUNT(*) FROM event_metadata")
             events = user_cur.fetchone()[0]
-            user_cur.execute("SELECT COUNT(*) FROM personal_vectors")
+            try:   # count the active semantic index (e.g. pvec_mml12), only vectors of live events
+                from app import semantic as _sem
+                _vt = _sem.MODELS[_sem.active_tag()]["table"]
+            except Exception:
+                _vt = "personal_vectors"
+            if not _vt.isidentifier():
+                _vt = "personal_vectors"
+            user_cur.execute(f"SELECT COUNT(*) FROM {_vt} v JOIN event_metadata e ON e.event_id=v.event_id")
             vectors = user_cur.fetchone()[0]
             user_conn.close()
         except:
@@ -2602,8 +2609,16 @@ async def get_constitution_v8():
     cur.execute("SELECT cube_id, essence, rules_markdown FROM cubes_new WHERE cube_id LIKE 'cube_const_%' AND "
                 + _flt + " ORDER BY cube_id", _args)
     cubes = []
+    import re as _re
+    latest = {}   # one cube per number: only the newest version (e.g. 05_v9 supersedes 05_v8) is served
     for eid, essence, raw in cur.fetchall():
         cube_num = eid.replace('cube_const_', '').split('_')[0]
+        m = _re.search(r"_v(\d+)$", eid)
+        ver = int(m.group(1)) if m else -1
+        if cube_num not in latest or ver > latest[cube_num][0]:
+            latest[cube_num] = (ver, eid, essence, raw)
+    for cube_num in sorted(latest):
+        _, eid, essence, raw = latest[cube_num]
         cubes.append({
             "id": eid,
             "cube": "CUBE " + cube_num.zfill(2),
@@ -3302,11 +3317,7 @@ async def remember(req: RememberRequest):
         else:
             # private cube: stays in the user's own database, never in the shared pool
             _pc = sqlite3.connect(os.path.join(USER_DB_DIR, name + ".db"), timeout=30)
-            _pc.execute("CREATE TABLE IF NOT EXISTS experience_cubes (cube_id TEXT PRIMARY KEY, topic TEXT, essence TEXT, rules_markdown TEXT, evidence TEXT, session_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-            _pcols = {r[1] for r in _pc.execute("PRAGMA table_info(experience_cubes)")}
-            for _col in ("topic", "essence", "rules_markdown", "evidence", "session_id", "kind"):   # older user dbs have another schema
-                if _col not in _pcols:
-                    _pc.execute(f"ALTER TABLE experience_cubes ADD COLUMN {_col} TEXT" + (" DEFAULT 'moment'" if _col == "kind" else ""))
+            _cv2.migrate_private_schema(_pc)   # older user dbs have another experience_cubes schema
             _pc.execute("INSERT INTO experience_cubes (cube_id, topic, essence, rules_markdown, evidence, session_id, kind) VALUES (?,?,?,?,?,?,?)",
                         (cube_id, req.cube_topic, _ess, req.cube_rules, req.cube_evidence, req.session_id, _ctype))
             _pc.commit(); _pc.close()
@@ -3543,6 +3554,18 @@ def _purge_loop():
             print(f"[purge] loop error: {exc}", flush=True)
         _t.sleep(FORGET_PURGE_INTERVAL_S)
 
+
+def _migrate_private_once():
+    try:
+        from app import cubes_v2 as _cv2m
+        r = _cv2m.migrate_all_private()
+        if r:
+            print(f"[migrate] experience_cubes columns added: {r}", flush=True)
+    except Exception as exc:
+        print(f"[migrate] skipped: {exc}", flush=True)
+
+
+threading.Thread(target=_migrate_private_once, name="skv-migrate-private", daemon=True).start()
 
 if os.environ.get("SKV_FORGET_PURGE", "1") == "1":
     threading.Thread(target=_purge_loop, name="skv-forget-purge", daemon=True).start()

@@ -472,3 +472,34 @@ def project_view(conn, pid, uid):
     if r != "owner":
         out["project"].pop("owner", None)
     return out
+
+
+def migrate_private_schema(conn):
+    """Old user dbs created experience_cubes with (creator_id, lesson, ...). Add the columns the current code writes."""
+    conn.execute("CREATE TABLE IF NOT EXISTS experience_cubes (cube_id TEXT PRIMARY KEY, topic TEXT, essence TEXT, rules_markdown TEXT, evidence TEXT, session_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    have = {r[1] for r in conn.execute("PRAGMA table_info(experience_cubes)")}
+    added = []
+    for col in ("topic", "essence", "rules_markdown", "evidence", "session_id", "kind"):
+        if col not in have:
+            conn.execute(f"ALTER TABLE experience_cubes ADD COLUMN {col} TEXT" + (" DEFAULT 'moment'" if col == "kind" else ""))
+            added.append(col)
+    return added
+
+
+def migrate_all_private(base="/data/skv/metadata_store"):
+    import glob, sqlite3
+    out = {}
+    for p in glob.glob(base + "/*.db"):
+        if p.endswith("shared_master.db"):
+            continue
+        try:
+            c = sqlite3.connect(p, timeout=10)
+            if c.execute("SELECT 1 FROM sqlite_master WHERE name='experience_cubes'").fetchone():
+                a = migrate_private_schema(c)
+                if a:
+                    out[p] = a
+                c.commit()
+            c.close()
+        except Exception as e:
+            out[p] = "error: " + str(e)[:60]
+    return out

@@ -470,7 +470,7 @@ def _gap_entry(conn, fr, to):
 
 def l2_window(conn, user_id, b2, budget):
     out, used, cursor = [], 0, b2
-    stored = conn.execute("SELECT source, period_from, period_to, from_rowid, to_rowid, text FROM summary_l2_blocks WHERE to_rowid IS NOT NULL AND to_rowid < ? AND source != 'legacy_summary_l2' ORDER BY to_rowid DESC, (source='agent') DESC", (b2,)).fetchall()
+    stored = conn.execute("SELECT source, period_from, period_to, from_rowid, to_rowid, text FROM summary_l2_blocks WHERE to_rowid IS NOT NULL AND to_rowid < ? AND source != 'legacy_summary_l2' ORDER BY to_rowid DESC, CASE source WHEN 'agent' THEN 0 WHEN 'llm' THEN 1 ELSE 2 END", (b2,)).fetchall()
     for src, pf, pt, fr, to, text in stored:
         fr = fr or to
         if to >= cursor:
@@ -529,9 +529,30 @@ def first_pack(user_id, budgets):
 
 
 # ---------------- maintenance ----------------
+def revoke_expired_keys():
+    """Grace-period keys: user_api_keys.expires_at passed -> is_active=0 (kept for audit)."""
+    try:
+        c = sqlite3.connect(os.path.join(BASE_DIR, "shared_master.db"), timeout=30)
+        try:
+            if "expires_at" not in {r[1] for r in c.execute("PRAGMA table_info(user_api_keys)")}:
+                return 0
+            n = c.execute("UPDATE user_api_keys SET is_active=0 WHERE is_active=1 AND expires_at IS NOT NULL AND expires_at <= datetime('now')").rowcount
+            c.commit()
+            if n:
+                print(f"[memory_v2] revoked {n} expired api key(s)", flush=True)
+            return n
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"[memory_v2] key revoke error: {e}", flush=True)
+        return 0
+
+
 def _maintain_loop():
+    revoke_expired_keys()
     time.sleep(60)
     while True:
+        revoke_expired_keys()
         try:
             if config().get("enabled", True) and config().get("maintenance", True):
                 res = migrate_all()

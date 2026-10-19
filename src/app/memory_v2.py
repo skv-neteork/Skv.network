@@ -380,7 +380,11 @@ def section_tokens(view):
     return out
 
 
-DEFAULTS.update({"legacy_rowid_order": True, "bg_llm": False})
+DEFAULTS.update({"legacy_rowid_order": True, "bg_llm": False, "l2_legacy_overwrite": True,
+                 "raw_min_msgs": 10, "raw_max_msgs": 30, "raw_msg_cap": 600,
+                 "window_exclude_topic_prefixes": ["skv_eval"],
+                 "window_exclude_kinds": ["doc", "docs", "document", "code", "log", "file"],
+                 "maintenance": True, "maintenance_interval_s": 900})
 
 AGENT_HINT = ("hits[0] is the center. Empty hits is not a fact: open GET /api/v7/event/{id}, expand a lens cluster with "
               "focus_event_id (POST /api/v7/memory/lens), or POST /api/v7/memory/dig. Use probe=true for extra lookups in the same turn.")

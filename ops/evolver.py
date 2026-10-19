@@ -23,7 +23,12 @@ def _parse(msg):
     text = msg.get("content") or msg.get("reasoning") or ""
     if "{" not in text:
         return {"verdict": "fix", "reason": text[:80]}
-    return json.loads(text[text.find("{"):text.rfind("}") + 1])
+    try:
+        return json.loads(text[text.find("{"):text.rfind("}") + 1])
+    except Exception:   # models sometimes return broken JSON: read the verdict word
+        import re
+        m = re.search(r'verdict"?\s*[:=]\s*"?(keep|fix|remove)', text, re.I)
+        return {"verdict": (m.group(1).lower() if m else "fix"), "reason": text[:80]}
 
 def ask(model, prompt):
     body = json.dumps({"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 250}).encode()

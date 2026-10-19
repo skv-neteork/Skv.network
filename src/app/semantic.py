@@ -445,3 +445,42 @@ def mark_forgotten(user_id, ids, restore=False, tag=None):
                     pass
         e["dirty"] = True
         STORE.save(tag, account_name(user_id))
+
+
+def purge_vectors(user_id, ids):
+    """Permanently drop vectors of purged events from every model's index (overwrite + delete + unmap)."""
+    name = account_name(user_id)
+    ids = set(ids)
+    done = 0
+    for tag, m in MODELS.items():
+        with STORE.lock:
+            try:
+                e = STORE._load(tag, name)
+            except Exception as exc:
+                print(f"[purge] {tag} index load failed: {exc}", flush=True)
+                continue
+            if not e:
+                continue
+            filler = np.zeros((1, m["dim"]), dtype=np.float32)
+            filler[0, 0] = 1.0
+            hit = False
+            for eid in ids:
+                pos = e["pos"].pop(eid, None)
+                if pos is None:
+                    continue
+                try:
+                    e["index"].unmark_deleted(pos)
+                except RuntimeError:
+                    pass
+                try:
+                    e["index"].add_items(filler, np.array([pos]))   # overwrite the stored vector
+                    e["index"].mark_deleted(pos)
+                except RuntimeError:
+                    pass
+                e["ids"][pos] = "__purged__"
+                hit = True
+                done += 1
+            if hit:
+                e["dirty"] = True
+                STORE.save(tag, name)
+    return done

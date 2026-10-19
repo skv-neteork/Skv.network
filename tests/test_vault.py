@@ -32,7 +32,7 @@ c, r = call("POST", "/api/v7/vault/reveal", {"name": "vault_selftest", "ttl_s": 
 tok = r["url"].rsplit("/", 1)[1]
 check("token not stored in plaintext", s.execute("select count(*) from vault_reveals where token_hash=?", (tok,)).fetchone()[0] == 0)
 c, b, hd = call("GET", "/s/" + tok, key=False, raw=True); check("page GET 200, not consumed", c == 200 and "Reveal" in b and val not in b)
-check("page headers no-store/no-referrer", {k.lower(): v for k, v in hd.items()}.get("cache-control") == "no-store" and {k.lower(): v for k, v in hd.items()}.get("referrer-policy") == "no-referrer") == "no-store" and hd.get("Referrer-Policy") == "no-referrer")
+check("page headers no-store/no-referrer", {k.lower(): v for k, v in hd.items()}.get("cache-control") == "no-store" and {k.lower(): v for k, v in hd.items()}.get("referrer-policy") == "no-referrer")
 c, b, hd = call("GET", "/s/" + tok, key=False, raw=True); check("second GET still available (link previews do not burn it)", "Reveal" in b)
 c, r = call("POST", "/s/" + tok, {}, key=False); check("open -> value", c == 200 and r.get("status") == "ok" and r.get("value") == val)
 c, r = call("POST", "/s/" + tok, {}, key=False); check("second open -> gone", r.get("status") == "gone" and "value" not in r)

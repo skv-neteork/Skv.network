@@ -9,7 +9,7 @@
     "/api/v7/memory": {
       "post": {
         "operationId": "searchMemory",
-        "summary": "Read memory. Rewrite the user sentence first: names and rare words in, common words out.",
+        "summary": "Read memory. Rewrite the user sentence first: names and rare words in, common words out. Write the memory search query in English; keep names, rare words and exact terms as-is.",
         "requestBody": {
           "required": true,
           "content": {
@@ -39,7 +39,8 @@
           "200": {
             "description": "fragments, previous, memory_map, shared_cubes, duty_error"
           }
-        }
+        },
+        "description": "Read memory. Rewrite the user sentence first: names and rare words in, common words out. Write the memory search query in English; keep names, rare words and exact terms as-is."
       }
     },
     "/api/v7/remember": {

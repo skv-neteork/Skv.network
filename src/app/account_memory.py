@@ -56,6 +56,11 @@ def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response:
         )
         _fts_insert(conn.cursor(), event_id, dialogue)
         conn.commit()
+    try:
+        from app import semantic
+        semantic.add_event_now(user_id, event_id, dialogue)
+    except Exception as exc:
+        print(f"[memory] instant vector skipped: {exc}", flush=True)
     _ensure_batch_thread(base_dir)
     return {"status": "queued", "event_id": event_id, "account": name}
 
@@ -154,7 +159,12 @@ def _ensure_batch_thread(base_dir: str):
             time.sleep(60)
             try:
                 with _batch_lock:
-                    build_pending_vectors(base_dir, hnsw)
+                    from app import semantic
+                    tag = semantic.active_tag()
+                    if tag == "bge":
+                        build_pending_vectors(base_dir, hnsw)
+                    elif not os.path.exists(os.path.join(semantic.MODELS[tag]["dir"], "REBUILDING")):
+                        semantic.build_pending_all(tag)
             except Exception as exc:
                 print(f"[memory] batch skipped: {exc}", flush=True)
 

@@ -387,6 +387,11 @@ def run_import_cycle(user_id, source):
     name = user_id.replace("@", "").replace(".", "")
     db = sqlite3.connect(f"/data/skv/metadata_store/{name}.db")
     db.execute("CREATE TABLE IF NOT EXISTS summary_l1 (session_id TEXT PRIMARY KEY, user_id TEXT, topic TEXT, summary_text TEXT, summary_json TEXT, message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    _have = {r[1] for r in db.execute("PRAGMA table_info(summary_l1)")}
+    for _col in ("from_rowid INTEGER", "to_rowid INTEGER", "lang TEXT"):
+        if _col.split()[0] not in _have:
+            db.execute("ALTER TABLE summary_l1 ADD COLUMN " + _col)
+    db.execute("CREATE TABLE IF NOT EXISTS summary_l2_blocks (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, source TEXT, period_key TEXT, period_from TEXT, period_to TEXT, from_rowid INTEGER, to_rowid INTEGER, topics_json TEXT, text TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(source, period_key))")
     rows = db.execute("select rowid, event_id, raw_dialogue from event_metadata where event_id like ? order by rowid", (f"%::{source}_%",)).fetchall()
     window, rids = [], []
     summaries = []
@@ -496,9 +501,21 @@ def _one_l2(db, user_id, summaries, source="import", from_rowid=None, to_rowid=N
             mp = m.group(1) if m else ("" if "{" in s_ else s_)
     except Exception:
         mp = ""
+    if isinstance(mp, dict):
+        mp = " ".join(str(v) for v in mp.values())
+    elif isinstance(mp, list):
+        mp = " ".join(str(v) for v in mp)
     mp = str(mp).strip()
-    if len(mp) < 80 or mp.lower().startswith(("темы, планы", "темы: ...")):   # prompt echo or empty: keep nothing
-        mp = ""
+    if len(mp) < 80 or mp.lower().startswith(("темы, планы", "темы: ...")):
+        # the LLM echoed the prompt or broke the JSON: fall back to the first sentence of every L1, in order
+        firsts = []
+        for x in summaries:
+            x = re.sub(r"\s+", " ", x or "").strip()
+            if x and not x.startswith("{"):
+                firsts.append(re.split(r"(?<=[.!?])\s", x, 1)[0][:220])
+        mp = " ".join(firsts)
+        if len(mp) < 80:
+            mp = ""
     if mp:
         # an import map describes this import only: store it as an L2 block for its rowid range and never
         # overwrite the account-wide summary_l2 (it feeds the memory map of every request)

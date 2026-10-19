@@ -242,18 +242,26 @@ _uid = "imp_cycle_test@example.invalid"; _db = "/data/skv/metadata_store/imp_cyc
 try:
     con = sqlite3.connect(_db)
     con.execute("CREATE TABLE event_metadata (event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, raw_dialogue TEXT, messages_count INTEGER, topics_json TEXT, links_json TEXT, status TEXT)")
+    con.execute("CREATE TABLE summary_l2_blocks (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, source TEXT, period_key TEXT, period_from TEXT, period_to TEXT, from_rowid INTEGER, to_rowid INTEGER, topics_json TEXT, text TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(source, period_key))")
+    con.execute("CREATE TABLE summary_l2 (user_id TEXT PRIMARY KEY, map_json TEXT, themes_json TEXT, timeline_json TEXT, session_count INTEGER, last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    con.execute("insert into summary_l2 (user_id, map_json) values (?, 'ACCOUNT MAP')", (_uid,))
     for k in range(130):
         con.execute("insert into event_metadata (event_id, raw_dialogue) values (?,?)", (f"{_uid}::profile_{hashlib.sha1(str(k).encode()).hexdigest()[:12]}", f"turn {k:03d}"))
     con.commit(); con.close()
     prompts = []
     _op = imd._polza
-    imd._polza = lambda pr: (prompts.append(pr), '{"summary": "s%d", "critical": ["c"]}' % len(prompts))[1]
+    imd._polza = lambda pr, **k: (prompts.append(pr), '{"summary": "summary of import window number %d, long enough to keep", "critical": ["c"]}' % len(prompts))[1]
     imd.run_import_cycle(_uid, "profile")
     first = len(prompts)
     check("summary windows follow import order, not hash order", "turn 000" in prompts[0] and "turn 059" in prompts[0] and "turn 060" in prompts[1])
     imd.run_import_cycle(_uid, "profile")
     check("unchanged windows are not re-summarized (%d then %d LLM calls)" % (first, len(prompts) - first), first == 4 and len(prompts) - first == 1)
     con = sqlite3.connect(_db)
+    _rg = con.execute("select from_rowid, to_rowid from summary_l1 where session_id like 'profile_auto_%' order by from_rowid").fetchall()
+    check("import L1 rows carry their exact rowid ranges (%s)" % _rg, _rg == [(1, 60), (61, 120), (121, 130)])
+    _l2b = con.execute("select from_rowid, to_rowid from summary_l2_blocks where source='import'").fetchall()
+    check("import L2 goes to an L2 block for the import range", _l2b == [(1, 130)])
+    check("import never overwrites the account-wide summary_l2", con.execute("select map_json from summary_l2").fetchone()[0] == "ACCOUNT MAP")
     check("critical candidates not duplicated by re-runs", con.execute("select count(*) from critical_candidates where text='c'").fetchone()[0] == 1)
     con.close()
     runs = []
@@ -298,11 +306,11 @@ try:
     ess = "\n".join(r[0] or "" for r in con.execute("select essence from event_metadata")); con.close()
     check("import: secrets replaced by [vault:] in stored turns", _secret not in raws and "Hunter2024xZ" not in raws and raws.count("[vault:") >= 2 and _secret not in ess)
     _prompts = []; _op2 = imd._polza
-    imd._polza = lambda pr: (_prompts.append(pr), '{"summary": "s", "critical": []}')[1]
+    imd._polza = lambda pr, **k: (_prompts.append(pr), '{"summary": "s", "critical": []}')[1]
     imd.run_import_cycle(_su, "profile"); imd._polza = _op2
     check("import: summarizer prompts carry no secrets", _prompts and not any(_secret in p or "Hunter2024xZ" in p for p in _prompts))
     _raw_pr = []
-    imd._polza = lambda pr: (_raw_pr.append(pr), '{"summary": "s", "critical": []}')[1]
+    imd._polza = lambda pr, **k: (_raw_pr.append(pr), '{"summary": "s", "critical": []}')[1]
     imd._one_l1(sqlite3.connect(":memory:") if False else sqlite3.connect(f"/data/skv/metadata_store/{_sname}.db"), _su, "profile_x", 0, ["Q: " + _secret + " A: x"]); imd._polza = _op2
     check("summarizer scrubs a raw window even if it was stored before scrubbing", _raw_pr and _secret not in _raw_pr[0])
 finally:

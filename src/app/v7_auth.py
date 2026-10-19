@@ -107,6 +107,8 @@ class V7AuthMiddleware:
                     data = None
             if not key and isinstance(data, dict) and isinstance(data.get("key"), str):
                 key = data["key"].strip()
+            if not key and isinstance(data, dict) and isinstance(data.get("token"), str):
+                key = data["token"].strip()
 
         try:
             user = _lookup_user(key) if key else None

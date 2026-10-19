@@ -26,6 +26,11 @@
 - **Internal self-calls.** Guardian tools calling `/api/v7/memory`, `/dig` and `/event` use short-lived (5 min) HMAC tokens `skint_…` instead of reading a stored key. These tokens are refused on `/vault`, `/profile`, `/auth` and `/account`.
 - **Rate limit.** The limit now counts the real client IP (`X-Real-IP` from nginx-proxy). Before, every public request shared the proxy container's 300/min bucket.
 
+## Transient reveal (one-time payload, not stored in the vault)
+-  encrypts the value with a key derived from the token itself and stores only the ciphertext in .
+- Nothing is written to . After open or expiry the ciphertext is zeroed then NULLed (); the maintenance thread also purges leftover rows.
+- Used for offline hand-off of the vault master key (and similar one-shots). Do not put the master key into vault_secrets.
+
 ## Ops
 - **Image.** `skv-network:v8.4` is v8.3 plus `cryptography==50.0.2` (`deploy/Dockerfile.v8.4`). The run script is `/root/skv_api.run.sh` (copy in `deploy/`) and adds `-v /root/skv_vault:/run/skv_vault:ro`.
 - **Tests.**

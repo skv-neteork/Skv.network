@@ -32,7 +32,7 @@ c, r = call("POST", "/api/v7/vault/reveal", {"name": "vault_selftest", "ttl_s": 
 tok = r["url"].rsplit("/", 1)[1]
 check("token not stored in plaintext", s.execute("select count(*) from vault_reveals where token_hash=?", (tok,)).fetchone()[0] == 0)
 c, b, hd = call("GET", "/s/" + tok, key=False, raw=True); check("page GET 200, not consumed", c == 200 and "Reveal" in b and val not in b)
-check("page headers no-store/no-referrer", {k.lower(): v for k, v in hd.items()}.get("cache-control") == "no-store" and {k.lower(): v for k, v in hd.items()}.get("referrer-policy") == "no-referrer")
+check("page headers no-store/no-referrer", {k.lower(): v for k, v in hd.items()}.get("cache-control") == "no-store" and {k.lower(): v for k, v in hd.items()}.get("referrer-policy") == "no-referrer") == "no-store" and hd.get("Referrer-Policy") == "no-referrer")
 c, b, hd = call("GET", "/s/" + tok, key=False, raw=True); check("second GET still available (link previews do not burn it)", "Reveal" in b)
 c, r = call("POST", "/s/" + tok, {}, key=False); check("open -> value", c == 200 and r.get("status") == "ok" and r.get("value") == val)
 c, r = call("POST", "/s/" + tok, {}, key=False); check("second open -> gone", r.get("status") == "gone" and "value" not in r)
@@ -55,6 +55,17 @@ check("memory keeps reference, not value", fake not in raw and f"[vault:{names[0
 check("fts has no value", d.execute("select count(*) from events_fts where raw_dialogue like ?", ("%" + fake + "%",)).fetchone()[0] == 0)
 c, r = call("POST", "/api/v7/vault/use", {"name": names[0], "purpose": "self-test"}); check("auto secret usable", r.get("value") == fake)
 c, r = call("GET", "/api/v7/vault/log?limit=30"); check("log has use/reveal_open, no values", c == 200 and {"use", "reveal_open", "create"} <= {x["action"] for x in r["log"]} and val not in json.dumps(r) and fake not in json.dumps(r))
+
+# transient reveal: not stored in vault_secrets; wiped after open
+tv = "transient_" + secrets.token_hex(8)
+c, r = call("POST", "/api/v7/vault/reveal/transient", {"label": "vault_selftest_transient", "value": tv, "ttl_s": 120})
+check("transient link", c == 200 and r.get("transient") and r["url"].startswith("https://skv.network/s/"))
+check("transient not in vault_secrets", s.execute("select count(*) from vault_secrets where name=?", ("vault_selftest_transient",)).fetchone()[0] == 0)
+ttok = r["url"].rsplit("/", 1)[1]
+c, r = call("POST", "/s/" + ttok, {}, key=False); check("transient open", c == 200 and r.get("value") == tv)
+c, r = call("POST", "/s/" + ttok, {}, key=False); check("transient second open gone", r.get("status") == "gone")
+check("transient payload wiped", s.execute("select payload_ct from vault_reveals where token_hash=?", (__import__("hashlib").sha256(ttok.encode()).hexdigest(),)).fetchone()[0] is None)
+
 # cleanup: test event via forget flow, test secrets via delete
 c, p = call("POST", "/api/v7/memory/forget/preview", {"mode": "event", "event_ids": [eid]})
 c, f = call("POST", "/api/v7/memory/forget/confirm", {"token": p["confirm"]["token"], "user_confirmed": True}); check("cleanup forget", f.get("count") == 1)

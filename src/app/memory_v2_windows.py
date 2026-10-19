@@ -529,6 +529,18 @@ def first_pack(user_id, budgets):
 
 
 # ---------------- maintenance ----------------
+def purge_expired_vault_reveals():
+    try:
+        from app import vault
+        n = vault.purge_expired_reveals()
+        if n:
+            print(f"[memory_v2] wiped {n} expired/opened transient reveal payload(s)", flush=True)
+        return n
+    except Exception as e:
+        print(f"[memory_v2] reveal purge error: {e}", flush=True)
+        return 0
+
+
 def revoke_expired_keys():
     """Grace-period keys: user_api_keys.expires_at passed -> is_active=0 (kept for audit)."""
     try:
@@ -550,9 +562,11 @@ def revoke_expired_keys():
 
 def _maintain_loop():
     revoke_expired_keys()
+    purge_expired_vault_reveals()
     time.sleep(60)
     while True:
         revoke_expired_keys()
+        purge_expired_vault_reveals()
         try:
             if config().get("enabled", True) and config().get("maintenance", True):
                 res = migrate_all()

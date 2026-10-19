@@ -42,6 +42,26 @@ class VaultName(BaseModel):
     user_id: str = ""
 
 
+
+class VaultTransient(BaseModel):
+    label: str
+    value: str
+    ttl_s: int = vault.REVEAL_DEFAULT_S
+    require_login: bool = False
+    user_id: str = ""
+
+
+@router.post("/api/v7/vault/reveal/transient")
+async def vault_reveal_transient(req: VaultTransient, request: Request):
+    """One-time payload that is NOT stored in the vault. Ciphertext is wiped after open or expiry. Owner only."""
+    _need()
+    uid = _uid(request)
+    try:
+        r = vault.create_transient_reveal(uid, req.label, req.value, req.ttl_s, req.require_login, _ip(request))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return r
+
 class VaultReveal(BaseModel):
     name: str
     ttl_s: int = vault.REVEAL_DEFAULT_S

@@ -21,9 +21,9 @@ DEFAULTS = {
     "mask_secrets": True,         # mask keys/passwords in memory output (all views)
     "session_idle_s": 1800,       # a new conversation after 30 min of silence
     "budgets": {"map": 800, "raw": 3000, "l1": 2000, "l2": 1500, "critical": 400,
-                "constitution": 1200, "hits": 1000, "lens": 1500, "followup": 3000},
+                "constitution": 1200, "hits": 1000, "lens": 1500, "followup": 3000, "facts": 1200},
     "caps": {"map": 2000, "raw": 8000, "l1": 6000, "l2": 5000, "critical": 1200,
-             "constitution": 3500, "hits": 3000, "lens": 5000, "followup": 8000},
+             "constitution": 3500, "hits": 3000, "lens": 5000, "followup": 8000, "facts": 4000},
 }
 BUDGET_KEYS = list(DEFAULTS["budgets"].keys())
 
@@ -230,12 +230,14 @@ def strip_critical(text):
 
 
 def constitution_compact():
-    p = os.path.join(os.path.dirname(__file__), "constitution_compact_v1.md")
-    try:
-        with open(p) as f:
-            return f.read()
-    except Exception:
-        return ""
+    for fn in ("constitution_compact_v2.md", "constitution_compact_v1.md"):   # v2 = CUBE 01/02/04 v5 (2026-10-19)
+        p = os.path.join(os.path.dirname(__file__), fn)
+        try:
+            with open(p) as f:
+                return f.read()
+        except Exception:
+            continue
+    return ""
 
 
 # ---------------- agent view (step A) ----------------
@@ -336,6 +338,11 @@ def render_text(view):
         L.append("== HITS (hits[0] = center) ==")
         for h in view["hits"]:
             L.append(f"[{h.get('date','')}] {h['event_id'].split('::')[-1]} ({h.get('match_type')}){' [in window]' if h.get('in_window') else ''}\n{h['text']}")
+    fx = view.get("facts") or {}
+    if fx.get("items"):
+        L.append("== FACTS (more episodes, oldest first; aggregate across them) ==")
+        for f in fx["items"]:
+            L.append(f"[{f.get('date','')}] {f['text']}")
     lens = view.get("lens") or {}
     if lens.get("clusters"):
         L.append(f"== LENS: {lens.get('clusters_total')} episodes, {lens.get('total_hits')} hits ==")
@@ -388,7 +395,8 @@ DEFAULTS.update({"legacy_rowid_order": True, "bg_llm": False, "l2_legacy_overwri
                  "window_exclude_topic_prefixes": ["skv_eval"],
                  "window_exclude_kinds": ["doc", "docs", "document", "code", "log", "file"],
                  "maintenance": True, "maintenance_interval_s": 900,
-                 "lens_gap": 3, "lens_clusters_max": 5, "first_call_lens_budget": 600})
+                 "lens_gap": 3, "lens_clusters_max": 5, "first_call_lens_budget": 600,
+                 "recall_plus": True, "recall_max_facts": 24, "recall_snippet_tokens": 70})   # memory v3 recall (memory_recall.py)
 
 AGENT_HINT = ("hits[0] is the center. Empty hits is not a fact: open GET /api/v7/event/{id}, expand a lens cluster with "
               "focus_event_id (POST /api/v7/memory/lens), or POST /api/v7/memory/dig. Use probe=true for extra lookups in the same turn.")
@@ -487,6 +495,13 @@ def agent_view(req, legacy, ctx):
         view["hits"] = []
     if isinstance(lens, dict) and lens.get("clusters") is not None:
         view["lens"] = lens
+    if req.query_text:
+        try:   # memory v3: multi-query recall (facts across episodes) + resolved relative dates
+            from app import memory_recall as _rc
+            if _rc.enabled(req):
+                _rc.augment(view, uid, req.query_text, budgets.get("facts", 0))
+        except Exception as e:
+            print(f"[memory_v3] recall skipped: {e}", flush=True)
     elif isinstance(lens, dict):
         view["lens"] = {"windows": [{k: v for k, v in w.items() if k != "map"} for w in lens.get("windows", [])]}
     view["span"] = legacy.get("span", 0)

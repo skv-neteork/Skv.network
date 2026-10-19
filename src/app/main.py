@@ -33,6 +33,7 @@ from app.routers.v4_auth_middleware import AuthMiddleware
 from app.routers.consult import router as consult_router
 from app.routers.import_dialogs import router as import_router
 from app.routers.v7_router import router as v7_router
+from app.routers.v7_batch import router as v7_batch_router   # memory v3: POST /api/v7/remember/batch
 from app.routers.tensor_api import router as tensor_router
 from app.routers.exports import router as exports_router
 from app.routers.execute import router as execute_router
@@ -442,6 +443,7 @@ app.include_router(formula_router)
 app.include_router(consult_router)
 app.include_router(import_router)
 app.include_router(v7_router)
+app.include_router(v7_batch_router)
 from app.routers.vault_router import router as vault_router
 app.include_router(vault_router)
 app.include_router(tensor_router)

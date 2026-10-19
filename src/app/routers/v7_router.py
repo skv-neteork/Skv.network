@@ -249,6 +249,8 @@ class MemoryRequest(BaseModel):
     budget_hits: Optional[int] = None
     budget_lens: Optional[int] = None
     budget_followup: Optional[int] = None
+    budget_facts: Optional[int] = None   # memory v3: dated facts across episodes
+    recall: Optional[str] = None         # memory v3: plus (default) | basic
 
 class SearchResultItem(BaseModel):
     event_id: str

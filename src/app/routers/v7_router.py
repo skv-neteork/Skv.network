@@ -1092,6 +1092,36 @@ def build_memory_map(user_id: str, step: int = 0) -> str:
     return "\n\n".join(parts) if parts else ("No memory yet." + AGENT_HINT)
 
 
+_ROWS_CACHE = {}
+
+
+def _cached_scan(name, which):
+    """Per-account cache of the full-scan rows used by span/lens; refreshed when rows change."""
+    import sqlite3 as _sq
+    path = f"/data/skv/metadata_store/{name}.db"
+    conn = _sq.connect(path, timeout=10)
+    try:
+        sig = conn.execute("select count(*), max(rowid) from event_metadata").fetchone()
+        key = (name, which)
+        hit = _ROWS_CACHE.get(key)
+        if hit and hit[0] == sig:
+            return hit[1]
+        if which == "norm":
+            rows = [(raw or "").lower().replace("-", "").replace(" ", "") for (raw,) in conn.execute("select raw_dialogue from event_metadata")]
+        elif which == "grokexp":
+            rows = conn.execute("select event_id, raw_dialogue from event_metadata where event_id like '%grokexp_%'").fetchall()
+            rows = [(e, r, (r or "").lower().replace("-", "").replace(" ", "")) for e, r in rows]
+        else:
+            rows = conn.execute("select event_id, raw_dialogue from event_metadata where raw_dialogue like '%>>>%'").fetchall()
+            rows = [(e, r, (r or "").lower().replace("-", "").replace(" ", "")) for e, r in rows]
+        if len(_ROWS_CACHE) > 60:
+            _ROWS_CACHE.pop(next(iter(_ROWS_CACHE)))
+        _ROWS_CACHE[key] = (sig, rows)
+        return rows
+    finally:
+        conn.close()
+
+
 @router.post("/memory")
 async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
     # Извлекаем user_id из токена
@@ -1657,8 +1687,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         name = "".join(c for c in req.user_id if c.isalnum() or c in "_-")
         key = "".join(ch for ch in (req.query_text or "").lower() if ch.isalnum())
         if len(key) > 4:
-            rows = _span.connect(f"/data/skv/metadata_store/{name}.db").execute("select raw_dialogue from event_metadata").fetchall()
-            span = sum(1 for (raw,) in rows if key in (raw or "").lower().replace("-", "").replace(" ", ""))
+            span = sum(1 for body in _cached_scan(name, "norm") if key in body)
     except Exception:
         span = 0
     lens = {"windows": []}
@@ -1673,8 +1702,8 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             if len(token) >= 4 and token not in words:
                 words.append(token)
         words = sorted(words, key=len, reverse=True)[:3]
-        rows = conn.execute("select event_id, raw_dialogue from event_metadata where event_id like '%grokexp_%'").fetchall()
-        crits = conn.execute("select event_id, raw_dialogue from event_metadata where raw_dialogue like '%>>>%'").fetchall()
+        rows_c = _cached_scan(name, "grokexp")
+        crits_c = _cached_scan(name, "crit")
         l2 = ""
         try:
             l2 = conn.execute("select map_json from summary_l2 order by last_updated desc limit 1").fetchone()[0] or ""
@@ -1682,8 +1711,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             l2 = ""
         for word in words:
             hit = None
-            for eid, raw in rows:
-                body = (raw or "").lower().replace("-", "").replace(" ", "")
+            for eid, raw, body in rows_c:
                 if word and word in body:
                     hit = (eid, raw)
                     break
@@ -1704,8 +1732,8 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             if word and word in l2.lower().replace("-", "").replace(" ", ""):
                 theme = l2[:800]
             important = []
-            for cid, text in crits:
-                if word and word in (text or "").lower().replace("-", "").replace(" ", ""):
+            for cid, text, body in crits_c:
+                if word and word in body:
                     important.append({"event_id": cid, "text": text[:200]})
             if lens["windows"] and word in lens["windows"][0]["word"]:
                 continue

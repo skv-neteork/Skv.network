@@ -18,6 +18,7 @@ PUBLIC_PREFIXES = (
     "/openapi.json",
     "/api/auth",
     "/auth",
+    "/api/v7",   # v7 has its own key check (app/v7_auth.py); skip the per-request Postgres lookup
 )
 
 # Paths that always require a valid API token

@@ -27,6 +27,11 @@ def _cfg(key, default):
 
 # ---------------- schema / migration ----------------
 def ensure_schema(conn):
+    try:
+        from app import shelves as _sh
+        _sh.ensure_columns(conn)
+    except Exception as _e:
+        print(f"[memory_v2] shelf columns skipped: {_e}", flush=True)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(summary_l1)")}
     if not cols:
         conn.execute("CREATE TABLE IF NOT EXISTS summary_l1 (session_id TEXT PRIMARY KEY, user_id TEXT, topic TEXT, summary_text TEXT, summary_json TEXT, message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")

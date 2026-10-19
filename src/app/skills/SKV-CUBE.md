@@ -7,3 +7,4 @@ Three kinds. Say which you are writing.
 Culture is the cover. Moment cubes link to it. Search should return the culture cube, then the moments.
 If it does not change the answer, add a missing fact, or state a craft rule, write nothing.
 Create: POST /api/v7/experience/create or GET /api/v7/agent/cube?key=&topic=&essence=&rules=
+Shared cubes are English, with no secrets or personal data. remember with cube_topic/cube_rules makes a private cube unless cube_publish=true; give cube_essence yourself, never the user's question.

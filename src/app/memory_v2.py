@@ -430,8 +430,11 @@ def _fit_followup(view, limit):
     steps = 0
     while total() > limit and steps < 40:
         steps += 1
-        if len(view.get("shared_cubes") or []) > 1:
-            view["shared_cubes"].pop()
+        # never trim "new, rate this" cubes: they are already recorded as shown and the agent must rate them
+        _sc = view.get("shared_cubes") or []
+        _drop = [i for i, c in enumerate(_sc) if not str(c.get("note", "")).startswith("new")]
+        if len(_sc) > 1 and _drop:
+            _sc.pop(_drop[-1])
             continue
         cl = (view.get("lens") or {}).get("clusters") or []
         if len(cl) > 2:
@@ -444,8 +447,9 @@ def _fit_followup(view, limit):
         if view.get("links"):
             view.pop("links")
             continue
-        if view.get("shared_cubes"):
-            view["shared_cubes"].pop()
+        _drop = [i for i, c in enumerate(view.get("shared_cubes") or []) if not str(c.get("note", "")).startswith("new")]
+        if _drop:
+            view["shared_cubes"].pop(_drop[-1])
             continue
         if len(cl) > 1:
             cl.pop()

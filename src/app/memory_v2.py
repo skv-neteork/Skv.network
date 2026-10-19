@@ -21,7 +21,7 @@ DEFAULTS = {
     "mask_secrets": True,         # mask keys/passwords in memory output (all views)
     "session_idle_s": 1800,       # a new conversation after 30 min of silence
     "budgets": {"map": 800, "raw": 3000, "l1": 2000, "l2": 1500, "critical": 400,
-                "constitution": 1200, "hits": 1000, "lens": 1500, "followup": 3000, "facts": 1800},
+                "constitution": 1200, "hits": 1000, "lens": 1500, "followup": 3000, "facts": 3000},
     "caps": {"map": 2000, "raw": 8000, "l1": 6000, "l2": 5000, "critical": 1200,
              "constitution": 3500, "hits": 3000, "lens": 5000, "followup": 8000, "facts": 4000},
 }

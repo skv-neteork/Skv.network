@@ -1268,7 +1268,8 @@ class ProjectNodeRequest(BaseModel):
 
 class ProjectNodeStatusRequest(BaseModel):
     user_id: Optional[str] = ""
-    status: str   # open|done|blocked
+    status: str   # open|in_progress|done|blocked
+    note: str = ""
 
 class ProjectMemberRequest(BaseModel):
     user_id: Optional[str] = ""

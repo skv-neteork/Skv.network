@@ -666,14 +666,18 @@ async def project_node(project_id: str, req: ProjectNodeRequest):
 @router.post("/projects/{project_id}/nodes/{node_id}/status")
 async def project_node_status(project_id: str, node_id: str, req: ProjectNodeStatusRequest):
     uid = _need_uid(req.user_id)
-    if req.status not in ("open", "done", "blocked"):
-        raise HTTPException(422, "status: open|done|blocked")
+    if req.status not in ("open", "in_progress", "done", "blocked"):
+        raise HTTPException(422, "status: open|in_progress|done|blocked")
     c, cv = _cv2_conn()
     try:
         r, own, vis = _proj_role(c, cv, project_id, uid, ("owner", "member", "helper"))
         if r == "helper" and own != node_id:
             raise HTTPException(403, "a helper works only on its own node")
-        cur = c.execute("UPDATE project_nodes SET status=? WHERE node_id=? AND project_id=?", (req.status, node_id, project_id))
+        note = (req.note or "").strip()[:2000]
+        if note:
+            import time as _t
+            note = "\n\n[" + _t.strftime("%Y-%m-%d %H:%M UTC", _t.gmtime()) + " " + req.status + " by " + uid + "] " + note
+        cur = c.execute("UPDATE project_nodes SET status=?, body=COALESCE(body,'')||? WHERE node_id=? AND project_id=?", (req.status, note, node_id, project_id))
         if not cur.rowcount:
             raise HTTPException(404, "node not found")
         c.commit()

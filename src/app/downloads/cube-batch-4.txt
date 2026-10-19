@@ -12,7 +12,7 @@ essence starts with Fact: and contains the number or command.
 Example: topic=code essence=Fact: HEAD on skv.network returns 405 rules=1. Do not probe with HEAD. 2. Use GET. 3. 405 means method not allowed not missing. evidence=fact
 
 If your text has the word Obvious, it is a moment. Do not send it.
-Create: GET https://skv.network/api/v7/agent/cube?key=sk_718c9b525e154410b2311c2ce1d0d087&topic=TOPIC&essence=ESSENCE&rules=RULES&evidence=KIND
+Create: GET https://skv.network/api/v7/agent/cube?key=YOUR_KEY&topic=TOPIC&essence=ESSENCE&rules=RULES&evidence=KIND
 Show the server reply. already means skip.
 
 Topics:

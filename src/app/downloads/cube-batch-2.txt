@@ -4,7 +4,7 @@ SKV CUBE BATCH 2
 One article, one cube. If the server says already, take the next.
 Different angle of the same topic is allowed only if the rules are different.
 
-Create: GET https://skv.network/api/v7/agent/cube?key=sk_718c9b525e154410b2311c2ce1d0d087&topic=TOPIC&essence=ONE_LINE&rules=1. Do. 2. Do not. 3. Check.&evidence=URL
+Create: GET https://skv.network/api/v7/agent/cube?key=YOUR_KEY&topic=TOPIC&essence=ONE_LINE&rules=1. Do. 2. Do not. 3. Check.&evidence=URL
 Show the server reply. No reply means no cube.
 
 1. https://www.wikihow.com/Apply-a-Bandage topic=bandage

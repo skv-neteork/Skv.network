@@ -100,9 +100,12 @@ def _uncovered_chunks(conn):
 
 
 L1_PROMPT = ("You summarize a stretch of a user's conversation with AI agents for long-term memory. "
-             "Write in English even if the dialogue is in another language. Keep names, decisions, numbers, open tasks. "
-             "Return only JSON with two keys: topic (1-3 lowercase words joined by underscores that name the subject, "
-             "for example first_aid or skv_memory) and summary (3-5 sentences).")
+             "Write in English even if the dialogue is in another language. "
+             "Length: about 5 to 8 percent of the input text. "
+             "Format: chronological STAGES. Each stage is 1-3 short lines covering what was done, what was decided, and how it ended. "
+             "Keep names, decisions, numbers, open tasks. "
+             "Return only JSON with two keys: topic (1-3 lowercase words joined by underscores, e.g. skv_memory) and summary "
+             "(the staged text; end with an OPEN: line if tasks remain).")
 
 
 def gen_l1(conn, user_id, acct):
@@ -130,8 +133,9 @@ def gen_l1(conn, user_id, acct):
     return made, usage
 
 
-L2_PROMPT = ("Merge these memory summaries (oldest first) into one period summary for long-term memory. English. "
-             "Keep projects, decisions, people, open questions. 4-6 sentences, plain text, no JSON.")
+L2_PROMPT = ("Compress these L1 memory summaries (oldest first) into an L2 map. English. "
+             "L2 must be about 5 percent of the combined L1 length: short HEADLINES of the chronological stages, "
+             "one line per stage, then an OPEN: line for remaining tasks. Plain text, no JSON, no paragraphs.")
 
 
 def gen_l2(conn, user_id, acct):
@@ -141,7 +145,7 @@ def gen_l2(conn, user_id, acct):
     if len(rows) < int(_c("llm_l2_min_l1", 8)):
         return 0, []
     body = "\n".join(f"[{r[2]}-{r[3]}] {r[0]}: {r[1]}" for r in rows)
-    text, u = _llm([{"role": "system", "content": L2_PROMPT}, {"role": "user", "content": body}], 400)
+    text, u = _llm([{"role": "system", "content": L2_PROMPT}, {"role": "user", "content": body}], 200)
     text = mask_text(text.strip())
     fr, to = rows[0][2], rows[-1][3]
     d = W._dates_for(conn, [fr, to])

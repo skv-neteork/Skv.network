@@ -312,10 +312,14 @@ app.add_middleware(AuthMiddleware)
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 
-# CORS
+# V7: require a valid API key, user taken from the key
+from app.v7_auth import V7AuthMiddleware
+app.add_middleware(V7AuthMiddleware)
+
+# CORS (own site only)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://skv.network", "https://www.skv.network"],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["X-Content-Type-Options", "X-Frame-Options"]

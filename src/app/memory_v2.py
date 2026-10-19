@@ -274,7 +274,7 @@ def build_hits(user_id, ordered, budget, top_tokens=500, other_tokens=120, skip_
         if cap < 30:
             break
         text = clip(strip_critical(r["text"]) or r["text"], cap, headtail=(i == 0))
-        h = {"event_id": eid, "match_type": mt, "date": r["date"], "text": text, "open": "/api/v7/event/" + eid}
+        h = {"event_id": eid, "match_type": mt, "date": r["date"], "text": text}
         if sc is not None:
             try:
                 h["score"] = round(float(sc), 4)
@@ -282,7 +282,7 @@ def build_hits(user_id, ordered, budget, top_tokens=500, other_tokens=120, skip_
                 pass
         if in_window:
             h["in_window"] = True
-        used += est_tokens(text) + 15
+        used += est_tokens(text) + 32
         out.append(h)
     return out, used
 
@@ -384,7 +384,8 @@ DEFAULTS.update({"legacy_rowid_order": True, "bg_llm": False, "l2_legacy_overwri
                  "raw_min_msgs": 10, "raw_max_msgs": 30, "raw_msg_cap": 600,
                  "window_exclude_topic_prefixes": ["skv_eval"],
                  "window_exclude_kinds": ["doc", "docs", "document", "code", "log", "file"],
-                 "maintenance": True, "maintenance_interval_s": 900})
+                 "maintenance": True, "maintenance_interval_s": 900,
+                 "lens_gap": 3, "lens_clusters_max": 5, "first_call_lens_budget": 600})
 
 AGENT_HINT = ("hits[0] is the center. Empty hits is not a fact: open GET /api/v7/event/{id}, expand a lens cluster with "
               "focus_event_id (POST /api/v7/memory/lens), or POST /api/v7/memory/dig. Use probe=true for extra lookups in the same turn.")
@@ -406,6 +407,36 @@ def first_pack_legacy(full_map_text, budgets):
     return {"memory_map": clip(full_map_text or "", total)}
 
 
+def _fit_followup(view, limit):
+    """Keep a follow-up answer within the followup budget: trim cubes, then lens briefs, then hit tails."""
+    def total():
+        return est_tokens(json.dumps(view, ensure_ascii=False)) + 120
+    steps = 0
+    while total() > limit and steps < 40:
+        steps += 1
+        if len(view.get("shared_cubes") or []) > 1:
+            view["shared_cubes"].pop()
+            continue
+        cl = (view.get("lens") or {}).get("clusters") or []
+        if len(cl) > 2:
+            cl.pop()
+            view["lens"]["more_cursor"] = view["lens"].get("more_cursor") or len(cl)
+            continue
+        if len(view.get("hits") or []) > 2:
+            view["hits"].pop()
+            continue
+        if view.get("links"):
+            view.pop("links")
+            continue
+        if view.get("shared_cubes"):
+            view["shared_cubes"].pop()
+            continue
+        if len(cl) > 1:
+            cl.pop()
+            continue
+        break
+
+
 def agent_view(req, legacy, ctx):
     cfg = config()
     uid = req.user_id
@@ -424,7 +455,16 @@ def agent_view(req, legacy, ctx):
         if budgets["constitution"] > 0:
             view["constitution_compact"] = clip(constitution_compact(), budgets["constitution"])
             view["constitution_url"] = "/api/v7/constitution"
-    lens = ctx.get("lens") if ctx.get("lens") is not None else legacy.get("lens")
+    lens = None
+    if ctx.get("lens_fn"):
+        lb = budgets["lens"] if not first else min(budgets["lens"], int(cfg.get("first_call_lens_budget", 600)))
+        try:
+            lens = ctx["lens_fn"](lb)
+        except Exception as e:
+            print(f"[memory_v2] lens failed: {e}", flush=True)
+            lens = None
+    if lens is None:
+        lens = legacy.get("lens")
     ordered = []
     if isinstance(lens, dict) and lens.get("clusters"):
         c0 = lens["clusters"][0].get("center", {})
@@ -454,6 +494,8 @@ def agent_view(req, legacy, ctx):
     view["reminders"] = short_reminders(legacy.get("reminders"), ctx.get("duty_error", ""))
     view["agent_hint"] = AGENT_HINT
     view = mask_obj(view)
+    if not first:
+        _fit_followup(view, budgets["followup"])
     view["budget"] = {"limits": budgets, "used_tokens": section_tokens(view)}
     fmt = (getattr(req, "format", None) or "json").lower()
     if fmt in ("text", "both"):

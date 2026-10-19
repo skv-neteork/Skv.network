@@ -21,7 +21,7 @@ check("guard2 requires cube or reasoned nothing, and a reason for -1", any("CUBE
 info, miss = g.parse("t\nL1: x\nCRITICAL: none\nCUBE_NOTHING: routine\n", [])
 check("guard2 requires the seal", any("seal" in m for m in miss))
 src = open("/root/skv-core/src/app/downloads/skv-guardian2.py").read()
-check("guard2 saves before Second Look and never auto-writes cubes", src.index('_post("/api/v7/remember"') < src.index('second-look') and "Auto-detected" not in src)
+check("guard2 saves before Second Look and never auto-writes cubes", src.index('_post("/api/v7/remember"') < src.index('_post("/api/v7/agent/second-look"') and "Auto-detected" not in src)
 sys.modules.setdefault("fastapi", types.SimpleNamespace(APIRouter=lambda **k: types.SimpleNamespace(get=lambda *a, **kw: (lambda f: f))))
 gm = load("gm", "/root/skv-core/src/app/routers/guardian_middleware.py")
 t = gm.SessionTracker(); t.MAX_SESSIONS = 50

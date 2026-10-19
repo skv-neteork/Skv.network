@@ -1148,7 +1148,12 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     except Exception:
         duty_error = ""
     print(f'DEBUG query_text={repr(req.query_text)}', flush=True)
-    if req.query_text:
+    from app import semantic as _sem
+    _sem_tag = _sem.active_tag()
+    _sem_vec = None
+    if req.query_text and _sem_tag != "bge":
+        q_vec = None
+    elif req.query_text:
         from app.routers.v4_middleware import get_embedding_cached
         full_emb = get_embedding_cached(req.query_text)
         full_list = full_emb if isinstance(full_emb, list) else full_emb.tolist()
@@ -1161,11 +1166,16 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     memory_text = ""
     has_cubes = False
     raw_results = []
+    _fts_ranked = []
     try:
         # v7.8: pass layer_weights for dynamic masks
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
         # Try VectorRouter (HNSW) first, fallback to _cached_search
-        hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id.replace("@", "").replace(".", ""), q_vec, top_k=req.top_k)
+        if _sem_tag != "bge" and req.query_text:
+            hnsw_results, _sem_vec = _sem.semantic_events(req.user_id, req.query_text, k=max(req.top_k * 3, 20))
+            hnsw_results = [(e, sc) for e, sc in hnsw_results if e.startswith(f"{req.user_id}::")]
+        else:
+            hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id.replace("@", "").replace(".", ""), q_vec, top_k=req.top_k)
         raw_results = []
         if hnsw_results:
             raw_results = [{"event_id": eid, "score": score, "source": "personal"} for eid, score in hnsw_results]
@@ -1174,11 +1184,18 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             
             # FTS5 boost using focus_words from agent
 
-        else:
+        elif q_vec is not None:
             raw_results = _cached_search(buffer, q_vec, req.user_id, req.hops, req.top_k, layer_weights=lw)
         
-        # HYBRID: Multi-word FTS5 boost
-        if req.query_text and raw_results:
+        if req.query_text and _sem.fusion_mode() == "rrf":
+            # Reciprocal Rank Fusion (k=60) of semantic HNSW + bm25 FTS5; FTS-only hits included
+            _fts_ranked = _sem.fts_ranked(req.user_id, req.query_text, limit=30)
+            _fused = _sem.rrf([(r["event_id"], r["score"]) for r in raw_results], _fts_ranked)
+            _sem_scores = {r["event_id"]: r["score"] for r in raw_results}
+            raw_results = [{"event_id": e, "score": round(sc, 5), "semantic": _sem_scores.get(e), "source": "personal"}
+                           for e, sc in _fused[:max(req.top_k * 2, 10)]]
+        # HYBRID: Multi-word FTS5 boost (legacy)
+        if req.query_text and raw_results and _sem.fusion_mode() != "rrf":
             try:
                 import sqlite3 as sq
                 db_name = req.user_id.replace('@', '').replace('.', '')
@@ -1258,7 +1275,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"
     
     # Load constitutional cubes from SQLite (shared_master.db)
-    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v4"]
+    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v5"]
     constitution_map = metadata_store.batch_get_metadata("shared_master", constitution_cube_ids)
     
     # Build constitution text from loaded cubes
@@ -1354,6 +1371,9 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
                             fts_top.append({'event_id': eid, 'matched_word': phrase, 'source': 'phrase'})
                 except Exception:
                     pass
+            if not fts_top and _fts_ranked:
+                for eid, _sc in _fts_ranked[:10]:
+                    fts_top.append({'event_id': eid, 'matched_word': '', 'source': 'fts', 'bm25': round(_sc, 3)})
             if not fts_top:
                 for word in focus:
                     fts_cur.execute('SELECT event_id FROM events_fts WHERE events_fts MATCH ? LIMIT 10', (word,))
@@ -1413,6 +1433,22 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
                 memory_map_text = "\n".join(lines) + "\n\n" + memory_map_text
     except Exception:
         pass
+    try:
+        if _sem_vec is not None:
+            import sqlite3 as _sq
+            hits = [h for h in _sem.search_l1(req.user_id, _sem_vec, k=3) if h[1] >= 0.45]
+            if hits:
+                conn = _sq.connect("/data/skv/metadata_store/" + _sem.account_name(req.user_id) + ".db")
+                lines = ["=== RELATED SUMMARIES (semantic) ==="]
+                for hid, sc in hits:
+                    row = conn.execute("SELECT topic, summary_text, created_at FROM summary_l1 WHERE rowid=?", (int(hid.split(":")[1]),)).fetchone()
+                    if row and (row[1] or "") not in memory_map_text:
+                        lines.append(f"[{row[2]}] {row[0]}: {row[1]}")
+                conn.close()
+                if len(lines) > 1:
+                    memory_map_text = "\n".join(lines) + "\n\n" + memory_map_text
+    except Exception as _e:
+        print(f"[semantic] l1 skipped: {_e}", flush=True)
     best_vec = vector_top[0] if vector_top else {}
     if best_vec: best_vec['full_text'] = _full_text(best_vec.get('event_id', ''))
     best_fts = fts_top[0] if fts_top else {}
@@ -1512,6 +1548,13 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
                     shared_cubes.append({"cube_id": row[0], "topic": topic, "essence": row[1], "rules": (row[2] or "")[:500], "shared": True, "note": "new, rate this", "kind": "moment", "cover": cover[0] if cover else None})
                     if len(seen) >= 5:
                         break
+            if not shared_cubes and _sem_vec is not None:
+                for cid, sc in _sem.search_cubes(_sem_vec, k=3):
+                    if sc < 0.5:
+                        continue
+                    row = _cur.execute("SELECT cube_id, essence, subject_action_object, rules_markdown FROM cubes_new WHERE cube_id=? AND status != 'deprecated'", (cid,)).fetchone()
+                    if row:
+                        shared_cubes.append({"cube_id": row[0], "topic": row[2], "essence": row[1], "rules": (row[3] or "")[:500], "shared": True, "note": "semantic", "score": round(sc, 3)})
             if not shared_cubes:
                 for row in _cur.execute("SELECT cube_id, essence, subject_action_object, rules_markdown FROM cubes_new WHERE status != 'deprecated' AND cube_id NOT LIKE 'cube_const_%' AND (subject_action_object LIKE ? OR essence LIKE ?) LIMIT 3", (like, like)):
                     shared_cubes.append({"cube_id": row[0], "topic": row[2], "essence": row[1], "rules": (row[3] or "")[:500], "shared": True, "note": "matched"})
@@ -1713,7 +1756,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                 memory_map += f"Shared knowledge cubes: {buffer.shared_current_size}\n"
             memory_map += "Use memory search to explore specific topics.\n"
         
-        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v4"]
+        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v5"]
         const_map = metadata_store.batch_get_metadata("shared_master", constitution_ids)
         const_parts = []
         for cid in constitution_ids:
@@ -2450,7 +2493,7 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 
-                           "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v4"]
+                           "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v5"]
         const_map = metadata_store.batch_get_metadata("shared_master", constitution_ids)
         const_parts = []
         for cid in constitution_ids:
@@ -3079,11 +3122,12 @@ async def agent_start():
 3. Search memory when the past can change the answer. Center is the hit. l1_before and l1_after are the sides.
 4. After every turn: POST /api/v7/remember. Weak: GET /api/v7/agent/remember?key=KEY&query=&response=
 5. On a required step write a cube or duty=cube_nothing. Vote on used cubes.
-Skills: /api/v7/skills . One cube: /api/v7/cube/cube_const_05_v4 . Old doors now return this same cube.
+Skills: /api/v7/skills . One cube: /api/v7/cube/cube_const_05_v5 . Old doors now return this same cube.
 \nYou are setting up SKV for this user. Ask which model they use, then give only the steps for that model.
 Base URL https://skv.network
 Schema https://skv.network/api/v7/agent/openapi.json
 Auth header Authorization: Bearer sk_key. The user already has the key. Do not ask them to paste the constitution.
+Write the memory search query in English; keep names, rare words and exact terms as-is.
 Skills https://skv.network/api/v7/skills . Read them before the first answer.\nFirst call in a new chat: POST /api/v7/memory with step 0. That loads the map and the constitution. A weak agent that can only GET uses /api/v7/agent/memory, /api/v7/agent/remember, /api/v7/agent/vote, /api/v7/agent/cube with key.
 Later search only when the past can change the answer. After every reply POST /api/v7/remember.
 If stuck, send task_question, task_tried, task_accept. Do not invent a rule.""")
@@ -3326,6 +3370,10 @@ async def get_cube(cube_id: str):
     import sqlite3
     conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
     row = conn.execute("select cube_id, essence, rules_markdown, status from cubes_new where cube_id=?", (cube_id,)).fetchone()
+    if not row and cube_id.startswith("cube_const_") and cube_id.count("_") >= 3:
+        # old version link -> current version of the same constitution cube
+        prefix = "_".join(cube_id.split("_")[:3]) + "_v%"
+        row = conn.execute("select cube_id, essence, rules_markdown, status from cubes_new where cube_id like ? order by cube_id desc limit 1", (prefix,)).fetchone()
     conn.close()
     if not row:
         raise HTTPException(404, "Cube not found")

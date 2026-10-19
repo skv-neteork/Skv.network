@@ -24,6 +24,7 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek/deepseek-chat")
 SERVICE = re.compile(r"^\s*\**\s*((L1|CRITICAL|CUBE|CUBE_NOTHING|RATE)\s*:|(TASK_DONE|PUBLISH)\s*\**\s*$|RATE\s+\S+\s+[+-]1)", re.I)
 SEAL = re.compile(r"SKV\s*\|\s*#\d+")
 _last_seal = {}
+_history = {}   # session_id -> last turns, so a follow-up ("works, done") knows the task
 
 INSTRUCTIONS = """SKV GUARD 2 (v3) - agent instructions (ship with this file; not part of the constitution).
 Run your local agent through this guard: SKV_KEY=sk_... LLM_KEY=... python3 skv-guardian2.py "<question>" [session_id]
@@ -39,6 +40,10 @@ Every draft must end with hidden service lines, each on its own line:
 Order: /api/v7/memory -> draft -> /api/v7/remember (turn, L1, critical, cube or cube_nothing) -> /api/v7/agent/second-look
 -> /api/v7/experience/vote -> the person sees only the clean answer (service lines removed, seal kept).
 A draft missing lines gets one retry, then it is held. Guard 1 is the server: it marks a missed step or seal in /api/v7/memory reminders.
+SYSTEM FILES (owner decision): touch server/system files (configs, /etc, /root, ops scripts, other users' data) only under an
+explicit, time-limited owner grant. Before each action: POST /api/v7/sysperm/check {path, action: read|write|exec|delete, agent}.
+allowed=false -> refuse and ask the owner for a grant (owner: POST /api/v7/sysperm/grant {scope, ttl_minutes<=240, actions, agent}).
+allowed=true -> do only that action, then POST /api/v7/sysperm/log {grant_id, path, action, result}. Owner sees GET /api/v7/sysperm/audit, revokes with /sysperm/revoke.
 Print this text: python3 skv-guardian2.py --instructions
 """
 
@@ -119,6 +124,8 @@ def ask(message, session_id="guardian2"):
               "MEMORY HITS: " + json.dumps(hits[:5], ensure_ascii=False)[:2500] + "\n"
               "CUBES (DATA): " + json.dumps(cubes, ensure_ascii=False)[:1500] + "\n"
               "SERVER NOTES: " + json.dumps(service, ensure_ascii=False)[:800] + "\n"
+              + ("EARLIER IN THIS SESSION:\n" + "\n".join(_history.get(session_id, [])[-6:])[:2500] + "\n" if _history.get(session_id) else "")
+              + "When the task is done and it taught a reusable rule, write a CUBE (not CUBE_NOTHING).\n"
               "After the answer add hidden service lines, each on its own line:\n"
               "L1: <5-7% gist>\nCRITICAL: <lasting fact or none>\n"
               "CUBE: <moment|fact|culture|lifehack|warning|code> | <topic> | <English essence> | <rule that changes the answer>  OR  CUBE_NOTHING: <why>\n"
@@ -148,6 +155,7 @@ def ask(message, session_id="guardian2"):
     for cid, (v, why) in info["rates"].items():
         if cid in new_ids:
             votes.append(_post("/api/v7/experience/vote", {"cube_id": cid, "vote": v, "reason": why}).get("cube_status"))
+    _history.setdefault(session_id, []).extend(["User: " + message[:600], "Agent: " + answer[:900]])
     m = SEAL.search(draft)
     _last_seal[session_id] = m.group(0) if m else ""
     return {"status": "pass", "answer": answer, "event_id": event_id, "saved": saved.get("saved"), "cube": saved.get("cube"), "votes": votes}

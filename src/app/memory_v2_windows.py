@@ -313,7 +313,10 @@ def get_profile(user_id, conn=None):
         ready(user_id)
         conn = sqlite3.connect(db_path(user_id), timeout=30)
     try:
-        row = conn.execute("SELECT who, projects_json, prefs_json, updated_at FROM user_profile WHERE user_id=?", (user_id,)).fetchone()
+        try:
+            row = conn.execute("SELECT who, projects_json, prefs_json, updated_at FROM user_profile WHERE user_id=?", (user_id,)).fetchone()
+        except sqlite3.OperationalError:  # brand-new account: table not created yet (read-only first pack)
+            row = None
         if not row:
             return {"who": "", "projects": [], "prefs": {}, "updated_at": None}
         return {"who": row[0] or "", "projects": json.loads(row[1] or "[]"), "prefs": json.loads(row[2] or "{}"), "updated_at": row[3]}
@@ -521,8 +524,13 @@ def critical_lines(conn, budget):
 def first_pack(user_id, budgets):
     ready(user_id)
     cfg = config()
+    if not os.path.exists(db_path(user_id)):
+        return {"windows": {"raw": [], "l1": [], "l2": [], "bounds": {}, "tokens": {"raw": 0, "l1": 0, "l2": 0}}, "critical": [], "_window_ids": []}
     conn = sqlite3.connect(f"file:{db_path(user_id)}?mode=ro", uri=True, timeout=10)
     try:
+        if not _has_events(conn) or not conn.execute("SELECT 1 FROM sqlite_master WHERE name='summary_l1'").fetchone():
+            # brand-new account: nothing to window yet (tables appear on the first /remember)
+            return {"windows": {"raw": [], "l1": [], "l2": [], "bounds": {}, "tokens": {"raw": 0, "l1": 0, "l2": 0}}, "critical": [], "_window_ids": []}
         mm = build_map(conn, user_id, budgets["map"]) if budgets["map"] > 0 else None
         raw, raw_used = raw_window(conn, budgets["raw"], int(cfg.get("raw_min_msgs", 10)), int(cfg.get("raw_max_msgs", 30)), int(cfg.get("raw_msg_cap", 600))) if budgets["raw"] > 0 else ([], 0)
         b1 = min([r["rowid"] for r in raw] or [(conn.execute("SELECT MAX(rowid) FROM event_metadata").fetchone()[0] or 0) + 1])

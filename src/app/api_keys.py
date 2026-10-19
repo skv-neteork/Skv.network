@@ -63,7 +63,7 @@ def args_keys_only(token):
     return (token or "", hash_key(token), None, None)
 
 
-INTERNAL_DENY = ("/vault", "/profile", "/auth", "/account")
+INTERNAL_DENY = ("/vault", "/profile", "/auth", "/account", "/sysperm")
 
 
 def user_for(token, conn=None):

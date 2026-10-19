@@ -7,9 +7,24 @@ class SessionTracker:
         self.sessions: Dict[str, dict] = {}
         self._lock = threading.Lock()
 
+    MAX_SESSIONS = 5000
+    TTL_S = 6 * 3600
+
+    def _prune(self):
+        """Unauthenticated endpoint: never let arbitrary session ids grow memory without bound."""
+        now = time.time()
+        for k in [k for k, v in self.sessions.items() if now - v["last_activity"] > self.TTL_S]:
+            self.sessions.pop(k, None)
+        while len(self.sessions) > self.MAX_SESSIONS:
+            oldest = min(self.sessions, key=lambda k: self.sessions[k]["last_activity"])
+            self.sessions.pop(oldest, None)
+
     def get_session(self, session_id: str) -> dict:
+        session_id = (session_id or "anonymous")[:128]
         with self._lock:
             if session_id not in self.sessions:
+                if len(self.sessions) >= self.MAX_SESSIONS:
+                    self._prune()
                 self.sessions[session_id] = {
                     "message_count": 0,
                     "last_activity": time.time(),
@@ -20,6 +35,7 @@ class SessionTracker:
             return self.sessions[session_id]
 
     def process_api_call(self, session_id: str) -> dict:
+        session_id = (session_id or "anonymous")[:128]
         session = self.get_session(session_id)
         inactivity = time.time() - session["last_activity"]
         
@@ -46,14 +62,14 @@ class SessionTracker:
             suggested_action = "MEMORY_SAVE_REQUIRED"
             reminder_prompt = (
                 f"[SKV_GUARDIAN]: High activity detected (step {step}). "
-                "Per CUBE 05, you must save important facts and timestamps "
-                "of this session to memory cubes."
+                "Per CUBE 05, save every turn with POST /api/v7/remember; when a task ends write a cube "
+                "or duty=cube_nothing with a reason."
             )
         elif step == 15 and session["cubes_read_count"] > 0 and session["feedback_left_count"] == 0:
             suggested_action = "FEEDBACK_REQUIRED"
             reminder_prompt = (
                 "[SKV_GUARDIAN]: You used constitutional cubes (CUBE 00-05) "
-                "but left no feedback. Rate the cubes via /api/v4/memory/feedback."
+                "but left no feedback. Rate the new cubes via POST /api/v7/experience/vote (+1/-1, a -1 needs a reason)."
             )
 
         return {

@@ -25,6 +25,23 @@ SERVICE = re.compile(r"^\s*\**\s*((L1|CRITICAL|CUBE|CUBE_NOTHING|RATE)\s*:|(TASK
 SEAL = re.compile(r"SKV\s*\|\s*#\d+")
 _last_seal = {}
 
+INSTRUCTIONS = """SKV GUARD 2 (v3) - agent instructions (ship with this file; not part of the constitution).
+Run your local agent through this guard: SKV_KEY=sk_... LLM_KEY=... python3 skv-guardian2.py "<question>" [session_id]
+Every draft must end with hidden service lines, each on its own line:
+  L1: <5-7% gist of this turn>
+  CRITICAL: <lasting fact, or none>
+  CUBE: <moment|fact|culture|lifehack|warning|code> | <topic> | <English essence> | <rule that changes the answer>
+     or CUBE_NOTHING: <why nothing here changes the answer>
+  RATE: <cube_id> +1|-1 <reason>   for each cube marked "new, rate this" (a -1 needs a reason, it goes to the judges)
+  TASK_DONE   only when the task is finished
+  PUBLISH     only to share the cube (English, no secrets); otherwise it stays private
+  seal: SKV | #N | READ | VERIFY | CORRECT | OUTPUT
+Order: /api/v7/memory -> draft -> /api/v7/remember (turn, L1, critical, cube or cube_nothing) -> /api/v7/agent/second-look
+-> /api/v7/experience/vote -> the person sees only the clean answer (service lines removed, seal kept).
+A draft missing lines gets one retry, then it is held. Guard 1 is the server: it marks a missed step or seal in /api/v7/memory reminders.
+Print this text: python3 skv-guardian2.py --instructions
+"""
+
 
 def _post(path, payload):
     headers = {"Content-Type": "application/json", "User-Agent": "skv-guardian2"}
@@ -138,4 +155,6 @@ def ask(message, session_id="guardian2"):
 
 if __name__ == "__main__":
     import sys
+    if len(sys.argv) < 2 or sys.argv[1] in ("--instructions", "-h", "--help"):
+        print(INSTRUCTIONS); sys.exit(0)
     print(json.dumps(ask(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "guardian2"), ensure_ascii=False, indent=2))

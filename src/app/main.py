@@ -462,7 +462,7 @@ async def discovery():
             "Follow the constitution it returns. You do Second Look. The server does not.",
             "After every turn: POST /api/v7/remember. Weak: GET /api/v7/agent/remember?key=&query=&response=",
             "Vote used cubes. Three downvotes mark a cube deprecated and queue it for court.",
-            "CUBE 05: GET /api/v7/cube/cube_const_05_v5"
+            "CUBE 05: GET /api/v7/cube/cube_const_05_v6"
         ],
         "memory": "Per-user SQLite. Vectors are 768-d HNSW, built in batches.",
         "constitution": "CUBE 00-05. Full text on step 0 and every 10th step.",

@@ -30,10 +30,12 @@ def tok(d):
 LEGACY_KEYS = {"server_time","prompt_text","memory","fragments","previous","agent_hint","span","lens","links","shared_cubes","open_tasks","due","constitution","reminders","duty_error","has_cubes","step","memory_map","vector_top10","fts_top10","intersection","best_vector","best_fts","best_intersection"}
 DEBUG = {"vector_top10","fts_top10","intersection","best_vector","best_fts","best_intersection","memory"}
 def stepA():
-    c, d, ms, n = mem(query_text="SKV architecture memory layers", probe=True)
+    c, d0, ms, n = mem(query_text="SKV architecture memory layers", probe=True)
+    check("A0 default view is agent", isinstance(d0, dict) and d0.get("view") == "agent", d0.get("view") if isinstance(d0, dict) else d0)
+    c, d, ms, n = mem(query_text="SKV architecture memory layers", probe=True, view="legacy")
     check("A1 legacy keys unchanged", c == 200 and set(d.keys()) == LEGACY_KEYS, sorted(set(d.keys()) ^ LEGACY_KEYS) if isinstance(d, dict) else d)
     s0 = d.get("step")
-    c, d2, ms, n = mem(query_text="SKV architecture memory layers", probe=True)
+    c, d2, ms, n = mem(query_text="SKV architecture memory layers", probe=True, view="legacy")
     check("A2 legacy probe=true does not bump step", d2.get("step") == s0, (s0, d2.get("step")))
     check("A3 probe has no duty_error", not d2.get("duty_error"), d2.get("duty_error"))
     c, a, ms, n = mem(query_text="SKV architecture memory layers", view="agent", session_id="t_" + str(time.time()))
@@ -47,7 +49,7 @@ def stepA():
     c, a3, ms, n = mem(query_text="API key", view="agent", session_id="t_sec_" + str(time.time()), budget_hits=999999)
     check("A9 budget clamped to cap", a3["budget"]["limits"]["hits"] == 3000, a3["budget"]["limits"]["hits"])
     blobs = [json.dumps(x, ensure_ascii=False) for x in (d, d2, a, a2, a3)]
-    c, lg, ms, n = mem(query_text="API_KEY получен от пользователя", probe=True)
+    c, lg, ms, n = mem(query_text="API_KEY получен от пользователя", probe=True, view="legacy")
     blobs.append(json.dumps(lg, ensure_ascii=False))
     c, dg, ms, n = api("POST", "/api/v7/memory/dig", {"query": "API_KEY получен"})
     blobs.append(json.dumps(dg, ensure_ascii=False))
@@ -111,7 +113,7 @@ def stepC():
 def measure():
     out = {}
     sid = "t_m_" + str(time.time())
-    cases = [("legacy_followup", dict(query_text="SKV architecture memory layers", probe=True)),
+    cases = [("legacy_followup", dict(query_text="SKV architecture memory layers", probe=True, view="legacy")),
              ("agent_first", dict(view="agent", session_id=sid, start=True, query_text="SKV architecture memory layers")),
              ("agent_followup", dict(view="agent", session_id=sid, query_text="forget archive purge")),
              ("agent_multihit", dict(view="agent", session_id=sid, query_text="Т-частицы"))]

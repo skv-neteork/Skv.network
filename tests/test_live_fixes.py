@@ -18,3 +18,11 @@ t("guard2 asks for the concrete seal step", 'SKV | #%s |' in g and 'mem.get("ste
 t("guard2 keeps session history", "_history" in g and "EARLIER IN THIS SESSION" in g)
 t("guard2 documents sysperm", "/api/v7/sysperm/check" in g)
 print(f"{ok}/{n} passed")
+import importlib.util as _u
+_s = _u.spec_from_file_location("g2x", "/app/app/downloads/skv-guardian2.py"); g2 = _u.module_from_spec(_s); _s.loader.exec_module(g2)
+_i, _m = g2.parse("A\nL1: x\nCRITICAL: none\nCUBE_NOTHING: y\nRATE: c1 0 off-topic\nSKV | #2 | READ", ["c1"])
+t("guard2 RATE 0 with reason accepted (vote_nothing)", _i["rates"]["c1"] == (0, "off-topic") and not _m)
+_i, _m = g2.parse("A\nL1: x\nCRITICAL: none\nCUBE_NOTHING: y\nRATE: c1 0\nSKV | #2 | READ", ["c1"])
+t("guard2 RATE 0 needs a reason", any("c1" in x for x in _m))
+t("guard2 sends vote_nothing for zeros", '"duty": "vote_nothing"' in g)
+print(f"{ok}/{n} passed (final)")

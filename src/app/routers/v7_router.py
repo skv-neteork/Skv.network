@@ -3175,6 +3175,53 @@ def _forget_db(user_id):
     return conn
 
 
+def _l1_archive_table(conn):
+    have = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='summary_l1'").fetchone()
+    if not have:
+        return False
+    conn.execute("CREATE TABLE IF NOT EXISTS summary_l1_forgotten AS SELECT * FROM summary_l1 WHERE 0")
+    hv = {r[1] for r in conn.execute("PRAGMA table_info(summary_l1_forgotten)")}
+    for col in [r[1] for r in conn.execute("PRAGMA table_info(summary_l1)")] + ["forget_token", "archived_at"]:
+        if col not in hv:
+            conn.execute(f"ALTER TABLE summary_l1_forgotten ADD COLUMN {col} TEXT")
+    return True
+
+
+def _forget_l1(conn, token, gone_rowids, gone_ids=()):
+    """Archive L1 summaries whose whole range was forgotten, or that were written by a forgotten remember call
+    (session_id == event id suffix). Same 30-day window as the turns."""
+    if not gone_rowids or not _l1_archive_table(conn):
+        return 0
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(summary_l1)")]
+    if "to_rowid" not in cols:
+        return 0
+    colstr = ",".join(cols)
+    alive = lambda a, b: conn.execute("SELECT 1 FROM event_metadata WHERE rowid BETWEEN ? AND ? LIMIT 1", (a, b)).fetchone()
+    n = 0
+    sids = {i.split("::", 1)[-1] for i in gone_ids}
+    for rid, fr, to, sid in conn.execute("SELECT rowid, from_rowid, to_rowid, session_id FROM summary_l1 WHERE to_rowid BETWEEN ? AND ? OR to_rowid IS NULL", (min(gone_rowids), max(gone_rowids))).fetchall():
+        if sid not in sids:
+            if to is None:
+                continue
+            fr = fr or to
+            if not any(r in gone_rowids for r in range(fr, to + 1)) or alive(fr, to):
+                continue
+        conn.execute(f"INSERT INTO summary_l1_forgotten ({colstr}, forget_token, archived_at) SELECT {colstr}, ?, datetime('now') FROM summary_l1 WHERE rowid=?", (token, rid))
+        conn.execute("DELETE FROM summary_l1 WHERE rowid=?", (rid,))
+        n += 1
+    return n
+
+
+def _restore_l1(conn, token):
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='summary_l1_forgotten'").fetchone():
+        return 0
+    cols = ",".join(r[1] for r in conn.execute("PRAGMA table_info(summary_l1)"))
+    cur = conn.execute(f"INSERT OR IGNORE INTO summary_l1 ({cols}) SELECT {cols} FROM summary_l1_forgotten WHERE forget_token=? AND archived_at > datetime('now', ?)",
+                       (token, f"-{FORGET_RETENTION_S} seconds"))
+    conn.execute("DELETE FROM summary_l1_forgotten WHERE forget_token=? AND archived_at > datetime('now', ?)", (token, f"-{FORGET_RETENTION_S} seconds"))
+    return cur.rowcount
+
+
 def _purge_at(archived_at_epoch):
     return datetime.fromtimestamp(archived_at_epoch + FORGET_RETENTION_S, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -3197,6 +3244,10 @@ def purge_forgotten(user_id, retention_s=None):
                     conn.execute(f"DELETE FROM {tbl} WHERE event_id IN ({qs})", ids)
                 except Exception:
                     pass
+        try:
+            conn.execute("DELETE FROM summary_l1_forgotten WHERE archived_at <= datetime('now', ?)", (f"-{int(retention_s)} seconds",))
+        except Exception:
+            pass
         conn.execute("DELETE FROM forget_requests WHERE created < ?", (_t.time() - retention_s - FORGET_TTL_S,))
         conn.commit()
     finally:
@@ -3317,8 +3368,12 @@ def _forget_apply(req, restore=False):
         cols = [c[1] for c in conn.execute("PRAGMA table_info(event_metadata)")]
         colstr = ",".join(cols)
         moved = 0
+        gone_rowids = set()
         for eid in ids:
             if not restore:
+                _r = conn.execute("SELECT rowid FROM event_metadata WHERE event_id=?", (eid,)).fetchone()
+                if _r:
+                    gone_rowids.add(_r[0])
                 cur = conn.execute(f"INSERT INTO event_forgotten ({colstr}, forgotten_at, archived_at) SELECT {colstr}, datetime('now'), datetime('now') FROM event_metadata WHERE event_id=?", (eid,))
                 if cur.rowcount:
                     conn.execute("DELETE FROM event_metadata WHERE event_id=?", (eid,))
@@ -3338,6 +3393,11 @@ def _forget_apply(req, restore=False):
                         pass
                     conn.execute("DELETE FROM event_forgotten WHERE event_id=?", (eid,))
                     moved += 1
+        try:
+            l1_moved = _restore_l1(conn, req.token) if restore else _forget_l1(conn, req.token, gone_rowids, [i for i in ids])
+        except Exception as exc:
+            l1_moved = 0
+            print(f"[forget] L1 archive skipped: {exc}", flush=True)
         conn.execute("UPDATE forget_requests SET used=? WHERE token=?", (0 if restore else 1, req.token))
         conn.commit()
     finally:
@@ -3349,9 +3409,9 @@ def _forget_apply(req, restore=False):
         print(f"[forget] vector mark skipped: {exc}", flush=True)
     now = _t.time()
     if restore:
-        return {"status": "restored", "count": moved, "event_ids": ids,
+        return {"status": "restored", "count": moved, "l1_restored": l1_moved, "event_ids": ids,
                 "note": "Back in memory." if moved else "Nothing to restore: the 30-day window passed or the items were already restored."}
-    return {"status": "forgotten", "count": moved, "event_ids": ids,
+    return {"status": "forgotten", "count": moved, "l1_archived": l1_moved, "event_ids": ids,
             "archived_at": datetime.fromtimestamp(now, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "purge_at": _purge_at(now), "retention_days": FORGET_RETENTION_S // 86400,
             "note": "Removed from memory. Restorable with POST /api/v7/memory/forget/restore and the same token until purge_at; then deleted permanently."}

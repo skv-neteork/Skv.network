@@ -69,6 +69,12 @@ def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response:
             (event_id, time_str or time.strftime("%Y-%m-%d %H:%M"), (topic or query)[:200], dialogue, 2, "[]", json.dumps([source]), "pending_vector"),
         )
         _fts_insert(conn.cursor(), event_id, dialogue)
+        try:   # cheap regex auto-capture of names/dates/links/phones/emails/addresses (text is already vault-scrubbed)
+            from app import critical_auto as _ca, memory_v2 as _m2
+            if _m2.config().get("critical_auto", True):
+                _ca.capture(conn, event_id, time_str or time.strftime("%Y-%m-%d %H:%M"), dialogue)
+        except Exception as exc:
+            print(f"[critical_auto] skipped: {exc}", flush=True)
         conn.commit()
     try:
         from app import semantic

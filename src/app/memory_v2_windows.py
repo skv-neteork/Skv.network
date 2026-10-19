@@ -518,6 +518,21 @@ def critical_lines(conn, budget):
                 return out, used
             out.append(line)
             used += cost
+    try:   # then regex auto-captured facts (critical_auto), same budget, deduped against manual marks
+        from app import critical_auto as _ca
+        manual = " ".join(out).lower()
+        for kind, value, ctx, ts in _ca.lines(conn):
+            if value.lower() in manual or value.lower() in seen:
+                continue
+            seen.add(value.lower())
+            line = f"[{norm_date(ts)}] {kind}: {mask_text(clip(value, 60))} — {mask_text(clip(ctx, 70))}"
+            cost = est_tokens(line) + 4
+            if used + cost > budget:
+                break
+            out.append(line)
+            used += cost
+    except Exception as exc:
+        print(f"[critical_auto] read skipped: {exc}", flush=True)
     return out, used
 
 

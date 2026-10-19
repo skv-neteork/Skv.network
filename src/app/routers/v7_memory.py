@@ -11,7 +11,7 @@ async def trigger_vectorization(request: Request):
     from app import account_memory as _am, semantic as _sem
     def _run():
         with _am._batch_lock:
-            return _sem.build_pending_all()
+            return _sem.build_pending_all(force=True)
     count = await asyncio.to_thread(_run)
     return {"status": "ok", "model": _sem.active_tag(), "vectors_created": count}
 

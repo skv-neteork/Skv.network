@@ -2067,6 +2067,7 @@ class VoteRequest(BaseModel):
     user_id: str
     vote: int  # +1 or -1
     topic: str = ""
+    reason: str = ""   # required for -1: what was wrong (goes to the judges)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2373,12 +2374,18 @@ async def memory_l2_blocks(user_id: str = "", limit: int = 50):
 
 
 @router.post("/experience/vote")
-async def vote_experience(req: VoteRequest):
+async def vote_experience(req: VoteRequest, request: Request = None):
     """Vote for an experience cube. 3 downvotes → deprecated."""
     import sqlite3, json
     
     if req.vote not in (-1, 1):
         raise HTTPException(status_code=400, detail="Vote must be +1 or -1")
+    _ip = ""
+    try:
+        if request is not None:
+            _ip = (request.headers.get("x-real-ip") or (request.headers.get("x-forwarded-for") or "").split(",")[0] or (request.client.host if request.client else "")).strip()
+    except Exception:
+        _ip = ""
     
     conn = sqlite3.connect(SHARED_DB)
     cur = conn.cursor()
@@ -2427,14 +2434,16 @@ async def vote_experience(req: VoteRequest):
     upvotes = sum(1 for v in votes if v['vote'] == 1)
     
     topics = {v.get("topic") for v in votes if v.get("topic")}
+    if req.vote == -1 and not (req.reason or "").strip():
+        conn.close()
+        raise HTTPException(status_code=422, detail="A negative rating needs a short reason (what was wrong); it goes to the judges.")
     from app import cubes_v2 as _cv2
     _cv2.ensure(conn)
-    trust, confirms = _cv2.record_outcome(conn, req.cube_id, req.user_id, req.vote == 1)
+    trust, confirms = _cv2.record_outcome(conn, req.cube_id, req.user_id, req.vote == 1, req.reason, _ip)
+    _neg_clients, _ = _cv2.negative_clients(conn, req.cube_id)
     old_status = cur.execute("SELECT status FROM cubes_new WHERE cube_id=?", (req.cube_id,)).fetchone()[0]
-    if downvotes >= 3:
-        status = "deprecated"
-        cur.execute("CREATE TABLE IF NOT EXISTS court_queue (cube_id TEXT PRIMARY KEY, reason TEXT, created_at TEXT)")
-        cur.execute("INSERT OR IGNORE INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now'))", (req.cube_id, "three downvotes"))
+    if _neg_clients >= _cv2.NEGATIVE_TO_COURT:
+        status = "deprecated"      # record_outcome already queued it for court with the reasons
     elif old_status in ("archived", "removed", "quarantine"):
         status = old_status
     elif old_status == "golden":
@@ -2462,6 +2471,8 @@ async def vote_experience(req: VoteRequest):
         "cube_status": status,
         "trust": trust,
         "confirms": confirms,
+        "negative_clients": _neg_clients,
+        "in_court": _neg_clients >= _cv2.NEGATIVE_TO_COURT,
         "upvotes": upvotes,
         "downvotes": downvotes
     }
@@ -4174,9 +4185,9 @@ async def agent_get_remember(key: str, query: str = "", response: str = "", topi
     return await remember(RememberRequest(user_id=user_id, query=query, response=response, topic=topic, critical=critical, l1_summary=l1_summary, ts=ts, occurred_at=occurred_at))
 
 @router.get("/agent/vote")
-async def agent_get_vote(key: str, cube_id: str, vote: int, topic: str = ""):
+async def agent_get_vote(key: str, cube_id: str, vote: int, topic: str = "", reason: str = "", request: Request = None):
     user_id = _user_from_key(key)
-    return await vote_experience(VoteRequest(cube_id=cube_id, user_id=user_id, vote=vote, topic=topic))
+    return await vote_experience(VoteRequest(cube_id=cube_id, user_id=user_id, vote=vote, topic=topic, reason=reason), request)
 
 @router.get("/agent/cube")
 async def agent_get_cube(key: str, topic: str, essence: str, rules: str, evidence: str = "get"):

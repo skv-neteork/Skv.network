@@ -21,7 +21,10 @@ HIDDEN_STATUS = ("deprecated", "archived", "removed", "quarantine")
 HIDDEN_SQL = "status NOT IN ('deprecated','archived','removed','quarantine')"
 VISIBLE_KIND_SQL = "COALESCE(kind,'moment') NOT IN ('help_request','project','project_node')"
 TRUST_CONFIRMS = 3
-NEW_SHOWN_LIMIT = 6          # a cube stays in the 'new, rate this' slots until shown this many times
+NEW_SHOWN_LIMIT = 6          # legacy name, kept for imports
+NEW_CAP = 12                 # impressions a cube may get per earned rating: allowed while shown < NEW_CAP * (ratings + 1)
+RATED_ENOUGH = 3             # a cube leaves the 'rate this' slots once it has this many ratings (or is trusted)
+AGE_OUT_IMPRESSIONS = 12     # 0 ratings after this many impressions -> court (reason: no ratings)
 RATE_GRACE_STEPS = 2         # new-slot cubes must be rated within this many steps
 TOPIC_MIN_TURNS = 5          # a topic change ends a task only after this many turns since the last cube / cube_nothing
 CUBE_GRACE_STEPS = 1         # after a task ends the agent has this many steps to write cube / cube_nothing
@@ -35,9 +38,14 @@ def ensure(conn):
     have = _cols(conn, "cubes_new")
     for col, ddl in (("kind", "TEXT DEFAULT 'moment'"), ("lang", "TEXT DEFAULT 'en'"), ("project_id", "TEXT"),
                      ("source", "TEXT DEFAULT 'agent'"), ("trust", "TEXT DEFAULT 'new'"), ("confirms", "INTEGER DEFAULT 0"),
-                     ("shown", "INTEGER DEFAULT 0"), ("parent_id", "TEXT"), ("triviality", "TEXT")):
+                     ("shown", "INTEGER DEFAULT 0"), ("parent_id", "TEXT"), ("triviality", "TEXT"), ("aged_at", "TEXT")):
         if col not in have:
             conn.execute(f"ALTER TABLE cubes_new ADD COLUMN {col} {ddl}")
+    conn.execute("CREATE TABLE IF NOT EXISTS cube_outcomes (cube_id TEXT, user_id TEXT, outcome TEXT, ts TEXT, PRIMARY KEY (cube_id, user_id))")
+    oc = _cols(conn, "cube_outcomes")
+    for col in ("reason", "ip"):
+        if col not in oc:
+            conn.execute(f"ALTER TABLE cube_outcomes ADD COLUMN {col} TEXT")
     conn.execute("CREATE TABLE IF NOT EXISTS cube_duty_state (user_id TEXT PRIMARY KEY, last_topic TEXT, pending_cube INTEGER DEFAULT 0, pending_step INTEGER, pending_reason TEXT, rate_pending TEXT DEFAULT '[]', rate_step INTEGER)")
     if "turns" not in _cols(conn, "cube_duty_state"):
         conn.execute("ALTER TABLE cube_duty_state ADD COLUMN turns INTEGER DEFAULT 0")
@@ -178,6 +186,55 @@ def _item(row, topic, note, cover_id=None):
             "kind": kind or "moment", "trust": trust or "new", "cover": cover_id, "data": True}
 
 
+RATINGS_SQL = ("(SELECT COUNT(*) FROM cube_outcomes o WHERE o.cube_id=cubes_new.cube_id "
+               "AND lower(o.user_id)!=lower(COALESCE(cubes_new.created_by,'')))")
+NEW_FILTER = (f"COALESCE(trust,'new')!='trusted' AND {HIDDEN_SQL} AND {VISIBLE_KIND_SQL} AND cube_id NOT LIKE 'cube_const_%' "
+              f"AND essence NOT LIKE 'Culture%' AND COALESCE(kind,'moment')!='culture' AND {RATINGS_SQL} < {RATED_ENOUGH} "
+              f"AND COALESCE(shown,0) < {NEW_CAP} * ({RATINGS_SQL} + 1) AND aged_at IS NULL")
+NEW_ORDER = f"{RATINGS_SQL} ASC, COALESCE(shown,0) ASC, created_at ASC, cube_id ASC"   # unrated first, then least shown, FIFO
+
+
+def _topic_words(topic):
+    return [w for w in re.split(r"[^a-z0-9]+", (topic or "").lower()) if len(w) >= 4][:4]
+
+
+def new_candidates(conn, topic, uid="", limit=8):
+    """Fair 'rate this' candidates: same topic first, then related topics (shared word) so cubes whose own topic is
+    never queried still surface. Unrated first, least shown, oldest first. Not the viewer's own cubes, not already rated by them."""
+    me = (uid or "").lower()
+    excl = "AND lower(COALESCE(created_by,''))!=? AND cube_id NOT IN (SELECT cube_id FROM cube_outcomes WHERE lower(user_id)=?)"
+    rows = conn.execute(f"SELECT cube_id, essence, rules_markdown, kind, trust, subject_action_object FROM cubes_new WHERE subject_action_object=? AND {NEW_FILTER} {excl} ORDER BY {NEW_ORDER} LIMIT ?",
+                        (topic, me, me, limit)).fetchall()
+    seen = {r[0] for r in rows}
+    for w in _topic_words(topic):
+        if len(rows) >= limit:
+            break
+        for r in conn.execute(f"SELECT cube_id, essence, rules_markdown, kind, trust, subject_action_object FROM cubes_new WHERE subject_action_object!=? AND (subject_action_object LIKE ? OR essence LIKE ?) AND {NEW_FILTER} {excl} ORDER BY {NEW_ORDER} LIMIT ?",
+                              (topic, "%" + w + "%", "%" + w + "%", me, me, limit)).fetchall():
+            if r[0] not in seen and len(rows) < limit:
+                rows.append(r); seen.add(r[0])
+    return rows
+
+
+def age_out(conn, impressions=AGE_OUT_IMPRESSIONS):
+    """Cubes nobody rated after N impressions go to court (reason: no ratings); they leave the 'rate this' slots."""
+    ids = [r[0] for r in conn.execute(f"""SELECT cube_id FROM cubes_new WHERE aged_at IS NULL AND COALESCE(shown,0) >= ? AND {RATINGS_SQL} = 0
+        AND {HIDDEN_SQL} AND {VISIBLE_KIND_SQL} AND COALESCE(trust,'new')!='trusted' AND cube_id NOT LIKE 'cube_const_%'""", (impressions,))]
+    for cid in ids:
+        conn.execute("INSERT OR IGNORE INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now'))", (cid, "no ratings after %d impressions" % impressions))
+        conn.execute("UPDATE cubes_new SET aged_at=datetime('now') WHERE cube_id=?", (cid,))
+    return ids
+
+
+def unrated_stats(conn):
+    base = f"{HIDDEN_SQL} AND {VISIBLE_KIND_SQL} AND cube_id NOT LIKE 'cube_const_%' AND essence NOT LIKE 'Culture%' AND COALESCE(kind,'moment')!='culture'"
+    q = lambda extra, *a: conn.execute(f"SELECT COUNT(*) FROM cubes_new WHERE {base} {extra}", a).fetchone()[0]
+    return {"visible": q(""), "unrated": q(f"AND {RATINGS_SQL}=0"), "unrated_never_shown": q(f"AND {RATINGS_SQL}=0 AND COALESCE(shown,0)=0"),
+            "under_rated_lt3": q(f"AND {RATINGS_SQL}<{RATED_ENOUGH}"), "trusted": q("AND trust='trusted'"),
+            "aged_to_court": conn.execute("SELECT COUNT(*) FROM cubes_new WHERE aged_at IS NOT NULL").fetchone()[0],
+            "eligible_for_rate_slots": q(f"AND {NEW_FILTER}")}
+
+
 def select_pack(conn, topic, uid="", step=0, record=True):
     """cover + up to 3 strong + up to 2 new ('new, rate this'). Records impressions and rate duty when record=True."""
     out = []
@@ -191,8 +248,7 @@ def select_pack(conn, topic, uid="", step=0, record=True):
     seen = {cov} if cov else set()
     strong = conn.execute(f"""SELECT cube_id, essence, rules_markdown, kind, trust FROM cubes_new WHERE {base} AND essence NOT LIKE 'Culture%' AND COALESCE(kind,'moment')!='culture'
         ORDER BY (trust='trusted') DESC, confirms DESC, rating DESC, upvotes DESC LIMIT 3""", (topic,)).fetchall()
-    new = conn.execute(f"""SELECT cube_id, essence, rules_markdown, kind, trust FROM cubes_new WHERE {base} AND essence NOT LIKE 'Culture%' AND COALESCE(kind,'moment')!='culture'
-        AND COALESCE(trust,'new')!='trusted' AND COALESCE(shown,0) < ? ORDER BY COALESCE(shown,0) ASC, created_at DESC LIMIT 8""", (topic, NEW_SHOWN_LIMIT)).fetchall()
+    new = new_candidates(conn, topic, uid, limit=8)
     picked_strong, picked_new = [], []
     strong_ids = {r[0] for r in strong if r[4] == "trusted"}
     for r in new:                      # two slots are reserved for new cubes
@@ -212,7 +268,8 @@ def select_pack(conn, topic, uid="", step=0, record=True):
     for r in picked_strong[:3]:
         out.append(_item(r, topic, "good", cov))
     for r in picked_new:
-        out.append(_item(r, topic, "new, rate this", cov))
+        it = _item(r, r[5] if len(r) > 5 else topic, "new, rate this", cov if (len(r) <= 5 or r[5] == topic) else None)
+        out.append(it)
     ids = [o["cube_id"] for o in out]
     if ids:
         q = ",".join("?" * len(ids))
@@ -248,11 +305,45 @@ def record_impression(conn, uid, cube_id, slot="read", step=0):
 
 
 # ---------------- outcomes / trust ----------------
-def record_outcome(conn, cube_id, uid, helped):
-    """One outcome per (cube, user). Returns (trust, confirms)."""
-    conn.execute("INSERT INTO cube_outcomes (cube_id, user_id, outcome, ts) VALUES (?,?,?,?) ON CONFLICT(cube_id, user_id) DO UPDATE SET outcome=excluded.outcome, ts=excluded.ts",
-                 (cube_id, uid, "helped" if helped else "wrong", now()))
+NEGATIVE_TO_COURT = 3
+
+
+def _clusters(pairs):
+    """pairs: [(user, ip)]. Votes sharing an owner or an IP are one client (union-find). Returns the number of clients."""
+    parent = {}
+    def f(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]; x = parent[x]
+        return x
+    for u, ip in pairs:
+        a = f("u:" + (u or "").lower())
+        if ip:
+            b = f("ip:" + ip)
+            parent[a] = b if a != b else a
+    return len({f("u:" + (u or "").lower()) for u, _ in pairs})
+
+
+def negative_clients(conn, cube_id):
+    author = ((conn.execute("SELECT created_by FROM cubes_new WHERE cube_id=?", (cube_id,)).fetchone() or [""])[0] or "").lower()
+    rows = conn.execute("SELECT user_id, ip, reason FROM cube_outcomes WHERE cube_id=? AND outcome='wrong' AND lower(user_id)!=?", (cube_id, author)).fetchall()
+    return _clusters([(u, ip) for u, ip, _ in rows]), [r for _, _, r in rows if r]
+
+
+def record_outcome(conn, cube_id, uid, helped, reason="", ip=""):
+    """One outcome per (cube, user). A negative needs a reason. 3 negatives from distinct clients (owner or IP) -> court
+    with the reasons. Returns (trust, confirms)."""
+    if not helped and not (reason or "").strip():
+        raise ValueError("a negative rating needs a short reason (what was wrong)")
+    conn.execute("""INSERT INTO cube_outcomes (cube_id, user_id, outcome, ts, reason, ip) VALUES (?,?,?,?,?,?)
+                    ON CONFLICT(cube_id, user_id) DO UPDATE SET outcome=excluded.outcome, ts=excluded.ts, reason=excluded.reason, ip=excluded.ip""",
+                 (cube_id, uid, "helped" if helped else "wrong", now(), (reason or "").strip()[:300], ip or ""))
     on_rated(conn, uid, cube_id)
+    if not helped:
+        n, reasons = negative_clients(conn, cube_id)
+        if n >= NEGATIVE_TO_COURT:
+            why = "negative ratings from %d clients: " % n + " | ".join(r[:120] for r in reasons[:5])
+            conn.execute("INSERT INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now')) ON CONFLICT(cube_id) DO UPDATE SET reason=excluded.reason", (cube_id, why[:900]))
     return recompute_trust(conn, cube_id)
 
 
@@ -261,8 +352,8 @@ def recompute_trust(conn, cube_id):
     if not row:
         return None, 0
     author = (row[0] or "").strip().lower()
-    n = conn.execute("""SELECT COUNT(DISTINCT lower(o.user_id)) FROM cube_outcomes o JOIN cube_impressions i ON i.cube_id=o.cube_id AND i.user_id=o.user_id
-                        WHERE o.cube_id=? AND o.outcome='helped' AND lower(o.user_id)!=?""", (cube_id, author)).fetchone()[0]
+    n = _clusters(conn.execute("""SELECT o.user_id, o.ip FROM cube_outcomes o JOIN cube_impressions i ON i.cube_id=o.cube_id AND i.user_id=o.user_id
+                        WHERE o.cube_id=? AND o.outcome='helped' AND lower(o.user_id)!=?""", (cube_id, author)).fetchall())
     trust = row[1] or "new"
     if row[2] in HIDDEN_STATUS:
         pass

@@ -87,7 +87,7 @@ run(v.vote_experience(v.VoteRequest(cube_id=newids[0], user_id=C, vote=1, topic=
 code, r = run(v.vote_experience(v.VoteRequest(cube_id=newids[0], user_id=D, vote=1, topic=T)))
 check("3 confirmations -> trusted/verified", r.get("trust") == "trusted" and r.get("cube_status") == "verified")
 check("no new golden", r.get("cube_status") != "golden")
-code, r = run(v.vote_experience(v.VoteRequest(cube_id=newids[0], user_id=C, vote=-1, topic=T)))
+code, r = run(v.vote_experience(v.VoteRequest(cube_id=newids[0], user_id=C, vote=-1, topic=T, reason="did not help")))
 check("changed vote drops trust", r.get("trust") != "trusted")
 
 # court: second judge required
@@ -186,6 +186,52 @@ check("private project help never in shared search", c.execute("select status fr
 c.close()
 code, r = run(v.project_create(v.ProjectCreateRequest(user_id=A, title="Открытый", goal="x", topic="p", visibility="open")))
 check("open project must be English", code == 422)
+
+# fair 'rate this' slots
+c = db()
+T2 = "fairslot alpha"
+for i, (shown, age) in enumerate([(0, "2026-01-01"), (0, "2026-02-01"), (3, "2025-12-01"), (12, "2025-01-01")]):
+    c.execute("insert into cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, status, created_by, kind, shown, created_at) values (?,?,?,?,?,?,?,?,?,?)",
+              ("fs_%d" % i, "fair %d" % i, T2, "r", "t", "community", A, "warning", shown, age))
+c.execute("insert into cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, status, created_by, kind, shown, created_at) values ('fs_orphan','orphan fairslot tip','fairslot.beta.never','r','t','community',?, 'lifehack', 0, '2024-01-01')", (A,))
+c.execute("insert into cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, status, created_by, kind, shown) values ('fs_mine','mine',?,'r','t','community',?, 'moment', 0)", (T2, B))
+cand = [r[0] for r in cv.new_candidates(c, T2, B, 8)]
+check("rate slots: unrated + least shown first, FIFO", cand[:2] == ["fs_0", "fs_1"] and cand.index("fs_2") > cand.index("fs_1"))
+check("rate slots: capped cube (12 shows, 0 ratings) excluded", "fs_3" not in cand)
+check("rate slots: own cube excluded", "fs_mine" not in cand)
+check("rate slots: never-queried topic surfaces via related word", "fs_orphan" in cand)
+c.execute("insert or replace into cube_outcomes (cube_id, user_id, outcome, ts) values ('fs_3', ?, 'helped', '')", (C,))
+check("a rating unlocks more impressions", "fs_3" in [r[0] for r in cv.new_candidates(c, T2, B, 8)])
+check("viewer's already-rated cube not offered again", "fs_3" not in [r[0] for r in cv.new_candidates(c, T2, C, 8)])
+c.execute("insert into cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, status, created_by, kind, shown) values ('fs_dust','dust',?,'r','t','community',?, 'moment', 15)", (T2, A))
+aged = cv.age_out(c)
+check("age-out: 0 ratings after N impressions -> court", "fs_dust" in aged and c.execute("select 1 from court_queue where cube_id='fs_dust'").fetchone() and "fs_3" not in aged)
+check("age-out is once", "fs_dust" not in cv.age_out(c))
+st = cv.unrated_stats(c)
+check("unrated stats", st["unrated"] >= 1 and st["aged_to_court"] >= 1 and "eligible_for_rate_slots" in st)
+p3 = cv.select_pack(c, T2, B, 1, record=False)
+check("pack uses fair slots", [p["cube_id"] for p in p3 if p["note"].startswith("new")] == ["fs_0", "fs_1"])
+c.commit(); c.close()
+
+# negative ratings -> court, with reasons; same owner or IP = one client
+code, r = run(v.vote_experience(v.VoteRequest(cube_id="fs_1", user_id=B, vote=-1, topic=T2)))
+check("negative rating without reason -> 422", code == 422)
+def rq(ip):
+    return types.SimpleNamespace(headers={"x-real-ip": ip}, client=None)
+run(v.vote_experience(v.VoteRequest(cube_id="fs_1", user_id=B, vote=-1, topic=T2, reason="wrong flag, breaks build"), rq("10.0.0.1")))
+run(v.vote_experience(v.VoteRequest(cube_id="fs_1", user_id=C, vote=-1, topic=T2, reason="same here"), rq("10.0.0.1")))
+code, r = run(v.vote_experience(v.VoteRequest(cube_id="fs_1", user_id=D, vote=-1, topic=T2, reason="outdated"), rq("10.0.0.2")))
+c = db()
+check("same IP counts as one client (2 clients, not in court)", r.get("negative_clients") == 2 and not c.execute("select 1 from court_queue where cube_id='fs_1'").fetchone())
+c.close()
+code, r = run(v.vote_experience(v.VoteRequest(cube_id="fs_1", user_id=E, vote=-1, topic=T2, reason="harmful advice"), rq("10.0.0.3")))
+c = db()
+cq = c.execute("select reason from court_queue where cube_id='fs_1'").fetchone()
+check("3 distinct negative clients -> court automatically", r.get("in_court") and cq and r.get("cube_status") == "deprecated")
+check("court reason carries the complaints", cq and "harmful advice" in cq[0] and "outdated" in cq[0])
+check("one owner = one client", cv._clusters([("x@a", "1.1.1.1"), ("X@a", "2.2.2.2"), ("y@b", "")]) == 2)
+check("IP chain merges clients", cv._clusters([("a", "1"), ("b", "1"), ("b", "2"), ("c", "2"), ("d", "")]) == 2)
+c.close()
 
 # live db untouched by this test
 lc = sqlite3.connect(f"file:{LIVE}?mode=ro", uri=True)

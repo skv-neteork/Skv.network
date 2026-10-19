@@ -3000,6 +3000,10 @@ class ForgetPreviewRequest(BaseModel):
 class ForgetConfirmRequest(BaseModel):
     user_id: str = ""
     token: str
+    user_confirmed: bool = False   # must be true: the user saw the preview and said yes
+
+
+FORGET_TTL_S = 300
 
 
 def _forget_db(user_id):
@@ -3044,8 +3048,10 @@ async def forget_preview(req: ForgetPreviewRequest):
     finally:
         conn.close()
     return {"status": "preview", "count": len(rows), "items": [{"event_id": r[0], "time": r[1], "preview": r[2]} for r in rows],
-            "confirm": {"POST": "/api/v7/memory/forget/confirm", "token": token, "expires_in_s": 900},
-            "note": "Nothing is deleted yet. Confirm moves these turns to an archive (restore with /api/v7/memory/forget/restore)."}
+            "confirm": {"POST": "/api/v7/memory/forget/confirm", "token": token, "user_confirmed": True, "expires_in_s": FORGET_TTL_S, "single_use": True},
+            "ask_user": "Show the user these items and ask: Are you sure? This cannot be undone. Call confirm only after the user explicitly says yes.",
+            "for_agent": "Never auto-confirm. Never confirm in the same turn as the preview without the user's explicit yes.",
+            "note": "Nothing is deleted yet."}
 
 
 def _forget_apply(req, restore=False):
@@ -3059,9 +3065,11 @@ def _forget_apply(req, restore=False):
             raise HTTPException(404, "Unknown token")
         ids = [i for i in _json.loads(row[0]) if i.startswith(req.user_id + "::")]
         if not restore:
+            if not getattr(req, "user_confirmed", False):
+                raise HTTPException(428, "Explicit user confirmation required: show the preview, ask 'Are you sure? This cannot be undone', then send user_confirmed=true")
             if row[2]:
                 raise HTTPException(409, "Token already used")
-            if _t.time() - row[1] > 900:
+            if _t.time() - row[1] > FORGET_TTL_S:
                 raise HTTPException(410, "Token expired, run preview again")
         cols = [c[1] for c in conn.execute("PRAGMA table_info(event_metadata)")]
         colstr = ",".join(cols)
@@ -3270,6 +3278,7 @@ Base URL https://skv.network
 Schema https://skv.network/api/v7/agent/openapi.json
 Auth header Authorization: Bearer sk_key. The user already has the key. Do not ask them to paste the constitution.
 Write the memory search query in English; keep names, rare words and exact terms as-is.
+Forget: POST /api/v7/memory/forget/preview, show the user every item, ask "Are you sure? This cannot be undone", and only after an explicit yes POST /api/v7/memory/forget/confirm with the token and user_confirmed=true. Never auto-confirm.
 Skills https://skv.network/api/v7/skills . Read them before the first answer.\nFirst call in a new chat: POST /api/v7/memory with step 0. That loads the map and the constitution. A weak agent that can only GET uses /api/v7/agent/memory, /api/v7/agent/remember, /api/v7/agent/vote, /api/v7/agent/cube with key.
 Later search only when the past can change the answer. After every reply POST /api/v7/remember.
 If stuck, send task_question, task_tried, task_accept. Do not invent a rule.""")

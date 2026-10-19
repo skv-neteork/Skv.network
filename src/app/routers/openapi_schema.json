@@ -212,6 +212,88 @@
           }
         }
       }
+    },
+    "/api/v7/memory/forget/preview": {
+      "post": {
+        "operationId": "forgetPreview",
+        "summary": "Step 1 of deleting memory. Returns matched items and a one-time token. Show the items to the user and ask 'Are you sure? This cannot be undone.' Never auto-confirm.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "topic",
+                      "event"
+                    ]
+                  },
+                  "event_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview, nothing deleted"
+          }
+        }
+      }
+    },
+    "/api/v7/memory/forget/confirm": {
+      "post": {
+        "operationId": "forgetConfirm",
+        "summary": "Step 2. Call only after the user explicitly said yes to the preview. Send the preview token and user_confirmed=true. Single use, 5 minute TTL.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "user_confirmed"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "user_confirmed": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Forgotten"
+          },
+          "428": {
+            "description": "user_confirmed missing"
+          },
+          "409": {
+            "description": "Token used"
+          },
+          "410": {
+            "description": "Token expired"
+          }
+        }
+      }
     }
   }
 }

@@ -8,9 +8,9 @@ from app import cubes_v2 as cv
 c = sqlite3.connect(tmp); cv.ensure(c)
 def add(cid, topic, ess, rules, created="2026-01-01 00:00:0%d"):
     c.execute("INSERT INTO cubes_new (cube_id, evidence, essence, subject_action_object, rules_markdown, status, rating, created_by, created_at, kind, trust, shown) VALUES (?,'test',?,?,?,'community',0,'author@x.io',?,'moment','new',0)", (cid, ess, topic, rules, created))
-add("tq_bash1", "zzq_bashfiles", "Find the largest files with du and sort", "du -ah dir | sort -rh | head -5 lists largest files", "2026-01-01 00:00:01")
+add("tq_bash1", "zzq_bashfiles", "Bash: find the largest files with du and sort", "du -ah dir | sort -rh | head -5 lists largest files", "2026-01-01 00:00:01")
 add("tq_phys", "zzq_bashfiles", "Particle physics: quark confinement explained", "Gluon field energy grows with distance", "2026-01-01 00:00:00")
-add("tq_bash2", "zzq_bashfiles", "Human readable sizes for largest files", "Use sort -h with du -h for largest files", "2026-01-01 00:00:02")
+add("tq_bash2", "zzq_bashfiles", "Bash: human readable sizes for largest files", "Use sort -h with du -h for largest files", "2026-01-01 00:00:02")
 add("tq_shell", "zzq_shelltips", "Largest files: find with -size and sort", "find dir -type f -printf '%s %p' | sort -n | tail -5 largest files", "2026-01-01 00:00:03")
 add("tq_phys2", "zzq_physics", "Quarks and gluons", "Strong force", "2026-01-01 00:00:04")
 c.commit()

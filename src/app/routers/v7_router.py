@@ -3061,6 +3061,9 @@ class ForgetConfirmRequest(BaseModel):
 
 
 FORGET_TTL_S = 300
+FORGET_RETENTION_S = int(os.environ.get("SKV_FORGET_RETENTION_S", str(30 * 86400)))   # archive kept 30 days
+FORGET_PURGE_INTERVAL_S = int(os.environ.get("SKV_FORGET_PURGE_INTERVAL_S", "86400"))
+FORGET_WARNING = "These records will be removed from memory now. You can restore them within 30 days; after that they are deleted permanently."
 
 
 def _forget_db(user_id):
@@ -3069,10 +3072,91 @@ def _forget_db(user_id):
     conn.execute("CREATE TABLE IF NOT EXISTS forget_requests (token TEXT PRIMARY KEY, ids_json TEXT, created REAL, used INTEGER DEFAULT 0)")
     conn.execute("CREATE TABLE IF NOT EXISTS event_forgotten AS SELECT * FROM event_metadata WHERE 0")
     have = {r[1] for r in conn.execute("PRAGMA table_info(event_forgotten)")}
-    for col in [r[1] for r in conn.execute("PRAGMA table_info(event_metadata)")] + ["forgotten_at"]:
+    for col in [r[1] for r in conn.execute("PRAGMA table_info(event_metadata)")] + ["forgotten_at", "archived_at"]:
         if col not in have:
             conn.execute(f"ALTER TABLE event_forgotten ADD COLUMN {col} TEXT")
+    if "archived_at" not in have:   # older archive rows: archived when they were forgotten
+        conn.execute("UPDATE event_forgotten SET archived_at = COALESCE(forgotten_at, datetime('now')) WHERE archived_at IS NULL")
     return conn
+
+
+def _purge_at(archived_at_epoch):
+    return datetime.fromtimestamp(archived_at_epoch + FORGET_RETENTION_S, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def purge_forgotten(user_id, retention_s=None):
+    """Permanently delete archive rows older than the retention window, plus their vectors, FTS rows and tokens."""
+    import time as _t
+    retention_s = FORGET_RETENTION_S if retention_s is None else retention_s
+    conn = _forget_db(user_id)
+    try:
+        own = user_id + "::%"
+        ids = [r[0] for r in conn.execute(
+            "SELECT event_id FROM event_forgotten WHERE event_id LIKE ? AND archived_at <= datetime('now', ?)",
+            (own, f"-{int(retention_s)} seconds"))]
+        if ids:
+            qs = ",".join("?" * len(ids))
+            conn.execute(f"DELETE FROM event_forgotten WHERE event_id IN ({qs})", ids)
+            for tbl in ("events_fts", "personal_vectors", "pvec_mml12"):
+                try:
+                    conn.execute(f"DELETE FROM {tbl} WHERE event_id IN ({qs})", ids)
+                except Exception:
+                    pass
+        conn.execute("DELETE FROM forget_requests WHERE created < ?", (_t.time() - retention_s - FORGET_TTL_S,))
+        conn.commit()
+    finally:
+        conn.close()
+    if ids:
+        try:
+            from app import semantic as _sem
+            _sem.purge_vectors(user_id, ids)
+        except Exception as exc:
+            print(f"[purge] vectors skipped: {exc}", flush=True)
+    return ids
+
+
+def purge_forgotten_all(retention_s=None):
+    """Run the purge for every account that has an archive table."""
+    import sqlite3 as _sq, glob as _glob, json as _json, time as _t
+    total = {}
+    for path in sorted(_glob.glob("/data/skv/metadata_store/*.db")):
+        try:
+            c = _sq.connect(path, timeout=10)
+            try:
+                if not c.execute("SELECT 1 FROM sqlite_master WHERE name='event_forgotten'").fetchone():
+                    continue
+                users = {r[0].split("::", 1)[0] for r in c.execute("SELECT event_id FROM event_forgotten") if "::" in (r[0] or "")}
+            finally:
+                c.close()
+            for u in users:
+                n = purge_forgotten(u, retention_s)
+                if n:
+                    total[u] = len(n)
+        except Exception as exc:
+            print(f"[purge] {path}: {exc}", flush=True)
+    try:
+        with open("/data/skv/forget_purge_state.json", "w") as f:
+            _json.dump({"last_run": datetime.now(timezone.utc).isoformat(), "purged": total, "retention_s": retention_s or FORGET_RETENTION_S}, f)
+    except Exception:
+        pass
+    if total:
+        print(f"[purge] permanently deleted: {total}", flush=True)
+    return total
+
+
+def _purge_loop():
+    import time as _t
+    _t.sleep(120)   # let the API warm up after a restart; the job is idempotent, so restarts lose nothing
+    while True:
+        try:
+            purge_forgotten_all()
+        except Exception as exc:
+            print(f"[purge] loop error: {exc}", flush=True)
+        _t.sleep(FORGET_PURGE_INTERVAL_S)
+
+
+if os.environ.get("SKV_FORGET_PURGE", "1") == "1":
+    threading.Thread(target=_purge_loop, name="skv-forget-purge", daemon=True).start()
 
 
 @router.post("/memory/forget/preview")
@@ -3110,7 +3194,10 @@ async def forget_preview(req: ForgetPreviewRequest):
         conn.close()
     return {"status": "preview", "count": len(rows), "items": [{"event_id": r[0], "time": r[1], "preview": r[2]} for r in rows],
             "confirm": {"POST": "/api/v7/memory/forget/confirm", "token": token, "user_confirmed": True, "expires_in_s": FORGET_TTL_S, "single_use": True},
-            "ask_user": "Show the user these items and ask: Are you sure? This cannot be undone. Call confirm only after the user explicitly says yes.",
+            "ask_user": "Show the user these items and say: '" + FORGET_WARNING + "' Ask for an explicit yes. Call confirm only after the user explicitly says yes.",
+            "warning": FORGET_WARNING,
+            "retention_days": FORGET_RETENTION_S // 86400,
+            "purge_at": _purge_at(_t.time()) + " if confirmed now",
             "for_agent": "Never auto-confirm. Never confirm in the same turn as the preview without the user's explicit yes.",
             "note": "Nothing is deleted yet."}
 
@@ -3127,7 +3214,7 @@ def _forget_apply(req, restore=False):
         ids = [i for i in _json.loads(row[0]) if i.startswith(req.user_id + "::")]
         if not restore:
             if not getattr(req, "user_confirmed", False):
-                raise HTTPException(428, "Explicit user confirmation required: show the preview, ask 'Are you sure? This cannot be undone', then send user_confirmed=true")
+                raise HTTPException(428, "Explicit user confirmation required: show the preview, tell the user '" + FORGET_WARNING + "', get an explicit yes, then send user_confirmed=true")
             if row[2]:
                 raise HTTPException(409, "Token already used")
             if _t.time() - row[1] > FORGET_TTL_S:
@@ -3137,7 +3224,7 @@ def _forget_apply(req, restore=False):
         moved = 0
         for eid in ids:
             if not restore:
-                cur = conn.execute(f"INSERT INTO event_forgotten ({colstr}, forgotten_at) SELECT {colstr}, datetime('now') FROM event_metadata WHERE event_id=?", (eid,))
+                cur = conn.execute(f"INSERT INTO event_forgotten ({colstr}, forgotten_at, archived_at) SELECT {colstr}, datetime('now'), datetime('now') FROM event_metadata WHERE event_id=?", (eid,))
                 if cur.rowcount:
                     conn.execute("DELETE FROM event_metadata WHERE event_id=?", (eid,))
                     try:
@@ -3146,7 +3233,8 @@ def _forget_apply(req, restore=False):
                         pass
                     moved += 1
             else:
-                cur = conn.execute(f"INSERT OR IGNORE INTO event_metadata ({colstr}) SELECT {colstr} FROM event_forgotten WHERE event_id=?", (eid,))
+                cur = conn.execute(f"INSERT OR IGNORE INTO event_metadata ({colstr}) SELECT {colstr} FROM event_forgotten WHERE event_id=? AND archived_at > datetime('now', ?)",
+                                   (eid, f"-{FORGET_RETENTION_S} seconds"))
                 if cur.rowcount:
                     raw = conn.execute("SELECT raw_dialogue FROM event_metadata WHERE event_id=?", (eid,)).fetchone()
                     try:
@@ -3164,8 +3252,14 @@ def _forget_apply(req, restore=False):
         _sem.mark_forgotten(req.user_id, ids, restore=restore)
     except Exception as exc:
         print(f"[forget] vector mark skipped: {exc}", flush=True)
-    return {"status": "restored" if restore else "forgotten", "count": moved, "event_ids": ids,
-            "note": "Archived, not destroyed." if not restore else "Back in memory."}
+    now = _t.time()
+    if restore:
+        return {"status": "restored", "count": moved, "event_ids": ids,
+                "note": "Back in memory." if moved else "Nothing to restore: the 30-day window passed or the items were already restored."}
+    return {"status": "forgotten", "count": moved, "event_ids": ids,
+            "archived_at": datetime.fromtimestamp(now, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "purge_at": _purge_at(now), "retention_days": FORGET_RETENTION_S // 86400,
+            "note": "Removed from memory. Restorable with POST /api/v7/memory/forget/restore and the same token until purge_at; then deleted permanently."}
 
 
 @router.post("/memory/forget/confirm")
@@ -3176,7 +3270,7 @@ async def forget_confirm(req: ForgetConfirmRequest):
 
 @router.post("/memory/forget/restore")
 async def forget_restore(req: ForgetConfirmRequest):
-    """Undo a confirmed forget with the same token."""
+    """Undo a confirmed forget with the same token, within 30 days (then the archive is purged)."""
     return _forget_apply(req, restore=True)
 
 
@@ -3406,7 +3500,7 @@ Base URL https://skv.network
 Schema https://skv.network/api/v7/agent/openapi.json
 Auth header Authorization: Bearer sk_key. The user already has the key. Do not ask them to paste the constitution.
 Write the memory search query in English; keep names, rare words and exact terms as-is.
-Forget: POST /api/v7/memory/forget/preview, show the user every item, ask "Are you sure? This cannot be undone", and only after an explicit yes POST /api/v7/memory/forget/confirm with the token and user_confirmed=true. Never auto-confirm.
+Forget: POST /api/v7/memory/forget/preview, show the user every item, tell the user "These records will be removed from memory now. You can restore them within 30 days; after that they are deleted permanently.", and only after an explicit yes POST /api/v7/memory/forget/confirm with the token and user_confirmed=true. Never auto-confirm.
 Skills https://skv.network/api/v7/skills . Read them before the first answer.\nFirst call in a new chat: POST /api/v7/memory with step 0. That loads the map and the constitution. A weak agent that can only GET uses /api/v7/agent/memory, /api/v7/agent/remember, /api/v7/agent/vote, /api/v7/agent/cube with key.
 Later search only when the past can change the answer. After every reply POST /api/v7/remember.
 If stuck, send task_question, task_tried, task_accept. Do not invent a rule.""")

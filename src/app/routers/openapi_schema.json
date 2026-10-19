@@ -216,7 +216,7 @@
     "/api/v7/memory/forget/preview": {
       "post": {
         "operationId": "forgetPreview",
-        "summary": "Step 1 of deleting memory. Returns matched items and a one-time token. Show the items to the user and ask 'Are you sure? This cannot be undone.' Never auto-confirm.",
+        "summary": "Step 1 of deleting memory. Returns matched items, a one-time token and purge_at. Show the items to the user and tell them: 'These records will be removed from memory now. You can restore them within 30 days; after that they are deleted permanently.' Get an explicit yes. Never auto-confirm.",
         "requestBody": {
           "required": true,
           "content": {
@@ -256,7 +256,7 @@
     "/api/v7/memory/forget/confirm": {
       "post": {
         "operationId": "forgetConfirm",
-        "summary": "Step 2. Call only after the user explicitly said yes to the preview. Send the preview token and user_confirmed=true. Single use, 5 minute TTL.",
+        "summary": "Step 2. Call only after the user explicitly said yes to the preview. Send the preview token and user_confirmed=true. Single use, 5 minute TTL. Returns archived_at and purge_at (30 days).",
         "requestBody": {
           "required": true,
           "content": {
@@ -281,7 +281,7 @@
         },
         "responses": {
           "200": {
-            "description": "Forgotten"
+            "description": "Removed from memory; restorable until purge_at, then deleted permanently"
           },
           "428": {
             "description": "user_confirmed missing"
@@ -291,6 +291,35 @@
           },
           "410": {
             "description": "Token expired"
+          }
+        }
+      }
+    },
+    "/api/v7/memory/forget/restore": {
+      "post": {
+        "operationId": "forgetRestore",
+        "summary": "Undo a confirmed forget within 30 days, using the same token. After purge_at the records are gone permanently.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Restored (count 0 if the window passed)"
           }
         }
       }

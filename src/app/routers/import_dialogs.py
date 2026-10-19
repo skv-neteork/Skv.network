@@ -164,7 +164,9 @@ async def import_from_text(data: dict):
         if merged and merged[-1]["role"] == "user":
             merged.append({"role": "assistant", "content": "(no reply)"})
         messages = merged
-        saved = save_pairs(user_id, messages, source)
+        # embedding is CPU work (~0.3 s per turn): run it off the event loop so the API stays responsive for others
+        import asyncio
+        saved = await asyncio.to_thread(save_pairs, user_id, messages, source)
         schedule_import_cycle(user_id, source)
         return {"status": "ok", "imported": saved, "cycle": "started"}
     return {"error": "No messages found in text"}
@@ -371,7 +373,8 @@ def _polza(prompt):
 def run_import_cycle(user_id, source):
     name = user_id.replace("@", "").replace(".", "")
     db = sqlite3.connect(f"/data/skv/metadata_store/{name}.db")
-    rows = db.execute("select event_id, raw_dialogue from event_metadata where event_id like ? order by event_id", (f"%::{source}_%",)).fetchall()
+    db.execute("CREATE TABLE IF NOT EXISTS summary_l1 (session_id TEXT PRIMARY KEY, user_id TEXT, topic TEXT, summary_text TEXT, summary_json TEXT, message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    rows = db.execute("select event_id, raw_dialogue from event_metadata where event_id like ? order by rowid", (f"%::{source}_%",)).fetchall()
     window = []
     summaries = []
     n = 0
@@ -388,6 +391,14 @@ def run_import_cycle(user_id, source):
     db.close()
 
 def _one_l1(db, user_id, source, n, parts):
+    import hashlib
+    wsha = hashlib.sha1("\n---\n".join(parts).encode("utf-8", "replace")).hexdigest()
+    try:
+        old = db.execute("select summary_text, summary_json from summary_l1 where session_id=?", (f"{source}_auto_{n}",)).fetchone()
+        if old and old[0] and old[1] and json.loads(old[1]).get("window_sha") == wsha:
+            return old[0]   # same window already summarized: no new LLM call, no duplicate critical candidates
+    except Exception:
+        pass
     prompt = "По сырому окну, не по выжимке. L1 5-7 процентов, 3-6 предложений. В critical положи даты, планы, схемы и точные формулировки, даже если они не вошли в summary. Не пароли. Только JSON {\"summary\":\"...\",\"critical\":[\"...\"]}.\n\n" + "\n---\n".join(parts)
     try:
         content = _polza(prompt)
@@ -396,8 +407,8 @@ def _one_l1(db, user_id, source, n, parts):
         data = {"summary": "", "critical": []}
     summary = (data.get("summary") or "")[:3000]
     if summary:
-        db.execute("insert or replace into summary_l1 (session_id,user_id,topic,summary_text,message_count) values (?,?,?,?,?)",
-                   (f"{source}_auto_{n}", user_id, source, summary, len(parts)))
+        db.execute("insert or replace into summary_l1 (session_id,user_id,topic,summary_text,summary_json,message_count) values (?,?,?,?,?,?)",
+                   (f"{source}_auto_{n}", user_id, source, summary, json.dumps({"window_sha": wsha}), len(parts)))
     db.execute("CREATE TABLE IF NOT EXISTS critical_candidates (id INTEGER PRIMARY KEY, user_id TEXT, text TEXT, status TEXT, created_at TEXT)")
     marks = list(data.get("critical") or [])
     for part in parts:
@@ -406,6 +417,8 @@ def _one_l1(db, user_id, source, n, parts):
     for item in marks[:8]:
         low = str(item).lower()
         if any(w in low for w in ("парол", "password", "token", "fact1", "fact2")):
+            continue
+        if db.execute("select 1 from critical_candidates where user_id=? and text=? limit 1", (user_id, str(item)[:300])).fetchone():
             continue
         db.execute("insert into critical_candidates (user_id, text, status, created_at) values (?,?,?,datetime('now'))",
                    (user_id, str(item)[:300], "pending"))
@@ -427,5 +440,31 @@ def _one_l2(db, user_id, summaries):
                    (user_id, mp[:4000], "[]", "[]", len(summaries)))
         db.commit()
 
+_cycle_lock = threading.Lock()
+_cycle_state = {}   # (user_id, source) -> "running" | "again"
+
 def schedule_import_cycle(user_id, source):
-    threading.Thread(target=run_import_cycle, args=(user_id, source), daemon=True).start()
+    """One summary cycle per user+source at a time; imports that arrive meanwhile trigger exactly one re-run."""
+    key = (user_id, source)
+    with _cycle_lock:
+        if key in _cycle_state:
+            _cycle_state[key] = "again"
+            return
+        _cycle_state[key] = "running"
+    def _loop():
+        try:
+            while True:
+                try:
+                    run_import_cycle(user_id, source)
+                except Exception as e:
+                    print(f"[IMPORT] cycle error {user_id} {source}: {e}", flush=True)
+                with _cycle_lock:
+                    if _cycle_state.get(key) == "again":
+                        _cycle_state[key] = "running"
+                        continue
+                    _cycle_state.pop(key, None)
+                    return
+        except Exception:
+            with _cycle_lock:
+                _cycle_state.pop(key, None)
+    threading.Thread(target=_loop, daemon=True).start()

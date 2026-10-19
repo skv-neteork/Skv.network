@@ -2240,7 +2240,10 @@ async def agent_shell(data: dict, authorization: str = Header(None), x_api_key: 
     
     import subprocess
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd="/root/skv-core")
+        _cwd = os.environ.get("SKV_SHELL_CWD", "/app")
+        if not os.path.isdir(_cwd):
+            _cwd = None
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=_cwd)
         return {
             "stdout": (result.stdout or "")[:5000],
             "stderr": (result.stderr or "")[:1000],

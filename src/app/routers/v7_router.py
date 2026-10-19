@@ -3777,3 +3777,123 @@ async def delete_account(req: DeleteAccountRequest):
         except OSError:
             pass
     return {"status": "deleted", "user": user_id}
+
+
+# ---------------- Deep recall (background job) ----------------
+# POST /recall/deep {topic} -> job_id at once; GET /recall/deep/{job_id} -> status/partial/final.
+# Owner-scoped: a job is visible only to the key that started it.
+_DEEP_JOBS: Dict[str, dict] = {}
+_DEEP_LOCK = threading.Lock()
+_DEEP_TTL_S = 3600
+
+
+class DeepRecallRequest(BaseModel):
+    topic: str
+    user_id: str = ""
+    limit: int = 150
+
+
+def _ts_key(ts):
+    """Sortable 'YYYY-MM-DD HH:MM' from either '2026-10-18 11:14' or '00:07, 10.10.2026'."""
+    ts = (ts or "").strip()
+    m = re.match(r"(\d{1,2}):(\d{2}),\s*(\d{1,2})\.(\d{1,2})\.(\d{4})", ts)
+    if m:
+        h, mi, d, mo, y = m.groups()
+        return f"{y}-{int(mo):02d}-{int(d):02d} {int(h):02d}:{mi}"
+    return ts
+
+
+def _deep_scan(job_id, user_id, topic, limit):
+    import sqlite3 as _sq
+    from app import semantic as _se, shelves as _sh
+    job = _DEEP_JOBS[job_id]
+    try:
+        job["status"] = "running"
+        sem, vec = _se.semantic_events(user_id, topic, k=limit)
+        fts = _se.fts_ranked(user_id, topic, limit=limit)
+        fused = _se.rrf(sem, fts)[:limit]
+        job["partial"] = {"stage": "ranked", "candidates": len(fused)}
+        ids = [e for e, _ in fused if e.startswith(user_id + "::")]
+        score = dict(fused)
+        conn = _sh.connect(user_id)
+        try:
+            rows = conn.execute(
+                "SELECT event_id, time_str, kind, source, project, substr(raw_dialogue,1,400) FROM event_metadata WHERE event_id IN (%s)"
+                % ",".join("?" * len(ids)), ids).fetchall() if ids else []
+        finally:
+            conn.close()
+        items = []
+        for eid, ts, kind, source, project, raw in rows:
+            crit = ">>>" in (raw or "")
+            imp = round(score.get(eid, 0) * 1000 + (5 if crit else 0), 3)
+            items.append({"event_id": eid, "time": ts, "shelf": kind or "dialogue", "source": source or "",
+                          "project": project or "", "critical": crit, "importance": imp, "text": raw or ""})
+        groups = {}
+        for it in items:
+            groups.setdefault(it["shelf"], []).append(it)
+        for g in groups.values():
+            g.sort(key=lambda x: _ts_key(x["time"]), reverse=True)
+        summaries = []
+        try:
+            for sid, sc in _se.search_l1(user_id, vec, k=5):
+                summaries.append({"id": sid, "score": round(float(sc), 3)})
+        except Exception:
+            pass
+        times = sorted(_ts_key(t["time"]) for t in items if t["time"])
+        top = sorted(items, key=lambda x: -x["importance"])[:5]
+        job["final"] = {
+            "summary": {
+                "topic": topic, "total": len(items),
+                "by_shelf": {k: len(v) for k, v in groups.items()},
+                "time_range": [times[0], times[-1]] if times else [],
+                "critical": sum(1 for t in items if t["critical"]),
+                "top": [{"event_id": t["event_id"], "time": t["time"], "shelf": t["shelf"], "text": t["text"][:200]} for t in top],
+            },
+            "groups": groups,
+            "related_l1": summaries,
+        }
+        job["partial"] = None
+        job["status"] = "done"
+    except Exception as e:
+        logger.exception("deep recall failed")
+        job["status"] = "error"
+        job["error"] = str(e)[:200]
+    job["finished"] = _time.time()
+
+
+@router.post("/recall/deep")
+async def deep_recall_start(req: DeepRecallRequest):
+    """Start a deep scan across all shelves. Returns job_id at once; poll GET /recall/deep/{job_id}."""
+    import secrets as _s
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    if len(req.topic.strip()) < 2:
+        raise HTTPException(422, "topic required")
+    now = _time.time()
+    with _DEEP_LOCK:
+        for k in [k for k, v in _DEEP_JOBS.items() if now - v["created"] > _DEEP_TTL_S]:
+            _DEEP_JOBS.pop(k, None)
+        running = sum(1 for v in _DEEP_JOBS.values() if v["owner"] == req.user_id and v["status"] in ("queued", "running"))
+        if running >= 3:
+            raise HTTPException(429, "too many deep recall jobs running")
+        job_id = "dr_" + _s.token_hex(10)
+        _DEEP_JOBS[job_id] = {"owner": req.user_id, "status": "queued", "created": now, "topic": req.topic, "partial": None, "final": None}
+    threading.Thread(target=_deep_scan, args=(job_id, req.user_id, req.topic, max(10, min(req.limit, 300))), daemon=True).start()
+    return {"job_id": job_id, "status": "queued", "poll": f"/api/v7/recall/deep/{job_id}"}
+
+
+@router.get("/recall/deep/{job_id}")
+async def deep_recall_get(job_id: str, user_id: str = ""):
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    job = _DEEP_JOBS.get(job_id)
+    if not job or job["owner"] != user_id:
+        raise HTTPException(404, "job not found")
+    out = {"job_id": job_id, "status": job["status"], "topic": job["topic"]}
+    if job["status"] == "done":
+        out["result"] = job["final"]
+    elif job["status"] == "error":
+        out["error"] = job.get("error")
+    else:
+        out["partial"] = job["partial"]
+    return out

@@ -4,13 +4,16 @@ from app.routers import v7_core as _core
 globals().update({k: v for k, v in vars(_core).items() if not k.startswith("__")})
 
 @router.post("/vectors/process")
-async def trigger_vectorization():
-    """Manually trigger lazy vectorization."""
-    try:
-        count = GLOBAL_MEMORY_BUFFER.process_pending_vectors()
-        return {"status": "ok", "vectors_created": count}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def trigger_vectorization(request: Request):
+    """Owner-only: embed any events still missing a vector (same path as the 60s batch)."""
+    if not _is_owner(_request_user(request)):
+        raise HTTPException(status_code=403, detail="owner only")
+    from app import account_memory as _am, semantic as _sem
+    def _run():
+        with _am._batch_lock:
+            return _sem.build_pending_all()
+    count = await asyncio.to_thread(_run)
+    return {"status": "ok", "model": _sem.active_tag(), "vectors_created": count}
 
 @router.post("/cache/clear")
 async def clear_search_cache(buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):

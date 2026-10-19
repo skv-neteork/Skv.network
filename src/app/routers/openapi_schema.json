@@ -3,7 +3,7 @@
   "info": {
     "title": "SKV Network API v8.3",
     "version": "8.3",
-    "description": "New chat paste: work through SKV. First call POST /api/v7/memory with step 0 to load the map and constitution. Later, search when the past can change the answer. After every reply POST /api/v7/remember. Header Authorization Bearer sk_key. Tools: searchMemory, remember, digMemory, openEvent, voteCube. Guardian: GET /api/v7/agent/guardian.py"
+    "description": "New chat paste: work through SKV. First call POST /api/v7/memory with step 0 to load the map and constitution. Later, search when the past can change the answer. After every reply POST /api/v7/remember. Header Authorization Bearer sk_key. Tools: searchMemory, remember, digMemory, openEvent, voteCube. Guardian 2 (v3, recommended for local agents): GET /api/v7/agent/guardian.py. It requires L1/CRITICAL/CUBE or CUBE_NOTHING/RATE service lines, saves with remember, runs Second Look, votes, then shows only the clean answer."
   },
   "paths": {
     "/api/v7/memory": {
@@ -205,7 +205,7 @@
     "/api/v7/agent/guardian.py": {
       "get": {
         "operationId": "downloadGuardian",
-        "summary": "Download the local guardian. It hides an answer that has no SKV seal.",
+        "summary": "Download Guard 2 v3 (skv-guardian2.py). It holds an answer without service lines, save, Second Look or seal.",
         "responses": {
           "200": {
             "description": "python sdk"

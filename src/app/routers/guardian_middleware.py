@@ -58,25 +58,14 @@ class SessionTracker:
                 "[SKV_GUARDIAN]: Session resumed after long inactivity. "
                 "Check for new hypothesis cubes generated in background mode."
             )
-        elif step == 10 and session["memory_saved_count"] == 0:
-            suggested_action = "MEMORY_SAVE_REQUIRED"
-            reminder_prompt = (
-                f"[SKV_GUARDIAN]: High activity detected (step {step}). "
-                "Per CUBE 05, save every turn with POST /api/v7/remember; when a task ends write a cube "
-                "or duty=cube_nothing with a reason."
-            )
-        elif step == 15 and session["cubes_read_count"] > 0 and session["feedback_left_count"] == 0:
-            suggested_action = "FEEDBACK_REQUIRED"
-            reminder_prompt = (
-                "[SKV_GUARDIAN]: You used constitutional cubes (CUBE 00-05) "
-                "but left no feedback. Rate the new cubes via POST /api/v7/experience/vote (+1/-1, a -1 needs a reason)."
-            )
+        # Save/vote reminders live only in /api/v7/memory (GUARDIAN REMINDERS); not duplicated here.
 
         return {
             "session_step": step,
             "base_protocol": base_protocol,
             "suggested_action": suggested_action,
-            "reminder_prompt": reminder_prompt
+            "reminder_prompt": reminder_prompt,
+            "reminders_source": "/api/v7/memory"
         }
 
     def mark_memory_saved(self, session_id: str):

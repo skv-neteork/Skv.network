@@ -27,14 +27,14 @@
 - **Rate limit.** The limit now counts the real client IP (`X-Real-IP` from nginx-proxy). Before, every public request shared the proxy container's 300/min bucket.
 
 ## Transient reveal (one-time payload, not stored in the vault)
--  encrypts the value with a key derived from the token itself and stores only the ciphertext in .
-- Nothing is written to . After open or expiry the ciphertext is zeroed then NULLed (); the maintenance thread also purges leftover rows.
+- POST /api/v7/vault/reveal/transient with label, value, ttl_s (max 3600), require_login encrypts the value with a key derived from the token itself and stores only the ciphertext in vault_reveals.payload_nonce / payload_ct.
+- Nothing is written to vault_secrets. After open or expiry the ciphertext is zeroed then set to NULL (secure_delete on); the maintenance thread also purges leftover rows.
 - Used for offline hand-off of the vault master key (and similar one-shots). Do not put the master key into vault_secrets.
 
 ## Ops
 - **Image.** `skv-network:v8.4` is v8.3 plus `cryptography==50.0.2` (`deploy/Dockerfile.v8.4`). The run script is `/root/skv_api.run.sh` (copy in `deploy/`) and adds `-v /root/skv_vault:/run/skv_vault:ro`.
 - **Tests.**
-  - `tests/test_vault.py`: 25 checks, with cleanup;
+  - `tests/test_vault.py`: 30 checks, with cleanup;
   - `tests/test_api_keys.py`: 11 checks;
   - `tests/test_memory_v2.py`: 32 checks.
 - **Backups.** `/root/backups/vault_20261019_1440` holds code, `shared_master.db` with plaintext keys from before hashing (root-only), the owner DB, `run.sh`, env, the pg key dump and the CUBE 05 v6 JSON.

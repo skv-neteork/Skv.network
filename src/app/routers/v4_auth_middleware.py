@@ -48,9 +48,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         url = get_database_url()
         if not url:
             import sqlite3
-            row = sqlite3.connect("/data/skv/metadata_store/shared_master.db").execute(
-                "select user_id from user_api_keys where api_key=? and is_active=1", (token,)
-            ).fetchone()
+            from app import api_keys as _ak
+            row = sqlite3.connect("/data/skv/metadata_store/shared_master.db").execute(_ak.SQL_USER, _ak.args(token)).fetchone()
             if row:
                 request.state.user_id = row[0]
                 return await call_next(request)

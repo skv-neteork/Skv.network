@@ -30,13 +30,10 @@ def _lookup_user(key):
     try:
         conn = sqlite3.connect(KEYS_DB, timeout=5)
         try:
-            row = conn.execute(
-                "SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > datetime('now')) LIMIT 1",
-                (key,),
-            ).fetchone()
+            from app import api_keys as _ak
+            return _ak.user_for(key, conn)
         finally:
             conn.close()
-        return row[0] if row else None
     except Exception as e:
         print(f"[V7AUTH] db error: {e}", flush=True)
         raise
@@ -112,6 +109,8 @@ class V7AuthMiddleware:
 
         try:
             user = _lookup_user(key) if key else None
+            if user and key.startswith("skint_") and sub.startswith(("/vault", "/profile", "/auth", "/account")):
+                user = None   # internal self-call tokens cannot touch the vault or key management
         except Exception:
             return await _send_json(send, 503, {"detail": "Auth database unavailable"})
 

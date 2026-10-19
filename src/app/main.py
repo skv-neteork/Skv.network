@@ -319,6 +319,9 @@ from starlette.responses import JSONResponse
 # V7: require a valid API key, user taken from the key
 from app.v7_auth import V7AuthMiddleware
 app.add_middleware(V7AuthMiddleware)
+# Legacy routes: writes outside /api/v7 are owner-only (app/legacy_guard.py)
+from app.legacy_guard import LegacyWriteGuard
+app.add_middleware(LegacyWriteGuard)
 
 # CORS (own site only)
 app.add_middleware(

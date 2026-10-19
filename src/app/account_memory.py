@@ -33,7 +33,7 @@ def _fts_insert(cur, event_id: str, dialogue: str):
     )
 
 
-def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response: str, source: str = "chat", topic: str = "") -> dict:
+def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response: str, source: str = "chat", topic: str = "", time_str: str = None) -> dict:
     name = account_db_name(user_id)
     if not name or not event_id:
         raise ValueError("user_id and event_id required")
@@ -54,13 +54,19 @@ def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response:
             """CREATE TABLE IF NOT EXISTS event_metadata (
                 event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, metric_value REAL,
                 messages_count INTEGER, links_json TEXT, topics_json TEXT, raw_dialogue TEXT,
-                subject TEXT, action TEXT, object TEXT, status TEXT)"""
+                subject TEXT, action TEXT, object TEXT, status TEXT,
+                kind TEXT DEFAULT 'dialogue', source TEXT DEFAULT '', project TEXT DEFAULT '')"""
         )
+        try:
+            from app import shelves as _sh
+            _sh.ensure_columns(conn)
+        except Exception as exc:
+            print(f"[shelves] ensure skipped: {exc}", flush=True)
         conn.execute(
             """INSERT OR REPLACE INTO event_metadata
                (event_id, time_str, essence, raw_dialogue, messages_count, links_json, topics_json, status)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (event_id, time.strftime("%Y-%m-%d %H:%M"), (topic or query)[:200], dialogue, 2, "[]", json.dumps([source]), "pending_vector"),
+            (event_id, time_str or time.strftime("%Y-%m-%d %H:%M"), (topic or query)[:200], dialogue, 2, "[]", json.dumps([source]), "pending_vector"),
         )
         _fts_insert(conn.cursor(), event_id, dialogue)
         conn.commit()

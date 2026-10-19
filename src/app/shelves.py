@@ -25,17 +25,45 @@ def _name(user_id):
     return "".join(c for c in (user_id or "") if c.isalnum() or c in ("_", "-"))
 
 
+SHELF_COLUMNS = (("kind", "TEXT DEFAULT 'dialogue'"), ("source", "TEXT DEFAULT ''"), ("project", "TEXT DEFAULT ''"))
+
+
+def ensure_columns(conn):
+    """Add shelf columns to event_metadata if the table exists. Safe to call repeatedly."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(event_metadata)")}
+    if not cols:
+        return False
+    for col, ddl in SHELF_COLUMNS:
+        if col not in cols:
+            conn.execute(f"ALTER TABLE event_metadata ADD COLUMN {col} {ddl}")
+    conn.execute("CREATE TABLE IF NOT EXISTS shelves (slug TEXT PRIMARY KEY, description TEXT, created_at TEXT)")
+    conn.commit()
+    return True
+
+
+def ensure_user_db(user_id):
+    """Lazy migration on open: existing account DBs get shelf columns (no-op after the first time)."""
+    name = _name(user_id)
+    if not name:
+        return False
+    path = os.path.join(BASE_DIR, name + ".db")
+    if path in _ready or not os.path.exists(path):
+        return path in _ready
+    conn = sqlite3.connect(path, timeout=30)
+    try:
+        if ensure_columns(conn):
+            _ready.add(path)
+            return True
+        return False
+    finally:
+        conn.close()
+
+
 def connect(user_id):
     path = os.path.join(BASE_DIR, _name(user_id) + ".db")
     conn = sqlite3.connect(path, timeout=30)
     if path not in _ready:
-        cols = {r[1] for r in conn.execute("PRAGMA table_info(event_metadata)")}
-        if cols:
-            for col, ddl in (("kind", "TEXT DEFAULT 'dialogue'"), ("source", "TEXT DEFAULT ''"), ("project", "TEXT DEFAULT ''")):
-                if col not in cols:
-                    conn.execute(f"ALTER TABLE event_metadata ADD COLUMN {col} {ddl}")
-            conn.execute("CREATE TABLE IF NOT EXISTS shelves (slug TEXT PRIMARY KEY, description TEXT, created_at TEXT)")
-            conn.commit()
+        if ensure_columns(conn):
             _ready.add(path)
     return conn
 

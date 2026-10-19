@@ -27,7 +27,7 @@ def mem(**kw):
     return api("POST", "/api/v7/memory", kw)
 def tok(d): 
     s = json.dumps(d, ensure_ascii=False); a = sum(1 for ch in s if ord(ch) < 128); return int(a/4 + (len(s)-a)/2.5)
-LEGACY_KEYS = {"server_time","prompt_text","memory","fragments","previous","agent_hint","span","lens","links","shared_cubes","open_tasks","due","constitution","reminders","duty_error","has_cubes","step","memory_map","vector_top10","fts_top10","intersection","best_vector","best_fts","best_intersection"}
+LEGACY_KEYS = {"server_time","prompt_text","memory","fragments","previous","agent_hint","span","lens","links","shared_cubes","shared_cubes_note","open_tasks","due","constitution","reminders","duty_error","has_cubes","step","memory_map","vector_top10","fts_top10","intersection","best_vector","best_fts","best_intersection"}
 DEBUG = {"vector_top10","fts_top10","intersection","best_vector","best_fts","best_intersection","memory"}
 def stepA():
     c, d0, ms, n = mem(query_text="SKV architecture memory layers", probe=True)

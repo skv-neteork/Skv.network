@@ -105,7 +105,8 @@ def stepC():
     fid = c1.get("center", {}).get("event_id")
     c, f, ms, n = api("POST", "/api/v7/memory/lens", {"focus_event_id": fid, "radius": 3})
     check("C6 focus_event_id expands one cluster", c == 200 and f.get("clusters") and f["clusters"][0]["center"]["event_id"] == fid and len(f["clusters"][0].get("before", [])) >= 1, c)
-    check("C7 follow-up payload <= 3k tokens", a["budget"]["total_tokens"] <= 3000, a["budget"]["total_tokens"])
+    fx = (a["budget"].get("used_tokens") or {}).get("facts", 0)   # memory v3: facts have their own budget
+    check("C7 follow-up payload <= 3k tokens (+ facts within own budget)", a["budget"]["total_tokens"] - fx <= 3000 and fx <= a["budget"]["limits"].get("facts", 0) * 1.1, (a["budget"]["total_tokens"], fx))
     if L.get("more_cursor") is not None:
         c, m, ms, n = mem(query_text="Т-частицы", view="agent", session_id=sid, lens_offset=L["more_cursor"])
         ids1 = {x["center"]["event_id"] for x in L["clusters"]}; ids2 = {x["center"]["event_id"] for x in m.get("lens", {}).get("clusters", [])}

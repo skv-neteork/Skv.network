@@ -1270,7 +1270,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"
     
     # Load constitutional cubes from SQLite (shared_master.db)
-    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v6"]
+    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v7"]
     constitution_map = metadata_store.batch_get_metadata("shared_master", constitution_cube_ids)
     
     # Build constitution text from loaded cubes
@@ -1786,7 +1786,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                 memory_map += f"Shared knowledge cubes: {buffer.shared_current_size}\n"
             memory_map += "Use memory search to explore specific topics.\n"
         
-        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v6"]
+        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v7"]
         const_map = metadata_store.batch_get_metadata("shared_master", constitution_ids)
         const_parts = []
         for cid in constitution_ids:
@@ -2636,7 +2636,7 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 
-                           "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v6"]
+                           "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v7"]
         const_map = metadata_store.batch_get_metadata("shared_master", constitution_ids)
         const_parts = []
         for cid in constitution_ids:
@@ -3670,7 +3670,7 @@ async def agent_start():
 3. Search memory when the past can change the answer. Center is the hit. l1_before and l1_after are the sides.
 4. After every turn: POST /api/v7/remember. Weak: GET /api/v7/agent/remember?key=KEY&query=&response=
 5. On a required step write a cube or duty=cube_nothing. Vote on used cubes.
-Skills: /api/v7/skills . One cube: /api/v7/cube/cube_const_05_v6 . Old doors now return this same cube.
+Skills: /api/v7/skills . One cube: /api/v7/cube/cube_const_05_v7 . Old doors now return this same cube.
 \nYou are setting up SKV for this user. Ask which model they use, then give only the steps for that model.
 Base URL https://skv.network
 Schema https://skv.network/api/v7/agent/openapi.json

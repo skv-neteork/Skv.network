@@ -342,9 +342,9 @@ async def rate_limit_middleware(request, call_next):
     # Очищаем старые записи
     _rate_limits[client_ip] = [t for t in _rate_limits[client_ip] if now - t < 60]
     
-    # Rate limit: 30 запросов в минуту
-    if len(_rate_limits[client_ip]) >= 100:
-        return JSONResponse({"detail": "Rate limit exceeded. Max 30 requests/minute."}, status_code=429)
+    # Rate limit: 300 requests per minute per IP
+    if len(_rate_limits[client_ip]) >= 300:
+        return JSONResponse({"detail": "Rate limit exceeded. Max 300 requests/minute."}, status_code=429)
     
     _rate_limits[client_ip].append(now)
     
@@ -379,7 +379,7 @@ async def rate_limit_middleware(request, call_next):
                 return JSONResponse({"detail": "Invalid API key"}, status_code=401)
     
     response = await call_next(request)
-    response.headers["X-RateLimit-Remaining"] = str(30 - len(_rate_limits[client_ip]))
+    response.headers["X-RateLimit-Remaining"] = str(300 - len(_rate_limits[client_ip]))
     return response
 
 app.add_middleware(GZipMiddleware, minimum_size=256)

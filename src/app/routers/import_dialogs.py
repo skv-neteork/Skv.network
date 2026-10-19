@@ -4,6 +4,17 @@ import json, urllib.request as urlreq, os, sqlite3, time, re
 
 router = APIRouter()
 
+def _scrub(user_id, text):
+    """Same secret detection as /remember: secrets go to the vault, text keeps [vault:<name>]."""
+    try:
+        from app import vault as _vault
+        if _vault.available():
+            return _vault.scrub(user_id, text or "")[0]
+    except Exception as exc:
+        print(f"[vault] import scrub skipped: {exc}", flush=True)
+    return text
+
+
 def save_pairs(user_id, messages, source):
     """One write path for dialogs, URL, text, and bookmarklet."""
     from app.account_memory import queue_turn
@@ -41,7 +52,7 @@ async def import_dialogs(data: dict):
     saved = 0
     for i, msg in enumerate(messages):
         if msg.get("role") == "user" and i+1 < len(messages) and messages[i+1].get("role") == "assistant":
-            q, a, ts = msg.get("content",""), messages[i+1].get("content",""), msg.get("timestamp","")
+            q, a, ts = _scrub(user_id, msg.get("content","")), _scrub(user_id, messages[i+1].get("content","")), msg.get("timestamp","")
             eid = f"{user_id}::{source}_{i}"
             # Create NEXT link
             prev_eid = f"{user_id}::{source}_{i-2}" if i >= 2 else None
@@ -217,7 +228,7 @@ async def import_process(data: dict):
     conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db")
     cur = conn.cursor()
     cur.execute("SELECT raw_dialogue FROM event_metadata WHERE event_id LIKE '%::import_%' OR event_id LIKE '%::chatgpt_%' OR event_id LIKE '%::bookmarklet_%' OR event_id LIKE '%::text_import_%' OR event_id LIKE '%::url_import_%' ORDER BY event_id DESC LIMIT 200")
-    texts = [r[0] for r in cur.fetchall() if r[0]]
+    texts = [_scrub(user_id, r[0]) for r in cur.fetchall() if r[0]]   # no secrets to the LLM
     if not texts: conn.close(); return {"status": "ok", "detail": "No imported data"}
     
     all_text = "\n".join(texts)[:200000]
@@ -392,6 +403,7 @@ def run_import_cycle(user_id, source):
 
 def _one_l1(db, user_id, source, n, parts):
     import hashlib
+    parts = [_scrub(user_id, p) for p in parts]   # defence in depth: nothing secret goes to the summarizer
     wsha = hashlib.sha1("\n---\n".join(parts).encode("utf-8", "replace")).hexdigest()
     try:
         old = db.execute("select summary_text, summary_json from summary_l1 where session_id=?", (f"{source}_auto_{n}",)).fetchone()
@@ -426,6 +438,7 @@ def _one_l1(db, user_id, source, n, parts):
     return summary
 
 def _one_l2(db, user_id, summaries):
+    summaries = [_scrub(user_id, x) for x in summaries]
     text = "\n".join(s[:300] for s in summaries if s)[:50000]
     prompt = "Собери одну короткую L2 карту на русском: темы, планы, даты. Не пароли. Только JSON {\"map\":\"...\"}.\n\n" + text
     try:

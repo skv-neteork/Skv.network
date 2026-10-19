@@ -130,7 +130,7 @@ def ask(message, session_id="guardian2"):
               "L1: <5-7% gist>\nCRITICAL: <lasting fact or none>\n"
               "CUBE: <moment|fact|culture|lifehack|warning|code> | <topic> | <English essence> | <rule that changes the answer>  OR  CUBE_NOTHING: <why>\n"
               + "".join("RATE: %s +1|-1 <reason>\n" % i for i in new_ids)
-              + "TASK_DONE (only if the task is finished)\nThen the seal: SKV | #N | READ | VERIFY | CORRECT | OUTPUT\n\nUser: " + message)
+              + "TASK_DONE (only if the task is finished)\nThen the seal, exactly this line: SKV | #%s | READ | VERIFY | CORRECT | OUTPUT\n\nUser: " % (mem.get("step") if isinstance(mem.get("step"), int) else 1) + message)
     draft = _model(prompt)
     info, missing = parse(draft, new_ids)
     if missing:
@@ -138,6 +138,7 @@ def ask(message, session_id="guardian2"):
         info, missing = parse(draft, new_ids)
     answer = clean(draft)
     if missing:
+        _history.setdefault(session_id, []).extend(["User: " + message[:600], "Agent (held, not shown): " + answer[:600]])
         return {"status": "held", "missing": missing, "draft": draft}
     rem = {"query": message, "response": answer, "session_id": session_id, "l1_summary": info["l1"], "task_done": info["task_done"]}
     if info["critical"] and info["critical"].lower() not in ("none", "нет", "-"):

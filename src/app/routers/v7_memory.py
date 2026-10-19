@@ -697,7 +697,17 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
                                                    kind=req.kind, source=req.source, project=req.project)
     except ImportError:
         pass
-    return _mv2.agent_view(req, _legacy, _ctx)
+    _res = _mv2.agent_view(req, _legacy, _ctx)
+    try:   # pinned per-account board: first recall of a session, every board_every recalls, or when it changed
+        from app import board as _board
+        _ses = (_res.get("session") or {}) if isinstance(_res, dict) else {}
+        _key = str(_ses.get("id", "default")) + (":" + str(_res.get("trace_id", "")) if _ses.get("first") else "")
+        _bt = _board.for_recall(req.user_id, _key, _mv2.config())
+        if _bt and isinstance(_res, dict):
+            _res["board"] = _bt
+    except Exception as _e:
+        print(f"[board] recall skipped: {_e}", flush=True)
+    return _res
 
 @router.post("/search", response_model=SearchResponse)
 async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
@@ -1624,4 +1634,40 @@ async def deep_recall_get(job_id: str, user_id: str = ""):
         out["error"] = job.get("error")
     else:
         out["partial"] = job["partial"]
+    return out
+
+
+from pydantic import BaseModel
+
+class BoardRequest(BaseModel):
+    user_id: str = ""
+    id: str = ""
+    action: str = "add"
+    text: str = ""
+    title: str = ""
+    kind: str = ""
+
+
+@router.post("/board")
+async def board_edit(req: BoardRequest):
+    """Pinned board, one entry point: add|edit|done|undo|progress|block|important|unimportant|remove."""
+    from app import board as _board
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    try:
+        return {"status": "ok", **_board.act(req.user_id, req.id, req.action, req.text, req.kind, req.title)}
+    except KeyError as e:
+        raise HTTPException(404, f"board item not found: {e}")
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.get("/board")
+async def board_get(user_id: str = "", history: int = 0):
+    from app import board as _board
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    out = {"items": _board.items(user_id, include_closed=True), "text": _board.render(user_id, 2000)}
+    if history:
+        out["history"] = _board.history(user_id, min(history, 200))
     return out

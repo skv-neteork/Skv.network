@@ -198,22 +198,74 @@ def _topic_words(topic):
     return [w for w in re.split(r"[^a-z0-9]+", (topic or "").lower()) if len(w) >= 4][:4]
 
 
-def new_candidates(conn, topic, uid="", limit=8):
-    """Fair 'rate this' candidates: same topic first, then related topics (shared word) so cubes whose own topic is
-    never queried still surface. Unrated first, least shown, oldest first. Not the viewer's own cubes, not already rated by them."""
+REL_VEC_MIN = 0.5            # cosine similarity query<->cube to count as relevant
+REL_STOP = {"what", "when", "with", "this", "that", "have", "from", "your", "into", "about", "please", "short", "should", "would",
+            "could", "there", "their", "them", "then", "than", "make", "does", "using", "under", "over", "need", "help", "want", "like"}
+
+
+def _stems(text):
+    out = set()
+    for w in re.split(r"[^a-z0-9\u0400-\u04ff]+", (text or "").lower()):
+        if len(w) < 4 or w in REL_STOP:
+            continue
+        for end in ("ing", "ed", "es", "s"):
+            if w.endswith(end) and len(w) - len(end) >= 4:
+                w = w[:-len(end)]
+                break
+        out.add(w)
+    return out
+
+
+def relevance(query_stems, row, vec_scores=None):
+    """(relevant, score). Relevant = vector similarity >= REL_VEC_MIN, or enough query words in the cube text."""
+    cid = row[0]
+    vs = (vec_scores or {}).get(cid, 0.0)
+    if vs >= REL_VEC_MIN:
+        return True, 1.0 + vs
+    if not query_stems:
+        return False, 0.0
+    text = (str(row[1] or "") + " " + str(row[2] or "")[:600]).lower()   # the cube itself, not its topic label
+    hits = sum(1 for w in query_stems if w in text)
+    need = 1 if len(query_stems) <= 2 else 2
+    return hits >= need, float(hits)
+
+
+def new_candidates(conn, topic, uid="", limit=8, query="", vec_scores=None):
+    """Fair 'rate this' candidates, topic-aware.
+    Only cubes relevant to the current query (vector >= REL_VEC_MIN or keyword overlap) are offered; same topic first,
+    then neighbouring topics; never clearly off-topic ones. Among relevant cubes the order stays fair:
+    unrated first, least shown, oldest first. Not the viewer's own cubes, not already rated by them.
+    Without a query (legacy callers) only the same topic is used."""
     me = (uid or "").lower()
     excl = "AND lower(COALESCE(created_by,''))!=? AND cube_id NOT IN (SELECT cube_id FROM cube_outcomes WHERE lower(user_id)=?)"
-    rows = conn.execute(f"SELECT cube_id, essence, rules_markdown, kind, trust, subject_action_object FROM cubes_new WHERE subject_action_object=? AND {NEW_FILTER} {excl} ORDER BY {NEW_ORDER} LIMIT ?",
-                        (topic, me, me, limit)).fetchall()
-    seen = {r[0] for r in rows}
-    for w in _topic_words(topic):
-        if len(rows) >= limit:
-            break
-        for r in conn.execute(f"SELECT cube_id, essence, rules_markdown, kind, trust, subject_action_object FROM cubes_new WHERE subject_action_object!=? AND (subject_action_object LIKE ? OR essence LIKE ?) AND {NEW_FILTER} {excl} ORDER BY {NEW_ORDER} LIMIT ?",
-                              (topic, "%" + w + "%", "%" + w + "%", me, me, limit)).fetchall():
-            if r[0] not in seen and len(rows) < limit:
-                rows.append(r); seen.add(r[0])
-    return rows
+    cols = "cube_id, essence, rules_markdown, kind, trust, subject_action_object"
+    same = conn.execute(f"SELECT {cols} FROM cubes_new WHERE subject_action_object=? AND {NEW_FILTER} {excl} ORDER BY {NEW_ORDER} LIMIT 40",
+                        (topic, me, me)).fetchall() if topic else []
+    qs = _stems(query)
+    if not qs and not vec_scores:
+        return same[:limit]
+    rows, seen = [], set()
+    for r in same:                                  # tier 1: same topic AND relevant to the query
+        if relevance(qs, r, vec_scores)[0]:
+            rows.append(r); seen.add(r[0])
+    if not rows:                                    # tier 2: neighbouring topics, only when tier 1 is empty, still relevant
+        cand = {}
+        ids = [c for c, sc in (vec_scores or {}).items() if sc >= REL_VEC_MIN]
+        if ids:
+            q = ",".join("?" * len(ids))
+            for r in conn.execute(f"SELECT {cols} FROM cubes_new WHERE cube_id IN ({q}) AND {NEW_FILTER} {excl}", ids + [me, me]):
+                cand[r[0]] = r
+        for w in list(qs)[:6]:
+            for r in conn.execute(f"SELECT {cols} FROM cubes_new WHERE (subject_action_object LIKE ? OR essence LIKE ?) AND {NEW_FILTER} {excl} ORDER BY {NEW_ORDER} LIMIT 20",
+                                  ("%" + w + "%", "%" + w + "%", me, me)):
+                cand.setdefault(r[0], r)
+        rel = [r for r in cand.values() if r[0] not in seen and relevance(qs, r, vec_scores)[0]]
+        if rel:  # keep fairness: re-read in NEW_ORDER
+            q = ",".join("?" * len(rel))
+            order = [x[0] for x in conn.execute(f"SELECT cube_id FROM cubes_new WHERE cube_id IN ({q}) ORDER BY {NEW_ORDER}", [r[0] for r in rel])]
+            byid = {r[0]: r for r in rel}
+            rows = [byid[c] for c in order]
+    return rows[:limit]
 
 
 def age_out(conn, impressions=AGE_OUT_IMPRESSIONS):
@@ -235,7 +287,7 @@ def unrated_stats(conn):
             "eligible_for_rate_slots": q(f"AND {NEW_FILTER}")}
 
 
-def select_pack(conn, topic, uid="", step=0, record=True):
+def select_pack(conn, topic, uid="", step=0, record=True, query="", vec_scores=None):
     """cover + up to 3 strong + up to 2 new ('new, rate this'). Records impressions and rate duty when record=True."""
     out = []
     if not topic:
@@ -248,7 +300,7 @@ def select_pack(conn, topic, uid="", step=0, record=True):
     seen = {cov} if cov else set()
     strong = conn.execute(f"""SELECT cube_id, essence, rules_markdown, kind, trust FROM cubes_new WHERE {base} AND essence NOT LIKE 'Culture%' AND COALESCE(kind,'moment')!='culture'
         ORDER BY (trust='trusted') DESC, confirms DESC, rating DESC, upvotes DESC LIMIT 3""", (topic,)).fetchall()
-    new = new_candidates(conn, topic, uid, limit=8)
+    new = new_candidates(conn, topic, uid, limit=8, query=query, vec_scores=vec_scores)
     picked_strong, picked_new = [], []
     strong_ids = {r[0] for r in strong if r[4] == "trusted"}
     for r in new:                      # two slots are reserved for new cubes
@@ -276,6 +328,11 @@ def select_pack(conn, topic, uid="", step=0, record=True):
         disp = {}
         for s_, d_ in conn.execute(f"SELECT src, dst FROM cube_links WHERE kind='against' AND (src IN ({q}) OR dst IN ({q}))", ids + ids):
             disp.setdefault(s_, []).append(d_); disp.setdefault(d_, []).append(s_)
+        for cid_, st_ in conn.execute(f"SELECT cube_id, status FROM cubes_new WHERE cube_id IN ({q})", ids).fetchall():
+            if st_ == "disputed":
+                for o in out:
+                    if o["cube_id"] == cid_ and "in court" not in o["note"]:
+                        o["note"] += ", disputed: in court"
         for o in out:
             if o["cube_id"] in disp:
                 o["disputed_with"] = sorted(set(disp[o["cube_id"]]))[:3]

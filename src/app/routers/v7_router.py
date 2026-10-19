@@ -1637,7 +1637,13 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             if topic:
                 from app import cubes_v2 as _cv2
                 _cv2.ensure(_c)
-                shared_cubes = _cv2.select_pack(_c, topic, req.user_id, step, record=not _no_bump)
+                _vs = {}
+                try:
+                    if _sem_vec is not None:
+                        _vs = {cid: sc for cid, sc in _sem.search_cubes(_sem_vec, k=30)}
+                except Exception:
+                    _vs = {}
+                shared_cubes = _cv2.select_pack(_c, topic, req.user_id, step, record=not _no_bump, query=req.query_text or "", vec_scores=_vs)
             if not shared_cubes and _sem_vec is not None:
                 for cid, sc in _sem.search_cubes(_sem_vec, k=3):
                     if sc < 0.5:
@@ -2442,10 +2448,11 @@ async def vote_experience(req: VoteRequest, request: Request = None):
     trust, confirms = _cv2.record_outcome(conn, req.cube_id, req.user_id, req.vote == 1, req.reason, _ip)
     _neg_clients, _ = _cv2.negative_clients(conn, req.cube_id)
     old_status = cur.execute("SELECT status FROM cubes_new WHERE cube_id=?", (req.cube_id,)).fetchone()[0]
-    if _neg_clients >= _cv2.NEGATIVE_TO_COURT:
-        status = "deprecated"      # record_outcome already queued it for court with the reasons
-    elif old_status in ("archived", "removed", "quarantine"):
+    _in_court = cur.execute("SELECT 1 FROM court_queue WHERE cube_id=?", (req.cube_id,)).fetchone() is not None
+    if old_status in ("archived", "removed", "quarantine"):
         status = old_status
+    elif _neg_clients >= _cv2.NEGATIVE_TO_COURT or _in_court:
+        status = "disputed"        # stays in the feed marked disputed; only the court verdict deprecates/archives it
     elif old_status == "golden":
         status = "golden"          # existing golden kept; new golden tier is deferred
     elif trust == "trusted":

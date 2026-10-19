@@ -219,7 +219,57 @@ def _ensure_table(conn, table):
     conn.execute(f"CREATE TABLE IF NOT EXISTS {table} (event_id TEXT PRIMARY KEY, created_at TEXT)")
 
 
-def build_user(tag, fname, threads=None, batch=32, progress=None, max_items=None):
+
+# ---------------- lazy vectorization ----------------
+# memory_config.json key "lazy_vectors" (defaults below):
+#   enabled          true  - no vector per message; text saved, vectors made in batches
+#   threshold_tokens 2000  - batch once a user's unvectorized text reaches ~2000 tokens (chars/4)
+#   idle_s           600   - or once the user has been quiet 10 min (remainder never waits forever)
+#   chunk_chars      300   - consecutive turns merged into ~300-char windows, one vector per window
+#                            (LoCoMo check: 300 = no loss vs per-turn, 600 loses ~5-10 pts)
+#   filler_max_chars 40    - "hi/ok/спасибо" turns get no vector of their own, merged into the window
+LAZY_DEFAULTS = {"enabled": True, "threshold_tokens": 2000, "idle_s": 600, "chunk_chars": 300, "filler_max_chars": 40}
+_LAST_WRITE = {}
+_FILLER = re.compile(r"^(hi|hey|hello|ok|okay|yes|no|thanks|thank you|bye|привет|ок|окей|спасибо|пока|да|нет|понял|ясно|хорошо|угу)[\s!.?,)]*$", re.I)
+
+
+def lazy_cfg():
+    cfg = dict(LAZY_DEFAULTS)
+    try:
+        cfg.update(json.load(open("/data/skv/memory_config.json")).get("lazy_vectors") or {})
+    except Exception:
+        pass
+    return cfg
+
+
+def _is_filler(text, maxc):
+    q = (text or "").split("\nA:")[0].replace("Q:", "").strip()
+    return len(text or "") <= maxc * 2 and (len(q) <= 3 or bool(_FILLER.match(q)))
+
+
+def _windows(rows, cfg):
+    """[(event_id, text)] in order -> [(member_ids_with_vector, window_text, all_ids)]"""
+    out, ids, vids, txt = [], [], [], ""
+    for eid, t in rows:
+        ids.append(eid); txt += (t or "") + "\n"
+        if not _is_filler(t, cfg["filler_max_chars"]):
+            vids.append(eid)
+        if len(txt) >= cfg["chunk_chars"]:
+            out.append((vids, txt, ids)); ids, vids, txt = [], [], ""
+    if ids:
+        out.append((vids, txt, ids))
+    return out
+
+
+def lazy_due(name, rows, cfg):
+    if not rows:
+        return False
+    if sum(len(t or "") for _, t in rows) / 4 >= cfg["threshold_tokens"]:
+        return True
+    return time.time() - _LAST_WRITE.get(name, 0) >= cfg["idle_s"]
+
+
+def build_user(tag, fname, threads=None, batch=32, progress=None, max_items=None, force=False):
     """Embed events and L1 of one account db that are missing in this model's index."""
     name = fname[:-3]
     path = os.path.join(BASE_DIR, fname)
@@ -242,6 +292,27 @@ def build_user(tag, fname, threads=None, batch=32, progress=None, max_items=None
             l1 = []
         if max_items:
             rows = rows[:max_items]
+        cfg = lazy_cfg()
+        if cfg["enabled"] and rows:
+            if force or lazy_due(name, rows, cfg):
+                order = {e: i for i, (e, _) in enumerate(conn.execute(
+                    "SELECT event_id, rowid FROM event_metadata").fetchall())}
+                rows.sort(key=lambda r: order.get(r[0], 0))
+                wins = _windows(rows, cfg)
+                for i in range(0, len(wins), batch):
+                    part = wins[i:i + batch]
+                    vecs = embed([w[1] for w in part], tag, threads=threads, batch_size=batch)
+                    ids, vv = [], []
+                    for (vids, _t, _all), v in zip(part, vecs):
+                        for e in vids:
+                            ids.append(e); vv.append(v)
+                    if ids:
+                        STORE.add(tag, name, ids, np.array(vv), save=False)
+                    conn.executemany(f"INSERT OR REPLACE INTO {table} (event_id, created_at) VALUES (?, datetime('now'))",
+                                     [(e,) for w in part for e in w[2]])
+                    done += len(ids)
+                STORE.save(tag, name); conn.commit()
+            rows = []
         for target, items in ((name, rows), (name + "__l1", l1)):
             for i in range(0, len(items), batch):
                 chunk = items[i:i + batch]
@@ -293,6 +364,9 @@ def add_event_now(user_id, event_id, text):
     tag = active_tag()
     if tag == "bge" or os.path.exists(os.path.join(MODELS[tag]["dir"], "REBUILDING")):
         return False
+    if lazy_cfg()["enabled"]:
+        _LAST_WRITE[account_name(user_id)] = time.time()
+        return False   # lazy: batch vectorizer picks it up (threshold or idle)
     name = account_name(user_id)
     vec = embed([text], tag)
     STORE.add(tag, name, [event_id], vec, save=True)
@@ -306,11 +380,11 @@ def add_event_now(user_id, event_id, text):
     return True
 
 
-def build_pending_all(tag=None):
+def build_pending_all(tag=None, force=False):
     tag = tag or active_tag()
     n = 0
     for f in account_files():
-        n += build_user(tag, f)
+        n += build_user(tag, f, force=force)
     return n
 
 

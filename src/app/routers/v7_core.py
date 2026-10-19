@@ -183,7 +183,7 @@ class EventWriteRequest(BaseModel):
 import threading
 import time as _time
 
-# Vectorization: instant per turn (semantic.add_event_now) + 60s catch-up batch in account_memory._ensure_batch_thread.
+# Vectorization: lazy batches (semantic.lazy_cfg: ~2000 tokens or 10 min idle) run by the 60s loop in account_memory._ensure_batch_thread.
 
 
 def background_l1_l2():

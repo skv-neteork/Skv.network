@@ -921,11 +921,21 @@ def verify_seal_level(authorization: Optional[str] = Header(None)) -> int:
         raise HTTPException(status_code=401, detail="Missing Authorization Token")
     if not authorization.startswith("Bearer ") or len(authorization) < 20:
         raise HTTPException(status_code=403, detail="Invalid token format")
-    token = authorization.replace("Bearer ", "")
-    # If no tokens configured, allow any (dev mode)
-    if not VALID_TOKENS:
+    token = authorization.replace("Bearer ", "", 1).strip()
+    # Fail closed: no "dev mode". A token is valid only if it is listed in SKV_API_KEYS or is a real, active SKV key.
+    if VALID_TOKENS and token in VALID_TOKENS:
         return 3
-    if token not in VALID_TOKENS:
+    try:
+        import sqlite3 as _sq3
+        from app import api_keys as _ak3
+        _c3 = _sq3.connect(SHARED_DB, timeout=5)
+        try:
+            ok = bool(_ak3.user_for(token, _c3))
+        finally:
+            _c3.close()
+    except Exception:
+        ok = False
+    if not ok:
         raise HTTPException(status_code=403, detail="Invalid API key")
     return 3
 

@@ -3816,7 +3816,8 @@ async def memory_dig(req: DigRequest):
 @router.get("/agent/guardian.py")
 async def download_guardian():
     from fastapi.responses import FileResponse
-    return FileResponse("/app/app/skv_guardian_sdk_v3.py", media_type="text/x-python", filename="skv_guardian_sdk_v3.py")
+    # Guard 2 (cubes v2): the old SDK v3 auto-created banal shared cubes and used dead endpoints
+    return FileResponse("/app/app/downloads/skv-guardian2.py", media_type="text/x-python", filename="skv-guardian2.py")
 
 
 def archive_cold():
@@ -4085,8 +4086,9 @@ async def second_look(req: SecondLookRequest):
     # 3. creative
     checks.append({"name": "creative", "ok": True, "note": "offer one other reading, do not add a new fact"})
     # 4. hallucination
-    grounded = bool(req.event_id) and req.event_id in (req.draft or "")
-    checks.append({"name": "hallucination", "ok": grounded, "note": "cite the event id" if not grounded else "draft cites the opened turn"})
+    # nothing opened (new topic / general question) -> nothing to cite; an opened turn must be cited
+    grounded = (not req.event_id) or req.event_id in (req.draft or "")
+    checks.append({"name": "hallucination", "ok": grounded, "note": "cite the event id" if not grounded else ("draft cites the opened turn" if req.event_id else "no memory turn opened; do not claim memory")})
     ok = all(c["ok"] for c in checks if c["name"] != "creative")
     return {"status": "pass" if ok else "fail", "checks": checks, "next": "SEAL and output" if ok else "fix the failed checks, then call second-look again"}
 

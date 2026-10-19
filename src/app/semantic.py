@@ -23,6 +23,10 @@ MODELS = {
     "bge": {"name": "BAAI/bge-base-en-v1.5", "dim": 768, "dir": "/data/skv/hnsw", "table": "personal_vectors"},
     "mml12": {"name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", "dim": 384,
               "dir": "/data/skv/hnsw_mml12", "table": "pvec_mml12"},
+    # candidate, NOT active: A/B 2026-10-19 = LoCoMo hit@10 0.726 vs mml12 0.700, RU<->EN on par,
+    # but fp32 model (no -onnx-Q build in fastembed): ~1.9 GB RSS vs 0.77, 3.5x slower embeds.
+    "mpnet": {"name": "sentence-transformers/paraphrase-multilingual-mpnet-base-v2", "dim": 768,
+              "dir": "/data/skv/hnsw_mpnet", "table": "pvec_mpnet"},
 }
 
 

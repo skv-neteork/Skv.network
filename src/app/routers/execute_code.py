@@ -151,10 +151,8 @@ async def _require_api_auth(request: Request) -> str:
             conn = sqlite3.connect(db_path, timeout=5)
             try:
                 cur = conn.cursor()
-                cur.execute(
-                    "SELECT user_id FROM user_api_keys WHERE api_key = ? AND COALESCE(is_active, 1) = 1",
-                    (token,),
-                )
+                from app import api_keys as _ak
+                cur.execute(_ak.SQL_USER, _ak.args(token))
                 user = cur.fetchone()
             finally:
                 conn.close()

@@ -440,7 +440,7 @@ async def submit_feedback(req: FeedbackRequest, authorization: str = Header(None
         import sqlite3 as _sq
         _conn = _sq.connect("/data/skv/metadata_store/shared_master.db")
         _cur = _conn.cursor()
-        _cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+        _cur.execute(_ak.SQL_USER, _ak.args(token))
         _row = _cur.fetchone()
         _conn.close()
         if not _row:
@@ -524,6 +524,9 @@ SEAL (add to every response):
 # ═══════════════════════════════════════════════════════════════
 
 import hashlib, secrets, os
+
+
+from app import api_keys as _ak
 
 
 def hash_password(password: str) -> str:
@@ -651,8 +654,7 @@ async def confirm_email(req: ConfirmRequest):
         cur.execute("UPDATE users SET confirmed = 1, confirmation_code = NULL WHERE email = ?", (req.email,))
         
         # Create API key
-        api_key = generate_api_key()
-        cur.execute("INSERT OR REPLACE INTO user_api_keys (user_id, api_key) VALUES (?, ?)", (req.email, api_key))
+        api_key = _ak.issue(req.email, "register", conn=conn)
         conn.commit()
         conn.close()
         
@@ -688,18 +690,16 @@ async def login(req: LoginRequest):
             except Exception:
                 pass
 
-        # Return existing active key or create new one
-        cur.execute("SELECT api_key FROM user_api_keys WHERE user_id = ? AND is_active = 1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.email,))
-        key_row = cur.fetchone()
-        if key_row:
-            api_key = key_row[0]
-        else:
-            api_key = generate_api_key()
-            cur.execute("INSERT INTO user_api_keys (user_id, api_key) VALUES (?, ?)", (req.email, api_key))
-            conn.commit()
-        
+        # Keys are stored hashed, so an old key cannot be shown again: each login issues a new key.
+        # Older keys keep working; at most 5 login keys stay active (the oldest login key is retired).
+        api_key = _ak.issue(req.email, "login", conn=conn)
+        old = [r[0] for r in cur.execute("SELECT rowid FROM user_api_keys WHERE user_id = ? AND label = 'login' AND is_active = 1 ORDER BY created_at DESC, rowid DESC", (req.email,)).fetchall()][5:]
+        for _rid in old:
+            cur.execute("UPDATE user_api_keys SET is_active = 0 WHERE rowid = ?", (_rid,))
+        conn.commit()
         conn.close()
-        return {"status": "ok", "api_key": api_key, "user_id": req.email}
+        return {"status": "ok", "api_key": api_key, "user_id": req.email,
+                "note": "Keys are stored hashed. This login key is shown once; keep it. Older keys still work. Manage keys at /profile."}
     except HTTPException:
         raise
     except Exception as e:
@@ -715,15 +715,15 @@ async def get_profile(authorization: str = Header(None)):
         import sqlite3
         conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
         cur = conn.cursor()
-        cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+        cur.execute(_ak.SQL_USER, _ak.args_keys_only(token))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=401, detail="Invalid token")
         user_id = row[0]
         
         # Get all user's keys
-        cur.execute("SELECT api_key, is_active, created_at FROM user_api_keys WHERE user_id = ?", (user_id,))
-        keys = [{"key": k, "active": bool(a), "created": c} for k, a, c in cur.fetchall()]
+        cur.execute("SELECT rowid, key_prefix, is_active, created_at, expires_at, label FROM user_api_keys WHERE user_id = ?", (user_id,))
+        keys = [{"key": _ak.display(p, rid), "id": rid, "active": bool(a), "created": c, "expires": e, "label": l} for rid, p, a, c, e, l in cur.fetchall()]
         
         # Get stats from user's DB
         db_name = user_id.replace("@", "").replace(".", "")
@@ -763,14 +763,13 @@ async def create_api_key(authorization: str = Header(None)):
         import sqlite3, uuid
         conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
         cur = conn.cursor()
-        cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+        cur.execute(_ak.SQL_USER, _ak.args_keys_only(token))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=401, detail="Invalid token")
         user_id = row[0]
         
-        new_key = f"sk_{uuid.uuid4().hex[:32]}"
-        cur.execute("INSERT INTO user_api_keys (user_id, api_key) VALUES (?, ?)", (user_id, new_key))
+        new_key = _ak.issue(user_id, "profile", conn=conn)
         conn.commit()
         conn.close()
         return {"status": "ok", "api_key": new_key}
@@ -789,14 +788,18 @@ async def revoke_api_key(key: str, authorization: str = Header(None)):
         import sqlite3
         conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
         cur = conn.cursor()
-        cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+        cur.execute(_ak.SQL_USER, _ak.args_keys_only(token))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=401, detail="Invalid token")
         user_id = row[0]
         
         # Only allow revoking own keys
-        cur.execute("UPDATE user_api_keys SET is_active = 0 WHERE api_key = ? AND user_id = ?", (key, user_id))
+        _m = __import__("re").search(r"#(\d+)$", key.strip())
+        if _m:
+            cur.execute("UPDATE user_api_keys SET is_active = 0 WHERE rowid = ? AND user_id = ?", (int(_m.group(1)), user_id))
+        else:
+            cur.execute("UPDATE user_api_keys SET is_active = 0 WHERE api_key IN (?, ?) AND user_id = ?", (key, _ak.hash_key(key), user_id))
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Key not found or not yours")
         conn.commit()
@@ -1067,7 +1070,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             import sqlite3 as _sq
             _conn = _sq.connect("/data/skv/metadata_store/shared_master.db")
             _cur = _conn.cursor()
-            _cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+            _cur.execute(_ak.SQL_USER, _ak.args(token))
             _row = _cur.fetchone()
             _conn.close()
             if _row:
@@ -1079,7 +1082,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             import sqlite3 as _sq
             _conn = _sq.connect("/data/skv/metadata_store/shared_master.db")
             _cur = _conn.cursor()
-            _cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+            _cur.execute(_ak.SQL_USER, _ak.args(token))
             _row = _cur.fetchone()
             if _row:
                 req.user_id = _row[0]
@@ -1810,7 +1813,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
         search_instruction = "=== SEARCH MEMORY FIRST ===\nBEFORE answering, check the memory below.\n\n"
         lens_text = ""
         try:
-            keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.user_id,)).fetchone()
+            keyrow = (_ak.internal_token(req.user_id),)
             if keyrow:
                 lens_req = urlreq.Request("http://127.0.0.1:8000/api/v7/memory", data=json.dumps({"user_id": req.user_id, "query_text": req.message, "top_k": 2}).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer "+keyrow[0]})
                 with urlreq.urlopen(lens_req, timeout=40) as lens_resp:
@@ -1831,7 +1834,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                     center = line.split("center ", 1)[1].strip()
                     break
             if center:
-                keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.user_id,)).fetchone()
+                keyrow = (_ak.internal_token(req.user_id),)
                 headers = {"Authorization": "Bearer "+keyrow[0]} if keyrow else {}
                 with urlreq.urlopen(urlreq.Request("http://127.0.0.1:8000/api/v7/event/"+center, headers=headers), timeout=20) as ev:
                     opened = ev.read().decode()[:1200]
@@ -1870,7 +1873,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                                 url, payload = "http://127.0.0.1:8000/api/execute/code", {"code": args.get("code", ""), "user_id": req.user_id}
                             headers = {"Content-Type": "application/json"}
                             if name != "sandbox":
-                                keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.user_id,)).fetchone()
+                                keyrow = (_ak.internal_token(req.user_id),)
                                 if keyrow:
                                     headers["Authorization"] = "Bearer " + keyrow[0]
                             call = urlreq.Request(url, data=None if payload is None else json.dumps(payload).encode(), headers=headers)
@@ -1924,7 +1927,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
             name, arg, val = m.group(1), m.group(2), m.group(3).strip()
             result = ""
             try:
-                keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.user_id,)).fetchone()
+                keyrow = (_ak.internal_token(req.user_id),)
                 headers = {"Content-Type": "application/json"}
                 if keyrow:
                     headers["Authorization"] = "Bearer " + keyrow[0]
@@ -2403,7 +2406,7 @@ async def agent_shell(data: dict, authorization: str = Header(None), x_api_key: 
     import sqlite3 as _sq
     conn = _sq.connect("/data/skv/metadata_store/shared_master.db", timeout=5)
     cur = conn.cursor()
-    cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
+    cur.execute(_ak.SQL_USER, _ak.args(token))
     row = cur.fetchone()
     conn.close()
     if not row:
@@ -3889,7 +3892,7 @@ async def court_brief():
 def _user_from_key(key: str) -> str:
     import sqlite3
     conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
-    row = conn.execute("select user_id from user_api_keys where api_key=? and is_active=1", (key,)).fetchone()
+    row = conn.execute(_ak.SQL_USER, _ak.args_keys_only(key)).fetchone()
     conn.close()
     if not row:
         raise HTTPException(401, "Invalid key")

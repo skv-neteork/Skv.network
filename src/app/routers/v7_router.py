@@ -244,119 +244,16 @@ def background_vectorizer():
 print("[INJECTOR] Background vectorizer started (every 30 min)", flush=True)
 
 def background_l1_l2():
-    """Auto-generate L1/L2 summaries using Llama."""
+    """LLM L1/L2 summaries every 15 min when memory_config bg_llm=true (see memory_v2_llm.py)."""
     import time as _time
     while True:
-        _time.sleep(900)  # Every 15 minutes
+        _time.sleep(900)
         try:
-            import sqlite3 as _sq, json as _json, urllib.request as _urlreq
-            
-            for db_file in os.listdir('/data/skv/metadata_store'):
-                if not db_file.endswith('.db') or db_file in ['shared_master.db', 'anonymous.db', 'test.txt']:
-                    continue
-                # Skip empty or invalid DBs
-                db_path = f'/data/skv/metadata_store/{db_file}'
-                if os.path.getsize(db_path) < 1024:
-                    continue
-                if not db_file.endswith('.db') or db_file in ['shared_master.db', 'anonymous.db']:
-                    continue
-                
-                user_id = db_file.replace('.db', '').replace('gmailcom', '@gmail.com')
-                try:
-                    from app import memory_v2 as _mv2
-                    _llm_on = bool(_mv2.config().get("bg_llm", False))
-                except Exception:
-                    _llm_on = False
-                if not _llm_on:
-                    continue  # LLM L1/L2 generation is off (memory_config.json bg_llm); v2 maintenance runs separately
-                conn = _sq.connect(f'/data/skv/metadata_store/{db_file}')
-                if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='event_metadata'").fetchone():
-                    conn.close()
-                    continue
-                cur = conn.cursor()
-                
-                # Ensure tables exist
-                cur.execute("""CREATE TABLE IF NOT EXISTS summary_l1 (
-                    session_id TEXT, user_id TEXT, topic TEXT,
-                    summary_text TEXT, summary_json TEXT,
-                    message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )""")
-                cur.execute("""CREATE TABLE IF NOT EXISTS summary_l2 (
-                    user_id TEXT, map_json TEXT, themes_json TEXT,
-                    timeline_json TEXT, session_count INTEGER,
-                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )""")
-                conn.commit()
-                
-                # Count events since last L1
-                cur.execute("SELECT COUNT(*) FROM event_metadata")
-                total_events = cur.fetchone()[0]
-                
-                cur.execute("SELECT COUNT(*) FROM summary_l1")
-                l1_count = cur.fetchone()[0]
-                
-                # L2 generation (every 60 min, if events > 30 since last L2)
-                cur.execute("SELECT MAX(last_updated) FROM summary_l2")
-                last_l2 = cur.fetchone()[0]
-                cur.execute("SELECT COUNT(*) FROM event_metadata")
-                total_events = cur.fetchone()[0]
-                
-                need_l2 = False
-                if last_l2:
-                    # Check if 1 hour passed
-                    need_l2 = (_time.time() - _time.mktime(_time.strptime(last_l2, '%Y-%m-%d %H:%M:%S'))) > 3600 if last_l2 else True
-                else:
-                    need_l2 = True
-                
-                if need_l2 and total_events > 30:
-                    cur.execute("SELECT essence FROM event_metadata ORDER BY event_id DESC LIMIT 100")
-                    essences = [r[0] for r in cur.fetchall() if r[0]]
-                    
-                    if essences:
-                        prompt = f"Create L2 user profile from these interactions. Return JSON with main_themes, preferences, expertise_level:\n" + "\n".join(essences)
-                        polza_key = os.environ.get("POLZA_KEY", "")
-                        
-                        req = _urlreq.Request("https://api.polza.ai/v1/chat/completions",
-                            data=_json.dumps({
-                                "model": "meta-llama/llama-3.1-8b-instruct",
-                                "messages": [{"role": "user", "content": prompt}],
-                                "temperature": 0.2, "max_tokens": 500
-                            }).encode(),
-                            headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
-                        
-                        with _urlreq.urlopen(req, timeout=30) as resp:
-                            l2_data = _json.loads(resp.read())["choices"][0]["message"]["content"]
-                            cur.execute("DELETE FROM summary_l2 WHERE user_id = ?", (user_id,))
-                            cur.execute("INSERT INTO summary_l2 (user_id, map_json, themes_json, timeline_json, session_count, last_updated) VALUES (?,?,?,?,?,datetime('now'))",
-                                       (user_id, l2_data, '[]', '[]', total_events))
-                            conn.commit()
-                            print(f"[L2] Updated for {user_id}", flush=True)
-                
-                # If new events > 15 since last L1 — generate
-                if total_events > 0 and (l1_count == 0 or total_events - l1_count * 10 > 15):
-                    cur.execute("SELECT essence FROM event_metadata WHERE topics_json LIKE '%import%' ORDER BY event_id DESC LIMIT 30")
-                    essences = [r[0] for r in cur.fetchall() if r[0]]
-                    
-                    if essences:
-                        prompt = f"Summarize these user interactions in 2-3 sentences:\n" + "\n".join(essences[-15:])
-                        polza_key = os.environ.get("POLZA_KEY", "")
-                        
-                        req = _urlreq.Request("https://api.polza.ai/v1/chat/completions",
-                            data=_json.dumps({
-                                "model": "meta-llama/llama-3.1-8b-instruct",
-                                "messages": [{"role": "user", "content": prompt}],
-                                "temperature": 0.2, "max_tokens": 300
-                            }).encode(),
-                            headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
-                        
-                        with _urlreq.urlopen(req, timeout=30) as resp:
-                            summary = _json.loads(resp.read())["choices"][0]["message"]["content"]
-                            cur.execute("INSERT INTO summary_l1 (user_id, topic, summary_text, message_count) VALUES (?,?,?,?)",
-                                       (user_id, "auto", summary, 15))
-                            conn.commit()
-                            print(f"[L1] Generated for {user_id}", flush=True)
-                
-                conn.close()
+            from app import memory_v2 as _mv2
+            if not bool(_mv2.config().get("bg_llm", False)):
+                continue
+            from app import memory_v2_llm as _mvl
+            _mvl.run_cycle()
         except Exception as e:
             print(f"[L1/L2] Error: {e}", flush=True)
 
@@ -792,7 +689,7 @@ async def login(req: LoginRequest):
                 pass
 
         # Return existing active key or create new one
-        cur.execute("SELECT api_key FROM user_api_keys WHERE user_id = ? AND is_active = 1 LIMIT 1", (req.email,))
+        cur.execute("SELECT api_key FROM user_api_keys WHERE user_id = ? AND is_active = 1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.email,))
         key_row = cur.fetchone()
         if key_row:
             api_key = key_row[0]
@@ -1913,7 +1810,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
         search_instruction = "=== SEARCH MEMORY FIRST ===\nBEFORE answering, check the memory below.\n\n"
         lens_text = ""
         try:
-            keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1", (req.user_id,)).fetchone()
+            keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.user_id,)).fetchone()
             if keyrow:
                 lens_req = urlreq.Request("http://127.0.0.1:8000/api/v7/memory", data=json.dumps({"user_id": req.user_id, "query_text": req.message, "top_k": 2}).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer "+keyrow[0]})
                 with urlreq.urlopen(lens_req, timeout=40) as lens_resp:
@@ -1934,7 +1831,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                     center = line.split("center ", 1)[1].strip()
                     break
             if center:
-                keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1", (req.user_id,)).fetchone()
+                keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.user_id,)).fetchone()
                 headers = {"Authorization": "Bearer "+keyrow[0]} if keyrow else {}
                 with urlreq.urlopen(urlreq.Request("http://127.0.0.1:8000/api/v7/event/"+center, headers=headers), timeout=20) as ev:
                     opened = ev.read().decode()[:1200]
@@ -1973,7 +1870,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                                 url, payload = "http://127.0.0.1:8000/api/execute/code", {"code": args.get("code", ""), "user_id": req.user_id}
                             headers = {"Content-Type": "application/json"}
                             if name != "sandbox":
-                                keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1", (req.user_id,)).fetchone()
+                                keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.user_id,)).fetchone()
                                 if keyrow:
                                     headers["Authorization"] = "Bearer " + keyrow[0]
                             call = urlreq.Request(url, data=None if payload is None else json.dumps(payload).encode(), headers=headers)
@@ -2027,7 +1924,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
             name, arg, val = m.group(1), m.group(2), m.group(3).strip()
             result = ""
             try:
-                keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1", (req.user_id,)).fetchone()
+                keyrow = _sq.connect("/data/skv/metadata_store/shared_master.db").execute("select api_key from user_api_keys where user_id=? and is_active=1 ORDER BY (expires_at IS NOT NULL), created_at DESC LIMIT 1", (req.user_id,)).fetchone()
                 headers = {"Content-Type": "application/json"}
                 if keyrow:
                     headers["Authorization"] = "Bearer " + keyrow[0]

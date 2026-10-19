@@ -31,7 +31,7 @@ def _lookup_user(key):
         conn = sqlite3.connect(KEYS_DB, timeout=5)
         try:
             row = conn.execute(
-                "SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1 LIMIT 1",
+                "SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > datetime('now')) LIMIT 1",
                 (key,),
             ).fetchone()
         finally:

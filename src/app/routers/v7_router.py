@@ -2205,20 +2205,29 @@ async def search_by_date(data: dict):
 
 
 @router.post("/agent/shell")
-async def agent_shell(data: dict):
-    """Execute shell command. Requires auth token."""
+async def agent_shell(data: dict, authorization: str = Header(None), x_api_key: str = Header(None)):
+    """Execute shell command. Owner account only (env SKV_SHELL_OWNERS, comma-separated user ids)."""
     cmd = data.get("cmd", "")
-    token = data.get("token", "")
-    
+    token = (data.get("token") or "").strip()
+    if not token and authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if not token and x_api_key:
+        token = x_api_key.strip()
+    if not token:
+        raise HTTPException(401, "Token required")
+
     # Verify token
     import sqlite3 as _sq
     conn = _sq.connect("/data/skv/metadata_store/shared_master.db", timeout=5)
     cur = conn.cursor()
     cur.execute("SELECT user_id FROM user_api_keys WHERE api_key = ? AND is_active = 1", (token,))
-    if not cur.fetchone():
-        conn.close()
-        raise HTTPException(401, "Invalid token")
+    row = cur.fetchone()
     conn.close()
+    if not row:
+        raise HTTPException(401, "Invalid token")
+    owners = {u.strip().lower() for u in os.environ.get("SKV_SHELL_OWNERS", "denizchavdarov@gmail.com").split(",") if u.strip()}
+    if str(row[0]).strip().lower() not in owners:
+        raise HTTPException(403, "Shell is restricted to the owner account")
     
     if not cmd:
         return {"error": "cmd required"}

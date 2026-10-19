@@ -4,7 +4,8 @@
 Guard 1 (server) only marks a missed step. Guard 2 does not let an answer out until the agent did its part:
   memory -> draft with service lines -> save turn -> Second Look -> rate new cubes -> clean answer to the user.
 Service lines the agent must write (hidden from the user):
-  L1: <5-7% gist of this turn>
+  L1: <stage summary, only when the guard asks: about every 15 turns; stages = done / decided / outcome; 5-8% of the raw text>
+  L2: <headlines, rare: after 10 stage L1s; about 5% of L1>
   CRITICAL: <lasting fact, or none>
   CUBE: <kind> | <topic> | <one-line English essence> | <rule that changes the answer>   (kind: moment fact culture lifehack warning code)
      or CUBE_NOTHING: <why nothing here changes the answer>
@@ -37,11 +38,12 @@ START_PACK = os.environ.get("SKV_G2_START", "on").lower() not in ("off", "0", "f
 INSTRUCTIONS = """SKV GUARD 2 (v3) - agent instructions (ship with this file; not part of the constitution).
 Run your local agent through this guard: SKV_KEY=sk_... LLM_KEY=... python3 skv-guardian2.py "<question>" [session_id]
 Every draft must end with hidden service lines, each on its own line:
-  L1: <5-7% gist of this turn>
+  L1: <stage summary, only when the guard asks: about every 15 turns; stages = done / decided / outcome; 5-8% of the raw text>
+  L2: <headlines, rare: after 10 stage L1s; about 5% of L1>
   CRITICAL: <lasting fact, or none>
   CUBE: <moment|fact|culture|lifehack|warning|code> | <topic> | <English essence> | <rule that changes the answer>
      or CUBE_NOTHING: <why nothing here changes the answer>
-  RATE: <cube_id> +1|-1|0 <reason> for each cube marked "new, rate this" (+1 helped, -1 wrong: reason goes to the judges, 0 not relevant here: closes the rating duty with vote_nothing)
+  RATE: <cube_id> +1|-1|0 <reason> for each cube marked "new, rate this" and for every cube you used (+1 helped, -1 wrong: reason goes to the judges, 0 not relevant here: closes the rating duty with vote_nothing)
   TASK_DONE   only when the task is finished
   PUBLISH     only to share the cube (English, no secrets); otherwise it stays private
   seal: SKV | #N | READ | VERIFY | CORRECT | OUTPUT
@@ -114,11 +116,11 @@ def _line(draft, tag):
     return None
 
 
-def parse(draft, new_ids):
+def parse(draft, new_ids, need_l1=True, need_l2=False, used_ids=()):
     """Service lines -> dict, plus what is missing."""
     out = {"l1": _line(draft, "L1"), "critical": _line(draft, "CRITICAL"), "cube": None, "nothing": _line(draft, "CUBE_NOTHING"),
            "rates": {}, "task_done": bool(re.search(r"^\s*\**\s*TASK_DONE\b", draft, re.I | re.M)),
-           "publish": bool(re.search(r"^\s*\**\s*PUBLISH\b", draft, re.I | re.M))}
+           "publish": bool(re.search(r"^\s*\**\s*PUBLISH\b", draft, re.I | re.M)), "l2": _line(draft, "L2")}
     c = _line(draft, "CUBE(?!_)")
     if c:
         parts = [p.strip() for p in c.split("|")]
@@ -127,13 +129,15 @@ def parse(draft, new_ids):
     for m in re.finditer(r"^[ \t]*\**[ \t]*RATE[ \t]*:?[ \t]*(\S+)[ \t]+([+-]1|0)\b[ \t]*(.*)$", draft, re.I | re.M):
         out["rates"][m.group(1)] = (int(m.group(2)), m.group(3).strip())
     missing = []
-    if not out["l1"]:
-        missing.append("L1: <gist>")
+    if need_l1 and not out["l1"]:
+        missing.append("L1: <stage summary of the last turns: what was done, what was decided, how it ended; 5-8% of their text>")
+    if need_l2 and not out["l2"]:
+        missing.append("L2: <headlines of the stages below, about 5% of their L1 text>")
     if out["critical"] is None:
         missing.append("CRITICAL: <fact or none>")
     if not out["cube"] and not out["nothing"]:
         missing.append("CUBE: kind | topic | essence | rule   or   CUBE_NOTHING: <reason>")
-    for cid in new_ids:
+    for cid in list(new_ids) + [u for u in used_ids if u not in new_ids]:
         r = out["rates"].get(cid)
         if not r or (r[0] != 1 and not r[1]):
             missing.append("RATE: %s +1|-1|0 <reason>" % cid)
@@ -276,6 +280,25 @@ FULL_STEPS = ("Work in three visible steps, each under its own header line (the 
               "FINAL:\n<the corrected answer; keep (ref: id) or [general]/[unverified]/[assumption] on every specific claim (numbers, dates, names, URLs); if memory does not have it, say you do not know>\n")
 
 
+L1_EVERY = int(os.environ.get("SKV_G2_L1_EVERY", "15"))   # stage L1 about every 15 turns
+L2_EVERY = int(os.environ.get("SKV_G2_L2_EVERY", "10"))   # headline L2 after this many stage L1s (rare)
+_turn = {}       # session_id -> user turns so far
+_since_l1 = {}   # session_id -> turns since last stage L1
+_l1_log = {}     # session_id -> stage L1 texts since the last L2
+
+
+def ratio_issue(summary, source, lo, hi, name):
+    """Length rule: L1 about 5-8% of raw turns, L2 about 5% of L1. Loose bounds (x0.4 .. x2) to avoid nagging."""
+    if not summary or not source or len(source) < 400:
+        return None
+    r = len(summary) / float(len(source))
+    if r > hi / 100.0 * 2:
+        return "%s is too long (%.0f%% of its source; aim %d-%d%%): keep stages / headlines only" % (name, r * 100, lo, hi)
+    if r < lo / 100.0 * 0.4:
+        return "%s is too short (%.1f%% of its source; aim %d-%d%%): name each stage" % (name, r * 100, lo, hi)
+    return None
+
+
 RECHECKS = int(os.environ.get("SKV_G2_RECHECKS", "2"))  # re-check rounds against the constitution before answering with a note
 NOTE_RU = "Примечание: этот ответ, возможно, не полностью прошёл проверки по конституции SKV. Отнеситесь к нему внимательно."
 NOTE_EN = "Note: this answer may not fully meet the SKV constitution checks. Please treat it with care."
@@ -301,6 +324,9 @@ def _safe_redirect(message):
 
 
 def ask(message, session_id="guardian2"):
+    _turn[session_id] = _turn.get(session_id, 0) + 1
+    need_l1 = _since_l1.get(session_id, 0) + 1 >= L1_EVERY
+    need_l2 = need_l1 and len(_l1_log.get(session_id, [])) + 1 >= L2_EVERY
     key_warn = bool(KEY_PASTE.search(message or ""))
     mem = _post("/api/v7/memory", {"query_text": message, "session_id": session_id, "interact": True, "last_seal": _last_seal.get(session_id, "")})
     if mem.get("error"):
@@ -328,17 +354,29 @@ def ask(message, session_id="guardian2"):
               "MEMORY HITS: " + json.dumps(hits[:5], ensure_ascii=False)[:2500] + "\n"
               "CUBES (DATA): " + json.dumps(cubes, ensure_ascii=False)[:1500] + "\n"
               "SERVER NOTES: " + json.dumps(service, ensure_ascii=False)[:800] + "\n"
-              + ("EARLIER IN THIS SESSION:\n" + "\n".join(_history.get(session_id, [])[-6:])[:2500] + "\n" if _history.get(session_id) else "")
+              + ("EARLIER IN THIS SESSION:\n" + "\n".join(_history.get(session_id, [])[-(2 * L1_EVERY if need_l1 else 6):])[:(9000 if need_l1 else 2500)] + "\n" if _history.get(session_id) else "")
               + "When the task is done and it taught a reusable rule, write a CUBE (not CUBE_NOTHING).\n"
               + (FULL_STEPS if PROTOCOL == "full" else "")
               + "After the answer add hidden service lines, each on its own line:\n"
-              "L1: <5-7% gist>\nCRITICAL: <lasting fact or none>\n"
+              + ("L1: <STAGE summary of the turns since the last L1 (shown below): chronological stages, each = what was done, what was decided, how it ended; 5-8% of their text>\n" if need_l1 else "")
+              + ("L2: <headlines only for these stages, about 5% of their L1 text>\nSTAGE L1s SINCE LAST L2:\n" + "\n".join(_l1_log.get(session_id, []))[:4000] + "\n" if need_l2 else "")
+              + "CRITICAL: <lasting fact or none>\n"
               "CUBE: <moment|fact|culture|lifehack|warning|code> | <topic> | <English essence> | <rule that changes the answer>  OR  CUBE_NOTHING: <why>\n"
               + "".join("RATE: %s +1|-1|0 <reason>   (+1 helped this answer, -1 wrong or harmful, 0 not relevant here)\n" % i for i in new_ids)
+              + "If you used any other cube from CUBES, add RATE: <cube_id> +1|-1 <reason> for it too (feedback on what you used).\n"
               + "TASK_DONE (only if the task is finished)\nThen the seal, exactly this line: SKV | #%s | READ | VERIFY | CORRECT | OUTPUT\n\nUser: " % (mem.get("step") if isinstance(mem.get("step"), int) else 1) + message)
     known_ids = {h.get("event_id") for h in hits if h.get("event_id")} | set(ID_RE.findall(sp or "")) | {c.get("cube_id") for c in cubes if c.get("cube_id")}
+    cube_ids = {c.get("cube_id") for c in cubes if c.get("cube_id")}
+    window_text = "\n".join(_history.get(session_id, [])[-2 * L1_EVERY:]) + "\nUser: " + message
+
     def evaluate(d):
-        inf, miss = parse(d, new_ids)
+        used = sorted(set(CUBE_ID_ANY.findall(d or "")) & cube_ids - set(new_ids))
+        inf, miss = parse(d, new_ids, need_l1, need_l2, used)
+        inf["used_cubes"] = used
+        for x in ((ratio_issue(inf["l1"], window_text, 5, 8, "L1") if need_l1 else None),
+                  (ratio_issue(inf.get("l2"), "\n".join(_l1_log.get(session_id, []) + [inf["l1"] or ""]), 3, 7, "L2") if need_l2 else None)):
+            if x:
+                miss.append(x)
         sc, pr, st = (protocol_issues(d, known_ids) if PROTOCOL == "full" else ({}, [], {}))
         return inf, miss, sc, pr, st
 
@@ -377,7 +415,7 @@ def ask(message, session_id="guardian2"):
     redo = rounds > 0
     check = {"protocol": PROTOCOL, "redo": redo, "rechecks": rounds, "first": {"issues": history_issues[0] if history_issues else None},
              "remaining": missing + proto, "stats": stats, "first_stats": stats0}
-    rem = {"query": message, "response": answer, "session_id": session_id, "l1_summary": info["l1"], "task_done": info["task_done"]}
+    rem = {"query": message, "response": answer, "session_id": session_id, "l1_summary": (info["l1"] if need_l1 else None), "task_done": info["task_done"]}
     if info["critical"] and info["critical"].lower() not in ("none", "нет", "-"):
         rem["critical"] = info["critical"]
     if info["cube"]:
@@ -391,7 +429,17 @@ def ask(message, session_id="guardian2"):
         rem.pop("cube_type", None); rem.pop("cube_evidence", None); rem.pop("cube_publish", None)
         rem.update({"duty": "cube_nothing", "duty_reason": "cube cap: session already created a cube in the last %d turns" % CUBE_CAP_WINDOW})
         info["cube"] = None
-    saved = _post("/api/v7/remember", rem)          # save BEFORE Second Look: it checks that the turn is saved
+    if need_l2 and info.get("l2"):
+        rem["l2_map"] = info["l2"]
+    saved = _post("/api/v7/remember", rem)
+    if need_l1 and info.get("l1"):
+        _since_l1[session_id] = 0
+        if need_l2 and info.get("l2"):
+            _l1_log[session_id] = []
+        else:
+            _l1_log.setdefault(session_id, []).append(info["l1"])
+    else:
+        _since_l1[session_id] = _since_l1.get(session_id, 0) + 1          # save BEFORE Second Look: it checks that the turn is saved
     # Check agent-claimed cube id vs what server actually saved
     server_cube = (saved.get("cube") or {}).get("cube_id") if isinstance(saved.get("cube"), dict) else saved.get("cube")
     claimed_in_draft = set(CUBE_ID_ANY.findall(draft or ""))
@@ -425,7 +473,7 @@ def ask(message, session_id="guardian2"):
     check["remaining"] = missing + proto
     votes = []
     for cid, (v, why) in info["rates"].items():
-        if cid in new_ids and v != 0:
+        if (cid in new_ids or cid in info.get("used_cubes", [])) and v != 0:
             votes.append(_post("/api/v7/experience/vote", {"cube_id": cid, "vote": v, "reason": why}).get("cube_status"))
     turn_idx = len(_history.get(session_id, [])) // 2
     if info.get("cube") or (isinstance(saved.get("cube"), dict) and saved["cube"].get("cube_id")) or (isinstance(saved.get("cube"), str) and saved.get("cube")):
@@ -445,6 +493,7 @@ def ask(message, session_id="guardian2"):
         check["fake_cube_ids"] = check_extra_fake
     if uncertain:
         answer = answer.rstrip() + "\n\n" + _note(message)
+    check["l1_due"], check["l2_due"] = need_l1, need_l2
     return {"status": "pass", "uncertain": uncertain, "protocol": check, "answer": answer, "event_id": event_id, "saved": saved.get("saved"), "cube": saved.get("cube"), "votes": votes, "key_warning": key_warn}
 
 

@@ -183,24 +183,8 @@ class EventWriteRequest(BaseModel):
 import threading
 import time as _time
 
-def background_vectorizer():
-    """Run lazy vectorization every 30 minutes."""
-    while True:
-        _time.sleep(1800)  # 30 minutes
-        try:
-            from app.chrono_buffer_v77_ultimate import ChronoBufferV77Ultimate
-            b = ChronoBufferV77Ultimate()
-            b.persistence.load()
-            count = b.process_pending_vectors()
-            if count > 0:
-                print(f"[INJECTOR] Created {count} vectors from pending texts", flush=True)
-        except Exception as e:
-            print(f"[INJECTOR] Error: {e}", flush=True)
+# Vectorization: instant per turn (semantic.add_event_now) + 60s catch-up batch in account_memory._ensure_batch_thread.
 
-# Start background thread
-#_thread = threading.Thread(target=background_vectorizer, daemon=True)
-#_thread.start()
-print("[INJECTOR] Background vectorizer started (every 30 min)", flush=True)
 
 def background_l1_l2():
     """LLM L1/L2 summaries every 15 min when memory_config bg_llm=true (see memory_v2_llm.py)."""

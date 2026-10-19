@@ -21,7 +21,7 @@ SKV_KEY = os.environ.get("SKV_KEY", "")
 LLM_URL = os.environ.get("LLM_URL", "https://api.polza.ai/v1/chat/completions")
 LLM_KEY = os.environ.get("LLM_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek/deepseek-chat")
-SERVICE = re.compile(r"^\s*\**\s*((L1|CRITICAL|CUBE|CUBE_NOTHING|RATE)\s*:|memory\s*:\s*not used|(TASK_DONE|PUBLISH)\s*\**\s*$|RATE\s+\S+\s+[+-]1)", re.I)
+SERVICE = re.compile(r"^\s*\**\s*((L1|CRITICAL|CUBE|CUBE_NOTHING|RATE)\s*:|memory\s*:\s*not used|(TASK_DONE|PUBLISH)\s*\**\s*$|RATE\s+\S+\s+([+-]1|0)\b)", re.I)
 SEAL = re.compile(r"SKV\s*\|\s*#\d+")
 _last_seal = {}
 _history = {}   # session_id -> last turns, so a follow-up ("works, done") knows the task
@@ -33,7 +33,7 @@ Every draft must end with hidden service lines, each on its own line:
   CRITICAL: <lasting fact, or none>
   CUBE: <moment|fact|culture|lifehack|warning|code> | <topic> | <English essence> | <rule that changes the answer>
      or CUBE_NOTHING: <why nothing here changes the answer>
-  RATE: <cube_id> +1|-1 <reason>   for each cube marked "new, rate this" (a -1 needs a reason, it goes to the judges)
+  RATE: <cube_id> +1|-1|0 <reason> for each cube marked "new, rate this" (+1 helped, -1 wrong: reason goes to the judges, 0 not relevant here: closes the rating duty with vote_nothing)
   TASK_DONE   only when the task is finished
   PUBLISH     only to share the cube (English, no secrets); otherwise it stays private
   seal: SKV | #N | READ | VERIFY | CORRECT | OUTPUT
@@ -85,7 +85,7 @@ def parse(draft, new_ids):
         parts = [p.strip() for p in c.split("|")]
         if len(parts) >= 4:
             out["cube"] = {"kind": parts[0].lower(), "topic": parts[1][:80], "essence": parts[2][:200], "rules": " | ".join(parts[3:])[:800]}
-    for m in re.finditer(r"^[ \t]*\**[ \t]*RATE[ \t]*:?[ \t]*(\S+)[ \t]+([+-]1)[ \t]*(.*)$", draft, re.I | re.M):
+    for m in re.finditer(r"^[ \t]*\**[ \t]*RATE[ \t]*:?[ \t]*(\S+)[ \t]+([+-]1|0)\b[ \t]*(.*)$", draft, re.I | re.M):
         out["rates"][m.group(1)] = (int(m.group(2)), m.group(3).strip())
     missing = []
     if not out["l1"]:
@@ -96,8 +96,8 @@ def parse(draft, new_ids):
         missing.append("CUBE: kind | topic | essence | rule   or   CUBE_NOTHING: <reason>")
     for cid in new_ids:
         r = out["rates"].get(cid)
-        if not r or (r[0] == -1 and not r[1]):
-            missing.append("RATE: %s +1|-1 <reason>" % cid)
+        if not r or (r[0] != 1 and not r[1]):
+            missing.append("RATE: %s +1|-1|0 <reason>" % cid)
     if not SEAL.search(draft):
         missing.append("seal line: SKV | #N | READ | VERIFY | CORRECT | OUTPUT")
     return out, missing
@@ -130,7 +130,7 @@ def ask(message, session_id="guardian2"):
               "After the answer add hidden service lines, each on its own line:\n"
               "L1: <5-7% gist>\nCRITICAL: <lasting fact or none>\n"
               "CUBE: <moment|fact|culture|lifehack|warning|code> | <topic> | <English essence> | <rule that changes the answer>  OR  CUBE_NOTHING: <why>\n"
-              + "".join("RATE: %s +1|-1 <reason>\n" % i for i in new_ids)
+              + "".join("RATE: %s +1|-1|0 <reason>   (+1 helped this answer, -1 wrong or harmful, 0 not relevant here)\n" % i for i in new_ids)
               + "TASK_DONE (only if the task is finished)\nThen the seal, exactly this line: SKV | #%s | READ | VERIFY | CORRECT | OUTPUT\n\nUser: " % (mem.get("step") if isinstance(mem.get("step"), int) else 1) + message)
     draft = _model(prompt)
     info, missing = parse(draft, new_ids)
@@ -156,9 +156,13 @@ def ask(message, session_id="guardian2"):
         return {"status": "held", "checks": look.get("checks"), "draft": draft, "saved": saved.get("saved")}
     votes = []
     for cid, (v, why) in info["rates"].items():
-        if cid in new_ids:
+        if cid in new_ids and v != 0:
             votes.append(_post("/api/v7/experience/vote", {"cube_id": cid, "vote": v, "reason": why}).get("cube_status"))
     _history.setdefault(session_id, []).extend(["User: " + message[:600], "Agent: " + answer[:900]])
+    zeros = ["%s: %s" % (cid, why) for cid, (v, why) in info["rates"].items() if cid in new_ids and v == 0]
+    if zeros:  # not relevant here: close the rating duty honestly instead of a fake +1 or a -1 that would go to court
+        _post("/api/v7/remember", {"session_id": session_id, "duty": "vote_nothing", "duty_reason": "not relevant: " + "; ".join(zeros)[:400]})
+        votes.append({"vote_nothing": len(zeros)})
     m = SEAL.search(draft)
     _last_seal[session_id] = m.group(0) if m else ""
     return {"status": "pass", "answer": answer, "event_id": event_id, "saved": saved.get("saved"), "cube": saved.get("cube"), "votes": votes}

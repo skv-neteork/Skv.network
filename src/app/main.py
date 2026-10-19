@@ -454,6 +454,8 @@ app.include_router(v7_router)
 app.include_router(v7_batch_router)
 from app.routers.vault_router import router as vault_router
 app.include_router(vault_router)
+from app.routers.sysperm_router import router as sysperm_router
+app.include_router(sysperm_router)
 app.include_router(tensor_router)
 app.include_router(exports_router)
 app.include_router(code_executor_router)

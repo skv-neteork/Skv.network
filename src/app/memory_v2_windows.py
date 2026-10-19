@@ -142,6 +142,7 @@ def _first_sentence(s, n=160):
 
 
 def _make_block(l1s, dates):
+    """Auto L2: short stage headlines (~5% of L1), matching agent L2 format."""
     topics = {}
     for _, t, _, _, _, _ in l1s:
         topics[t or "?"] = topics.get(t or "?", 0) + 1
@@ -149,17 +150,23 @@ def _make_block(l1s, dates):
     to = max(r[4] for r in l1s)
     d0, d1 = dates.get(fr, ""), dates.get(to, "")
     top = sorted(topics.items(), key=lambda x: -x[1])[:5]
-    hl = []
-    for r in sorted(l1s, key=lambda r: -len(r[2] or "")):
-        fs = _first_sentence(r[2])
-        if fs and fs not in hl:
-            hl.append(fs)
-        if len(hl) >= 5:
+    lines = []
+    for i, r in enumerate(sorted(l1s, key=lambda r: r[4] or 0), 1):
+        topic = (r[1] or "stage").replace("_", " ")
+        fs = (_first_sentence(r[2]) or "").replace(chr(10), " ").replace(chr(13), " ")
+        words = [w for w in fs.split() if w][:12]
+        head = " ".join(words).rstrip(".")
+        if not head:
+            head = topic
+        if head.lower() != topic.lower():
+            lines.append("%d %s: %s" % (i, topic, head))
+        else:
+            lines.append("%d %s" % (i, topic))
+        if len(lines) >= 12:
             break
-    text = f"{len(l1s)} summaries, rowid {fr}-{to}. Topics: " + ", ".join(f"{t} x{c}" for t, c in top) + ". " + " | ".join(hl)
+    text = chr(10).join(lines) if lines else "%d summaries, rowid %s-%s" % (len(l1s), fr, to)
     return {"from_rowid": fr, "to_rowid": to, "period_from": d0, "period_to": d1, "topics": [t for t, _ in top],
             "text": clip(text, L2_BLOCK_TOKENS)}
-
 
 def _group_blocks(l1s, dates):
     """Split L1 rows (sorted by to_rowid) into blocks: new block on week change or every L2_BLOCK_L1 rows."""

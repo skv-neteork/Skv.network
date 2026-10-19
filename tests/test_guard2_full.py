@@ -8,8 +8,9 @@ def t(name, c):
     global ok, n; n += 1; ok += bool(c); print(("PASS " if c else "FAIL ") + name)
 SL = "\nL1: x\nCRITICAL: none\nCUBE_NOTHING: small\nSKV | #1 | READ | VERIFY | CORRECT | OUTPUT"
 EID = "u@x.io::remember_1"
-def full(draft, final, claims="claims: none specific [general]", safety="safety: ok, ordinary request"):
-    return "DRAFT:\n" + draft + "\nSECOND LOOK:\n" + claims + "\n" + safety + "\nfix: tightened\nFINAL:\n" + final + SL
+def full(draft, final, claims=None, safety=""):
+    claims = claims or ("Rereading my draft: \"" + draft + "\" is too thin and unchecked; I add the missing detail and mark what is general.")
+    return "DRAFT:\n" + draft + "\nSECOND LOOK:\n" + claims + ("\n" + safety if safety else "") + "\nFINAL:\n" + final + SL
 def wire(g, outs, hits=None):
     calls = {"model": 0, "posts": [], "prompts": []}
     def m(p): calls["model"] += 1; calls["prompts"].append(p); return outs.pop(0) if len(outs) > 1 else outs[0]

@@ -223,6 +223,49 @@ asyncio.run(imd.import_from_text({"user_id": "imp_test@example.invalid", "text":
 check("a different chat never reuses an existing id", calls and calls[0][0] not in ids1); calls.clear()
 am2.queue_turn = _oq; imd.schedule_import_cycle = _osc
 check("remember accepts a Critical item without turn text", "elif req.critical:" in inspect.getsource(v.remember))
+
+# ---------- part 5 (large import: non-blocking, ordered and cached summary cycle) ----------
+import time as _t, threading as _th
+_slow = lambda uid, msgs, src: (_t.sleep(1.0), 3)[1]
+_osp = imd.save_pairs; imd.save_pairs = _slow; imd.schedule_import_cycle = lambda *a, **k: None
+async def _probe():
+    ticks = []
+    async def ticker():
+        for _ in range(8):
+            ticks.append(_t.time()); await asyncio.sleep(0.1)
+    await asyncio.gather(imd.import_from_text({"user_id": "u@x.invalid", "text": "User: q\nAssistant: a\n", "source": "profile"}), ticker())
+    return ticks
+_ticks = asyncio.run(_probe())
+check("import does not block the event loop (other requests keep running)", len(_ticks) == 8 and _ticks[-1] - _ticks[0] < 0.95)
+imd.save_pairs = _osp; imd.schedule_import_cycle = _osc
+_uid = "imp_cycle_test@example.invalid"; _db = "/data/skv/metadata_store/imp_cycle_testexampleinvalid.db"
+try:
+    con = sqlite3.connect(_db)
+    con.execute("CREATE TABLE event_metadata (event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, raw_dialogue TEXT, messages_count INTEGER, topics_json TEXT, links_json TEXT, status TEXT)")
+    for k in range(130):
+        con.execute("insert into event_metadata (event_id, raw_dialogue) values (?,?)", (f"{_uid}::profile_{hashlib.sha1(str(k).encode()).hexdigest()[:12]}", f"turn {k:03d}"))
+    con.commit(); con.close()
+    prompts = []
+    _op = imd._polza
+    imd._polza = lambda pr: (prompts.append(pr), '{"summary": "s%d", "critical": ["c"]}' % len(prompts))[1]
+    imd.run_import_cycle(_uid, "profile")
+    first = len(prompts)
+    check("summary windows follow import order, not hash order", "turn 000" in prompts[0] and "turn 059" in prompts[0] and "turn 060" in prompts[1])
+    imd.run_import_cycle(_uid, "profile")
+    check("unchanged windows are not re-summarized (%d then %d LLM calls)" % (first, len(prompts) - first), first == 4 and len(prompts) - first == 1)
+    con = sqlite3.connect(_db)
+    check("critical candidates not duplicated by re-runs", con.execute("select count(*) from critical_candidates where text='c'").fetchone()[0] == 1)
+    con.close()
+    runs = []
+    _orc = imd.run_import_cycle
+    imd.run_import_cycle = lambda u, s: (runs.append(1), _t.sleep(0.5))
+    for _ in range(5):
+        imd.schedule_import_cycle(_uid, "profile")
+    _t.sleep(1.6)
+    check("parallel imports coalesce into one running cycle + one re-run (%d runs)" % len(runs), len(runs) == 2 and not imd._cycle_state)
+    imd.run_import_cycle = _orc; imd._polza = _op
+finally:
+    if os.path.exists(_db): os.remove(_db)
 # 9. live constitution integrity vs backup
 bk = os.environ.get("BACKUP")
 hl, nl = const_hash(LIVE)

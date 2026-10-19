@@ -177,7 +177,9 @@ async def import_from_text(data: dict):
         messages = merged
         # embedding is CPU work (~0.3 s per turn): run it off the event loop so the API stays responsive for others
         import asyncio
-        saved = await asyncio.to_thread(save_pairs, user_id, messages, source)
+        from app import inflight as _inf
+        with _inf.track("import_save"):
+            saved = await asyncio.to_thread(save_pairs, user_id, messages, source)
         schedule_import_cycle(user_id, source)
         return {"status": "ok", "imported": saved, "cycle": "started"}
     return {"error": "No messages found in text"}
@@ -367,7 +369,7 @@ async def import_file(data: dict):
 
 import json, os, sqlite3, threading, urllib.request
 
-def _polza(prompt):
+def _polza(prompt, system="", max_tokens=500):
     key = os.environ.get("POLZA_KEY", "")
     if not key:
         for line in open("/root/skv-core/.env"):
@@ -375,7 +377,7 @@ def _polza(prompt):
                 key = line.split("=", 1)[1].strip()
     req = urllib.request.Request(
         "https://api.polza.ai/v1/chat/completions",
-        data=json.dumps({"model": "meta-llama/llama-3.1-8b-instruct", "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 500}).encode(),
+        data=json.dumps({"model": "meta-llama/llama-3.1-8b-instruct", "messages": ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": max_tokens}).encode(),
         headers={"Content-Type": "application/json", "Authorization": "Bearer " + key},
     )
     with urllib.request.urlopen(req, timeout=120) as resp:
@@ -385,42 +387,84 @@ def run_import_cycle(user_id, source):
     name = user_id.replace("@", "").replace(".", "")
     db = sqlite3.connect(f"/data/skv/metadata_store/{name}.db")
     db.execute("CREATE TABLE IF NOT EXISTS summary_l1 (session_id TEXT PRIMARY KEY, user_id TEXT, topic TEXT, summary_text TEXT, summary_json TEXT, message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-    rows = db.execute("select event_id, raw_dialogue from event_metadata where event_id like ? order by rowid", (f"%::{source}_%",)).fetchall()
-    window = []
+    rows = db.execute("select rowid, event_id, raw_dialogue from event_metadata where event_id like ? order by rowid", (f"%::{source}_%",)).fetchall()
+    window, rids = [], []
     summaries = []
     n = 0
-    for eid, text in rows:
+    for rid, eid, text in rows:
         window.append((text or "")[:1200])
+        rids.append(rid)
         if len(window) >= 60:
-            summaries.append(_one_l1(db, user_id, source, n, window))
-            window = []
+            summaries.append(_one_l1(db, user_id, source, n, window, rids[0], rids[-1]))
+            window, rids = [], []
             n += 1
     if window:
-        summaries.append(_one_l1(db, user_id, source, n, window))
-    if summaries:
-        _one_l2(db, user_id, summaries)
+        summaries.append(_one_l1(db, user_id, source, n, window, rids[0], rids[-1]))
+    if [x for x in summaries if x]:
+        _one_l2(db, user_id, summaries, source, rows[0][0], rows[-1][0])
     db.close()
 
-def _one_l1(db, user_id, source, n, parts):
+_L1_SYSTEM = ("Ты пишешь L1-выжимку куска чата для долгой памяти. Ответ только JSON-объект без текста до и после, "
+              "ключи: summary (строка, 3-6 предложений на языке диалога: решения, числа, имена, открытые задачи) и "
+              "critical (список коротких строк: даты, планы, точные формулировки). Не пароли и не ключи.")
+_L1_ECHO = ("3-6 предложений", "на языке диалога", "\"...\"")
+
+
+def _l1_parse(content):
+    """Llama often ignores 'JSON only' on long Russian windows or runs out of tokens mid-JSON.
+    Plain text is kept as the summary; a cut JSON keeps its summary string; a prompt echo is dropped."""
+    s = (content or "").strip()
+    a, b = s.find("{"), s.rfind("}")
+    d = None
+    if a >= 0 and b > a:
+        try:
+            d = json.loads(s[a:b + 1])
+        except Exception:
+            d = None
+    if not isinstance(d, dict):
+        m = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)', s)
+        if m:
+            try:
+                summ = json.loads('"' + m.group(1) + '"')
+            except Exception:
+                summ = m.group(1)
+            d = {"summary": summ, "critical": []}
+        elif a >= 0:
+            d = {"summary": "", "critical": []}
+        else:
+            d = {"summary": s, "critical": []}
+    summ = str(d.get("summary") or "")
+    if any(e in summ for e in _L1_ECHO):
+        d["summary"] = ""
+    return d
+
+
+def _one_l1(db, user_id, source, n, parts, from_rowid=None, to_rowid=None):
     import hashlib
     parts = [_scrub(user_id, p) for p in parts]   # defence in depth: nothing secret goes to the summarizer
     wsha = hashlib.sha1("\n---\n".join(parts).encode("utf-8", "replace")).hexdigest()
     try:
         old = db.execute("select summary_text, summary_json from summary_l1 where session_id=?", (f"{source}_auto_{n}",)).fetchone()
-        if old and old[0] and old[1] and json.loads(old[1]).get("window_sha") == wsha:
+        if (old and old[0] and old[1] and json.loads(old[1]).get("window_sha") == wsha
+                and not old[0].lstrip().startswith("{") and not any(e in old[0] for e in _L1_ECHO)):
+            if from_rowid is not None:   # keep the range exact even for cached windows
+                db.execute("update summary_l1 set from_rowid=?, to_rowid=? where session_id=?", (from_rowid, to_rowid, f"{source}_auto_{n}"))
+                db.commit()
             return old[0]   # same window already summarized: no new LLM call, no duplicate critical candidates
     except Exception:
         pass
-    prompt = "По сырому окну, не по выжимке. L1 5-7 процентов, 3-6 предложений. В critical положи даты, планы, схемы и точные формулировки, даже если они не вошли в summary. Не пароли. Только JSON {\"summary\":\"...\",\"critical\":[\"...\"]}.\n\n" + "\n---\n".join(parts)
+    prompt = "По сырому окну, не по выжимке. L1 5-7 процентов, 3-6 предложений. В critical положи даты, планы, схемы и точные формулировки, даже если они не вошли в summary. Не пароли. Только JSON {\"summary\":\"...\",\"critical\":[\"...\"]}.\n\n" + "\n---\n".join(parts) + "\n\n---\nОтвет: только JSON {\"summary\":\"...\",\"critical\":[\"...\"]}."
     try:
-        content = _polza(prompt)
-        data = json.loads(content[content.find("{"):content.rfind("}")+1])
-    except Exception:
+        data = _l1_parse(_polza(prompt, system=_L1_SYSTEM, max_tokens=900))
+    except Exception as exc:
+        print(f"[IMPORT] L1 window {source}_{n} failed: {exc}", flush=True)
         data = {"summary": "", "critical": []}
-    summary = (data.get("summary") or "")[:3000]
-    if summary:
-        db.execute("insert or replace into summary_l1 (session_id,user_id,topic,summary_text,summary_json,message_count) values (?,?,?,?,?,?)",
-                   (f"{source}_auto_{n}", user_id, source, summary, json.dumps({"window_sha": wsha}), len(parts)))
+    summary = _scrub(user_id, str(data.get("summary") or "").strip())[:3000]
+    if len(summary) >= 40:
+        db.execute("insert or replace into summary_l1 (session_id,user_id,topic,summary_text,summary_json,message_count,from_rowid,to_rowid) values (?,?,?,?,?,?,?,?)",
+                   (f"{source}_auto_{n}", user_id, source, summary, json.dumps({"window_sha": wsha, "source": "import"}), len(parts), from_rowid, to_rowid))
+    else:
+        summary = ""
     db.execute("CREATE TABLE IF NOT EXISTS critical_candidates (id INTEGER PRIMARY KEY, user_id TEXT, text TEXT, status TEXT, created_at TEXT)")
     marks = list(data.get("critical") or [])
     for part in parts:
@@ -437,20 +481,37 @@ def _one_l1(db, user_id, source, n, parts):
     db.commit()
     return summary
 
-def _one_l2(db, user_id, summaries):
+def _one_l2(db, user_id, summaries, source="import", from_rowid=None, to_rowid=None):
     summaries = [_scrub(user_id, x) for x in summaries]
     text = "\n".join(s[:300] for s in summaries if s)[:50000]
-    prompt = "Собери одну короткую L2 карту на русском: темы, планы, даты. Не пароли. Только JSON {\"map\":\"...\"}.\n\n" + text
+    system = ("Ты собираешь L2-карту импортированного чата для долгой памяти: 4-8 предложений на русском о главных темах, "
+              "решениях, планах и датах из выжимок ниже. Ответ только JSON-объект с одним ключом map (строка). Не пароли.")
     try:
-        content = _polza(prompt)
-        data = json.loads(content[content.find("{"):content.rfind("}")+1])
-        mp = data.get("map") or ""
+        content = _polza("Выжимки по порядку:\n\n" + text + "\n\nОтвет: только JSON с ключом map.", system=system, max_tokens=700)
+        s_ = content.strip()
+        try:
+            mp = json.loads(s_[s_.find("{"):s_.rfind("}") + 1]).get("map") or ""
+        except Exception:
+            m = re.search(r'"map"\s*:\s*"((?:[^"\\]|\\.)*)', s_)
+            mp = m.group(1) if m else ("" if "{" in s_ else s_)
     except Exception:
         mp = ""
+    mp = str(mp).strip()
+    if len(mp) < 80 or mp.lower().startswith(("темы, планы", "темы: ...")):   # prompt echo or empty: keep nothing
+        mp = ""
     if mp:
+        # an import map describes this import only: store it as an L2 block for its rowid range and never
+        # overwrite the account-wide summary_l2 (it feeds the memory map of every request)
+        try:
+            _t = lambda r: (db.execute("select time_str from event_metadata where rowid=?", (r,)).fetchone() or [None])[0]
+            db.execute("INSERT OR REPLACE INTO summary_l2_blocks (user_id, source, period_key, period_from, period_to, from_rowid, to_rowid, topics_json, text) VALUES (?,?,?,?,?,?,?,?,?)",
+                       (user_id, "import", f"import:{source}", _t(from_rowid), _t(to_rowid), from_rowid, to_rowid, "[]", _scrub(user_id, mp)[:4000]))
+        except sqlite3.OperationalError:
+            pass
         db.execute("CREATE TABLE IF NOT EXISTS summary_l2 (user_id TEXT PRIMARY KEY, map_json TEXT, themes_json TEXT, timeline_json TEXT, session_count INTEGER, last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-        db.execute("INSERT OR REPLACE INTO summary_l2 (user_id, map_json, themes_json, timeline_json, session_count) VALUES (?,?,?,?,?)",
-                   (user_id, mp[:4000], "[]", "[]", len(summaries)))
+        if not db.execute("SELECT 1 FROM summary_l2 LIMIT 1").fetchone():
+            db.execute("INSERT INTO summary_l2 (user_id, map_json, themes_json, timeline_json, session_count) VALUES (?,?,?,?,?)",
+                       (user_id, _scrub(user_id, mp)[:4000], "[]", "[]", len(summaries)))
         db.commit()
 
 _cycle_lock = threading.Lock()
@@ -468,7 +529,9 @@ def schedule_import_cycle(user_id, source):
         try:
             while True:
                 try:
-                    run_import_cycle(user_id, source)
+                    from app import inflight as _inf
+                    with _inf.track("import_cycle_run"):
+                        run_import_cycle(user_id, source)
                 except Exception as e:
                     print(f"[IMPORT] cycle error {user_id} {source}: {e}", flush=True)
                 with _cycle_lock:

@@ -428,6 +428,14 @@ async def add_server_time(request: Request, call_next):
 async def rate_limit_handler(request: Request, call_next):
     return await rate_limit_middleware(request, call_next)
 
+@app.get("/_ops/inflight", include_in_schema=False)
+async def _ops_inflight(request: Request):
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    from app import inflight as _inf
+    return _inf.snapshot()
+
 app.include_router(pages_router)
 app.include_router(entries_router)
 app.include_router(trials_router)

@@ -169,6 +169,25 @@ class MemoryRequest(BaseModel):
     kind: Optional[str] = None      # shelf filters; default: all shelves
     source: Optional[str] = None
     project: Optional[str] = None
+    # memory v2 (all optional; defaults keep the legacy response)
+    view: Optional[str] = None        # legacy | agent | debug
+    session_id: Optional[str] = None
+    start: bool = False               # force the first-request pack (map + windows)
+    probe: bool = False               # extra lookup: no step bump, no duty check
+    interact: bool = False            # view=agent: first call of a user turn (bumps step, checks duty)
+    format: Optional[str] = None      # view=agent: json | text | both
+    focus_event_id: Optional[str] = None
+    lens_offset: int = Field(0, ge=0, le=200)
+    radius: int = Field(2, ge=0, le=6)
+    budget_map: Optional[int] = None
+    budget_raw: Optional[int] = None
+    budget_l1: Optional[int] = None
+    budget_l2: Optional[int] = None
+    budget_critical: Optional[int] = None
+    budget_constitution: Optional[int] = None
+    budget_hits: Optional[int] = None
+    budget_lens: Optional[int] = None
+    budget_followup: Optional[int] = None
 
 class SearchResultItem(BaseModel):
     event_id: str
@@ -243,7 +262,17 @@ def background_l1_l2():
                     continue
                 
                 user_id = db_file.replace('.db', '').replace('gmailcom', '@gmail.com')
+                try:
+                    from app import memory_v2 as _mv2
+                    _llm_on = bool(_mv2.config().get("bg_llm", False))
+                except Exception:
+                    _llm_on = False
+                if not _llm_on:
+                    continue  # LLM L1/L2 generation is off (memory_config.json bg_llm); v2 maintenance runs separately
                 conn = _sq.connect(f'/data/skv/metadata_store/{db_file}')
+                if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='event_metadata'").fetchone():
+                    conn.close()
+                    continue
                 cur = conn.cursor()
                 
                 # Ensure tables exist
@@ -952,6 +981,11 @@ def build_memory_map(user_id: str, step: int = 0) -> str:
 
     full = step == 0
     parts: List[str] = []
+    try:
+        from app import memory_v2 as _mv2
+        _ord = "rowid" if _mv2.config().get("legacy_rowid_order", True) else "event_id"
+    except Exception:
+        _ord = "event_id"
 
     try:
         with sqlite3.connect(db_path, timeout=10) as conn:
@@ -960,7 +994,7 @@ def build_memory_map(user_id: str, step: int = 0) -> str:
             # ── 4. CRITICAL first (collect set so Raw can exclude these lines) ──
             cur.execute(
                 "SELECT time_str, raw_dialogue FROM event_metadata "
-                "WHERE raw_dialogue LIKE '%>>>%' ORDER BY event_id DESC LIMIT 30"
+                "WHERE raw_dialogue LIKE '%>>>%' ORDER BY " + _ord + " DESC LIMIT 30"
             )
             crit: List[str] = []
             crit_line_set: set = set()
@@ -980,7 +1014,7 @@ def build_memory_map(user_id: str, step: int = 0) -> str:
                        WHERE raw_dialogue IS NOT NULL
                          AND raw_dialogue NOT LIKE '%Выяснилось%'
                          AND raw_dialogue NOT LIKE '%Принято решение%'
-                       ORDER BY event_id DESC LIMIT 40"""
+                       ORDER BY """ + _ord + """ DESC LIMIT 40"""
                 )
                 raw: List[str] = []
                 seen_raw: set = set()
@@ -1153,16 +1187,24 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     if not req.user_id or not req.user_id.strip():
         raise HTTPException(status_code=422, detail="user_id cannot be empty")
     check_rate_limit(req.user_id)
-    try:
-        from app.account_memory import next_step
-        step = next_step(req.user_id)
-    except Exception:
-        step = req.step
+    from app import memory_v2 as _mv2
+    _view = ((req.view or _mv2.config().get("default_view", "legacy")) if _mv2.enabled() else "legacy").lower()
+    if _view not in ("legacy", "agent", "debug"):
+        _view = "legacy"
+    _no_bump = bool(req.probe) or (_view == "agent" and not req.interact)
+    if _no_bump:
+        step = _mv2.peek_step(req.user_id)
+    else:
+        try:
+            from app.account_memory import next_step
+            step = next_step(req.user_id)
+        except Exception:
+            step = req.step
     duty_error = ""
     try:
         import sqlite3 as _duty
         prev = step - 1
-        if prev > 0:
+        if prev > 0 and not _no_bump:
             conn = _duty.connect("/data/skv/metadata_store/shared_master.db")
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS agent_duty (id INTEGER PRIMARY KEY, user_id TEXT, step INTEGER, duty TEXT, reason TEXT, created_at TEXT)")
@@ -1374,7 +1416,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     except Exception:
         pass
     reminders += "Need more data → searchMemory or GET /api/v7/event/{id}\n"
-    if step > 1 and not getattr(req, "last_seal", ""):
+    if step > 1 and not getattr(req, "last_seal", "") and not _no_bump:
         reminders = "ERROR: previous response had no SKV seal. Second Look was not shown.\n" + reminders
     if duty_error:
         reminders = duty_error + "\n" + reminders
@@ -1743,7 +1785,28 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         conn.close()
     except Exception:
         pass
-    return {"prompt_text": prompt_text, "memory": memory_text, "fragments": fragments, "previous": previous, "agent_hint": agent_hint, "span": span, "lens": lens, "links": fragment_links, "shared_cubes": shared_cubes, "open_tasks": open_tasks, "due": due, "constitution": constitution_text, "reminders": reminders, "duty_error": duty_error, "has_cubes": has_cubes, "step": step, "memory_map": memory_map_text, "vector_top10": vector_top[:10], "fts_top10": fts_top[:10], "intersection": intersection[:10], "best_vector": best_vec, "best_fts": best_fts, "best_intersection": best_int}
+    _legacy = {"prompt_text": prompt_text, "memory": memory_text, "fragments": fragments, "previous": previous, "agent_hint": agent_hint, "span": span, "lens": lens, "links": fragment_links, "shared_cubes": shared_cubes, "open_tasks": open_tasks, "due": due, "constitution": constitution_text, "reminders": reminders, "duty_error": duty_error, "has_cubes": has_cubes, "step": step, "memory_map": memory_map_text, "vector_top10": vector_top[:10], "fts_top10": fts_top[:10], "intersection": intersection[:10], "best_vector": best_vec, "best_fts": best_fts, "best_intersection": best_int}
+    if _view != "agent":
+        return _mv2.mask_obj(_legacy)
+    _ctx = {"step": step, "duty_error": duty_error, "fts_top": fts_top, "vector_top": vector_top, "raw_results": raw_results,
+            "full_map": lambda: build_memory_map(req.user_id, step=0)}
+    try:
+        from app import memory_v2_windows as _mvw
+        _ctx["first_pack"] = lambda b: _mvw.first_pack(req.user_id, b)
+    except ImportError:
+        pass
+    try:
+        from app import memory_v2_lens as _mvl
+        if req.query_text or req.focus_event_id:
+            _ctx["lens"] = _mvl.lens(req.user_id, req.query_text or "", raw_results=raw_results,
+                                     budget=_mv2.resolve_budgets(req.user_id, {"lens": req.budget_lens})["lens"],
+                                     focus_event_id=req.focus_event_id, radius=req.radius, offset=req.lens_offset,
+                                     kind=req.kind, source=req.source, project=req.project)
+    except ImportError:
+        pass
+    except Exception as _e:
+        print(f"[memory_v2] lens failed: {_e}", flush=True)
+    return _mv2.agent_view(req, _legacy, _ctx)
 
 @router.post("/search", response_model=SearchResponse)
 async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
@@ -2145,14 +2208,56 @@ async def agent_batch_flush(req: BatchFlushRequest):
     return {"status": "batch_accepted", "logs_saved": len(req.batch_logs)}
 
 @router.get("/agent/memory")
-async def agent_get_memory(query: str, key: str = "", user_id: str = "", top_k: int = 5, authorization: str = Header(None)):
+async def agent_get_memory(query: str, key: str = "", user_id: str = "", top_k: int = 5, authorization: str = Header(None),
+                           view: str = "", session_id: str = "", start: bool = False, probe: bool = False,
+                           interact: bool = False, format: str = "", focus_event_id: str = ""):
     """Read fallback for weak agents. Key in the query, same result as POST."""
     if not user_id and key:
         user_id = _user_from_key(key)
     if not user_id:
         raise HTTPException(401, "key or user_id required")
-    body = MemoryRequest(user_id=user_id, query_text=query, top_k=max(1, min(top_k, 10)))
+    body = MemoryRequest(user_id=user_id, query_text=query, top_k=max(1, min(top_k, 10)), view=view or None,
+                         session_id=session_id or None, start=start, probe=probe, interact=interact,
+                         format=format or ("text" if view == "agent" else None), focus_event_id=focus_event_id or None)
     return await guardian_l1_memory(body, get_memory_buffer(), authorization)
+
+@router.get("/memory/start")
+async def memory_start(user_id: str = "", session_id: str = "", query: str = "", format: str = "text",
+                       interact: bool = False, authorization: str = Header(None)):
+    """First-request pack (memory map + raw/L1/L2 windows + compact constitution) for any agent that can GET."""
+    from app import memory_v2 as _mv2
+    if not _mv2.enabled():
+        raise HTTPException(404, "memory v2 disabled")
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    body = MemoryRequest(user_id=user_id, query_text=query or None, view="agent", session_id=session_id or None,
+                         start=True, interact=interact, format=format or "text")
+    return await guardian_l1_memory(body, get_memory_buffer(), authorization)
+
+
+class MemorySettingsRequest(BaseModel):
+    user_id: str = ""
+    budgets: Dict[str, int] = {}
+
+
+@router.get("/memory/settings")
+async def memory_settings_get(user_id: str = ""):
+    from app import memory_v2 as _mv2
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    cfg = _mv2.config()
+    return {"budgets": _mv2.resolve_budgets(user_id, {}), "user": _mv2.user_settings(user_id),
+            "defaults": cfg["budgets"], "caps": cfg["caps"]}
+
+
+@router.post("/memory/settings")
+async def memory_settings_set(req: MemorySettingsRequest):
+    """Per-user default budgets (tokens). The server cap still applies."""
+    from app import memory_v2 as _mv2
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    return {"status": "ok", "budgets": _mv2.save_user_budgets(req.user_id, req.budgets)}
+
 
 @router.post("/experience/vote")
 async def vote_experience(req: VoteRequest):
@@ -2246,14 +2351,15 @@ async def get_event_detail(event_id: str):
     if not row:
         raise HTTPException(404, "Event not found")
     
-    return {
+    from app import memory_v2 as _mv2
+    return _mv2.mask_obj({
         "event_id": row[0],
         "time": row[1],
         "essence": row[2],
         "full_text": row[3],
         "links": json.loads(row[4]) if row[4] and row[4].strip() else [],
         "messages_count": row[5]
-    }
+    })
 
 
 @router.post("/memory/search/date")
@@ -3376,7 +3482,8 @@ async def memory_dig(req: DigRequest):
         conn.close()
     except Exception as exc:
         return {"status": "empty", "reason": str(exc), "found": []}
-    return {"status": "ok" if found else "not_found", "query": req.query, "why": req.why, "found": found[:8], "note": "Server scan only. Do not invent a fact if found is empty."}
+    from app import memory_v2 as _mv2
+    return _mv2.mask_obj({"status": "ok" if found else "not_found", "query": req.query, "why": req.why, "found": found[:8], "note": "Server scan only. Do not invent a fact if found is empty."})
 
 
 @router.get("/agent/guardian.py")

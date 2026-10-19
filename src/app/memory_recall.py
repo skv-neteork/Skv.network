@@ -1,4 +1,4 @@
-"""SKV memory v3 recall: multi-query retrieval across episodes + dated facts with resolved relative dates.
+"""SKV memory v3/v4 recall: multi-query retrieval across episodes + dated facts with resolved relative dates.
 
 Flag: memory_config.json "recall_plus" (default true); per request recall="basic" switches it off.
 - Query decomposition (server side, no LLM): the question, its content words, and name+word pairs
@@ -6,6 +6,10 @@ Flag: memory_config.json "recall_plus" (default true); per request recall="basic
   names and rare terms boosted. Finds many separate episodes for "what/which/how many" questions.
 - view["facts"]: up to recall_max_facts short dated snippets (not already in hits), oldest first,
   within the "facts" budget, so the agent can aggregate and order events in time.
+- v4 (default; recall="v3" gives the previous behaviour): temporal index - absolute dates/months/years named in
+  the question ("on March 16, 2022", "in October 2023", "в марте 2023") select events of that period as an extra
+  ranked list and boost them; low-content turns ("Thanks!", "Glad it helped") are dropped from facts; more facts
+  within the same facts budget mechanics (recall_v4_max_facts).
 - Relative dates ("yesterday", "last Saturday", "two weeks ago", "next month") are resolved against the
   event date and appended as <dates: yesterday=2023-05-07>. Applied to hits and facts.
 """
@@ -32,6 +36,15 @@ def enabled(req=None):
     if req is not None and (getattr(req, "recall", None) or "").lower() == "basic":
         return False
     return bool(config().get("recall_plus", True))
+
+
+def version(req=None):
+    r = (getattr(req, "recall", None) or "").lower() if req is not None else ""
+    if r in ("v3", "plus3"):
+        return 3
+    if r in ("v4", "plus4"):
+        return 4
+    return int(config().get("recall_version", 4))
 
 
 # ---------------- relative dates ----------------
@@ -136,6 +149,147 @@ def annotate(text, date_str):
     return text + " <dates: " + "; ".join(f"{p}={v}" for p, v in r) + ">"
 
 
+
+# ---------------- temporal index (v4) ----------------
+_MON = {m.lower(): i + 1 for i, m in enumerate(MONTHS)}
+_MON.update({m[:3].lower(): i + 1 for i, m in enumerate(MONTHS)})
+_MON.update({"sept": 9})
+_RU_MON = {"январ": 1, "феврал": 2, "март": 3, "апрел": 4, "ма": 5, "июн": 6, "июл": 7, "август": 8, "сентябр": 9,
+           "октябр": 10, "ноябр": 11, "декабр": 12}
+_MONRX = r"(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)"
+_RUMONRX = r"(январ[ьяе]|феврал[ьяе]|март[ае]?|апрел[ьяе]|ма[йяе]|июн[ьяе]|июл[ьяе]|август[ае]?|сентябр[ьяе]|октябр[ьяе]|ноябр[ьяе]|декабр[ьяе])"
+
+
+def _ru_mon(w):
+    w = w.lower()
+    for k in sorted(_RU_MON, key=len, reverse=True):
+        if w.startswith(k):
+            return _RU_MON[k]
+    return None
+
+
+def _month_span(y, m):
+    a = datetime(y, m, 1)
+    return a, _add_months(a, 1) - timedelta(seconds=1)
+
+
+_RELNUM = r"(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|couple of|few|a couple of|a few)"
+_RU_NUM = {"один": 1, "одну": 1, "два": 2, "две": 2, "три": 3, "четыре": 4, "пять": 5, "шесть": 6, "семь": 7, "восемь": 8,
+           "девять": 9, "десять": 10, "пару": 2, "несколько": 3}
+
+
+def _now(now):
+    if isinstance(now, datetime):
+        return now
+    d = _parse_date(now) if now else None
+    return d or datetime.utcnow()
+
+
+def relative_periods(q, now=None):
+    """Relative periods in the question ("two weeks ago", "last month", "yesterday", "на прошлой неделе"),
+    resolved against now (request as_of, default server time)."""
+    t = (q or "").lower()
+    n = _now(now)
+    out = []
+    def around(days, pad):
+        c = n - timedelta(days=days)
+        out.append((c - timedelta(days=pad), c + timedelta(days=pad)))
+    if re.search(r"\b(the day before yesterday)\b|позавчера", t):
+        around(2, 1)
+    elif re.search(r"\byesterday\b|\bвчера", t):
+        around(1, 1)
+    for m in re.finditer(r"\b" + _RELNUM + r"\s+(day|days|week|weeks|month|months|year|years)\s+ago\b", t):
+        k, unit = _n(m.group(1)), m.group(2).rstrip("s")
+        days = {"day": 1, "week": 7, "month": 30, "year": 365}[unit] * k
+        around(days, max(2, days // 4))
+    for m in re.finditer(r"(\d+|[а-я]+)?\s*(дн[яей]|день|недел[юиь]|месяц[аев]*|год[а]?|лет)\s+назад", t):
+        w = m.group(1) or "один"
+        k = int(w) if w.isdigit() else _RU_NUM.get(w, 1)
+        u = m.group(2)
+        days = (1 if u.startswith(("дн", "ден")) else 7 if u.startswith("недел") else 30 if u.startswith("месяц") else 365) * k
+        around(days, max(2, days // 4))
+    if re.search(r"\b(last|past) week\b|прошл(ой|ую) неделе|прошлую неделю", t):
+        s0 = n - timedelta(days=n.weekday() + 7)
+        out.append((s0 - timedelta(days=1), s0 + timedelta(days=8)))
+    if re.search(r"\blast month\b|прошлом месяце", t):
+        a, b = _month_span(_add_months(n, -1).year, _add_months(n, -1).month)
+        out.append((a, b + timedelta(days=3)))
+    if re.search(r"\blast year\b|прошлом году", t):
+        out.append((datetime(n.year - 1, 1, 1), datetime(n.year - 1, 12, 31, 23, 59)))
+    for m in re.finditer(r"\b(last|past)\s+(" + "|".join(WD) + r")\b", t):
+        back = (n.weekday() - WD.index(m.group(2))) % 7 or 7
+        around(back, 1)
+    return out[:3]
+
+
+def query_periods(q, now=None):
+    """Absolute periods named in a question -> [(start, end)]. Day -> that day..+14d (people tell about it later),
+    month -> the month..+1 month, year -> the year. Empty when the question names no date."""
+    t = (q or "").lower()
+    out = []
+    def day(y, m, d):
+        try:
+            a = datetime(y, m, d)
+        except ValueError:
+            return
+        out.append((a - timedelta(days=1), a + timedelta(days=14)))
+    for m in re.finditer(r"\b(\d{4})-(\d{2})-(\d{2})\b", t):
+        day(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    for m in re.finditer(r"\b" + _MONRX + r"\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b", t):
+        day(int(m.group(3)), _MON[m.group(1)], int(m.group(2)))
+    for m in re.finditer(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?" + _MONRX + r"\.?,?\s+(\d{4})\b", t):
+        day(int(m.group(3)), _MON[m.group(2)], int(m.group(1)))
+    for m in re.finditer(r"\b(\d{1,2})\s+" + _RUMONRX + r"\s+(\d{4})", t):
+        mm = _ru_mon(m.group(2))
+        if mm:
+            day(int(m.group(3)), mm, int(m.group(1)))
+    if not out:
+        for m in re.finditer(r"\b" + _MONRX + r"\.?,?\s+(?:of\s+)?(\d{4})\b", t):
+            a, b = _month_span(int(m.group(2)), _MON[m.group(1)])
+            out.append((a, _add_months(a, 2)))
+        for m in re.finditer(_RUMONRX + r"\s+(\d{4})", t):
+            mm = _ru_mon(m.group(1))
+            if mm:
+                a, b = _month_span(int(m.group(2)), mm)
+                out.append((a, _add_months(a, 2)))
+    if not out:
+        for m in re.finditer(r"\b(?:in|during|of|since|в|году|год)\s+(19\d{2}|20\d{2})\b", t):
+            y = int(m.group(1))
+            out.append((datetime(y, 1, 1), datetime(y, 12, 31, 23, 59)))
+    if not out:
+        out = relative_periods(q, now)
+    return out[:3]
+
+
+def _in_periods(date_str, periods):
+    d = _parse_date(date_str)
+    return bool(d and any(a <= d <= b for a, b in periods))
+
+
+def _dated_rows(user_id, periods, limit=400):
+    """[(event_id, time_str)] of events whose event date falls in one of the periods."""
+    if not periods:
+        return []
+    conn = sqlite3.connect(f"file:{db_path(user_id)}?mode=ro", uri=True, timeout=10)
+    try:
+        rows = conn.execute("SELECT event_id, time_str FROM event_metadata ORDER BY rowid DESC LIMIT 20000").fetchall()
+    finally:
+        conn.close()
+    return [(e, ts) for e, ts in rows if _in_periods(ts, periods)][:limit]
+
+
+_LOW = re.compile(r"\w{3,}", re.UNICODE)
+
+
+def low_content(text, names=()):
+    """True for turns with almost no information ("Thanks, Mel!", "Glad it helped ya!")."""
+    from app.memory_v2_lens import STOP
+    nl = {n.lower() for n in names}
+    body = re.sub(r"(?m)^\s*[QA]:\s*[^:\n]{1,40}:\s*", " ", text or "")
+    words = [w for w in _LOW.findall(body.lower()) if w not in STOP and w not in nl]
+    return len(words) < int(config().get("recall_min_content_words", 5))
+
+
 # ---------------- multi-query recall ----------------
 def names_in(q):
     return [n for n in dict.fromkeys(_NAME.findall(q or "")) if n not in QWORDS]
@@ -156,7 +310,7 @@ def subqueries(q, bodies, max_q=6):
     return list(dict.fromkeys(s for s in qs if s))[:max_q], names, content
 
 
-def candidates(user_id, q, k=30):
+def candidates(user_id, q, k=30, ver=3, now=None):
     from app import semantic as sem
     from app.memory_v2_lens import _scan, _norm
     bodies = _scan(user_id)
@@ -173,10 +327,26 @@ def candidates(user_id, q, k=30):
         print(f"[recall] vector skipped: {e}", flush=True)
     for s in qs:
         lists.append([e for e, _ in sem.fts_ranked(user_id, s, limit=k)])
+    periods = query_periods(q, now) if ver >= 4 else []
+    in_period = set()
+    if periods:
+        dated = _dated_rows(user_id, periods)
+        in_period = {e for e, _ in dated}
+        if in_period:
+            terms = [t["norm"] for t in content] + [_norm(n) for n in names]
+            bmap = {e: b for _, e, b in bodies if e in in_period}
+            scored = sorted(in_period, key=lambda e: -sum(1 for w in terms if w and w in bmap.get(e, "")))
+            lists.append(scored[:k])
+            lists.append(scored[:k])   # double weight: the question names this period
     fused = {}
     for lst in lists:
         for rank, eid in enumerate(lst):
             fused[eid] = fused.get(eid, 0.0) + 1.0 / (60 + rank + 1)
+    if in_period:
+        boost = float(config().get("recall_date_boost", 1.5))
+        for eid in list(fused):
+            if eid in in_period:
+                fused[eid] *= boost
     if names or content:
         total = max(1, len(bodies))
         nn = [_norm(n) for n in names]
@@ -219,12 +389,17 @@ def _best_snippet(text, words, cap_tokens, names=()):
     return clip(" ".join(parts[i] for i in sorted(keep)), cap_tokens)
 
 
-def facts(user_id, q, budget, skip_ids=(), max_facts=None):
+def facts(user_id, q, budget, skip_ids=(), max_facts=None, v=3, now=None):
     cfg = config()
-    max_facts = max_facts or int(cfg.get("recall_max_facts", 20))
+    if v >= 4:
+        max_facts = max_facts or int(cfg.get("recall_v4_max_facts", 30))
+        k = int(cfg.get("recall_v4_k", 40))
+    else:
+        max_facts = max_facts or int(cfg.get("recall_max_facts", 20))
+        k = 30
     cap = int(cfg.get("recall_snippet_tokens", 110))
-    ranked, qs, names, content = candidates(user_id, q)
-    ids = [e for e in ranked if e not in set(skip_ids)][:max_facts * 2]
+    ranked, qs, names, content = candidates(user_id, q, k=k, ver=v, now=now)
+    ids = [e for e in ranked if e not in set(skip_ids)][:max_facts * (3 if v >= 4 else 2)]
     if not ids:
         return None
     conn = sqlite3.connect(f"file:{db_path(user_id)}?mode=ro", uri=True, timeout=10)
@@ -240,7 +415,11 @@ def facts(user_id, q, budget, skip_ids=(), max_facts=None):
         if not r:
             continue
         date = norm_date(r[2])
+        if v >= 4 and low_content(r[3], names):
+            continue
         sn = annotate(_best_snippet(r[3], words, cap, names), date)
+        if v >= 4:
+            sn = re.sub(r"\nA:\s*$", "", sn)
         tk = est_tokens(sn) + 14
         if used + tk > budget or len(items) >= max_facts:
             break
@@ -249,11 +428,15 @@ def facts(user_id, q, budget, skip_ids=(), max_facts=None):
     items.sort(key=lambda x: (x["date"], x["rowid"]))
     for it in items:
         it.pop("rowid", None)
+    if v >= 4:
+        return {"note": "More episodes for this question (not in hits), oldest first, so a later item is newer: "
+                        "if a fact changed, the latest date wins. Aggregate across them; use the dates.",
+                "subqueries": qs, "items": items}
     return {"note": "More episodes for this question (not in hits), oldest first. Aggregate across them; use the dates.",
             "subqueries": qs, "items": items}
 
 
-def augment(view, user_id, q, budget):
+def augment(view, user_id, q, budget, v=3, now=None):
     """Annotate hits with resolved dates and add view['facts']. Never raises."""
     t0 = time.time()
     for h in view.get("hits") or []:
@@ -265,7 +448,7 @@ def augment(view, user_id, q, budget):
             ce["text"] = annotate(ce["text"], ce.get("date", ""))
     if budget and budget > 0:
         skip = [h.get("event_id") for h in view.get("hits") or []]
-        f = facts(user_id, q, budget, skip_ids=skip)
+        f = facts(user_id, q, budget, skip_ids=skip, v=v, now=now)
         if f and f["items"]:
             view["facts"] = f
     return view

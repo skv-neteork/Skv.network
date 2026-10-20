@@ -706,10 +706,47 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
             _res["board"] = _bt
     except Exception as _e:
         print(f"[board] recall skipped: {_e}", flush=True)
+    try:   # on this day in past years: once per calendar day per account
+        from app import on_this_day as _otd
+        _ot = _otd.for_recall(req.user_id, _mv2.config(), getattr(req, "as_of", None))
+        if _ot and isinstance(_res, dict):
+            _res["on_this_day"] = _ot
+    except Exception as _e:
+        print(f"[otd] recall skipped: {_e}", flush=True)
+    try:   # delayed recall results ('remembered'), after recall_later_delay recalls
+        from app import recall_later as _rl
+        _rt = _rl.for_recall(req.user_id, _mv2.config())
+        if _rt and isinstance(_res, dict):
+            _res["remembered"] = _rt
+    except Exception as _e:
+        print(f"[recall_later] recall skipped: {_e}", flush=True)
+    try:   # recall polish: rerank, clean service text, dedupe, ~3000-token pack, board/calendar when relevant
+        from app import recall_polish as _rp
+        _res = _rp.polish(req.user_id, req.query_text or "", _res, _mv2.config())
+    except Exception as _e:
+        print(f"[polish] skipped: {_e}", flush=True)
     return _res
 
 @router.post("/search", response_model=SearchResponse)
-async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer)):
+async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            import sqlite3 as _sq
+            _conn = _sq.connect(SHARED_DB)
+            _row = _conn.execute(_ak.SQL_USER, _ak.args(authorization[7:])).fetchone()
+            _conn.close()
+            if _row:
+                req.user_id = _row[0]
+        except Exception:
+            pass
+    if not req.user_id:
+        raise HTTPException(status_code=422, detail="user_id or API key required")
+    if not req.query_vector or len(req.query_vector) != 768:
+        # no/invalid vector used to crash the worker inside HNSW (502); text goes through semantic+FTS
+        if not (req.query_text or "").strip():
+            raise HTTPException(status_code=422, detail="query_text or a 768-d query_vector is required")
+        from app import search_text as _st
+        return {"results": _st.text_search(req.user_id, req.query_text, req.top_k)}
     q_vec = np.array(req.query_vector, dtype=np.float32)
     try:
         # v7.8: pass layer_weights for dynamic masks
@@ -1670,3 +1707,41 @@ async def board_get(user_id: str = "", history: int = 0):
     if history:
         out["history"] = _board.history(user_id, min(history, 200))
     return out
+
+
+class RecallLaterRequest(BaseModel):
+    user_id: str = ""
+    query: str = ""
+
+
+@router.post("/memory/recall_later")
+async def recall_later_submit(req: RecallLaterRequest):
+    """Delayed recall: background deep search (cheap LLM expansion + selection); result arrives as 'remembered' in a later /memory."""
+    from app import recall_later as _rl
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    try:
+        return {"status": "queued", "job_id": _rl.submit(req.user_id, req.query)}
+    except OverflowError as e:
+        raise HTTPException(429, str(e))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.get("/memory/recall_later")
+async def recall_later_list(user_id: str = "", limit: int = 20):
+    from app import recall_later as _rl
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return {"jobs": _rl.jobs(user_id, min(limit, 100))}
+
+
+@router.get("/memory/on_this_day")
+async def on_this_day_get(user_id: str = "", date: str = ""):
+    from app import on_this_day as _otd
+    from app import memory_v2 as _m
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    cfg = _m.config(); t = _otd.today_for(cfg, date or None, user_id)
+    rows = _otd.collect(user_id, t, int(cfg.get("otd_window_days", 1)))
+    return {"date": t.isoformat(), "items": rows, "text": _otd.render(t, rows, int(cfg.get("otd_tokens", 300) or 300))}

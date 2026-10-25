@@ -701,8 +701,7 @@ async def get_entry(cube_id: str):
         "energy": cube.energy
     }
 
-@router.get("/api/cubes/search")
-async def search_cubes(query: str = "", response: Response = None):
+async def _search_cubes_impl(query: str = "", response: Response = None):
     cache_key = f"search:{hashlib.md5(query.encode()).hexdigest()[:12]}"
     if cache:
         cached = cache.get(cache_key)
@@ -715,9 +714,31 @@ async def search_cubes(query: str = "", response: Response = None):
         import sqlite3
         try:
             conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
-            like = "%" + query + "%"
-            for cid, essence, rules in conn.execute("select cube_id, essence, rules_markdown from cubes_new where essence like ? or rules_markdown like ? or cube_id like ? limit 20", (like, like, like)):
-                results.append({"id": cid, "cube_id": cid, "title": essence, "content": (rules or "")[:400]})
+            import re as _re
+            _stop = {"the","a","an","and","or","for","to","of","in","on","with","how","what","is","my","me"}
+            toks = [t for t in _re.findall(r"\w+", query.lower()) if len(t) > 2 and t not in _stop][:8]
+            stems = list({(t[:-3] if t.endswith("ing") and len(t) > 5 else t[:-1] if t.endswith("s") and len(t) > 4 else t) for t in toks}) or [query.lower()]
+            _f = "lower(coalesce(essence,'')||' '||coalesce(subject_action_object,'')||' '||coalesce(rules_markdown,'')||' '||coalesce(skill_md,'')||' '||cube_id)"
+            where = " or ".join([_f + " like ?"] * len(stems))
+            scored = []
+            for cid, essence, rules, topic, kind, carrier, blob in conn.execute(
+                    "select cube_id, essence, rules_markdown, subject_action_object, kind, carrier, " + _f + " from cubes_new where coalesce(status,'') not in ('archived','rejected','deleted','superseded','pending_version') and (" + where + ") limit 300",
+                    ["%" + t + "%" for t in stems]):
+                head = ((topic or "") + " " + (essence or "")).lower()
+                sc = sum(2 if t in head else 1 for t in stems if t in blob)
+                scored.append((sc, cid, essence, rules, topic, kind, carrier))
+            scored.sort(key=lambda x: -x[0])
+            for sc, cid, essence, rules, topic, kind, carrier in scored[:20]:
+                results.append({"id": cid, "cube_id": cid, "title": essence, "topic": topic, "kind": kind, "carrier": carrier, "score": sc, "content": (rules or "")[:400]})
+            try:
+                import json as _jj
+                for _r in results:
+                    _lr = conn.execute("select links_json from cubes_new where cube_id=?", (_r["cube_id"],)).fetchone()
+                    _pv = (_jj.loads(_lr[0] or "{}") if _lr and (_lr[0] or "").startswith("{") else {}).get("proposed_versions") or []
+                    if _pv:
+                        _r["proposed_newer_version"] = _pv[-1]
+            except Exception:
+                pass
             conn.close()
         except Exception:
             pass
@@ -841,3 +862,15 @@ async def save_sdk_session(request: Request):
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     return {"status": "ok", "session_id": session_id, "skv_entry_id": entry_id}
+
+
+@router.get("/api/cubes/search")
+async def search_cubes(query: str = "", response: Response = None):
+    res = await _search_cubes_impl(query, response)
+    try:
+        from app import cube_suggest as _cs
+        if isinstance(res, dict):
+            res = dict(res); res["suggested_cubes"] = _cs.suggest(query, "", "")
+    except Exception:
+        pass
+    return res

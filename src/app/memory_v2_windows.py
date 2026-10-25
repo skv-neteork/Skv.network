@@ -62,6 +62,13 @@ def snapshot_legacy_l2(conn, user_id=""):
         if not mj:
             continue
         key = hashlib.sha1(mj.encode("utf-8", "replace")).hexdigest()[:16]
+        if conn.execute("SELECT 1 FROM summary_l2_blocks WHERE text=? AND source!='legacy_summary_l2'", (mj,)).fetchone():
+            continue   # already an agent/auto block: no legacy duplicate
+        try:
+            if conn.execute("SELECT 1 FROM summary_l2_blocks_quarantine WHERE period_key=? AND source='legacy_summary_l2'", (key,)).fetchone():
+                continue
+        except sqlite3.OperationalError:
+            pass
         cur = conn.execute("INSERT OR IGNORE INTO summary_l2_blocks (user_id, source, period_key, period_from, period_to, text, topics_json) VALUES (?,?,?,?,?,?,?)",
                            (uid or user_id, "legacy_summary_l2", key, upd, upd, mj, "[]"))
         n += cur.rowcount
@@ -203,6 +210,10 @@ def rebuild_auto_blocks(conn, user_id=""):
                         to_rowid=excluded.to_rowid, topics_json=excluded.topics_json, text=excluded.text""",
                      (user_id, "auto", key, b["period_from"], b["period_to"], b["from_rowid"], b["to_rowid"], json.dumps(b["topics"], ensure_ascii=False), b["text"]))
         n += 1
+    try:
+        from app import source_links as _sl; _sl.link_all(conn)
+    except Exception as _e:
+        print(f"[source_links] {_e}", flush=True)
     return n
 
 
@@ -485,7 +496,7 @@ def _gap_entry(conn, fr, to):
 
 def l2_window(conn, user_id, b2, budget):
     out, used, cursor = [], 0, b2
-    stored = conn.execute("SELECT source, period_from, period_to, from_rowid, to_rowid, text FROM summary_l2_blocks WHERE to_rowid IS NOT NULL AND to_rowid < ? AND source != 'legacy_summary_l2' ORDER BY to_rowid DESC, CASE source WHEN 'agent' THEN 0 WHEN 'llm' THEN 1 ELSE 2 END", (b2,)).fetchall()
+    stored = conn.execute("SELECT source, period_from, period_to, from_rowid, to_rowid, text FROM summary_l2_blocks WHERE to_rowid IS NOT NULL AND to_rowid < ? AND source != 'legacy_summary_l2' ORDER BY to_rowid DESC, CASE source WHEN 'agent' THEN 0 WHEN 'llm' THEN 1 WHEN 'server_fallback' THEN 1 ELSE 2 END", (b2,)).fetchall()
     for src, pf, pt, fr, to, text in stored:
         fr = fr or to
         if to >= cursor:
@@ -543,7 +554,8 @@ def first_pack(user_id, budgets):
         return {"windows": {"raw": [], "l1": [], "l2": [], "bounds": {}, "tokens": {"raw": 0, "l1": 0, "l2": 0}}, "critical": [], "_window_ids": []}
     conn = sqlite3.connect(f"file:{db_path(user_id)}?mode=ro", uri=True, timeout=10)
     try:
-        if not _has_events(conn) or not conn.execute("SELECT 1 FROM sqlite_master WHERE name='summary_l1'").fetchone():
+        if (not _has_events(conn) or not conn.execute("SELECT 1 FROM sqlite_master WHERE name='summary_l1'").fetchone()
+                or "to_rowid" not in {r[1] for r in conn.execute("PRAGMA table_info(summary_l1)")}):   # base schema only, not migrated yet
             # brand-new account: nothing to window yet (tables appear on the first /remember)
             return {"windows": {"raw": [], "l1": [], "l2": [], "bounds": {}, "tokens": {"raw": 0, "l1": 0, "l2": 0}}, "critical": [], "_window_ids": []}
         mm = build_map(conn, user_id, budgets["map"]) if budgets["map"] > 0 else None

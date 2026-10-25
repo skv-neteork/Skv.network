@@ -45,9 +45,8 @@ class SessionTracker:
 
         step = session["message_count"]
         base_protocol = (
-            "MANDATORY: Execute CUBE 00 verification chain "
-            "(DRAFT->VERIFY->CORRECT->OUTPUT). "
-            "Every response must be signed with active SEAL."
+            "PROTOCOL: bootstrap→consult→draft→turn (POST /api/v7/agent/turn: save + server seal)→cube/vote. "
+            "Missed-step reminders only in /api/v7/memory (Guard 1). Seal every response with the seal turn returns, never your own."
         )
         suggested_action = None
         reminder_prompt = None

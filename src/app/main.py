@@ -1,6 +1,11 @@
+import json
 import os
 import signal
 import sys
+try:
+    from app import qdrant_guard as _qg; _qg.install()
+except Exception as _e:
+    print(f"[qdrant_guard] skipped: {_e}", flush=True)
 
 def graceful_shutdown(signum, frame):
     try:
@@ -31,6 +36,7 @@ from app.routers.guardian_middleware import guardian_router
 from app.routers.trials_v4 import router as trials_v4_router
 from app.routers.v4_auth_middleware import AuthMiddleware
 from app.routers.consult import router as consult_router
+from app.routers.consult_pool import router as consult_pool_router
 from app.routers.import_dialogs import router as import_router
 from app.routers.v7_router import router as v7_router
 from app.routers.v7_batch import router as v7_batch_router   # memory v3: POST /api/v7/remember/batch
@@ -77,6 +83,9 @@ async def homepage_v8():
         a:hover { text-decoration: underline; }
         footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #333; color: #666; text-align: center; }
     </style>
+<link rel="icon" href="/favicon.ico?v=2" sizes="any">
+<link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
 </head>
 <body>
     <div class="container">
@@ -313,6 +322,15 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 # Single app instance — register homepage on the lifespan-backed app
 app.add_api_route("/", homepage_v8, methods=["GET"], response_class=HTMLResponse, include_in_schema=False)
+
+# Favicons (static files in app/icons)
+from fastapi.responses import FileResponse as _IconFile
+def _icon_route(_name, _mt):
+    async def _h():
+        return _IconFile(os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", _name), media_type=_mt, headers={"Cache-Control": "public, max-age=604800"})
+    return _h
+for _n, _mt in [("favicon.ico", "image/x-icon"), ("favicon.svg", "image/svg+xml"), ("apple-touch-icon.png", "image/png"), ("favicon-32.png", "image/png"), ("logo-512.png", "image/png")]:
+    app.add_api_route("/" + _n, _icon_route(_n, _mt), methods=["GET", "HEAD"], include_in_schema=False)
 app.add_middleware(AuthMiddleware)
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
@@ -360,7 +378,8 @@ async def rate_limit_middleware(request, call_next):
     _rate_limits[client_ip] = [t for t in _rate_limits[client_ip] if now - t < 60]
     
     # Rate limit: 300 requests per minute per IP
-    if len(_rate_limits[client_ip]) >= 300:
+    # MCP host sends X-Real-IP=mcp-<key hash>: one bucket per account; an MCP turn fans out to ~10 API calls
+    if len(_rate_limits[client_ip]) >= (1200 if client_ip.startswith("mcp-") else 300):
         return JSONResponse({"detail": "Rate limit exceeded. Max 300 requests/minute."}, status_code=429)
     
     _rate_limits[client_ip].append(now)
@@ -399,6 +418,85 @@ async def rate_limit_middleware(request, call_next):
     response.headers["X-RateLimit-Remaining"] = str(300 - len(_rate_limits[client_ip]))
     return response
 
+
+# 2026-10-24: memory lines — each agent key reads only its own line by default (see app/memory_lines.py)
+@app.middleware("http")
+async def memory_lines_mw(request: Request, call_next):
+    path = request.url.path.rstrip("/") or "/"
+    from app import memory_lines as _ml
+    from starlette.responses import Response
+    import json
+    if not _ml.is_read(path) and path not in _ml.WRITE_PATHS:
+        return await call_next(request)
+    auth = request.headers.get("authorization") or ""
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else (request.headers.get("x-api-key") or "").strip()
+    try:
+        ki = _ml.key_info(token)
+    except Exception as e:
+        print(f"[lines] key_info error: {e}", flush=True); ki = None
+    if not ki:
+        return await call_next(request)
+    body = await request.body()
+    all_lines = _ml.wants_all(request.query_params, body)
+    import time as _t
+    _since = _t.strftime("%Y-%m-%d %H:%M:%S", _t.gmtime(_t.time() - 2))
+    _tok = None
+    if _ml.is_read(path) and not all_lines:
+        try:
+            _tok = _ml.LINE_CTX.set(_ml.make_ctx(ki))
+        except Exception as e:
+            print(f"[lines] ctx error: {e}", flush=True)
+    try:
+        response = await call_next(request)
+    finally:
+        if _tok is not None:
+            _ml.LINE_CTX.reset(_tok)
+    if path in _ml.WRITE_PATHS and response.status_code == 200:
+        _ml.tag_summaries(ki["user_id"], ki["chain_id"], _since)
+    if response.status_code != 200:
+        return response
+    if _ml.is_read(path) and all_lines:
+        if "json" not in response.headers.get("content-type", ""):
+            return response
+        raw = b""
+        async for chunk in response.body_iterator:
+            raw += chunk if isinstance(chunk, bytes) else chunk.encode()
+        hdrs = {k: v for k, v in response.headers.items() if k.lower() not in ("content-length",)}
+        try:
+            d = _ml.label_all(ki, json.loads(raw))
+            if isinstance(d, dict):
+                d["memory_line"] = {"chain_id": ki["chain_id"], "scope": "all", "note": "each hit has source_line"}
+            raw = json.dumps(d, ensure_ascii=False).encode()
+        except Exception as e:
+            print(f"[lines] label error: {e}", flush=True)
+        return Response(content=raw, status_code=response.status_code, headers=hdrs, media_type=response.media_type)
+    raw = b""
+    async for chunk in response.body_iterator:
+        raw += chunk if isinstance(chunk, bytes) else chunk.encode()
+    hdrs = {k: v for k, v in response.headers.items() if k.lower() not in ("content-length",)}
+    try:
+        if path in _ml.WRITE_PATHS:
+            d = json.loads(raw)
+            _ml.tag(ki["user_id"], ki["chain_id"], d.get("saved") or [])
+            new = raw
+        else:
+            ids, snips = _ml.foreign(ki)
+            if path.startswith("/api/v7/event/") and path.rsplit("/",1)[-1] in ids:
+                return Response(content=b'{"ok":false,"error":"event not in this key\'s memory line (use lines=all)"}', status_code=404, media_type="application/json")
+            ctype = response.headers.get("content-type", "")
+            if not ids:
+                new = raw
+            elif "json" in ctype:
+                d = _ml.scrub(json.loads(raw), ids, snips)
+                if isinstance(d, dict):
+                    d["memory_line"] = {"chain_id": ki["chain_id"], "scope": "own", "other_lines": "pass lines=all to search other lines of this account"}
+                new = json.dumps(d, ensure_ascii=False).encode()
+            else:
+                new = _ml.scrub_text(raw.decode("utf-8", "replace"), snips).encode()
+    except Exception as e:
+        print(f"[lines] filter error: {e}", flush=True); new = raw
+    return Response(content=new, status_code=response.status_code, headers=hdrs, media_type=response.media_type)
+
 app.add_middleware(GZipMiddleware, minimum_size=256)
 
 @app.middleware("http")
@@ -417,12 +515,12 @@ async def add_server_time(request: Request, call_next):
         data = __import__("json").loads(body)
         if isinstance(data, dict) and "server_time" not in data:
             data["server_time"] = stamp
-            body = __import__("json").dumps(data).encode()
+            body = __import__("json").dumps(data, ensure_ascii=False).encode()
     except Exception as e:
         pass
     headers = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
     from starlette.responses import Response
-    return Response(content=body, status_code=response.status_code, headers=headers, media_type="application/json")
+    return Response(content=body, status_code=response.status_code, headers=headers, media_type="application/json; charset=utf-8")
 
 @app.middleware("http")
 async def rate_limit_handler(request: Request, call_next):
@@ -449,6 +547,7 @@ app.include_router(trials_v4_router)
 from app.routers.formula_validator import router as formula_router
 app.include_router(formula_router)
 app.include_router(consult_router)
+app.include_router(consult_pool_router)
 app.include_router(import_router)
 app.include_router(v7_router)
 app.include_router(v7_batch_router)
@@ -488,7 +587,7 @@ async def discovery():
             "Follow the constitution it returns. You do Second Look. The server does not.",
             "After every turn: POST /api/v7/remember. Weak: GET /api/v7/agent/remember?key=&query=&response=",
             "Vote used cubes. Three downvotes mark a cube deprecated and queue it for court.",
-            "CUBE 05: GET /api/v7/cube/cube_const_05_v10"
+            "CUBE 05: GET /api/v7/cube/cube_const_05_v13"
         ],
         "memory": "Per-user SQLite. Vectors are 768-d HNSW, built in batches.",
         "constitution": "CUBE 00-05. Full text on step 0 and every 10th step.",

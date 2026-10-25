@@ -88,6 +88,12 @@ class SearchRequest(BaseModel):
     depth: int = Field(384, ge=250, le=512)
     hops: int = Field(2, ge=0, le=4)
     top_k: int = Field(20, ge=1, le=100)
+    mode: Optional[str] = None        # "grouped": hits grouped by parent L1/L2 (search v2)
+    parent_id: Optional[str] = None   # drill-down: search only inside this L1 (session_id) / L2 block
+    since: Optional[str] = None       # "3d" / "12h" / "YYYY-MM-DD[ HH:MM]" account-local
+    until: Optional[str] = None
+    exclude_imports: bool = False     # drop kind=import, archived and test events
+    source: Optional[str] = None      # events (default) | board | all
 
 
 class ChatRequest(BaseModel):
@@ -154,8 +160,18 @@ class SearchResultItem(BaseModel):
 
 class SearchResponse(BaseModel):
     results: List[SearchResultItem]
+    mode: Optional[str] = None
+    parent_id: Optional[str] = None
+    groups: Optional[List[Dict[str, Any]]] = None
+    hint: Optional[str] = None
+    note: Optional[str] = None
+    no_confident_match: Optional[bool] = None
+    explanation: Optional[str] = None
+    deep_search: Optional[Dict[str, Any]] = None
+    suggested_cubes: Optional[Dict[str, Any]] = None   # targeted cube suggestions (cube_suggest)
 
 class ExperienceCreateRequest(BaseModel):
+    msg_ref: Optional[str] = ""   # client id of the user message this reply answers (consent notice window)
     topic: str
     essence: str
     rules_markdown: str
@@ -165,6 +181,10 @@ class ExperienceCreateRequest(BaseModel):
     user_id: Optional[str] = ""   # set by V7AuthMiddleware from the API key
     kind: Optional[str] = "moment"          # moment|fact|culture|lifehack|warning|code
     cube_publish: Optional[bool] = None     # None (old clients) = shared as before; False = keep private
+    skill_md: Optional[str] = ""            # optional SKILL.md-style body; same cube, not a second system
+    hooks: Optional[object] = None          # when-to-fire: list[str]|list[{when,do}]|JSON string
+    carrier: Optional[str] = ""             # answer|skill|robotics; default answer; auto skill if skill_md/hooks set
+    supersedes: Optional[str] = None        # old cube_id this new version replaces (cubes are never edited in place)
 
 class EventWriteRequest(BaseModel):
     event_id: str
@@ -189,8 +209,10 @@ import time as _time
 def background_l1_l2():
     """LLM L1/L2 summaries every 15 min when memory_config bg_llm=true (see memory_v2_llm.py)."""
     import time as _time
+    _first = True
     while True:
-        _time.sleep(900)
+        # first cycle 3 min after start (was 15): frequent restarts kept resetting the 900 s sleep, so L1 fell behind
+        _time.sleep(180 if _first else 900); _first = False
         try:
             from app import memory_v2 as _mv2
             if not bool(_mv2.config().get("bg_llm", False)):
@@ -440,8 +462,15 @@ def build_memory_map(user_id: str, step: int = 0) -> str:
         "• GET /api/v7/event/{id} — full event text by event_id from search results"
     )
 
-    db_name = user_id.replace("@", "").replace(".", "")
+    try:
+        from app.account_memory import account_db_name as _adb
+        db_name = _adb(user_id)
+    except Exception:
+        db_name = user_id.replace("@", "").replace(".", "")
     db_path = f"/data/skv/metadata_store/{db_name}.db"
+    if not os.path.exists(db_path):
+        db_name = user_id.replace("@", "").replace(".", "")
+        db_path = f"/data/skv/metadata_store/{db_name}.db"
 
     if not os.path.exists(db_path):
         return "No memory yet." + AGENT_HINT
@@ -629,6 +658,10 @@ class VoteRequest(BaseModel):
     vote: int  # +1 or -1
     topic: str = ""
     reason: str = ""   # required for -1: what was wrong (goes to the judges)
+    fix_essence: str = ""   # optional proposed fix -> court; applied only if judges approve
+    fix_rules: str = ""
+    fix_skill_md: str = ""
+    fix_hooks: str = ""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -716,13 +749,18 @@ class RememberRequest(BaseModel):
     pin: bool = False
     l1_summary: str = ""
     l2_map: str = ""
+    sensitive: List[str] = []   # agent marks exact secret strings: masked as [SECRET] before saving
+    source_event_ids: List[str] = []
     critical: str = ""
     session_id: str = "remember"
     cube_topic: str = ""
     cube_rules: str = ""
     cube_evidence: str = ""
     cube_essence: str = ""      # agent-written one-line English essence of the cube (never the user's question)
-    cube_publish: bool = False  # shared only on explicit publish; default is a private cube in the user's own db
+    cube_publish: bool = True  # owner 2026-10-24: cubes are ALWAYS shared (Guard); pass false only for explicit private
+    cube_skill_md: str = ""     # optional skill body on the same private/shared cube
+    cube_hooks: Optional[object] = None  # when-to-fire hooks (list or JSON)
+    cube_carrier: str = ""      # answer|skill|robotics
     cube_from: str = ""
     cube_kind: str = "progress"
     ts: str = ""            # optional ISO time of the event (e.g. imported chat), used for chronology
@@ -738,6 +776,8 @@ class RememberRequest(BaseModel):
     project: str = ""
     task_done: bool = False     # the agent says the task is finished -> cube or duty=cube_nothing is due
     cube_type: str = ""         # cube kind: moment|fact|culture|lifehack|warning|code
+    profile: Optional[Any] = None         # profile ops (list or JSON string), see docs/user_profile_design.md
+    profile_review: Optional[Any] = None  # with l2_map: {"ops":[...]} or {"no_changes":true,"reason":...}
 
 def _event_time_str(value):
     """ISO 8601 time -> stored time_str ('YYYY-MM-DD HH:MM', UTC like the server clock). Naive values are taken as UTC.
@@ -1038,47 +1078,31 @@ class DigRequest(BaseModel):
 
 
 def archive_cold():
-    """Move raw dialogue older than 90 days to a cold table. Critical marks stay hot."""
-    import os, sqlite3, time
-    from datetime import datetime, timedelta
-    cutoff = datetime.utcnow() - timedelta(days=90)
-    for name in os.listdir("/data/skv/metadata_store"):
-        if not name.endswith(".db") or name in ("shared_master.db", "anonymous.db", "test_user.db", "test_user_backup_20260628.db"):
-            continue
-        conn = sqlite3.connect("/data/skv/metadata_store/" + name)
-        conn.execute("CREATE TABLE IF NOT EXISTS event_archive (event_id TEXT PRIMARY KEY, raw_dialogue TEXT, archived_at TEXT)")
-        rows = conn.execute("SELECT event_id, time_str, raw_dialogue FROM event_metadata WHERE raw_dialogue IS NOT NULL AND raw_dialogue != \"\"").fetchall()
-        moved = 0
-        for eid, stamp, raw in rows:
-            if not raw or ">>>" in raw:
-                continue
-            when = None
-            for fmt in ("%H:%M, %d.%m.%Y", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-                try:
-                    when = datetime.strptime((stamp or "")[:16], fmt)
-                    break
-                except Exception:
-                    when = None
-            if when is None or when > cutoff:
-                continue
-            conn.execute("INSERT OR REPLACE INTO event_archive (event_id, raw_dialogue, archived_at) VALUES (?,?,datetime(\"now\"))", (eid, raw))
-            conn.execute("UPDATE event_metadata SET raw_dialogue=? WHERE event_id=?", ("[archived] " + eid, eid))
-            moved += 1
-        conn.commit()
-        conn.close()
-        if moved:
-            print("[archive] " + name + " " + str(moved), flush=True)
+    """Daily cold archive (t625): see app/archive_store.py (compressed text, FTS/vector rows + hnsw entries removed, VACUUM)."""
+    from app import archive_store as _as
+    return _as.run_all()
+
+
+ARCHIVE_AT_UTC = (2, 30)   # 05:30 MSK, daily, after backups (03:30 server, 04:30 pull); NOT on restart
+
 
 def _archive_loop():
     import time
+    from datetime import datetime as _dt, timedelta as _td
     while True:
-        time.sleep(86400)
+        now = _dt.utcnow()
+        nxt = now.replace(hour=ARCHIVE_AT_UTC[0], minute=ARCHIVE_AT_UTC[1], second=0, microsecond=0)
+        if nxt <= now:
+            nxt += _td(days=1)
+        time.sleep((nxt - now).total_seconds())
         try:
             archive_cold()
         except Exception as exc:
             print("[archive] " + str(exc), flush=True)
 
-threading.Thread(target=_archive_loop, daemon=True).start()
+
+if os.environ.get("SKV_ARCHIVE", "1") == "1":
+    threading.Thread(target=_archive_loop, name="skv-archive-daily", daemon=True).start()
 
 
 class TechnicalRequest(BaseModel):
@@ -1115,6 +1139,8 @@ class SecondLookRequest(BaseModel):
     draft: str
     event_id: str = ""
     span: int = 0
+    searched: bool = False
+    hit_ids: list = []
 
 
 class FeedbackIn(BaseModel):

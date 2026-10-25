@@ -13,6 +13,9 @@ import json, re, time, uuid
 
 EXPERIENCE_KINDS = ("moment", "fact", "culture", "lifehack", "warning", "code")
 ALL_KINDS = EXPERIENCE_KINDS + ("help_request", "solution", "project", "project_node")
+# One shelf, different carriers: answer-shaping vs installable skill/hooks vs future robotics.
+CARRIERS = ("answer", "skill", "robotics")
+DEFAULT_CARRIER = "answer"
 AGENT_LINKS = ("next", "from", "against")
 LEGACY_LINKS = ("progress", "synthesis", "cover", "source", "answer", "hypothesis", "sequence")
 SERVER_LINKS = ("part_of", "depends_on", "answers", "solves", "supersedes")
@@ -38,7 +41,9 @@ def ensure(conn):
     have = _cols(conn, "cubes_new")
     for col, ddl in (("kind", "TEXT DEFAULT 'moment'"), ("lang", "TEXT DEFAULT 'en'"), ("project_id", "TEXT"),
                      ("source", "TEXT DEFAULT 'agent'"), ("trust", "TEXT DEFAULT 'new'"), ("confirms", "INTEGER DEFAULT 0"),
-                     ("shown", "INTEGER DEFAULT 0"), ("parent_id", "TEXT"), ("triviality", "TEXT"), ("aged_at", "TEXT")):
+                     ("shown", "INTEGER DEFAULT 0"), ("parent_id", "TEXT"), ("triviality", "TEXT"), ("aged_at", "TEXT"),
+                     ("skill_md", "TEXT"), ("hooks", "TEXT"),
+                     ("carrier", "TEXT DEFAULT 'answer'")):
         if col not in have:
             conn.execute(f"ALTER TABLE cubes_new ADD COLUMN {col} {ddl}")
     conn.execute("CREATE TABLE IF NOT EXISTS cube_outcomes (cube_id TEXT, user_id TEXT, outcome TEXT, ts TEXT, PRIMARY KEY (cube_id, user_id))")
@@ -84,6 +89,67 @@ def norm_topic(t):
 def norm_kind(k, default="moment"):
     k = (k or "").strip().lower()
     return k if k in ALL_KINDS else default
+
+
+def normalize_hooks(hooks):
+    """Hooks = when-to-fire for a skill cube. Accept list[str]|list[dict]|JSON str|None -> JSON str or ''.
+    Thin pass: no scripts. Each hook is either a string (when) or {when, do}."""
+    if hooks is None or hooks == "":
+        return ""
+    if isinstance(hooks, str):
+        s = hooks.strip()
+        if not s:
+            return ""
+        try:
+            hooks = json.loads(s)
+        except Exception:
+            # plain multiline: one when per line
+            hooks = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    if not isinstance(hooks, list):
+        raise ValueError("hooks must be a list of strings or {when, do} objects")
+    out = []
+    for h in hooks[:32]:
+        if isinstance(h, str):
+            t = h.strip()[:500]
+            if t:
+                out.append({"when": t})
+        elif isinstance(h, dict):
+            when = str(h.get("when") or h.get("if") or "").strip()[:500]
+            do = str(h.get("do") or h.get("then") or "").strip()[:500]
+            if when:
+                item = {"when": when}
+                if do:
+                    item["do"] = do
+                out.append(item)
+        else:
+            raise ValueError("each hook must be a string or object")
+    return json.dumps(out, ensure_ascii=False) if out else ""
+
+
+def parse_hooks(raw):
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return raw
+    try:
+        v = json.loads(raw)
+        return v if isinstance(v, list) else []
+    except Exception:
+        return []
+
+
+def has_skill(skill_md, hooks_raw=""):
+    return bool((skill_md or "").strip() or parse_hooks(hooks_raw))
+
+
+def norm_carrier(carrier, skill_md="", hooks_raw=""):
+    """answer = shapes reply; skill = installable skill+hooks; robotics = future body skills."""
+    c = (carrier or "").strip().lower()
+    if c in CARRIERS:
+        return c
+    if has_skill(skill_md, hooks_raw):
+        return "skill"
+    return DEFAULT_CARRIER
 
 
 # ---------------- duty ----------------
@@ -175,15 +241,28 @@ def duty_hints(conn, uid):
     if s["pending_cube"]:
         h.append("• CUBE DUTY: the task ended. Write a cube only if it changes the answer (code, lifehack, warning, fact); otherwise remember duty=cube_nothing with a reason. Silence is the only error.")
     if s["rate_pending"]:
-        h.append("• RATE: new cubes " + ", ".join(s["rate_pending"][:2]) + " were shown with 'rate this'. Vote +1/-1 or duty=vote_nothing with a reason.")
+        h.append("• RATE: new cubes " + ", ".join(s["rate_pending"][:2]) + " were opened/used by you. Vote +1/-1 or duty=vote_nothing with a reason.")
     return h
 
 
 # ---------------- pack ----------------
 def _item(row, topic, note, cover_id=None):
     cid, ess, rules, kind, trust = row[0], row[1], row[2], row[3] if len(row) > 3 else "moment", row[4] if len(row) > 4 else "new"
-    return {"cube_id": cid, "topic": topic, "essence": ess, "rules": (rules or "")[:500], "shared": True, "note": note,
-            "kind": kind or "moment", "trust": trust or "new", "cover": cover_id, "data": True}
+    it = {"cube_id": cid, "topic": topic, "essence": ess, "rules": (rules or "")[:500], "shared": True, "note": note,
+          "kind": kind or "moment", "trust": trust or "new", "cover": cover_id, "data": True,
+          "carrier": DEFAULT_CARRIER}
+    # optional skill_md / hooks / carrier when SELECT includes them as row[6], row[7], row[8]
+    if len(row) > 6 and (row[6] or ""):
+        it["skill_md"] = (row[6] or "")[:4000]
+    if len(row) > 7 and (row[7] or ""):
+        it["hooks"] = parse_hooks(row[7])
+    if len(row) > 8 and (row[8] or ""):
+        it["carrier"] = norm_carrier(row[8], it.get("skill_md", ""), row[7] if len(row) > 7 else "")
+    else:
+        it["carrier"] = norm_carrier("", it.get("skill_md", ""), "")
+    if it["carrier"] == "skill" or has_skill(it.get("skill_md"), ""):
+        it["has_skill"] = True
+    return it
 
 
 RATINGS_SQL = ("(SELECT COUNT(*) FROM cube_outcomes o WHERE o.cube_id=cubes_new.cube_id "
@@ -293,7 +372,8 @@ def age_out(conn, impressions=AGE_OUT_IMPRESSIONS):
     ids = [r[0] for r in conn.execute(f"""SELECT cube_id FROM cubes_new WHERE aged_at IS NULL AND COALESCE(shown,0) >= ? AND {RATINGS_SQL} = 0
         AND {HIDDEN_SQL} AND {VISIBLE_KIND_SQL} AND COALESCE(trust,'new')!='trusted' AND cube_id NOT LIKE 'cube_const_%'""", (impressions,))]
     for cid in ids:
-        conn.execute("INSERT OR IGNORE INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now'))", (cid, "no ratings after %d impressions" % impressions))
+        _q = conn.execute("INSERT OR IGNORE INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now'))", (cid, "no ratings after %d impressions" % impressions))
+        if not _q.rowcount: _log_complaint(conn, cid, "no ratings after %d impressions" % impressions)
         conn.execute("UPDATE cubes_new SET aged_at=datetime('now') WHERE cube_id=?", (cid,))
     return ids
 
@@ -364,7 +444,7 @@ def select_pack(conn, topic, uid="", step=0, record=True, query="", vec_scores=N
             conn.execute("UPDATE cubes_new SET shown=COALESCE(shown,0)+1, last_used=CURRENT_TIMESTAMP WHERE cube_id=?", (o["cube_id"],))
             if cov and o["cube_id"] != cov:
                 conn.execute("INSERT OR IGNORE INTO cube_links (src, dst, kind, created_by, created_at) VALUES (?,?,?,?,datetime('now'))", (o["cube_id"], cov, "cover", "search"))
-        newids = [o["cube_id"] for o in out if o["note"].startswith("new")]
+        newids = []  # listing alone no longer creates a rate duty; see mark_used (cube_get/install/use)
         if newids:
             s = _state(conn, uid)
             for n in newids:
@@ -379,6 +459,26 @@ def select_pack(conn, topic, uid="", step=0, record=True, query="", vec_scores=N
 def record_impression(conn, uid, cube_id, slot="read", step=0):
     if uid:
         conn.execute("INSERT OR IGNORE INTO cube_impressions (cube_id, user_id, slot, step, ts) VALUES (?,?,?,?,?)", (cube_id, uid, slot, step, now()))
+        if slot in ("read", "install", "use"):
+            mark_used(conn, uid, cube_id, step)
+
+
+def mark_used(conn, uid, cube_id, step=0):
+    """Rate duty only for cubes actually opened/installed/used, never own cubes or constitution cubes."""
+    try:
+        if not uid or cube_id.startswith(("cube_const_", "cube_skill_const")):
+            return
+        r = conn.execute("SELECT created_by FROM cubes_new WHERE cube_id=?", (cube_id,)).fetchone()
+        if not r or (r[0] or "").strip().lower() == uid.strip().lower():
+            return
+        s = _state(conn, uid)
+        if cube_id not in s["rate_pending"]:
+            s["rate_pending"].append(cube_id)
+        if s["rate_step"] is None:
+            s["rate_step"] = step
+        _save_state(conn, uid, s)
+    except Exception as e:
+        print(f"[mark_used] {e}", flush=True)
 
 
 # ---------------- outcomes / trust ----------------
@@ -399,6 +499,12 @@ def _clusters(pairs):
             b = f("ip:" + ip)
             parent[a] = b if a != b else a
     return len({f("u:" + (u or "").lower()) for u, _ in pairs})
+
+
+def _log_complaint(conn, cube_id, reason):
+    """Cube already queued: keep the routing row, append this complaint to the per-cube log (court_complaints)."""
+    conn.execute("CREATE TABLE IF NOT EXISTS court_complaints (id INTEGER PRIMARY KEY, cube_id TEXT, reason TEXT, created_at TEXT)")
+    conn.execute("INSERT INTO court_complaints (cube_id, reason, created_at) VALUES (?,?,datetime('now'))", (cube_id, reason))
 
 
 def negative_clients(conn, cube_id):
@@ -475,8 +581,31 @@ def add_link(conn, src, dst, kind, uid):
         raise ValueError("link kind must be one of " + ", ".join(AGENT_LINKS + LEGACY_LINKS + SERVER_LINKS))
     cur = conn.execute("INSERT OR IGNORE INTO cube_links (src, dst, kind, created_by, created_at) VALUES (?,?,?,?,datetime('now'))", (src, dst, kind, uid))
     if kind == "against" and cur.rowcount:
-        conn.execute("INSERT OR IGNORE INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now'))", (dst, "dispute: against " + src))
+        _q = conn.execute("INSERT OR IGNORE INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now'))", (dst, "dispute: against " + src))
+        if not _q.rowcount: _log_complaint(conn, dst, "dispute: against " + src)
     return cur.rowcount
+
+
+def merge_part(conn, new, part, uid, owner=False):
+    """cube_link(src=<merged cube>, dst=<part>, kind=from). Own part (or owner): part -> superseded, superseded_by + merged_into = new,
+    so it leaves search at once. Someone else's part: stays live, a 'merge:' complaint goes to the court, which decides."""
+    import json as _j
+    r = conn.execute("SELECT coalesce(status,''), coalesce(created_by,''), links_json FROM cubes_new WHERE cube_id=?", (part,)).fetchone()
+    if not r:
+        return None
+    if r[0] == "superseded":
+        return "already_superseded"
+    try: lj = _j.loads(r[2] or "{}") or {}
+    except Exception: lj = {}
+    if isinstance(lj, list): lj = {"links": lj}
+    if owner or (r[1].strip().lower() and r[1].strip().lower() == (uid or "").lower()):
+        lj["superseded_by"] = new; lj["merged_into"] = new
+        conn.execute("UPDATE cubes_new SET status='superseded', links_json=?, updated_at=CURRENT_TIMESTAMP WHERE cube_id=?", (_j.dumps(lj), part))
+        return "merged"
+    reason = "merge: into %s (proposed by link from)" % new
+    q = conn.execute("INSERT OR IGNORE INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now'))", (part, reason))
+    if not q.rowcount: _log_complaint(conn, part, reason)
+    return "merge_pending"
 
 
 # ---------------- help ----------------
@@ -647,9 +776,14 @@ def migrate_private_schema(conn):
     conn.execute("CREATE TABLE IF NOT EXISTS experience_cubes (cube_id TEXT PRIMARY KEY, topic TEXT, essence TEXT, rules_markdown TEXT, evidence TEXT, session_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
     have = {r[1] for r in conn.execute("PRAGMA table_info(experience_cubes)")}
     added = []
-    for col in ("topic", "essence", "rules_markdown", "evidence", "session_id", "kind"):
+    for col in ("topic", "essence", "rules_markdown", "evidence", "session_id", "kind", "skill_md", "hooks", "carrier"):
         if col not in have:
-            conn.execute(f"ALTER TABLE experience_cubes ADD COLUMN {col} TEXT" + (" DEFAULT 'moment'" if col == "kind" else ""))
+            default = ""
+            if col == "kind":
+                default = " DEFAULT 'moment'"
+            elif col == "carrier":
+                default = " DEFAULT 'answer'"
+            conn.execute(f"ALTER TABLE experience_cubes ADD COLUMN {col} TEXT" + default)
             added.append(col)
     return added
 

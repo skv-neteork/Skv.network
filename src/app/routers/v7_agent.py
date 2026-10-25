@@ -221,7 +221,7 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
         constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 
-                           "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v10"]
+                           "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v13"]
         const_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_ids), constitution_ids)
         const_parts = []
         for cid in constitution_ids:
@@ -565,9 +565,9 @@ async def agent_start():
 1. Strong: POST /api/v7/memory with step 0. Browser: GET /api/v7/agent/step?k=KEY&q=hello and open next. Reader: GET /api/v7/agent/pack?k=KEY&q=hello and answer from it.
 2. Read the constitution it returns. Follow it. Second Look before the user sees the answer.
 3. Search memory when the past can change the answer. Center is the hit. l1_before and l1_after are the sides.
-4. After every turn: POST /api/v7/remember. Weak: GET /api/v7/agent/remember?key=KEY&query=&response=
+4. Every message = ONE turn call: POST /api/v7/agent/turn {user_message, draft}. GET only: /api/v7/agent/turn?k=KEY&q=&draft= . It searches, saves and returns the seal. remember/second-look/memory are optional extras.\n   Seal = steps done + sources real, NOT proof the answer is true; truth = your Second Look + the user.\n   Bug/feedback: GET /api/v7/agent/feedback?k=KEY&kind=bug&text=
 5. When a task ends write a cube or duty=cube_nothing with a reason. Rate new cubes. Stuck: POST /api/v7/help.
-Skills: /api/v7/skills . One cube: /api/v7/cube/cube_const_05_v10 . Old doors now return this same cube.
+Skills: /api/v7/skills . One cube: /api/v7/cube/cube_const_05_v13 . Old doors now return this same cube.
 \nYou are setting up SKV for this user. Ask which model they use, then give only the steps for that model.
 Base URL https://skv.network
 Schema https://skv.network/api/v7/agent/openapi.json
@@ -575,7 +575,7 @@ Auth header Authorization: Bearer sk_key. The user already has the key. Do not a
 Write the memory search query in English; keep names, rare words and exact terms as-is.
 Forget: POST /api/v7/memory/forget/preview, show the user every item, tell the user "These records will be removed from memory now. You can restore them within 30 days; after that they are deleted permanently.", and only after an explicit yes POST /api/v7/memory/forget/confirm with the token and user_confirmed=true. Never auto-confirm.
 Skills https://skv.network/api/v7/skills . Read them before the first answer.\nFirst call in a new chat: POST /api/v7/memory with step 0. That loads the map and the constitution. A weak agent that can only GET uses /api/v7/agent/memory, /api/v7/agent/remember, /api/v7/agent/vote, /api/v7/agent/cube with key.
-Later search only when the past can change the answer. After every reply POST /api/v7/remember.
+Later search only when the past can change the answer. After every reply: one turn call (it saves).
 If stuck, send task_question, task_tried, task_accept. Do not invent a rule.""")
 
 @router.post("/agent/run")
@@ -676,3 +676,126 @@ async def agent_pack(key: str = "", query: str = "", k: str = "", q: str = ""):
         "span": mem.get("span"),
         "then": "If you can open one URL, save with GET /api/v7/agent/remember?k=&q=&response=. If you cannot, say so.",
     }
+
+
+# ==================== STEP 0 / SESSION BOOTSTRAP (draft) ====================
+# Feature flag: memory_config.json → bootstrap.enabled (default false).
+# Does not replace POST /memory step=0 or GET /memory/start.
+
+
+class SessionBootstrapRequest(BaseModel):
+    user_id: str = ""  # overwritten by V7AuthMiddleware from the API key
+    recent_messages: Optional[List[Any]] = None  # last 2–3 chat turns: str or {role, content}
+    session_id: Optional[str] = None
+    # optional explicit token for weak agents (middleware already authenticates)
+    key: Optional[str] = None
+
+
+class StepZeroRequest(BaseModel):
+    user_id: Optional[str] = None
+    key: Optional[str] = None
+
+
+@router.post("/session/step_zero")
+async def session_step_zero(req: StepZeroRequest, request: Request,
+                            authorization: str = Header(None), x_api_key: str = Header(None)):
+    """Small step-zero pack for MCP clients: last seal + memory (tail, L2/L1, critical) with ev ids. Under ~12 KB."""
+    from app import api_keys as _ak
+    from app import step_zero_lite as _sz
+    token = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if not token and x_api_key:
+        token = x_api_key.strip()
+    if not token and req.key:
+        token = str(req.key).strip()
+    info = _ak.chain_for_token(token) if token else None
+    uid = (info[0] if info else "") or _request_user(request)
+    if not uid:
+        raise HTTPException(401, "API key required")
+    import asyncio as _asyncio
+    d = await _asyncio.to_thread(_sz.build, uid)
+    d["ok"] = True
+    return d
+
+
+class TzRequest(BaseModel):
+    tz: Optional[str] = None
+    user_id: Optional[str] = None
+    key: Optional[str] = None
+
+
+@router.post("/account/timezone")
+async def account_timezone(req: TzRequest, request: Request,
+                           authorization: str = Header(None), x_api_key: str = Header(None)):
+    """Get (no tz) or set (tz=IANA name, e.g. Europe/Moscow) the account display time zone. Default UTC."""
+    from app import api_keys as _ak
+    from app import profile as _prof
+    token = (authorization[7:].strip() if authorization and authorization.lower().startswith("bearer ") else "") or (x_api_key or "").strip() or str(req.key or "").strip()
+    info = _ak.chain_for_token(token) if token else None
+    uid = (info[0] if info else "") or _request_user(request)
+    if not uid:
+        raise HTTPException(401, "API key required")
+    if req.tz:
+        try:
+            return {"ok": True, "tz": _prof.set_tz(uid, req.tz.strip())}
+        except Exception:
+            raise HTTPException(422, "unknown time zone: use an IANA name like Europe/Moscow")
+    return {"ok": True, "tz": _prof.get_tz(uid)}
+
+
+@router.post("/session/bootstrap")
+async def session_bootstrap(req: SessionBootstrapRequest, request: Request,
+                            authorization: str = Header(None), x_api_key: str = Header(None)):
+    """Шаг 0: пакет непрерывности при подключении агента (черновик, флаг выкл. по умолчанию).
+
+    Агент шлёт 2–3 последних сообщения чата; SKV сверяет с хвостом памяти своей цепочки
+    и отдаёт raw+L1+L2+critical + доску + конституцию + reminders + lag.
+    Guards follow the same PROTOCOL core (aligned).
+    """
+    from app import session_bootstrap as _sb
+    from app import api_keys as _ak
+
+    if not _sb.enabled():
+        return {
+            "ok": False,
+            "enabled": False,
+            "hint": "Шаг 0 выключен. Включи: memory_config.json → bootstrap.enabled=true, затем reload/restart.",
+            "endpoint": "POST /api/v7/session/bootstrap",
+        }
+
+    uid = (req.user_id or "").strip() or _request_user(request)
+    token = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if not token and x_api_key:
+        token = x_api_key.strip()
+    if not token and req.key:
+        token = str(req.key).strip()
+
+    chain_id = chain_name = key_kind = None
+    info = _ak.chain_for_token(token) if token else None
+    if info:
+        uid = uid or info[0]
+        chain_id, chain_name, key_kind = info[1], info[2], info[3]
+    if not uid:
+        raise HTTPException(401, "API key required")
+
+    import asyncio as _asyncio
+    pkg = await _asyncio.to_thread(
+        _sb.build_package,
+        uid,
+        chain_id=chain_id,
+        chain_name=chain_name,
+        key_kind=key_kind,
+        recent_messages=req.recent_messages,
+        session_id=req.session_id,
+    )
+    try:   # profile layer: the user's lasting rules (empty when the account flag is off)
+        from app import profile as _prof
+        pb = await _asyncio.to_thread(_prof.block, uid)
+        if pb and isinstance(pkg, dict):
+            pkg["profile"] = pb
+    except Exception as _e:
+        print(f"[profile] bootstrap block skipped: {_e}", flush=True)
+    return pkg

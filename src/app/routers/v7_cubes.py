@@ -105,30 +105,63 @@ async def get_feedback(type: Optional[str] = None, status: Optional[str] = "new"
 async def create_experience_cube(req: ExperienceCreateRequest):
     """Create a shared cube. The server assigns cube_id. A client cube_id is only an update of
     a cube the caller wrote; constitution/archive ids are owner-only. Votes are never reset."""
-    import sqlite3, uuid
+    import sqlite3, uuid, json
     uid = (req.user_id or "").strip()
     if not uid:
         raise HTTPException(status_code=401, detail="API key required")
     owner = _is_owner(uid)
     want = (req.cube_id or "").strip()
+    sup = (req.supersedes or "").strip()
     from app import cubes_v2 as _cv2
     _kind = _cv2.norm_kind(req.kind, "moment")
     if _kind not in _cv2.EXPERIENCE_KINDS:
         raise HTTPException(status_code=422, detail="kind must be one of " + ", ".join(_cv2.EXPERIENCE_KINDS) + " (help: POST /api/v7/help; projects: POST /api/v7/projects)")
+    # normalize optional skill fields (same cube object; not a parallel system)
+    try:
+        _hooks_json = _cv2.normalize_hooks(req.hooks)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    _skill_md = (req.skill_md or "").strip()
+    _carrier = _cv2.norm_carrier(req.carrier, _skill_md, _hooks_json)
+    from app import cube_consent as _ccs
+    _cons = _ccs.info(uid, getattr(req, "msg_ref", "") or "")
+    if _cons.get("status") in ("notice_required", "notice_pending") and req.cube_publish is not False and not owner:
+        raise HTTPException(status_code=409, detail={"error": "notice_pending", "consent": _cons.get("status"),
+                            "hint": "show the consent notice (cube_consent notice_shown) and publish only after the user's next message; keep the candidate as a board note"})
+    if _cons.get("status") == "opted_out":
+        raise HTTPException(status_code=403, detail={"error": "user opted out of publishing cubes", "consent": "opted_out",
+                            "hint": "do not create cubes at all (shared or private) until the user allows it again; keep the lesson in memory"})
+    if _cons.get("status") not in ("allowed", "notice_required") and req.cube_publish is not False:
+        raise HTTPException(status_code=403, detail={"error": "publish permission unknown; failing closed", "consent": "unknown",
+                            "hint": "retry later; do not publish while permission is unknown"})
+    if req.cube_publish is not False:
+        from app import cube_guard as _cgs
+        _rep = _cgs.field_report(topic=req.topic, essence=req.essence, rules=req.rules_markdown, evidence=req.evidence, skill_md=req.skill_md or "", hooks=_hooks_json or "")
+        if _rep:
+            raise HTTPException(status_code=422, detail={"error": "personal data or secret in cube", "fields": _rep,
+                                "hint": "scrub the named fields (roles instead of names, no emails/phones/ids/keys) and publish again"})
     if req.cube_publish is False:
         body = RememberRequest(user_id=uid, cube_topic=req.topic, cube_rules=req.rules_markdown, cube_evidence=req.evidence,
-                               cube_essence=req.essence, cube_publish=False, session_id=req.session_id or "remember", cube_type=_kind)
+                               cube_essence=req.essence, cube_publish=False, session_id=req.session_id or "remember", cube_type=_kind,
+                               cube_skill_md=_skill_md, cube_hooks=_hooks_json or None, cube_carrier=_carrier)
         r = await remember(body)
-        return {"status": "ok", "cube_id": (r.get("cube") or {}).get("cube_id"), "shared": False, "note": "private cube (cube_publish=false)"}
+        cid = (r.get("cube") or {}).get("cube_id") or (r.get("saved") or [None])[-1]
+        if isinstance(cid, str) and cid.startswith("private:"):
+            cid = cid[8:]
+        return {"status": "ok", "cube_id": cid, "shared": False, "carrier": _carrier,
+                "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json),
+                "note": "private cube (cube_publish=false)"}
     if want and _is_protected_cube(want) and not owner:
         raise HTTPException(status_code=403, detail="Constitution and archive cubes are owner-only")
     from app import cube_guard as _cg
     _ok, _f, _reasons, _pii = _cg.prepare_shared(req.topic, req.essence, req.rules_markdown, req.evidence,
-                                                 require_english=not (owner and _is_protected_cube(want)))
+                                                 require_english=not (owner and _is_protected_cube(want)),
+                                                 skill_md=_skill_md, hooks=_hooks_json)
     if not _ok:
         raise HTTPException(status_code=422, detail={"error": "cube not publishable", "reasons": _reasons,
                             "hint": "Shared cubes are English, without secrets. Keep it private: POST /api/v7/remember with cube_topic/cube_rules."})
     req.topic, req.essence, req.rules_markdown, req.evidence = _f["topic"], _f["essence"], _f["rules"], _f["evidence"]
+    _skill_md, _hooks_json = _f.get("skill_md", _skill_md), _f.get("hooks", _hooks_json)
     try:
         conn = sqlite3.connect(SHARED_DB, timeout=30)
         cur = conn.cursor()
@@ -139,17 +172,58 @@ async def create_experience_cube(req: ExperienceCreateRequest):
                 if not owner and (not author or author != uid.lower()):
                     conn.close()
                     raise HTTPException(status_code=403, detail="cube_id exists and belongs to another author")
+                if not (owner and _is_protected_cube(want)):
+                    conn.close()
+                    raise HTTPException(status_code=409, detail={"error": "cubes are never edited in place",
+                        "hint": "publish a corrected NEW version: cube_create(..., supersedes='%s'); the old one is marked superseded" % want})
                 cur.execute("""UPDATE cubes_new SET essence=?, subject_action_object=?, rules_markdown=?, evidence=?,
-                               updated_at=CURRENT_TIMESTAMP WHERE cube_id=?""",
-                            (req.essence, req.topic, req.rules_markdown, req.evidence, want))
+                               skill_md=?, hooks=?, carrier=?, updated_at=CURRENT_TIMESTAMP WHERE cube_id=?""",
+                            (req.essence, req.topic, req.rules_markdown, req.evidence, _skill_md or None, _hooks_json or None, _carrier, want))
                 conn.commit(); conn.close()
-                return {"status": "updated", "cube_id": want}
+                return {"status": "updated", "cube_id": want, "carrier": _carrier, "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json)}
         def _words(s):
             return set((s or "").lower().replace(".", " ").split())
         new_w = _words(req.topic) | _words(req.essence) | _words(req.rules_markdown)
-        for cid, ess, rules in cur.execute("select cube_id, essence, rules_markdown from cubes_new where subject_action_object=?", (req.topic,)).fetchall():
+        if sup:
+            _srow = cur.execute("select coalesce(status,''), links_json from cubes_new where cube_id=?", (sup,)).fetchone()
+            if _srow is None:
+                conn.close()
+                raise HTTPException(status_code=404, detail="supersedes: cube %s not found" % sup)
+            if _srow[0] == "superseded":
+                _nb = ""
+                try: _nb = (json.loads(_srow[1] or "{}") or {}).get("superseded_by", "")
+                except Exception: pass
+                conn.close()
+                raise HTTPException(status_code=409, detail={"error": "cube %s is already superseded" % sup,
+                                    "superseded_by": _nb, "hint": "supersede the newest version instead"})
+            if _is_protected_cube(sup) and not owner:
+                conn.close()
+                raise HTTPException(status_code=403, detail="Constitution and archive cubes are owner-only")
+            _sauth = (cur.execute("select coalesce(created_by,'') from cubes_new where cube_id=?", (sup,)).fetchone()[0] or "").strip().lower()
+            _own_sup = owner or (_sauth and _sauth == uid.lower())
+            _own_hooks_court = False
+            if _own_sup and not _is_protected_cube(sup) and _court_only_tag(cur, sup, _skill_md, _hooks_json):
+                from app import chain_skills as _chs
+                if _chs.installed_by_others(sup, uid) > 0:   # installs from other accounts keep the last approved hooks
+                    _own_sup, _own_hooks_court = False, True
+            if not _own_sup:   # one open pending version per target cube and topic; a different topic is a different decision
+                try: _pv = (json.loads(_srow[1] or "{}") or {}).get("proposed_versions") or []
+                except Exception: _pv = []
+                for _p in _pv:
+                    _pr = cur.execute("select subject_action_object from cubes_new where cube_id=? and status='pending_version'", (_p,)).fetchone()
+                    if _pr and (_pr[0] or "").strip().lower() == (req.topic or "").strip().lower():
+                        conn.close()
+                        raise HTTPException(status_code=409, detail={"error": "duplicate_pending", "pending_version": _p,
+                            "hint": "%s already has a pending version %s with this topic: cube_get it and vote +1 with evidence instead of a second one" % (sup, _p)})
+            if not _own_sup and not owner:
+                from app import cube_suggest as _csr
+                _rl = _csr.court_rate(conn, uid)
+                if _rl:
+                    conn.close()
+                    raise HTTPException(status_code=429, detail={"error": _rl, "hint": "a version of someone else's cube opens a court case"})
+        for cid, ess, rules in cur.execute("select cube_id, essence, rules_markdown from cubes_new where subject_action_object=? and coalesce(status,'') not in ('superseded','rejected','pending_version')", (req.topic,)).fetchall():
             old_w = _words(req.topic) | _words(ess) | _words(rules)
-            if not new_w or not old_w:
+            if not new_w or not old_w or cid == sup:
                 continue
             if len(new_w & old_w) / len(new_w | old_w) >= 0.55:
                 conn.close()
@@ -158,9 +232,33 @@ async def create_experience_cube(req: ExperienceCreateRequest):
         cube_id = want if (want and owner) else f"cube_{uuid.uuid4().hex[:12]}"
         _cv2.ensure(conn)
         cur.execute("""INSERT INTO cubes_new
-            (cube_id, essence, subject_action_object, rules_markdown, evidence, source_session, status, created_by, kind)
-            VALUES (?, ?, ?, ?, ?, ?, 'community', ?, ?)""",
-            (cube_id, req.essence, req.topic, req.rules_markdown, req.evidence, req.session_id, uid, _kind))
+            (cube_id, essence, subject_action_object, rules_markdown, evidence, source_session, status, created_by, kind, skill_md, hooks, carrier)
+            VALUES (?, ?, ?, ?, ?, ?, 'community', ?, ?, ?, ?, ?)""",
+            (cube_id, req.essence, req.topic, req.rules_markdown, req.evidence, req.session_id, uid, _kind, _skill_md or None, _hooks_json or None, _carrier))
+        if sup:
+            _old = cur.execute("select links_json from cubes_new where cube_id=?", (sup,)).fetchone()
+            try:
+                _lj = json.loads((_old[0] if _old else "") or "{}")
+            except Exception:
+                _lj = {}
+            if isinstance(_lj, list):
+                _lj = {"links": _lj}
+            cur.execute("UPDATE cubes_new SET parent_id=?, links_json=? WHERE cube_id=?",
+                        (sup, json.dumps({"supersedes": sup}), cube_id))
+            if _own_sup:
+                _lj["superseded_by"] = cube_id
+                cur.execute("UPDATE cubes_new SET status='superseded', links_json=?, updated_at=CURRENT_TIMESTAMP WHERE cube_id=?",
+                            (json.dumps(_lj), sup))
+            else:   # someone else's cube: pending candidate; the court (or VERSION_VOTES +1 from others) promotes it
+                from app import cube_suggest as _csg
+                _lj["proposed_versions"] = list(dict.fromkeys((_lj.get("proposed_versions") or []) + [cube_id]))
+                cur.execute("UPDATE cubes_new SET links_json=? WHERE cube_id=?", (json.dumps(_lj), sup))
+                cur.execute("UPDATE cubes_new SET status='pending_version' WHERE cube_id=?", (cube_id,))
+                _csg.ensure_fix(conn)
+                cur.execute("INSERT INTO cube_fixes (cube_id, user_id, essence, rules, skill_md, hooks, reason, ts) VALUES (?,?,?,?,?,?,?,datetime('now'))",
+                            (sup, uid, req.essence, req.rules_markdown, _skill_md or "", _hooks_json or "", ("version:%s new version by %s%s" % (cube_id, uid, _court_only_tag(cur, sup, _skill_md, _hooks_json)))[:500]))
+                cur.execute("INSERT INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now')) ON CONFLICT(cube_id) DO UPDATE SET reason=excluded.reason",
+                            (sup, "version:%s proposed new version" % cube_id))
         try:
             _cv2.on_remember(conn, uid, _duty_step(uid), wrote_cube=True)
             cur.execute("INSERT INTO agent_duty (user_id, step, duty, reason, created_at) VALUES (?,?,?,?,datetime('now'))", (uid, _duty_step(uid), "cube", cube_id))
@@ -168,7 +266,28 @@ async def create_experience_cube(req: ExperienceCreateRequest):
             print(f"[cubes_v2] create duty skipped: {_e}", flush=True)
         conn.commit()
         conn.close()
-        return {"status": "ok", "cube_id": cube_id, "kind": _kind, "shared": True}
+        _out = {"status": "ok", "cube_id": cube_id, "kind": _kind, "shared": True, "carrier": _carrier,
+                "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json)}
+        if sup:
+            _out["supersedes"] = sup
+            if _own_sup:
+                _out["note"] = "%s is now marked superseded_by %s; search shows only the newest version" % (sup, cube_id)
+            else:
+                from app import cube_suggest as _csg
+                _out["status_version"] = "pending"
+                if _own_hooks_court:
+                    _out["court_only"] = True
+                    _out["reason"] = "own version changes skill_md/hooks of a cube installed by other accounts: court only; installs keep the last approved hooks"
+                try:
+                    _c2 = sqlite3.connect(SHARED_DB, timeout=30)
+                    if _c2.execute("SELECT 1 FROM cube_fixes WHERE reason LIKE ? AND reason LIKE '%[court_only]%'", ("version:%s%%" % cube_id,)).fetchone():
+                        _out["court_only"] = True
+                    _c2.close()
+                except Exception:
+                    pass
+                _out["note"] = ("%s is someone else's cube: %s is a pending candidate. It replaces the old one after the court approves "
+                                "or %d other clients use it and vote +1; until then search shows the old cube with a proposed_newer_version link." % (sup, cube_id, _csg.VERSION_VOTES))
+        return _out
     except HTTPException:
         raise
     except sqlite3.IntegrityError:
@@ -177,8 +296,13 @@ async def create_experience_cube(req: ExperienceCreateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/experience/vote")
-async def vote_experience(req: VoteRequest, request: Request = None):
+def _court_only_tag(cur, old_id, skill_md, hooks):
+    """Changing skill_md or hooks of someone else's cube needs the court: votes cannot promote it."""
+    r = cur.execute("SELECT coalesce(skill_md,''), coalesce(hooks,'') FROM cubes_new WHERE cube_id=?", (old_id,)).fetchone() or ("", "")
+    return " [court_only]" if ((skill_md or "").strip() != (r[0] or "").strip() or (hooks or "").strip() != (r[1] or "").strip()) else ""
+
+
+async def _vote_experience_impl(req: VoteRequest, request: Request = None):
     """Vote for an experience cube. 3 downvotes → deprecated."""
     import sqlite3, json
     
@@ -208,7 +332,7 @@ async def vote_experience(req: VoteRequest, request: Request = None):
         raise HTTPException(status_code=403, detail="Constitution and archive cubes cannot be voted")
     if (cube[3] or "").strip().lower() and (cube[3] or "").strip().lower() == req.user_id.strip().lower():
         conn.close()
-        raise HTTPException(status_code=403, detail="You cannot vote for your own cube")
+        raise HTTPException(status_code=403, detail="own cube: you cannot vote for your own cube. Give feedback instead (feedback_submit) or propose a fix via cube_vote fix_* fields with a reason; no vote duty applies to own cubes.")
     row = (cube[2] or "[]", cube[1] or 0)
     
     votes = json.loads(row[0]) if row[0] else []
@@ -247,7 +371,18 @@ async def vote_experience(req: VoteRequest, request: Request = None):
     _neg_clients, _ = _cv2.negative_clients(conn, req.cube_id)
     old_status = cur.execute("SELECT status FROM cubes_new WHERE cube_id=?", (req.cube_id,)).fetchone()[0]
     _in_court = cur.execute("SELECT 1 FROM court_queue WHERE cube_id=?", (req.cube_id,)).fetchone() is not None
-    if old_status in ("archived", "removed", "quarantine"):
+    if old_status == "pending_version":
+        status = old_status
+        from app import cube_suggest as _csg
+        _au = (cur.execute("SELECT lower(coalesce(created_by,'')) FROM cubes_new WHERE cube_id=?", (req.cube_id,)).fetchone() or [""])[0]
+        _nv = _cv2._clusters([(u, ip) for u, ip in cur.execute("SELECT user_id, ip FROM cube_outcomes WHERE cube_id=? AND outcome='helped' AND lower(user_id)!=?", (req.cube_id, _au)).fetchall()
+                              if _csg.verified_voter(conn, u)])   # distinct VERIFIED accounts (confirmed, >=3 days, own activity), IP-merged
+        _co = cur.execute("SELECT 1 FROM cube_fixes WHERE status='pending' AND reason LIKE ? AND reason LIKE '%[court_only]%'", ("version:%s%%" % req.cube_id,)).fetchone()
+        if req.vote == 1 and _nv >= _csg.VERSION_VOTES and not _co:
+            _par = (cur.execute("SELECT parent_id FROM cubes_new WHERE cube_id=?", (req.cube_id,)).fetchone() or [None])[0]
+            if _par and _csg.promote_version(conn, _par, req.cube_id, "votes: %d distinct +1" % _csg.VERSION_VOTES):
+                status = "community"
+    elif old_status in ("archived", "removed", "quarantine"):
         status = old_status
     elif _neg_clients >= _cv2.NEGATIVE_TO_COURT or _in_court:
         status = "disputed"        # stays in the feed marked disputed; only the court verdict deprecates/archives it
@@ -287,14 +422,14 @@ async def vote_experience(req: VoteRequest, request: Request = None):
 async def list_skills():
     import os
     base = os.path.join(os.path.dirname(__file__), "skills")
-    names = ["SKV-SEARCH.md", "SKV-SAVE.md", "SKV-CUBE.md", "SKV-SECOND-LOOK.md", "SKV-COURT.md", "SKV-STEP.md"]
+    names = ["SKV-SEARCH.md", "SKV-SAVE.md", "SKV-CUBE.md", "SKV-SECOND-LOOK.md", "SKV-COURT.md", "SKV-STEP.md", "SKV-CONST-HOOKS.md"]
     return {"skills": ["/api/v7/skills/" + n for n in names]}
 
 @router.get("/skills/{name}")
 async def get_skill(name: str):
     import os
     from fastapi.responses import PlainTextResponse
-    if name not in {"SKV-SEARCH.md", "SKV-SAVE.md", "SKV-CUBE.md", "SKV-SECOND-LOOK.md", "SKV-COURT.md", "SKV-STEP.md"}:
+    if name not in {"SKV-SEARCH.md", "SKV-SAVE.md", "SKV-CUBE.md", "SKV-SECOND-LOOK.md", "SKV-COURT.md", "SKV-STEP.md", "SKV-CONST-HOOKS.md"}:
         raise HTTPException(404, "unknown skill")
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "skills", name)
     return PlainTextResponse(open(path, encoding="utf-8").read())
@@ -316,13 +451,18 @@ async def cube_link(req: CubeLinkRequest):
         if not conn.execute("SELECT 1 FROM cubes_new WHERE cube_id=?", (_cid,)).fetchone():
             conn.close()
             raise HTTPException(status_code=404, detail="cube not found: " + _cid)
+    if req.kind == "from" and req.src == req.dst:
+        conn.close(); raise HTTPException(422, "from: src (merged cube) and dst (merged part) must differ")
     try:
         added = _cv2.add_link(conn, req.src, req.dst, req.kind, uid)
+        _merge = _cv2.merge_part(conn, req.src, req.dst, uid, _is_owner(uid)) if req.kind == "from" else None
     except ValueError as e:
         conn.close()
         raise HTTPException(status_code=422, detail=str(e))
     conn.commit(); conn.close()
     out = {"status": "ok" if added else "already"}
+    if _merge:
+        out["merge"] = _merge
     if req.kind == "against" and added:
         out["note"] = "dispute recorded: both cubes stay visible (marked disputed) until the court decides"
     return out
@@ -409,25 +549,199 @@ async def agent_get_cube(key: str, topic: str, essence: str, rules: str, evidenc
     return await create_experience_cube(ExperienceCreateRequest(topic=topic, essence=essence, rules_markdown=rules, evidence=evidence, user_id=uid))
 
 
+@router.get("/experience/installed")
+async def cube_installed(request: Request, chain_id: str = "", full: int = 0,
+                         authorization: str = Header(None), x_api_key: str = Header(None)):
+    """List skill cubes attached to this chain. full=1 includes skill_md+hooks (bootstrap-style).
+    Path: GET /experience/installed (not /cube/... — that shadows {cube_id})."""
+    from app import chain_skills as _cs
+    uid, tok_chain, _, _ = _cs.chain_from_request(request, authorization, x_api_key)
+    if not uid:
+        raise HTTPException(401, "API key required")
+    chain = (chain_id or "").strip() or tok_chain
+    if full:
+        return {"ok": True, "chain_id": chain or _cs.DEFAULT_CHAIN, "attached_skills": _cs.attached_pack(uid, chain)}
+    return {"ok": True, "chain_id": chain or _cs.DEFAULT_CHAIN, "installed": _cs.list_ids(uid, chain)}
+
+
 @router.get("/cube/{cube_id}")
-async def get_cube(cube_id: str, user_id: str = ""):
-    import sqlite3
+async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
+    """Read shared cubes_new OR the caller's private experience_cubes (skill packages)."""
+    import sqlite3, os
+    from app import cubes_v2 as _cv2
+    uid = (user_id or "").strip()
+    if not uid and request is not None:
+        uid = (_request_user(request) or "").strip()
     conn = sqlite3.connect(SHARED_DB)
-    row = conn.execute("select cube_id, essence, rules_markdown, status from cubes_new where cube_id=?", (cube_id,)).fetchone()
-    if row and user_id and not cube_id.startswith("cube_const_"):
+    _cv2.ensure(conn)
+    row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier from cubes_new where cube_id=?", (cube_id,)).fetchone()
+    if row and uid and not cube_id.startswith("cube_const_"):
         try:
-            from app import cubes_v2 as _cv2
-            _cv2.ensure(conn); _cv2.record_impression(conn, user_id, cube_id, "read"); conn.commit()
+            _cv2.record_impression(conn, uid, cube_id, "read"); conn.commit()
         except Exception:
             pass
     if not row and cube_id.startswith("cube_const_") and cube_id.count("_") >= 3:
         # old version link -> current version of the same constitution cube
         prefix = "_".join(cube_id.split("_")[:3]) + "_v%"
-        row = conn.execute("select cube_id, essence, rules_markdown, status from cubes_new where cube_id like ? order by cube_id desc limit 1", (prefix,)).fetchone()
+        row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier from cubes_new where cube_id like ? order by cube_id desc limit 1", (prefix,)).fetchone()
     conn.close()
+    shared = True
+    if not row and uid:
+        # private skill/answer cubes live in the user DB only
+        try:
+            from app.memory_v2 import db_path as _user_db
+            _pc = sqlite3.connect(_user_db(uid), timeout=30)
+            _cv2.migrate_private_schema(_pc)
+            prow = _pc.execute(
+                "select cube_id, essence, rules_markdown, kind, skill_md, hooks, carrier, topic from experience_cubes where cube_id=?",
+                (cube_id,),
+            ).fetchone()
+            _pc.close()
+        except Exception:
+            prow = None
+        if prow:
+            shared = False
+            row = (prow[0], prow[1], prow[2], "private", prow[3] or "moment", prow[4], prow[5], prow[6])
+            topic = prow[7] or ""
+        else:
+            topic = ""
+    else:
+        topic = ""
     if not row:
         raise HTTPException(404, "Cube not found")
-    return {"cube_id": row[0], "essence": row[1], "rules": row[2], "status": row[3]}
+    out = {"cube_id": row[0], "essence": row[1], "rules": row[2], "status": row[3], "kind": row[4] or "moment", "shared": shared}
+    if topic:
+        out["topic"] = topic
+    skill_md = row[5] or ""
+    hooks = _cv2.parse_hooks(row[6])
+    carrier = _cv2.norm_carrier(row[7] if len(row) > 7 else "", skill_md, row[6] if len(row) > 6 else "")
+    out["carrier"] = carrier
+    if skill_md:
+        out["skill_md"] = skill_md
+    if hooks:
+        out["hooks"] = hooks
+    if carrier == "skill" or skill_md or hooks:
+        out["has_skill"] = True
+    return out
+
+
+
+class CubeInstallRequest(BaseModel):
+    cube_id: str
+    user_id: str = ""
+    user_confirmed: bool = False
+    user_said_install: bool = False  # user already said install/attach this cube
+    user_quote: str = ""  # the user's exact reply that gave consent (audit)
+    chain_id: Optional[str] = None
+
+
+class CubeUninstallRequest(BaseModel):
+    cube_id: str
+    user_id: str = ""
+    chain_id: Optional[str] = None
+
+
+@router.post("/cube/install")
+async def cube_install(req: CubeInstallRequest, request: Request,
+                       authorization: str = Header(None), x_api_key: str = Header(None)):
+    """Attach a skill cube to this chain. Ask-then-install — never silent.
+
+    Require user_confirmed=true (user said yes to the offer) OR user_said_install=true
+    (user already said 'install/attach this cube').
+    Private cubes: owner chain only. Shared: after existing publish Guard; still needs yes.
+    """
+    from app import chain_skills as _cs
+    uid, chain_id, _, _ = _cs.chain_from_request(request, authorization, x_api_key)
+    uid = (req.user_id or "").strip() or uid
+    if req.user_quote:
+        print(f"[cube_install] consent quote uid={uid} cube={req.cube_id} quote={req.user_quote[:120]!r}", flush=True)
+    chain = (req.chain_id or "").strip() or chain_id
+    out = _cs.install(
+        uid, chain, req.cube_id,
+        user_confirmed=bool(req.user_confirmed),
+        user_said_install=bool(req.user_said_install),
+        attached_by=uid,
+    )
+    if (req.cube_id or "").startswith(("cube_const_", "cube_skill_const")) and (req.user_confirmed or req.user_said_install):
+        try:
+            from app import constitution_consent as _cc
+            out["constitution"] = _cc.install(uid, user_confirmed=True, by=uid, via="cube_install")
+            if not out.get("ok"):
+                out = {"ok": True, "constitution": out["constitution"], "cube_note": out.get("error")}
+        except Exception as _e:
+            print(f"[consent] {_e}", flush=True)
+    if out.get("ok"):
+        try:
+            import sqlite3 as _sq
+            from app import cubes_v2 as _cv2
+            _c = _sq.connect(SHARED_DB); _cv2.mark_used(_c, uid, req.cube_id); _c.commit(); _c.close()
+        except Exception:
+            pass
+    if not out.get("ok"):
+        err = out.get("error") or "install_failed"
+        code = 400 if err in ("ask_first", "not_a_skill_cube", "limit") else (404 if err == "cube_not_found" else 400)
+        if err == "API key required" or out.get("error") == "API key required":
+            code = 401
+        raise HTTPException(code, out.get("hint") or err)
+    return out
+
+
+class ConstitutionInstallRequest(BaseModel):
+    user_id: str = ""
+    user_confirmed: bool = False
+    user_said_install: bool = False
+
+
+@router.post("/constitution/install")
+async def constitution_install(req: ConstitutionInstallRequest, request: Request,
+                               authorization: str = Header(None), x_api_key: str = Header(None)):
+    """User installs the SKV constitution as their own rules. Requires explicit user yes."""
+    from app import chain_skills as _cs, constitution_consent as _cc
+    uid, _c, _n, _k = _cs.chain_from_request(request, authorization, x_api_key)
+    uid = (req.user_id or "").strip() or uid
+    out = _cc.install(uid, user_confirmed=bool(req.user_confirmed),
+                      user_said_install=bool(req.user_said_install), by=uid, via="api")
+    if not out.get("ok"):
+        raise HTTPException(401 if out.get("error") == "API key required" else 400, out.get("hint") or out.get("error"))
+    return out
+
+
+@router.post("/constitution/uninstall")
+async def constitution_uninstall(req: ConstitutionInstallRequest, request: Request,
+                                 authorization: str = Header(None), x_api_key: str = Header(None)):
+    """User switches the SKV constitution off (only the user may)."""
+    from app import chain_skills as _cs, constitution_consent as _cc
+    uid, _c, _n, _k = _cs.chain_from_request(request, authorization, x_api_key)
+    uid = (req.user_id or "").strip() or uid
+    out = _cc.uninstall(uid)
+    if not out.get("ok"):
+        raise HTTPException(401, out.get("error"))
+    return out
+
+
+@router.get("/constitution/status")
+async def constitution_status(request: Request, user_id: str = "",
+                              authorization: str = Header(None), x_api_key: str = Header(None)):
+    from app import chain_skills as _cs, constitution_consent as _cc
+    uid, _c, _n, _k = _cs.chain_from_request(request, authorization, x_api_key)
+    uid = (user_id or "").strip() or uid
+    if not uid:
+        raise HTTPException(401, "API key required")
+    return _cc.status(uid)
+
+
+@router.post("/cube/uninstall")
+async def cube_uninstall(req: CubeUninstallRequest, request: Request,
+                         authorization: str = Header(None), x_api_key: str = Header(None)):
+    """Detach a skill cube from this chain."""
+    from app import chain_skills as _cs
+    uid, chain_id, _, _ = _cs.chain_from_request(request, authorization, x_api_key)
+    uid = (req.user_id or "").strip() or uid
+    chain = (req.chain_id or "").strip() or chain_id
+    out = _cs.uninstall(uid, chain, req.cube_id)
+    if not out.get("ok"):
+        raise HTTPException(401 if "API key" in (out.get("error") or "") else 400, out.get("error"))
+    return out
 
 
 @router.post("/court/fold")
@@ -731,13 +1045,213 @@ async def project_help(project_id: str, node_id: str, req: ProjectHelpRequest):
 async def court_verdict(req: CourtVerdictRequest):
     """Owner/court only. remove (= archive, never a hard delete) needs two distinct judges agreeing."""
     uid = _need_uid(req.user_id)
-    if not _is_owner(uid):
-        raise HTTPException(403, "court is owner-only")
+    from app import cube_suggest as _cs
     c, cv = _cv2_conn()
     try:
-        vs = [(str(v.get("judge", "")), str(v.get("verdict", "keep")).lower(), str(v.get("reason", ""))) for v in req.verdicts if isinstance(v, dict)]
-        eff = cv.apply_verdicts(c, req.cube_id, vs)
+        if not _cs.is_judge(c, uid, _is_owner(uid)):
+            raise HTTPException(403, "only appointed judge accounts can judge")
+        if (c.execute("SELECT lower(coalesce(created_by,'')) FROM cubes_new WHERE cube_id=?", (req.cube_id,)).fetchone() or [""])[0] == uid.lower():
+            raise HTTPException(403, "the cube author cannot judge own cube")
+        v0 = next((v for v in req.verdicts if isinstance(v, dict)), {})
+        v, why = str(v0.get("verdict", "keep")).lower(), str(v0.get("reason", "")).strip()
+        if len(why) < 5:
+            raise HTTPException(422, "a verdict needs a reason")
+        c.execute("DELETE FROM court_verdicts WHERE cube_id=? AND lower(judge)=?", (req.cube_id, uid.lower()))
+        c.execute("INSERT INTO court_verdicts (cube_id, judge, verdict, reason, ts) VALUES (?,?,?,?,datetime('now'))", (req.cube_id, uid.lower(), v, why[:300]))
+        rows = c.execute("SELECT judge, verdict, reason FROM court_verdicts WHERE cube_id=? AND ts >= datetime('now','-30 days')", (req.cube_id,)).fetchall()
+        removers = {j for j, vv, _ in rows if vv == "remove" and "@" in (j or "")}
+        if len(removers) >= 2:
+            cv.archive_cube(c, req.cube_id, "court: " + "; ".join("%s: %s" % (j, r[:80]) for j, vv, r in rows if vv == "remove"))
+            eff = "remove"
+        else:
+            eff = v if v != "remove" else "remove_pending_second_judge"
         c.commit()
     finally:
         c.close()
-    return {"status": "ok", "cube_id": req.cube_id, "verdict": eff}
+    return {"status": "ok", "cube_id": req.cube_id, "verdict": eff, "judge": uid}
+
+
+# ---- proposed fixes via the court (owner t438, 2026-10-24) ----
+@router.post("/experience/vote")
+async def vote_experience(req: VoteRequest, request: Request = None):
+    res = await _vote_experience_impl(req, request)
+    if any((req.fix_essence, req.fix_rules, req.fix_skill_md, req.fix_hooks)):
+        import sqlite3
+        from app import cube_suggest as _cs
+        c = sqlite3.connect(SHARED_DB, timeout=30)
+        try:
+            res["fix"] = _cs.propose_fix(c, req.cube_id, req.user_id, req.reason, req.fix_essence, req.fix_rules, req.fix_skill_md, req.fix_hooks)
+            c.commit()
+        finally:
+            c.close()
+    return res
+
+
+def _court_case(c, fix_id):
+    """Full court case for a fix / new version: judges see BOTH versions in full plus per-field diffs (hooks and skill_md separate)."""
+    import difflib
+    from app import cube_suggest as _cs_court
+    _cs_court.ensure_fix(c)
+    r = c.execute("SELECT id, cube_id, user_id, essence, rules, skill_md, hooks, reason, status, verdict, ts FROM cube_fixes WHERE id=?", (int(fix_id),)).fetchone()
+    if not r:
+        return None
+    keys = ("essence", "rules", "skill_md", "hooks")
+    new = dict(zip(keys, (r[3] or "", r[4] or "", r[5] or "", r[6] or "")))
+    o = c.execute("SELECT essence, rules_markdown, skill_md, hooks, subject_action_object, created_by FROM cubes_new WHERE cube_id=?", (r[1],)).fetchone()
+    old = dict(zip(keys, ((o[0] or "", o[1] or "", o[2] or "", o[3] or "") if o else ("", "", "", ""))))
+    import re as _re
+    _m = _re.match(r"version:(cube_[0-9a-f]+)", r[7] or "")
+    def _pretty(k, v):
+        if k == "hooks" and v:
+            try:
+                return json.dumps(json.loads(v), ensure_ascii=False, indent=2, sort_keys=True)
+            except Exception:
+                return v
+        return v
+    diff = {}
+    for k in keys:
+        if not new[k] and k in ("skill_md", "hooks"):
+            continue   # field not part of this proposal
+        d = "\n".join(difflib.unified_diff(_pretty(k, old[k]).splitlines(), _pretty(k, new[k]).splitlines(), "old/" + k, "new/" + k, lineterm=""))
+        diff[k] = {"changed": bool(d), "unified": d}
+    return {"fix_id": r[0], "cube_id": r[1], "new_cube_id": _m.group(1) if _m else None, "by": r[2], "old_author": (o[5] if o else None),
+            "topic": (o[4] if o else None), "reason": r[7], "court_only": "[court_only]" in (r[7] or ""), "status": r[8], "verdict": r[9], "ts": r[10],
+            "old": old, "new": new, "diff": diff,
+            "hooks_changed": bool(diff.get("hooks", {}).get("changed")), "skill_md_changed": bool(diff.get("skill_md", {}).get("changed")),
+            "age_hours": round((c.execute("SELECT (julianday('now') - julianday(?)) * 24", (r[10],)).fetchone()[0] or 0), 1),
+            "votes": [{"judge": a, "verdict": b, "reason": d, "at": t} for a, b, d, t in c.execute("SELECT judge, verdict, reason, ts FROM court_votes WHERE fix_id=? ORDER BY ts", (r[0],)).fetchall()],
+            "decision_reason": r[9], "complaints": _cs_court.complaints(c, r[1])}
+
+
+@router.get("/court/case/{fix_id}")
+async def court_case(fix_id: int):
+    import sqlite3
+    from app import cube_suggest as _cs
+    c = sqlite3.connect(SHARED_DB); _cs.ensure_fix(c)
+    try:
+        case = _court_case(c, fix_id)
+    finally:
+        c.close()
+    if not case:
+        raise HTTPException(status_code=404, detail="no such court case")
+    return case
+
+
+@router.get("/court/fixes")
+async def court_fixes(status: str = "pending", compact: int = 0):
+    import sqlite3
+    from app import cube_suggest as _cs
+    c = sqlite3.connect(SHARED_DB); _cs.ensure_fix(c)
+    rows = c.execute("SELECT id FROM cube_fixes WHERE status=? ORDER BY id DESC LIMIT 50", (status,)).fetchall()
+    out = []
+    for (fid,) in rows:
+        k = _court_case(c, fid)
+        k["id"] = fid
+        if compact:
+            k = {x: k.get(x) for x in ("id", "cube_id", "new_cube_id", "by", "reason", "court_only", "hooks_changed", "skill_md_changed", "age_hours", "votes", "status")}
+        out.append(k)
+    c.close()
+    return {"fixes": out, "note": "each case carries old + new in full and diff (hooks and skill_md separately); judge from both"}
+
+
+@router.post("/cube/consent")
+async def cube_consent_ep(request: Request):
+    """body {user_id, action: status|notice_shown}. Server-owned publish consent: opted_out/allowed/unknown + notice_shown."""
+    body = await request.json()
+    uid = _need_uid(body.get("user_id", ""))
+    from app import cube_consent as _cc
+    _mr = str(body.get("msg_ref", "") or "")
+    if str(body.get("action", "status")) == "notice_shown":
+        _cc.mark_notice(uid, _mr)
+    return {"status": "ok", **_cc.info(uid, _mr)}
+
+
+@router.post("/court/removal_request")
+async def court_removal_request(request: Request):
+    """Anyone: body {user_id, cube_id, ground: personal_data|secret|harmful|illegal|legal_claim, reason}. Goes to /court/fix."""
+    body = await request.json()
+    uid = _need_uid(body.get("user_id", ""))
+    import sqlite3
+    from app import cube_suggest as _cs
+    c = sqlite3.connect(SHARED_DB, timeout=30)
+    try:
+        r = _cs.request_removal(c, str(body.get("cube_id", "")), uid, str(body.get("ground", "")), str(body.get("reason", "")))
+        c.commit()
+    finally:
+        c.close()
+    if not r.get("ok"):
+        raise HTTPException(400, r.get("error"))
+    return {"status": "ok", **r}
+
+
+@router.post("/court/fix")
+async def court_fix(request: Request):
+    """Judge accounts only. body {fix_id, verdict: approve|reject, reason}. The judge is the authenticated account
+    (free-text judge names are ignored). Approved = 2 distinct judge accounts approve, none rejects. Author cannot judge."""
+    body = await request.json()
+    uid = _need_uid(body.get("user_id", ""))
+    import sqlite3
+    from app import cube_suggest as _cs
+    v0 = body if body.get("verdict") else next((v for v in body.get("verdicts", []) if isinstance(v, dict)), {})
+    c = sqlite3.connect(SHARED_DB, timeout=30)
+    try:
+        if not _cs.is_judge(c, uid, _is_owner(uid)):
+            raise HTTPException(403, "only appointed judge accounts can judge")
+        r = _cs.human_vote(c, int(body.get("fix_id", 0)), uid, str(v0.get("verdict", "")), str(v0.get("reason", "")))
+        c.commit()
+    finally:
+        c.close()
+    if not r.get("ok"):
+        raise HTTPException(r.get("status", 400), r.get("error"))
+    return {"status": "ok", "judge": uid, "approved": r.get("decided") == "approved", **r}
+
+
+@router.post("/court/judges")
+async def court_judges(request: Request):
+    """Owner only: body {judge, action: add|remove}. Judges are real confirmed accounts."""
+    body = await request.json()
+    uid = _need_uid(body.get("user_id", ""))
+    if not _is_owner(uid):
+        raise HTTPException(403, "owner only")
+    import sqlite3
+    from app import cube_suggest as _cs
+    j = str(body.get("judge", "")).strip().lower()
+    c = sqlite3.connect(SHARED_DB, timeout=30); _cs.ensure_fix(c)
+    try:
+        if not c.execute("SELECT 1 FROM users WHERE lower(email)=? AND confirmed=1", (j,)).fetchone():
+            raise HTTPException(404, "judge must be a confirmed account")
+        if body.get("action") == "remove":
+            c.execute("DELETE FROM court_judges WHERE lower(user_id)=?", (j,))
+        else:
+            c.execute("INSERT OR IGNORE INTO court_judges VALUES (?,?,datetime('now'))", (j, uid))
+        c.commit()
+        js = [r[0] for r in c.execute("SELECT user_id FROM court_judges")]
+    finally:
+        c.close()
+    return {"status": "ok", "judges": js}
+
+
+@router.post("/court/rollback")
+async def court_rollback(request: Request):
+    body = await request.json()
+    uid = _need_uid(body.get("user_id", ""))
+    if not _is_owner(uid):
+        raise HTTPException(403, "court is owner-only")
+    import sqlite3
+    from app import cube_suggest as _cs
+    c = sqlite3.connect(SHARED_DB, timeout=30)
+    try:
+        ok = _cs.rollback(c, body.get("cube_id", ""), int(body.get("version", 0))); c.commit()
+    finally:
+        c.close()
+    return {"status": "ok" if ok else "not_found"}
+
+
+@router.get("/cube/{cube_id}/versions")
+async def cube_versions(cube_id: str):
+    import sqlite3
+    from app import cube_suggest as _cs
+    c = sqlite3.connect(SHARED_DB); _cs.ensure_fix(c)
+    rows = c.execute("SELECT version, essence, replaced_by_fix, ts FROM cube_versions WHERE cube_id=? ORDER BY version", (cube_id,)).fetchall()
+    c.close()
+    return {"cube_id": cube_id, "versions": [dict(zip(("version", "essence", "replaced_by_fix", "ts"), r)) for r in rows]}

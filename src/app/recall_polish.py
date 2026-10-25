@@ -14,6 +14,19 @@ def _name(uid):
     return "".join(c for c in uid if c.isalnum() or c in "_-")
 
 
+
+def _open(uid):
+    """Read-only open of the user DB; None if the DB or event_metadata does not exist yet (fresh account).
+    Never creates an empty .db file as a side effect."""
+    path = os.path.join(BASE, _name(uid) + ".db")
+    if not os.path.exists(path):
+        return None
+    c = sqlite3.connect(path, timeout=10)
+    if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='event_metadata'").fetchone():
+        c.close()
+        return None
+    return c
+
 def _tok(s):
     from app.memory_v2 import est_tokens
     return est_tokens(s)
@@ -190,7 +203,9 @@ def score(row, tq, dates, prior, now, mq=True):
 def _rows(uid, ids):
     if not ids:
         return {}
-    c = sqlite3.connect(os.path.join(BASE, _name(uid) + ".db"), timeout=10)
+    c = _open(uid)
+    if c is None:  # fresh account: no DB / no schema yet
+        return {}
     try:
         out = {}
         ids = list(ids)
@@ -216,7 +231,9 @@ def _extra_candidates(uid, q, dates):
         ids += [e for e, _ in _sem.fts_ranked(uid, q, limit=40)]
     except Exception:
         pass
-    c = sqlite3.connect(os.path.join(BASE, _name(uid) + ".db"), timeout=10)
+    c = _open(uid)
+    if c is None:  # fresh account: no DB / no schema yet
+        return ids
     try:
         for d in dates:
             for f in _date_forms(d)[:1] + [d.isoformat()]:
@@ -234,7 +251,9 @@ def _extra_candidates(uid, q, dates):
 
 
 def _crit_ids(uid):
-    c = sqlite3.connect(os.path.join(BASE, _name(uid) + ".db"), timeout=10)
+    c = _open(uid)
+    if c is None:  # fresh account: no DB / no schema yet
+        return set()
     try:
         s = {r[0] for r in c.execute("SELECT event_id FROM event_metadata WHERE raw_dialogue LIKE '%>>>%' OR event_id LIKE '%::critical_%' LIMIT 500")}
         try:
@@ -248,7 +267,9 @@ def _crit_ids(uid):
 
 def l1_summaries(uid, q, dates, k=3):
     tq = terms(q)
-    c = sqlite3.connect(os.path.join(BASE, _name(uid) + ".db"), timeout=10)
+    c = _open(uid)
+    if c is None:  # fresh account: no DB / no schema yet
+        return []
     try:
         rows = c.execute("SELECT topic, summary_text, created_at FROM summary_l1 ORDER BY created_at DESC LIMIT 400").fetchall()
     finally:
@@ -275,7 +296,9 @@ def l1_summaries(uid, q, dates, k=3):
 def calendar_items(uid, dates):
     out = []
     try:
-        c = sqlite3.connect(os.path.join(BASE, _name(uid) + ".db"), timeout=10)
+        c = _open(uid)
+        if c is None:  # fresh account: no DB / no schema yet
+            raise LookupError("no user db")
         for d in dates:
             for dd, title, kind in c.execute("SELECT date, title, kind FROM agent_calendar WHERE date LIKE ?", (d.isoformat() + "%",)):
                 out.append({"date": dd, "title": title, "kind": kind})

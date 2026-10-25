@@ -167,6 +167,12 @@ _TOKEN = re.compile(r"\w+", re.UNICODE)
 
 def fts_ranked(user_id, query, limit=30):
     """bm25-ranked FTS5 hits for any of the query tokens (rare words weigh more)."""
+    try:   # search v2 (stopwords + stemmed table), switch /data/skv/search_config.json
+        from app import search_v2 as _v2
+        if _v2.enabled():
+            return _v2.fts_ranked(user_id, query, limit)[0]
+    except Exception as _e:
+        print(f"[search_v2] fallback to old fts: {_e}", flush=True)
     toks = []
     for t in _TOKEN.findall(query or ""):
         if len(t) >= 3 and t.lower() not in toks:
@@ -285,7 +291,7 @@ def build_user(tag, fname, threads=None, batch=32, progress=None, max_items=None
         try:
             rows = conn.execute(
                 f"SELECT e.event_id, e.raw_dialogue FROM event_metadata e LEFT JOIN {table} v ON e.event_id=v.event_id "
-                f"WHERE v.event_id IS NULL AND e.raw_dialogue IS NOT NULL AND e.raw_dialogue != ''").fetchall()
+                f"WHERE v.event_id IS NULL AND e.raw_dialogue IS NOT NULL AND e.raw_dialogue != '' AND e.raw_dialogue NOT LIKE '[archived]%'").fetchall()
         except sqlite3.OperationalError:
             rows = []
         try:

@@ -37,14 +37,14 @@ def extract(text):
         out.append((kind, (val or m.group(0)).strip().rstrip(".,;:"), _ctx(text, m)))
     for m in _URL.finditer(text): add("link", m)
     for m in _EMAIL.finditer(text): add("email", m)
-    for m in _DATE.finditer(text):
-        n = re.match(r"(\d{1,2})[./](\d{1,2})[./](\d{2,4})$", m.group(0))
-        if n and not (1 <= int(n.group(1)) <= 31 and 1 <= int(n.group(2)) <= 12 and len(n.group(3)) in (2, 4)):
-            continue
-        add("date", m)
+    for m in _DATE.finditer(text):   # dates alone are not facts: only block phone false-positives
+        taken.append(m.span())
     for m in _PHONE.finditer(text):
-        digits = re.sub(r"\D", "", m.group(0))
-        if 10 <= len(digits) <= 15: add("phone", m)
+        raw = m.group(0); digits = re.sub(r"\D", "", raw)
+        if not (10 <= len(digits) <= 15): continue
+        if not (raw.startswith("+") or re.search(r"[\s()-]", raw)): continue          # bare digit runs (timestamps, ids) are not phones
+        if re.search(r"(?:19|20)\d{2}[01]\d[0-3]\d", digits): continue                # contains a yyyymmdd date
+        add("phone", m)
     for m in _ADDR.finditer(text): add("address", m)
     for m in _NAME.finditer(text):
         if m.group(1) not in _STOP_NAMES: add("name", m, m.group(1))
@@ -61,9 +61,16 @@ def _norm(kind, value):
 def ensure(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS critical_auto (
         key TEXT PRIMARY KEY, kind TEXT, value TEXT, context TEXT, event_id TEXT, time_str TEXT, hits INTEGER DEFAULT 1)""")
+    try:
+        conn.execute("ALTER TABLE critical_auto ADD COLUMN source TEXT DEFAULT 'server_fallback'")
+    except sqlite3.OperationalError:
+        pass
 
 
 def capture(conn, event_id, time_str, text, max_per_turn=8):
+    """Server FALLBACK only: skipped when the agent marked critical facts itself (>>> in the turn)."""
+    if ">>>" in (text or ""):
+        return 0
     facts = extract(text)[:max_per_turn]
     if not facts:
         return 0
@@ -72,6 +79,10 @@ def capture(conn, event_id, time_str, text, max_per_turn=8):
         conn.execute("""INSERT INTO critical_auto (key, kind, value, context, event_id, time_str) VALUES (?,?,?,?,?,?)
                         ON CONFLICT(key) DO UPDATE SET hits = hits + 1, time_str = excluded.time_str""",
                      (_norm(kind, value), kind, value[:200], ctx[:160], event_id, time_str))
+    try:
+        from app import source_links as _sl; _sl.link_all(conn)
+    except Exception as _e:
+        print(f"[source_links] {_e}", flush=True)
     return len(facts)
 
 

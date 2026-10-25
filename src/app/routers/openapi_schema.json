@@ -3,13 +3,13 @@
   "info": {
     "title": "SKV Network API v8.3",
     "version": "8.3",
-    "description": "New chat paste: work through SKV. First call POST /api/v7/memory with step 0 to load the map and constitution. Later, search when the past can change the answer. After every reply POST /api/v7/remember. Header Authorization Bearer sk_key. Tools: searchMemory, remember, digMemory, openEvent, voteCube. Guardian 2 (v3, recommended for local agents): GET /api/v7/agent/guardian.py. It requires L1/CRITICAL/CUBE or CUBE_NOTHING/RATE service lines, saves with remember, runs Second Look, votes, then shows only the clean answer."
+    "description": "SKV PROTOCOL (same core as MCP): memory_bootstrap → memory_consult → draft → second_look → SEAL → memory_remember → cube_create|cube_nothing → cube_vote|vote_nothing. MCP primary: https://skv.network/mcp + Bearer sk_ from /profile. Without MCP: paste this OpenAPI into agent Actions, or download Guard 2 (GET /api/v7/agent/guardian.py) for local draft insurance. Guard 1 only reminds missed steps in /memory responses."
   },
   "paths": {
     "/api/v7/memory": {
       "post": {
-        "operationId": "searchMemory",
-        "summary": "Read memory. Rewrite the user sentence first: names and rare words in, common words out. Write the memory search query in English; keep names, rare words and exact terms as-is.",
+        "operationId": "memory_consult",
+        "summary": "memory_consult — search memory before answering (PROTOCOL step A).",
         "requestBody": {
           "required": true,
           "content": {
@@ -40,13 +40,13 @@
             "description": "fragments, previous, memory_map, shared_cubes, duty_error"
           }
         },
-        "description": "Read memory. Rewrite the user sentence first: names and rare words in, common words out. Write the memory search query in English; keep names, rare words and exact terms as-is."
+        "description": "PROTOCOL: call before every answer. Rewrite user sentence to English search query (keep names/rare terms). Empty → say no match; do not invent. After ~3 misses use memory_dig. Session start: prefer memory_bootstrap (POST /session/bootstrap) or GET /memory/start."
       }
     },
     "/api/v7/remember": {
       "post": {
-        "operationId": "remember",
-        "summary": "Write a turn, a >>> mark, L1, L2, a shared cube, or duty=cube_nothing / vote_nothing.",
+        "operationId": "memory_remember",
+        "summary": "memory_remember — save turn immediately after answer (PROTOCOL step F).",
         "requestBody": {
           "required": true,
           "content": {
@@ -110,7 +110,7 @@
     },
     "/api/v7/memory/dig": {
       "post": {
-        "operationId": "digMemory",
+        "operationId": "memory_dig",
         "summary": "After three misses, ask the server to scan stored text. If not_found, say you do not know.",
         "requestBody": {
           "required": true,
@@ -146,7 +146,7 @@
     },
     "/api/v7/event/{event_id}": {
       "get": {
-        "operationId": "openEvent",
+        "operationId": "memory_event",
         "summary": "Open an earlier repeat from previous. Do not search again.",
         "parameters": [
           {
@@ -167,8 +167,8 @@
     },
     "/api/v7/experience/vote": {
       "post": {
-        "operationId": "voteCube",
-        "summary": "Vote on a shared experience cube you used. +1 or -1.",
+        "operationId": "cube_vote",
+        "summary": "cube_vote — rate a cube, or use memory_remember(duty=vote_nothing).",
         "requestBody": {
           "required": true,
           "content": {
@@ -204,7 +204,7 @@
     },
     "/api/v7/agent/guardian.py": {
       "get": {
-        "operationId": "downloadGuardian",
+        "operationId": "download_guard2",
         "summary": "Download Guard 2 v3 (skv-guardian2.py). It holds an answer without service lines, save, Second Look or seal.",
         "responses": {
           "200": {
@@ -215,7 +215,7 @@
     },
     "/api/v7/memory/forget/preview": {
       "post": {
-        "operationId": "forgetPreview",
+        "operationId": "memory_forget_preview",
         "summary": "Step 1 of deleting memory. Returns matched items, a one-time token and purge_at. Show the items to the user and tell them: 'These records will be removed from memory now. You can restore them within 30 days; after that they are deleted permanently.' Get an explicit yes. Never auto-confirm.",
         "requestBody": {
           "required": true,
@@ -255,7 +255,7 @@
     },
     "/api/v7/memory/forget/confirm": {
       "post": {
-        "operationId": "forgetConfirm",
+        "operationId": "memory_forget_confirm",
         "summary": "Step 2. Call only after the user explicitly said yes to the preview. Send the preview token and user_confirmed=true. Single use, 5 minute TTL. Returns archived_at and purge_at (30 days).",
         "requestBody": {
           "required": true,
@@ -297,7 +297,7 @@
     },
     "/api/v7/memory/forget/restore": {
       "post": {
-        "operationId": "forgetRestore",
+        "operationId": "memory_forget_restore",
         "summary": "Undo a confirmed forget within 30 days, using the same token. After purge_at the records are gone permanently.",
         "requestBody": {
           "required": true,
@@ -320,6 +320,86 @@
         "responses": {
           "200": {
             "description": "Restored (count 0 if the window passed)"
+          }
+        }
+      }
+    },
+    "/api/v7/agent/turn": {
+      "get": {
+        "operationId": "agentTurnGet",
+        "summary": "MAIN PATH: one call per user message. Searches memory, saves the turn, checks [ev:id], returns verdict + seal. Seal = steps done + sources real, not proof of truth.",
+        "parameters": [
+          {
+            "name": "k",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "sk_ key"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "user message"
+          },
+          {
+            "name": "draft",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "your draft answer"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "verdict, seal, event_id"
+          }
+        }
+      }
+    },
+    "/api/v7/agent/feedback": {
+      "get": {
+        "operationId": "agentFeedback",
+        "summary": "Report a bug/idea about SKV (GET-only friendly). Max 10/hour per key; secrets masked.",
+        "parameters": [
+          {
+            "name": "k",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "sk_ key"
+          },
+          {
+            "name": "text",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "what happened"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "bug|idea|praise"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "feedback_id"
           }
         }
       }

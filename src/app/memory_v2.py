@@ -302,6 +302,8 @@ def trim_cubes(cubes, n=6, rules_chars=300):
 def render_text(view):
     """Plain-text rendering of an agent view for weak agents (GET)."""
     L = [f"=== SKV MEMORY (agent view) step={view.get('step')} first={'yes' if view.get('session', {}).get('first') else 'no'} server_time={view.get('server_time','')} ==="]
+    if view.get("constitution_consent"):
+        L.append(view["constitution_consent"])
     if view.get("duty_error"):
         L.append(view["duty_error"])
     mm = view.get("memory_map")
@@ -475,6 +477,11 @@ def agent_view(req, legacy, ctx):
         if budgets["constitution"] > 0:
             view["constitution_compact"] = clip(constitution_compact(), budgets["constitution"])
             view["constitution_url"] = "/api/v7/constitution"
+            try:
+                from app import constitution_consent as _cc
+                view["constitution_consent"] = _cc.block(uid)
+            except Exception as _e:
+                print(f"[consent] {_e}", flush=True)
     lens = None
     if ctx.get("lens_fn"):
         lb = budgets["lens"] if not first else min(budgets["lens"], int(cfg.get("first_call_lens_budget", 600)))

@@ -74,7 +74,7 @@ async def vault_list(request: Request):
     """Names and metadata of your secrets. Values are never listed."""
     _need()
     uid = _uid(request)
-    return {"secrets": vault.listing(uid), "how": {"use": "POST /api/v7/vault/use {name, purpose}", "reveal_link": "POST /api/v7/vault/reveal {name, ttl_s<=3600, require_login}",
+    return {"secrets": vault.listing(uid), "how": {"inject": "POST /api/v7/vault/inject {name, purpose, method, url, body}", "reveal_link": "POST /api/v7/vault/reveal {name, ttl_s<=3600, require_login}",
             "store": "POST /api/v7/vault {name, value, kind, note}", "delete": "DELETE /api/v7/vault/<name>", "log": "GET /api/v7/vault/log"},
             "rule": "Memory keeps only [vault:<name>] references. Never paste a secret value into memory, chat or cubes."}
 
@@ -89,19 +89,33 @@ async def vault_put(req: VaultPut, request: Request):
         raise HTTPException(422, str(e))
 
 
-@router.post("/api/v7/vault/use")
-async def vault_use(req: VaultName, request: Request):
-    """Return a secret value for immediate use. Logged with purpose and IP. Do not store or repeat the value."""
+class VaultInject(BaseModel):
+    name: str
+    purpose: str
+    method: str = "POST"
+    url: str
+    body: str = ""
+    headers: dict = {}
+    user_id: str = ""
+
+
+@router.post("/api/v7/vault/inject")
+async def vault_inject(req: VaultInject, request: Request):
+    """Agent path. Server substitutes the secret and sends the request. Returns status only, never the value."""
     _need()
     uid = _uid(request)
+    from app.vault_inject import inject
     try:
-        v = vault.use(uid, req.name, req.purpose, _ip(request))
+        return inject(uid, req.name, req.purpose, req.method, req.url, req.body, req.headers, _ip(request))
     except ValueError as e:
         raise HTTPException(422, str(e))
-    if v is None:
-        raise HTTPException(404, "No such secret")
-    return JSONResponse({"name": req.name, "value": v, "note": "Use it now; do not save it to memory, cubes or chat."},
-                        headers={"Cache-Control": "no-store"})
+
+
+@router.post("/api/v7/vault/use")
+async def vault_use(req: VaultName, request: Request):
+    """Closed for agents. A secret is never returned. Use inject, or a reveal link for a human."""
+    _need()
+    return JSONResponse({"status": "closed", "reason": "use no longer returns a secret. Call inject, or open a reveal link."}, status_code=410)
 
 
 @router.post("/api/v7/vault/reveal")

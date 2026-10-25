@@ -18,6 +18,32 @@ def account_db_name(user_id: str) -> str:
     return "".join(c for c in user_id if c.isalnum() or c in ("_", "-"))
 
 
+_SCHEMA_DONE = set()
+
+
+def ensure_user_db(user_id: str, base_dir: str = "/data/skv/metadata_store") -> None:
+    """Account init (25.10): make sure the per-user DB has the base schema (same tables as signup), so a fresh/empty
+    account never hits 'no such table: event_metadata' in readers (recall_polish, memory map, cubes...). Cached per process."""
+    if not user_id:
+        return
+    path = os.path.join(base_dir, account_db_name(user_id) + ".db")
+    if user_id in _SCHEMA_DONE and os.path.exists(path):   # re-init if the DB file was removed (reset/wipe)
+        return
+    os.makedirs(base_dir, exist_ok=True)
+    with sqlite3.connect(path, timeout=30) as c:
+        for q in (
+            "CREATE TABLE IF NOT EXISTS event_metadata (event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, messages_count INTEGER, links_json TEXT, topics_json TEXT, raw_dialogue TEXT, subject TEXT, action TEXT, object TEXT, status TEXT, metric_value REAL, kind TEXT DEFAULT 'dialogue', source TEXT DEFAULT '', project TEXT DEFAULT '')",
+            "CREATE TABLE IF NOT EXISTS shelves (slug TEXT PRIMARY KEY, description TEXT, created_at TEXT)",
+            "CREATE TABLE IF NOT EXISTS personal_vectors (event_id TEXT PRIMARY KEY, vector_blob BLOB)",
+            "CREATE TABLE IF NOT EXISTS summary_l1 (session_id TEXT, user_id TEXT, topic TEXT, summary_text TEXT, summary_json TEXT, message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+            "CREATE TABLE IF NOT EXISTS summary_l2 (user_id TEXT, map_json TEXT, themes_json TEXT, timeline_json TEXT, session_count INTEGER, last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+            "CREATE TABLE IF NOT EXISTS chat_sessions (session_id TEXT PRIMARY KEY, user_id TEXT, messages_json TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+            "CREATE TABLE IF NOT EXISTS experience_cubes (cube_id TEXT PRIMARY KEY, topic TEXT, essence TEXT, rules_markdown TEXT, evidence TEXT, session_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+        ):
+            c.execute(q)
+    _SCHEMA_DONE.add(user_id)
+
+
 def _fts_insert(cur, event_id: str, dialogue: str):
     cur.execute(
         """CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(
@@ -108,7 +134,7 @@ def build_pending_vectors(base_dir: str, hnsw_dir: str, user_filter: str = "") -
                 rows = conn.execute(
                     """SELECT e.event_id, e.raw_dialogue FROM event_metadata e
                        LEFT JOIN personal_vectors v ON e.event_id=v.event_id
-                       WHERE v.event_id IS NULL AND e.raw_dialogue IS NOT NULL"""
+                       WHERE v.event_id IS NULL AND e.raw_dialogue IS NOT NULL AND e.raw_dialogue NOT LIKE '[archived]%'"""
                 ).fetchall()
             except sqlite3.OperationalError:
                 continue

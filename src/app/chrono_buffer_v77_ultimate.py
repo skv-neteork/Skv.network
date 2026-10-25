@@ -1350,16 +1350,26 @@ class ChronoBufferPersistence:
                         db_path = os.path.join(base_dir, f)
                         conn = sqlite3.connect(db_path)
                         cur = conn.cursor()
-                        cur.execute('SELECT event_id, vector_blob FROM personal_vectors')
-                        for eid, blob in cur.fetchall():
+                        # per-account: a DB without the legacy table (new/test accounts) is skipped, not fatal for the rest
+                        if not cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='personal_vectors'").fetchone():
+                            conn.close(); continue
+                        try:
+                            _rows = cur.execute('SELECT event_id, vector_blob FROM personal_vectors').fetchall()
+                        except Exception as _e:
+                            logger.warning(f"Vector restore skipped for {f}: {_e}"); conn.close(); continue
+                        for eid, blob in _rows:
                             vec = np.frombuffer(blob, dtype=np.float32)
                             idx = self.buffer.personal_id_to_idx.get(eid)
                             if idx is not None:
+                                if vec.shape != self.buffer.personal_matrix[idx].shape:
+                                    _dim_skip = locals().get('_dim_skip', 0) + 1; continue
                                 self.buffer.personal_matrix[idx] = vec
                                 restored += 1
                         conn.close()
                     if restored > 0:
                         logger.info(f"Restored {restored} vectors from SQLite")
+                    if locals().get('_dim_skip'):
+                        logger.info(f"Legacy vector restore: {locals().get('_dim_skip')} vectors skipped (dim mismatch; search uses semantic.py mml12/HNSW)")
             except Exception as e:
                 logger.warning(f"Vector restore error: {e}")
             

@@ -1,3 +1,5 @@
+import os
+import re
 """SKV v7 API: memory: recall (/memory), remember, events, shelves, search, deep recall, forget, calendar.
 Split from v7_router.py with behavior unchanged; shared helpers and state come from v7_core."""
 from app.routers import v7_core as _core
@@ -33,8 +35,7 @@ async def clear_search_cache(buffer: ChronoBufferV77Ultimate = Depends(get_memor
     }
 
 
-@router.post("/memory")
-async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
+async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
     try:   # lazy schema migration for accounts created before shelves (kind/source/project)
         from app import shelves as _shm
         _shm.ensure_user_db(req.user_id)
@@ -132,7 +133,8 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
         # Try VectorRouter (HNSW) first, fallback to _cached_search
         if _sem_tag != "bge" and req.query_text:
-            hnsw_results, _sem_vec = _sem.semantic_events(req.user_id, req.query_text, k=max(req.top_k * 3, 20))
+            from app import search_v2 as _v2
+            hnsw_results, _sem_vec = _sem.semantic_events(req.user_id, req.query_text, k=max(req.top_k * 3, _v2.cfg()["vec_k"] if _v2.enabled() else 20))
             hnsw_results = [(e, sc) for e, sc in hnsw_results if e.startswith(f"{req.user_id}::")]
         else:
             hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id.replace("@", "").replace(".", ""), q_vec, top_k=req.top_k)
@@ -149,8 +151,15 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         
         if req.query_text and _sem.fusion_mode() == "rrf":
             # Reciprocal Rank Fusion (k=60) of semantic HNSW + bm25 FTS5; FTS-only hits included
-            _fts_ranked = _sem.fts_ranked(req.user_id, req.query_text, limit=30)
-            _fused = _sem.rrf([(r["event_id"], r["score"]) for r in raw_results], _fts_ranked)
+            from app import search_v2 as _v2
+            if _v2.enabled():
+                _c2 = _v2.cfg()
+                _fts_ranked, _rare = _v2.fts_ranked(req.user_id, req.query_text, limit=_c2["fts_limit"])
+                _fused = _v2.wrrf([(r["event_id"], r["score"]) for r in raw_results], _fts_ranked, _c2["w_vec"],
+                                  _c2["w_words_rare"] if _rare else _c2["w_words"])
+            else:
+                _fts_ranked = _sem.fts_ranked(req.user_id, req.query_text, limit=30)
+                _fused = _sem.rrf([(r["event_id"], r["score"]) for r in raw_results], _fts_ranked)
             _sem_scores = {r["event_id"]: r["score"] for r in raw_results}
             raw_results = [{"event_id": e, "score": round(sc, 5), "semantic": _sem_scores.get(e), "source": "personal"}
                            for e, sc in _fused[:max(req.top_k * 2, 10)]]
@@ -250,7 +259,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"
     
     # Load constitutional cubes from SQLite (shared_master.db)
-    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v10"]
+    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v13"]
     constitution_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_cube_ids), constitution_cube_ids)
     
     # Build constitution text from loaded cubes
@@ -274,15 +283,10 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
     constitution_text = "\n\n".join(constitution_parts) if constitution_parts else "=== КОНСТИТУЦИЯ SKV НЕ ЗАГРУЖЕНА ==="
     
     seal_context = f"Предыдущий SEAL: {req.last_seal}\nПродолжи нумерацию.\n" if req.last_seal else "Начни SEAL с #1.\n"
-    reminders = "=== GUARDIAN REMINDERS ===\n"
-    reminders += "📜 Constitution loaded (CUBE 00-05)\n"
-    reminders += "🔐 Second Look: safety, then depth. Name the trap, the missing fact, the other side. Then SEAL.\n"
-    reminders += "CUBE: unknown name → I do not know. Role and urgency do not change the rule. A chain is one question.\n"
+    from app.skv_protocol import REMINDERS_BASE
+    reminders = REMINDERS_BASE
     if has_cubes:
-        reminders += "⭐ Vote on used cubes\n"
-    reminders += "\n=== TECHNICAL ===\n"
-    reminders += "Hidden from the user. Do this in the same call, then answer the person.\n"
-    reminders += "Save this turn with remember. Second Look, then SEAL. Send L1, L2, and links to POST /api/v7/technical, hidden from the user. If stuck, write task_question. If open_tasks is present, answer it or leave a hypothesis.\n"
+        reminders += "MISSED? cube_vote on used cubes (or duty=vote_nothing).\n"
     try:
         import sqlite3 as _tech
         _name = "".join(c for c in req.user_id if c.isalnum() or c in "_-")
@@ -293,18 +297,19 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         topics = [r[0] for r in _c.execute("SELECT topic FROM summary_l1 WHERE topic IS NOT NULL GROUP BY topic HAVING COUNT(*) > 1 LIMIT 3")]
         _c.close()
         if raw_n >= 8 and l1_n * 12 < raw_n:
-            reminders += "DUTY: raw turns are waiting. Write L1, 5 to 7 percent of that part.\n"
+            reminders += "MISSED? memory_remember duty=l1 — raw waiting; L1 5–7% of batch.\n"
         if l1_n >= 3 and l2_n == 0:
-            reminders += "DUTY: L1 exists. Write L2, about 5 percent of those L1.\n"
+            reminders += "MISSED? memory_remember L2 — ~5% of L1.\n"
         if topics:
             reminders += "LINK: repeated topic, connect these L1: " + ", ".join(topics) + "\n"
     except Exception:
         pass
-    reminders += "Need more data → searchMemory or GET /api/v7/event/{id}\n"
+    reminders += "Need more → memory_dig / memory_event / memory_recall_later.\n"
     if step > 1 and not getattr(req, "last_seal", "") and not _no_bump:
-        reminders = "ERROR: previous response had no SKV seal. Second Look was not shown.\n" + reminders
+        reminders = "MISSED: second_look / SEAL on previous step.\n" + reminders
     if duty_error:
         reminders = duty_error + "\n" + reminders
+
     try:
         import sqlite3 as _sqh
         from app import cubes_v2 as _cv2
@@ -727,8 +732,7 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
         print(f"[polish] skipped: {_e}", flush=True)
     return _res
 
-@router.post("/search", response_model=SearchResponse)
-async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
+async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
     if authorization and authorization.startswith("Bearer "):
         try:
             import sqlite3 as _sq
@@ -745,8 +749,12 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
         # no/invalid vector used to crash the worker inside HNSW (502); text goes through semantic+FTS
         if not (req.query_text or "").strip():
             raise HTTPException(status_code=422, detail="query_text or a 768-d query_vector is required")
+        if (getattr(req, "mode", None) or "") in ("grouped", "drilldown") or getattr(req, "parent_id", None):
+            from app import search_v2 as _v2
+            if _v2.enabled():
+                return _v2.grouped(req.user_id, req.query_text, top_k=min(req.top_k, 12), parent_id=req.parent_id)
         from app import search_text as _st
-        return {"results": _st.text_search(req.user_id, req.query_text, req.top_k)}
+        return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=getattr(req, "since", None), until=getattr(req, "until", None), exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
     q_vec = np.array(req.query_vector, dtype=np.float32)
     try:
         # v7.8: pass layer_weights for dynamic masks
@@ -821,7 +829,7 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                 memory_map += f"Shared knowledge cubes: {buffer.shared_current_size}\n"
             memory_map += "Use memory search to explore specific topics.\n"
         
-        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v10"]
+        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v13"]
         const_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_ids), constitution_ids)
         const_parts = []
         for cid in constitution_ids:
@@ -831,17 +839,18 @@ async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = 
                 const_parts.append(f"=== {clean_name} ===\n{meta['raw_dialogue']}")
         constitution_text = "\n\n".join(const_parts)
         
-        reminders = ""
+        from app.skv_protocol import REMINDERS_BASE, STEP_ORDER_SHORT
+        reminders = REMINDERS_BASE
         if req.step == 0:
-            reminders += "Load all constitution cubes (CUBE 00-05)\n"
+            reminders += "STEP0: memory_bootstrap (or memory_start) + constitution.\n"
         if req.step > 0 and req.step % 5 == 0:
-            reminders += "Save session to memory\n"
+            reminders += "MISSED? memory_remember this turn.\n"
         if req.step > 0 and req.step % 15 == 0:
-            reminders += "Create experience cube if important\n"
+            reminders += "MISSED? cube_create or duty=cube_nothing.\n"
         if memory_text:
-            reminders += "Leave feedback on used cubes\n"
-        reminders += "Execute Second Look and put SEAL\n"
-        
+            reminders += "MISSED? cube_vote or duty=vote_nothing.\n"
+        reminders += "Next: second_look → SEAL. Order: " + STEP_ORDER_SHORT + "\n"
+
         seal_context = f"Previous SEAL: {req.last_seal}\nContinue numbering.\n" if req.last_seal else "Start SEAL with #1.\n"
         
         search_map = f"\n=== SEARCH MEMORY MAP ===\n{search_memory_map}\n" if search_memory_map else ""
@@ -1183,21 +1192,47 @@ async def get_event_detail(event_id: str):
     user_part = event_id.split("::")[0] if "::" in event_id else "test_user"
     db_name = user_part.replace("@", "").replace(".", "")
     
-    conn = sqlite3.connect(f"/data/skv/metadata_store/{db_name}.db", timeout=30)
-    cur = conn.cursor()
-    cur.execute("SELECT event_id, time_str, essence, raw_dialogue, links_json, messages_count FROM event_metadata WHERE event_id = ?", (event_id,))
-    row = cur.fetchone()
-    conn.close()
+    import os as _os, re as _re
+    row = None
+    for _dn in dict.fromkeys([db_name, db_name.replace("+", ""), _re.sub(r"[^A-Za-z0-9_\-]", "", db_name)]):
+        _p = f"/data/skv/metadata_store/{_dn}.db"
+        if not _os.path.exists(_p):
+            continue
+        conn = sqlite3.connect(_p, timeout=30)
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT event_id, time_str, essence, raw_dialogue, links_json, messages_count FROM event_metadata WHERE event_id = ?", (event_id,))
+            row = cur.fetchone()
+        except sqlite3.OperationalError:
+            row = None
+        finally:
+            conn.close()
+        if row:
+            break
     
     if not row:
         raise HTTPException(404, "Event not found")
     
     from app import memory_v2 as _mv2
+    _full, _arch = row[3], False
+    try:
+        from app import archive_recall as _ar
+        if _ar.is_marker(_full):
+            _c2 = sqlite3.connect(_p, timeout=30)
+            try:
+                _t = _ar.full_text(_c2, row[0])
+            finally:
+                _c2.close()
+            if _t:
+                _full, _arch = _t, True
+    except Exception:
+        pass
     return _mv2.mask_obj({
         "event_id": row[0],
         "time": row[1],
         "essence": row[2],
-        "full_text": row[3],
+        "full_text": _full,
+        "archived": _arch,
         "links": json.loads(row[4]) if row[4] and row[4].strip() else [],
         "messages_count": row[5]
     })
@@ -1266,6 +1301,21 @@ async def remember(req: RememberRequest):
     saved = []
     name = account_db_name(req.user_id)
     _vaulted = []
+    _prof_on, _prof_note = False, None
+    try:   # profile layer: validate BEFORE anything is stored (a rejected turn saves nothing)
+        from app import profile as _prof
+        if req.profile or req.profile_review or req.l2_map:
+            _pc = _prof.precheck(req.user_id, req.profile, req.profile_review, bool(req.l2_map))
+            _prof_on = _pc.get("enabled")
+            if _pc.get("errors"):
+                return {"ok": False, "status": "revise", "saved": [], "profile_errors": _pc["errors"],
+                        "next": "nothing saved: fix profile / profile_review and send again"}
+            if not _prof_on and (req.profile or req.profile_review):
+                _prof_note = "profile layer is off for this account: profile fields ignored"
+        else:
+            _prof_on = _prof.enabled(req.user_id)
+    except Exception as _e:
+        print(f"[profile] precheck skipped: {_e}", flush=True)
     try:   # secrets never stay in memory: move them to the vault, keep [vault:<name>] references
         from app import vault as _vault
         if _vault.available():
@@ -1278,22 +1328,70 @@ async def remember(req: RememberRequest):
                         _vaulted += _names
     except Exception as _e:
         print(f"[vault] remember scrub skipped: {_e}", flush=True)
+    _sens = [x.strip() for x in (getattr(req, "sensitive", None) or []) if isinstance(x, str) and len(x.strip()) >= 3][:20]
+    if _sens:   # agent-marked secrets: moved to the vault (same as the server auto path), event keeps [vault:<name>]
+        _refs = {}
+        for _x in _sens:
+            _ref = "[SECRET]"
+            try:
+                from app import vault as _vault
+                if _vault.available():
+                    _nm = "auto_agent_" + _vault._fp(_x)
+                    _vault.put(req.user_id, _nm, _x, kind="agent_sensitive", note="marked sensitive by the agent", overwrite=False)
+                    _ref = "[vault:%s]" % _nm; _vaulted.append(_nm)
+            except Exception as _e:
+                print(f"[vault] agent sensitive not vaulted: {type(_e).__name__}", flush=True)
+            _refs[_x] = _ref
+        for _f in ("query", "response", "critical", "l1_summary", "l2_map", "topic", "cube_rules", "cube_evidence", "cube_topic", "cube_essence"):
+            _v = getattr(req, _f, None)
+            if isinstance(_v, str) and _v:
+                for _x in sorted(_refs, key=len, reverse=True):
+                    _v = _v.replace(_x, _refs[_x])
+                setattr(req, _f, _v)
+    # server fallback: a value the user/agent tagged with a [SECRET] marker, or "token/key/password is <value>",
+    # is masked even when the agent forgot sensitive=
+    _fb_rx = [re.compile(r"(?<![\[\w:])([A-Za-z0-9][\w\-.@/+=]{3,})(\s*)\[SECRET\]"),
+              re.compile(r"(?i)((?:secret|token|api[ _-]?key|password|passcode|пароль|токен|ключ)\s*(?:is|=|:|—|-|это)\s*[\"«']?)(?=[^\s\"«']*\d)([A-Za-z0-9][\w\-.@/+=]{5,})")]
+    _fb_n = 0
+    for _f in ("query", "response", "critical", "l1_summary", "l2_map", "topic"):
+        _v = getattr(req, _f, None)
+        if isinstance(_v, str) and _v:
+            _v2 = _fb_rx[0].sub(lambda m: "[SECRET]" if m.group(1) not in ("SECRET",) else m.group(0), _v)
+            _v2 = _fb_rx[1].sub(lambda m: m.group(1) + "[SECRET]", _v2)
+            _v2 = _v2.replace("[SECRET] [SECRET]", "[SECRET]")
+            if _v2 != _v:
+                _fb_n += 1; setattr(req, _f, _v2)
+    _crit_lines = [c.strip() for c in re.split(r"\n| \| ", req.critical or "") if c.strip()]
+    _crit_txt = "\n".join(">>> " + c for c in _crit_lines)
     if req.query or req.response:
         text_q = req.query
         text_a = req.response
         if req.pin or req.critical:
-            text_a = (text_a + "\n>>> " + (req.critical or req.topic or "pinned")).strip()
+            text_a = (text_a + "\n" + (_crit_txt or (">>> " + (req.topic or "pinned")))).strip()
     elif req.critical:
         # a Critical item on its own (no turn text): store it as its own pinned record
         text_q = req.topic or "critical"
-        text_a = ">>> " + req.critical
+        text_a = _crit_txt
     if req.query or req.response or req.critical:
         eid = f"{req.user_id}::remember_{time.time_ns()}"
         _ts = _event_time_str(req.ts or req.occurred_at)
         queue_turn("/data/skv/metadata_store", req.user_id, eid, text_q, text_a, source="agent", topic=req.topic, time_str=_ts)
+        if _sens:
+            try:
+                import sqlite3 as _sq3
+                _dbp = os.path.join("/data/skv/metadata_store", name if str(name).endswith(".db") else str(name) + ".db")
+                with _sq3.connect(_dbp, timeout=30) as _sc:
+                    _sc.execute("CREATE TABLE IF NOT EXISTS sensitive_marks (id INTEGER PRIMARY KEY, event_id TEXT, hint TEXT, source TEXT, created_at TEXT DEFAULT (datetime('now')))")
+                    for _x in _sens:
+                        _sc.execute("INSERT INTO sensitive_marks (event_id, hint, source) VALUES (?,?,?)", (eid, "***(" + str(len(_x)) + ")", "agent"))
+                _sens_tag = "sensitive:%d" % len(_sens)
+            except Exception as _e:
+                print(f"[sensitive] {_e}", flush=True)
         from app.account_memory import link_turn
         link_turn("/data/skv/metadata_store", req.user_id, eid, req.topic or "")
         saved.append(eid)
+        if _sens: saved.append(locals().get("_sens_tag") or "sensitive:%d" % len(_sens))
+        if _fb_n: saved.append("secret_fallback:%d" % _fb_n)
         if req.kind != "dialogue" or req.source or req.project:
             try:
                 from app import shelves as _sh
@@ -1345,15 +1443,44 @@ async def remember(req: RememberRequest):
                 _mvw.on_remember(req.user_id, _ev, _l1_sid, req.l2_map or None)
         except Exception as _e:
             print(f"[memory_v2] on_remember skipped: {_e}", flush=True)
+        if req.source_event_ids:   # agent names the turns its summary covers: exact range + source links
+            try:
+                _ids = [(x if "::" in x else req.user_id + "::" + x.replace("ev:", "")) for x in req.source_event_ids][:500]
+                _sc = sqlite3.connect(path, timeout=30)
+                _rows = [r[0] for r in _sc.execute("SELECT rowid FROM event_metadata WHERE event_id IN (%s)" % ",".join("?" * len(_ids)), _ids).fetchall()]
+                from app import source_links as _sl
+                _sl.ensure(_sc)
+                if _rows and _l1_sid:
+                    _sc.execute("UPDATE summary_l1 SET from_rowid=?, to_rowid=? WHERE session_id=?", (min(_rows), max(_rows), _l1_sid))
+                    _sl._put(_sc, "l1:" + _l1_sid, "l1", _ids, "agent", force=True)
+                if _rows and req.l2_map:
+                    _b = _sc.execute("SELECT id FROM summary_l2_blocks WHERE source='agent' ORDER BY id DESC LIMIT 1").fetchone()
+                    if _b:
+                        _sc.execute("UPDATE summary_l2_blocks SET from_rowid=?, to_rowid=? WHERE id=?", (min(_rows), max(_rows), _b[0]))
+                        _sl._put(_sc, "l2:" + str(_b[0]), "l2", _ids, "agent", force=True)
+                _sc.commit(); _sc.close()
+                saved.append("sources:%d" % len(_rows))
+            except Exception as _e:
+                print(f"[source_links] agent sources skipped: {_e}", flush=True)
     _cube_info = None
     if req.cube_topic and req.cube_rules:
         import uuid
         from app import cube_guard as _cg
-        _ess = (req.cube_essence or "").strip() or (req.cube_rules or "").strip().splitlines()[0][:200]
-        _ok, _fields, _reasons, _pii = _cg.prepare_shared(req.cube_topic, _ess, req.cube_rules, req.cube_evidence)
-        _shared = bool(req.cube_publish) and _ok
-        cube_id = "cube_" + uuid.uuid4().hex[:12]
         from app import cubes_v2 as _cv2
+        _ess = (req.cube_essence or "").strip() or (req.cube_rules or "").strip().splitlines()[0][:200]
+        try:
+            _hooks_json = _cv2.normalize_hooks(getattr(req, "cube_hooks", None))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        _skill_md = (getattr(req, "cube_skill_md", "") or "").strip()
+        _carrier = _cv2.norm_carrier(getattr(req, "cube_carrier", ""), _skill_md, _hooks_json)
+        _ok, _fields, _reasons, _pii = _cg.prepare_shared(req.cube_topic, _ess, req.cube_rules, req.cube_evidence,
+                                                          skill_md=_skill_md, hooks=_hooks_json)
+        _shared = bool(req.cube_publish) and _ok
+        if _shared:
+            _skill_md = _fields.get("skill_md", _skill_md)
+            _hooks_json = _fields.get("hooks", _hooks_json)
+        cube_id = "cube_" + uuid.uuid4().hex[:12]
         _ctype = _cv2.norm_kind(req.cube_type, "moment")
         if _ctype not in _cv2.EXPERIENCE_KINDS:
             _ctype = "moment"
@@ -1362,18 +1489,19 @@ async def remember(req: RememberRequest):
             _cv2.ensure(conn)
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, source_session, status, created_by, kind) VALUES (?,?,?,?,?,?,?,?,?)",
-                (cube_id, _fields["essence"], _fields["topic"], _fields["rules"], _fields["evidence"], req.session_id, "community", req.user_id, _ctype),
+                "INSERT INTO cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, source_session, status, created_by, kind, skill_md, hooks, carrier) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (cube_id, _fields["essence"], _fields["topic"], _fields["rules"], _fields["evidence"], req.session_id, "community", req.user_id, _ctype, _skill_md or None, _hooks_json or None, _carrier),
             )
             conn.commit(); conn.close()
         else:
             # private cube: stays in the user's own database, never in the shared pool
             _pc = sqlite3.connect(os.path.join(USER_DB_DIR, name + ".db"), timeout=30)
             _cv2.migrate_private_schema(_pc)   # older user dbs have another experience_cubes schema
-            _pc.execute("INSERT INTO experience_cubes (cube_id, topic, essence, rules_markdown, evidence, session_id, kind) VALUES (?,?,?,?,?,?,?)",
-                        (cube_id, req.cube_topic, _ess, req.cube_rules, req.cube_evidence, req.session_id, _ctype))
+            _pc.execute("INSERT INTO experience_cubes (cube_id, topic, essence, rules_markdown, evidence, session_id, kind, skill_md, hooks, carrier) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (cube_id, req.cube_topic, _ess, req.cube_rules, req.cube_evidence, req.session_id, _ctype, _skill_md or None, _hooks_json or None, _carrier))
             _pc.commit(); _pc.close()
-        _cube_info = {"cube_id": cube_id, "shared": _shared,
+        _cube_info = {"cube_id": cube_id, "shared": _shared, "carrier": _carrier,
+                      "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json),
                       "why_private": ([] if _shared else (["not published: send cube_publish=true"] if not req.cube_publish else []) + _reasons),
                       "pii_masked": _pii if _shared else []}
         if saved:
@@ -1430,17 +1558,61 @@ async def remember(req: RememberRequest):
             _dc.execute("INSERT INTO agent_duty (user_id, step, duty, reason, created_at) VALUES (?,?,?,?,datetime('now'))", (req.user_id, _duty_step(req.user_id), "cube", _cube_info["cube_id"]))
         _duty_notes = _cv2.on_remember(_dc, req.user_id, _duty_step(req.user_id), topic=req.topic or req.cube_topic if not _wrote else req.topic,
                                        task_done=req.task_done, wrote_cube=_wrote, duty=req.duty, duty_reason=req.duty_reason, turn=bool(req.query or req.response))
+        _duty_notes += [h for h in _cv2.duty_hints(_dc, req.user_id) if h.startswith("• RATE")]
         _dc.commit(); _dc.close()
     except Exception as _e:
         print(f"[cubes_v2] remember duty skipped: {_e}", flush=True)
     _out = {"status": "ok", "saved": saved}
+    if _prof_note:
+        _out["profile_note"] = _prof_note
+    if _prof_on:
+        try:
+            _peid = next((x for x in saved if isinstance(x, str) and x.startswith(req.user_id + "::remember_")), None)
+            _pr = _prof.apply(req.user_id, _peid, req.query or "", req.response or "", req.profile, req.profile_review, bool(req.l2_map), author="agent")
+            _out.update({k: v for k, v in (_pr or {}).items() if v not in (None, [], {})})
+        except Exception as _e:
+            print(f"[profile] apply failed: {_e}", flush=True)
+            _out["profile_errors"] = ["profile apply failed on the server: %s" % type(_e).__name__]
     if _duty_notes:
         _out["cube_duty"] = _duty_notes
+    try:   # periodic cube harvest: reminder only (app/cube_harvest.py)
+        from app import cube_harvest as _ch
+        if (req.duty or "").strip() == "cube_harvest":
+            _out.update(_ch.done(req.user_id, req.duty_reason or ""))
+        elif req.query or req.response:
+            _out.update(_ch.due(req.user_id, "turn"))
+    except Exception as _e:
+        print(f"[cube_harvest] skipped: {_e}", flush=True)
     if _cube_info:
         _out["cube"] = _cube_info
     if _vaulted:
         _out["vaulted"] = list(dict.fromkeys(_vaulted))
         _out["vault_note"] = "Secrets were moved to the vault; memory keeps [vault:<name>] references. Use POST /api/v7/vault/use."
+    try:   # L1/L2 are written by the agent; the server only reminds when they are due (and summarizes only as a fallback)
+        if (req.query or req.response) and not req.l1_summary:
+            _sc = sqlite3.connect(f"/data/skv/metadata_store/{name}.db", timeout=10)
+            _mx = _sc.execute("SELECT MAX(rowid) FROM event_metadata").fetchone()[0] or 0
+            _l1to = _sc.execute("SELECT MAX(to_rowid) FROM summary_l1").fetchone()[0] or 0
+            _due = {}
+            if _mx - _l1to >= 15:
+                _f = _sc.execute("SELECT event_id FROM event_metadata WHERE rowid>? ORDER BY rowid LIMIT 1", (_l1to,)).fetchone()
+                _due["l1"] = ("%d turns since the last L1 (from ev:%s): in your next turn send l1_summary (chronological stages: done / decided / outcome, about 5-8%% of the raw text) "
+                              "and source_event_ids = the ev ids it covers. Also send it when a topic closes. The server summarizes only what you leave uncovered." % (_mx - _l1to, (_f[0] if _f else "").split("::")[-1]))
+                _ids = [r[0].split("::")[-1] for r in _sc.execute("SELECT event_id FROM event_metadata WHERE rowid>? ORDER BY rowid LIMIT 40", (_l1to,)).fetchall()]
+                _due["l1_source_event_ids"] = ",".join(_ids)   # ready to paste: the agent only writes the text
+                _due["l1_pending"] = _mx - _l1to
+                if _mx - _l1to >= 20:   # escalation wording (reminder, never a block)
+                    _due["l1"] = ("L1 OVERDUE (%d turns uncovered, the server fallback will soon write it for you): in THIS turn add "
+                                  "l1_summary='<stages: done / decided / outcome>' and source_event_ids=l1_source_event_ids from this field." % (_mx - _l1to))
+            _l2to = _sc.execute("SELECT MAX(to_rowid) FROM summary_l2_blocks").fetchone()[0] or 0
+            _nl1 = _sc.execute("SELECT COUNT(*) FROM summary_l1 WHERE to_rowid > ?", (_l2to,)).fetchone()[0] or 0
+            if _nl1 >= 10:
+                _due["l2"] = "%d L1 summaries since the last L2: send l2_summary (one headline per stage + open items, about 5%% of those L1) with source_event_ids." % _nl1
+            _sc.close()
+            if _due:
+                _out["summary_due"] = _due
+    except Exception as _e:
+        print(f"[summary_due] skipped: {_e}", flush=True)
     return _out
 
 
@@ -1560,13 +1732,19 @@ async def memory_dig(req: DigRequest):
             for row in conn.execute("SELECT event_id, substr(raw_dialogue,1,180) FROM event_metadata WHERE raw_dialogue LIKE ? LIMIT 3", (like,)):
                 found.append({"event_id": row[0], "preview": row[1], "word": word, "open": "/api/v7/event/" + row[0]})
             try:
-                for row in conn.execute("SELECT topic, summary_text FROM summary_l1 WHERE summary_text LIKE ? LIMIT 3", (like,)):
-                    found.append({"event_id": "l1:" + (row[0] or ""), "preview": row[1], "word": word, "open": ""})
+                for row in conn.execute("SELECT session_id, summary_text, topic FROM summary_l1 WHERE summary_text LIKE ? LIMIT 3", (like,)):
+                    found.append({"event_id": "l1:" + (row[0] or ""), "preview": row[1], "word": word, "topic": row[2], "open": "memory_dig(focus_id=l1:" + (row[0] or "") + ")"})
             except Exception:
                 pass
             try:
-                for row in conn.execute("SELECT event_id, substr(raw_dialogue,1,180) FROM event_archive WHERE raw_dialogue LIKE ? LIMIT 2", (like,)):
-                    found.append({"event_id": row[0], "preview": row[1], "word": word, "open": "/api/v7/event/" + row[0], "note": "archived"})
+                for row in conn.execute("SELECT id, text FROM summary_l2_blocks WHERE text LIKE ? LIMIT 2", (like,)):
+                    found.append({"event_id": "l2:" + str(row[0]), "preview": row[1][:400], "word": word, "open": "memory_dig(focus_id=l2:" + str(row[0]) + ")"})
+            except Exception:
+                pass
+            try:
+                from app import archive_recall as _arc
+                for a in _arc.search_conn(conn, word, limit=2):
+                    found.append({"event_id": a["event_id"], "preview": a["snippet"][:180], "word": word, "open": "/api/v7/event/" + a["event_id"], "note": "archived"})
             except Exception:
                 pass
         conn.close()
@@ -1574,6 +1752,72 @@ async def memory_dig(req: DigRequest):
         return {"status": "empty", "reason": str(exc), "found": []}
     from app import memory_v2 as _mv2
     return _mv2.mask_obj({"status": "ok" if found else "not_found", "query": req.query, "why": req.why, "found": found[:8], "note": "Server scan only. Do not invent a fact if found is empty."})
+
+@router.post("/memory/source")
+async def memory_source(req: DigRequest):
+    """Open an L1/L2 summary, critical fact or board item by id (query=<id>) with its source events.
+    query="index" returns the compact id list."""
+    from app import shelves as _shv, source_links as _sl, memory_v2 as _mv2
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    c = _shv.connect(req.user_id)
+    try:
+        q = (req.query or req.query_text or "").strip()
+        if q.startswith("prof:"):
+            from app import profile as _prof
+            out = _prof.dig(req.user_id, q)
+        else:
+            out = {"index": _sl.short_index(c)} if q == "index" else _sl.resolve(c, q)
+    finally:
+        c.close()
+    return _mv2.mask_obj(out)
+
+
+from pydantic import BaseModel
+from typing import Any, Optional
+
+
+class ProfilePrecheck(BaseModel):
+    user_id: str
+    profile: Optional[Any] = None
+    profile_review: Optional[Any] = None
+    has_l2: bool = False
+
+
+@router.post("/profile/precheck")
+def profile_precheck(req: ProfilePrecheck):
+    """Validate profile ops / profile_review before the wrapper reserves a seal. Writes nothing."""
+    from app import profile as _prof
+    if not req.user_id:
+        raise HTTPException(401, "API key required")
+    return _prof.precheck(req.user_id, req.profile, req.profile_review, req.has_l2)
+
+
+@router.get("/profile/relevant")
+def profile_relevant(user_id: str = "", q: str = "", answer: str = "", session: str = "", compact: str = ""):
+    """Profile rows relevant to this turn (<=5 rows / 800 B), open profile duties, advisory profile_warning."""
+    from app import profile as _prof
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return _prof.relevant(user_id, q[:2000], answer[:4000], session[:80], bool(compact))
+
+
+@router.get("/profile/block")
+def profile_block(user_id: str = ""):
+    """step_zero page 1 PROFILE block (<=1.5 KB)."""
+    from app import profile as _prof
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return {"block": _prof.block(user_id), "enabled": _prof.enabled(user_id)}
+
+
+@router.get("/profile/export")
+def profile_export(user_id: str = ""):
+    """All profile rows (any status) + change log of this account."""
+    from app import profile as _prof, memory_v2 as _mv2
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return _mv2.mask_obj(_prof.export(user_id))
 
 @router.post("/technical")
 async def technical(req: TechnicalRequest):
@@ -1674,24 +1918,35 @@ async def deep_recall_get(job_id: str, user_id: str = ""):
 
 
 from pydantic import BaseModel
+from typing import Optional
 
 class BoardRequest(BaseModel):
     user_id: str = ""
     id: str = ""
+    item_id: str = ""
     action: str = "add"
     text: str = ""
     title: str = ""
     kind: str = ""
+    priority: Optional[int] = None
+    parent_id: str = ""
+    waiting_for: str = ""
+    result: str = ""
+    event_id: str = ""
+    status: str = ""
+    key: str = ""   # idempotency key (e.g. source ev id): a second add with the same key is a no-op
 
 
 @router.post("/board")
-async def board_edit(req: BoardRequest):
-    """Pinned board, one entry point: add|edit|done|undo|progress|block|important|unimportant|remove."""
+def board_edit(req: BoardRequest):
+    """Pinned board: add|add_subtask|update|start|block|done|park|reopen|remove (+ old edit|progress|undo|important|unimportant).
+    Fields: title, text, priority 1..3, parent_id, waiting_for, result (required for done), event_id (default: latest turn)."""
     from app import board as _board
     if not req.user_id:
         raise HTTPException(401, "API key required")
     try:
-        return {"status": "ok", **_board.act(req.user_id, req.id, req.action, req.text, req.kind, req.title)}
+        return {"status": "ok", **_board.act(req.user_id, req.id or req.item_id, req.action, req.text, req.kind, req.title,
+                                              req.priority, req.parent_id, req.waiting_for, req.result, req.event_id, req.status, req.key)}
     except KeyError as e:
         raise HTTPException(404, f"board item not found: {e}")
     except ValueError as e:
@@ -1699,14 +1954,44 @@ async def board_edit(req: BoardRequest):
 
 
 @router.get("/board")
-async def board_get(user_id: str = "", history: int = 0):
+def board_get(user_id: str = "", history: int = 0, status: str = ""):
     from app import board as _board
     if not user_id:
         raise HTTPException(401, "API key required")
-    out = {"items": _board.items(user_id, include_closed=True), "text": _board.render(user_id, 2000)}
+    its = _board.items(user_id, include_closed=True)
+    if status:
+        its = [i for i in its if i.get("status") in status.split(",")]
+    out = {"items": its, "text": _board.render(user_id, 2000), "statuses": list(_board.STATUSES), "actions": list(_board.ACTIONS)}
     if history:
         out["history"] = _board.history(user_id, min(history, 200))
     return out
+
+
+@router.get("/board/relevant")
+def board_relevant(user_id: str = "", q: str = "", answer: str = "", n: int = 3):
+    """Up to n open tasks relevant to q (+answer) and a close hint when answer reads like completion."""
+    from app import board as _board
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return _board.relevant(user_id, q[:2000], answer[:4000], max(1, min(n, 5)))
+
+
+@router.get("/cube_harvest/due")
+def cube_harvest_due(user_id: str = "", where: str = "step_zero"):
+    """Periodic cube-harvest reminder for step_zero/turn (empty when not due)."""
+    from app import cube_harvest as _ch
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return _ch.due(user_id, "step_zero" if where != "turn" else "turn")
+
+
+@router.get("/board/focus")
+def board_focus(user_id: str = ""):
+    """Tasks in progress and waiting for the user (step_zero page 1)."""
+    from app import board as _board
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    return _board.focus(user_id)
 
 
 class RecallLaterRequest(BaseModel):
@@ -1716,16 +2001,43 @@ class RecallLaterRequest(BaseModel):
 
 @router.post("/memory/recall_later")
 async def recall_later_submit(req: RecallLaterRequest):
-    """Delayed recall: background deep search (cheap LLM expansion + selection); result arrives as 'remembered' in a later /memory."""
+    """Delayed recall: cheap on-server agent (5–30 lens steps) writes a sourced report.
+    Poll GET /memory/recall_later/{job_id}; also delivered later in /memory as 'remembered'."""
     from app import recall_later as _rl
     if not req.user_id:
         raise HTTPException(401, "API key required")
     try:
-        return {"status": "queued", "job_id": _rl.submit(req.user_id, req.query)}
+        jid = _rl.submit(req.user_id, req.query)
+        return {"status": "queued", "job_id": jid, "poll": f"/api/v7/memory/recall_later/{jid}"}
     except OverflowError as e:
         raise HTTPException(429, str(e))
     except ValueError as e:
         raise HTTPException(422, str(e))
+
+
+@router.get("/memory/recall_later/{job_id}")
+async def recall_later_get(job_id: str, user_id: str = ""):
+    """Poll one delayed-recall job: status, progress, and report with sources when done."""
+    from app import recall_later as _rl
+    if not user_id:
+        raise HTTPException(401, "API key required")
+    job = _rl.get(user_id, job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+    out = {"job_id": job["job_id"], "query": job.get("query"), "status": job.get("status"),
+           "progress": job.get("progress"), "steps_n": job.get("steps_n"),
+           "cost_rub": job.get("cost_rub"), "created_at": job.get("created_at"),
+           "ready_at": job.get("ready_at")}
+    if job.get("status") == "done":
+        out["report"] = job.get("report") or {}
+        out["lines"] = job.get("lines") or []
+        out["expanded"] = job.get("expanded") or []
+        if "steps" in job:
+            out["steps"] = job.get("steps")
+    elif job.get("status") == "error":
+        out["error"] = job.get("error")
+        out["report"] = job.get("report") or {}
+    return out
 
 
 @router.get("/memory/recall_later")
@@ -1745,3 +2057,29 @@ async def on_this_day_get(user_id: str = "", date: str = ""):
     cfg = _m.config(); t = _otd.today_for(cfg, date or None, user_id)
     rows = _otd.collect(user_id, t, int(cfg.get("otd_window_days", 1)))
     return {"date": t.isoformat(), "items": rows, "text": _otd.render(t, rows, int(cfg.get("otd_tokens", 300) or 300))}
+
+
+# ---- targeted cube suggestions (owner t437-t438, 2026-10-24) ----
+def _cs_attach(res, query, uid, session_id):
+    try:
+        from app import cube_suggest as _cs
+        sug = _cs.suggest(query or "", uid or "", session_id or "")
+        if isinstance(res, dict):
+            res["suggested_cubes"] = sug
+        elif hasattr(res, "suggested_cubes"):
+            res.suggested_cubes = sug
+    except Exception as _e:
+        print(f"[suggest] skipped: {_e}", flush=True)
+    return res
+
+
+@router.post("/memory")
+async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
+    res = await _guardian_l1_memory_impl(req, buffer, authorization)
+    return _cs_attach(res, req.query_text, req.user_id, getattr(req, "session_id", "") or "")
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
+    res = await _search_endpoint_impl(req, buffer, authorization)
+    return _cs_attach(res, req.query_text, req.user_id, getattr(req, "session_id", "") or "search")

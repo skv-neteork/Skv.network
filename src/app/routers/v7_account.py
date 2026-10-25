@@ -187,12 +187,15 @@ async def confirm_email(req: ConfirmRequest):
         
         cur.execute("UPDATE users SET confirmed = 1, confirmation_code = NULL WHERE email = ?", (req.email,))
         
-        # Create API key
-        api_key = _ak.issue(req.email, "register", conn=conn)
+        # First agent key = primary memory chain; session key for the profile UI.
+        issued = _ak.issue_named(req.email, _ak.PRIMARY_NAME, conn=conn)
+        session_key = _ak.issue_session(req.email, conn=conn)
         conn.commit()
         conn.close()
         
-        return {"status": "ok", "message": "Email confirmed!", "api_key": api_key}
+        return {"status": "ok", "message": "Email confirmed!", "api_key": session_key,
+                "agent_key": issued["api_key"], "agent_name": issued["name"], "chain_id": issued["chain_id"],
+                "note": "Save agent_key now — it is shown once. api_key is for the profile page."}
     except HTTPException:
         raise
     except Exception as e:
@@ -224,16 +227,12 @@ async def login(req: LoginRequest):
             except Exception:
                 pass
 
-        # Keys are stored hashed, so an old key cannot be shown again: each login issues a new key.
-        # Older keys keep working; at most 5 login keys stay active (the oldest login key is retired).
-        api_key = _ak.issue(req.email, "login", conn=conn)
-        old = [r[0] for r in cur.execute("SELECT rowid FROM user_api_keys WHERE user_id = ? AND label = 'login' AND is_active = 1 ORDER BY created_at DESC, rowid DESC", (req.email,)).fetchall()][5:]
-        for _rid in old:
-            cur.execute("UPDATE user_api_keys SET is_active = 0 WHERE rowid = ?", (_rid,))
+        # Profile UI gets one rotating session key. Agent keys are named chains at /profile.
+        api_key = _ak.issue_session(req.email, conn=conn)
         conn.commit()
         conn.close()
         return {"status": "ok", "api_key": api_key, "user_id": req.email,
-                "note": "Keys are stored hashed. This login key is shown once; keep it. Older keys still work. Manage keys at /profile."}
+                "note": "Session key for the profile page. Agent keys (one per memory chain) are managed at /profile."}
     except HTTPException:
         raise
     except Exception as e:
@@ -255,9 +254,8 @@ async def get_profile(authorization: str = Header(None)):
             raise HTTPException(status_code=401, detail="Invalid token")
         user_id = row[0]
         
-        # Get all user's keys
-        cur.execute("SELECT rowid, key_prefix, is_active, created_at, expires_at, label FROM user_api_keys WHERE user_id = ?", (user_id,))
-        keys = [{"key": _ak.display(p, rid), "id": rid, "active": bool(a), "created": c, "expires": e, "label": l} for rid, p, a, c, e, l in cur.fetchall()]
+        # Named agent/legacy keys (session key for this browser is omitted)
+        keys = _ak.list_keys(user_id, conn=conn, include_session=False)
         
         # Get stats from user's DB
         from app.account_memory import account_db_name as _adn
@@ -295,62 +293,117 @@ async def get_profile(authorization: str = Header(None)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/profile/keys")
-async def create_api_key(authorization: str = Header(None)):
-    """Generate new API key."""
+class CreateKeyRequest(BaseModel):
+    name: str = ""
+
+
+class RotateKeyRequest(BaseModel):
+    name: str = ""
+
+
+class RenameKeyRequest(BaseModel):
+    name: str = ""
+
+
+def _user_from_bearer(authorization: str):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
-    token = authorization.replace("Bearer ", "")
+    token = authorization.replace("Bearer ", "", 1).strip()
+    import sqlite3
+    conn = sqlite3.connect(SHARED_DB)
     try:
-        import sqlite3, uuid
-        conn = sqlite3.connect(SHARED_DB)
-        cur = conn.cursor()
-        cur.execute(_ak.SQL_USER, _ak.args_keys_only(token))
-        row = cur.fetchone()
+        row = conn.execute(_ak.SQL_USER, _ak.args_keys_only(token)).fetchone()
         if not row:
             raise HTTPException(status_code=401, detail="Invalid token")
-        user_id = row[0]
-        
-        new_key = _ak.issue(user_id, "profile", conn=conn)
-        conn.commit()
-        conn.close()
-        return {"status": "ok", "api_key": new_key}
+        return row[0], conn
     except HTTPException:
+        conn.close()
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/profile/keys")
+async def create_api_key(authorization: str = Header(None), req: CreateKeyRequest = None):
+    """Create a named agent key (= new memory chain). Name required. Plaintext shown once."""
+    if req is None:
+        req = CreateKeyRequest()
+    user_id, conn = _user_from_bearer(authorization)
+    try:
+        name = (req.name or "").strip() or _ak.PRIMARY_NAME
+        try:
+            issued = _ak.issue_named(user_id, name, conn=conn)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        conn.commit()
+        return {"status": "ok", **issued, "note": "Save api_key now — it is shown only once."}
+    finally:
+        conn.close()
+
+
+@router.post("/profile/keys/rotate")
+async def rotate_api_key_by_name(req: RotateKeyRequest, authorization: str = Header(None)):
+    """Rotate by name (same chain)."""
+    user_id, conn = _user_from_bearer(authorization)
+    try:
+        try:
+            issued = _ak.rotate(user_id, name=req.name, conn=conn)
+        except ValueError as e:
+            raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e))
+        conn.commit()
+        return {"status": "ok", **issued, "note": "Old key is dead. Save api_key now — shown only once."}
+    finally:
+        conn.close()
+
+
+@router.post("/profile/keys/{key_id}/rotate")
+async def rotate_api_key(key_id: int, authorization: str = Header(None)):
+    """Revoke key and issue a new one under the same name and chain_id. Plaintext shown once."""
+    user_id, conn = _user_from_bearer(authorization)
+    try:
+        try:
+            issued = _ak.rotate(user_id, key_id=key_id, conn=conn)
+        except ValueError as e:
+            raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e))
+        conn.commit()
+        return {"status": "ok", **issued, "note": "Old key is dead. Save api_key now — shown only once."}
+    finally:
+        conn.close()
+
+
+
+@router.post("/profile/keys/{key_id}/rename")
+async def rename_api_key(key_id: int, req: RenameKeyRequest, authorization: str = Header(None)):
+    """Rename a key without rotating the secret. chain_id stays."""
+    user_id, conn = _user_from_bearer(authorization)
+    try:
+        try:
+            out = _ak.rename(user_id, key_id, req.name, conn=conn)
+        except ValueError as e:
+            raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e))
+        conn.commit()
+        return {"status": "ok", **out}
+    finally:
+        conn.close()
+
 
 @router.delete("/profile/keys/{key}")
 async def revoke_api_key(key: str, authorization: str = Header(None)):
-    """Revoke an API key."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required")
-    token = authorization.replace("Bearer ", "")
+    """Revoke an API key by id (#N), numeric id, or plaintext token."""
+    user_id, conn = _user_from_bearer(authorization)
     try:
-        import sqlite3
-        conn = sqlite3.connect(SHARED_DB)
-        cur = conn.cursor()
-        cur.execute(_ak.SQL_USER, _ak.args_keys_only(token))
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        user_id = row[0]
-        
-        # Only allow revoking own keys
-        _m = __import__("re").search(r"#(\d+)$", key.strip())
-        if _m:
-            cur.execute("UPDATE user_api_keys SET is_active = 0 WHERE rowid = ? AND user_id = ?", (int(_m.group(1)), user_id))
+        key_id = None
+        raw = None
+        s = (key or "").strip()
+        if s.isdigit():
+            key_id = int(s)
         else:
-            cur.execute("UPDATE user_api_keys SET is_active = 0 WHERE api_key IN (?, ?) AND user_id = ?", (key, _ak.hash_key(key), user_id))
-        if cur.rowcount == 0:
+            raw = s
+        n = _ak.revoke(user_id, key_id=key_id, key_token=raw, conn=conn)
+        if n == 0:
             raise HTTPException(status_code=404, detail="Key not found or not yours")
         conn.commit()
-        conn.close()
         return {"status": "ok", "message": "Key revoked"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
 @router.post("/profile/delete")
 async def delete_account(req: DeleteAccountRequest):

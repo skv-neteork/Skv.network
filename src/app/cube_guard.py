@@ -49,9 +49,11 @@ def is_english(text):
     return non_latin / len(letters) <= 0.1
 
 
-def prepare_shared(topic, essence, rules, evidence, require_english=True):
-    """Returns (ok, fields, reasons, pii_found). fields are PII-masked. ok=False means: do not publish."""
-    fields = {"topic": topic or "", "essence": essence or "", "rules": rules or "", "evidence": evidence or ""}
+def prepare_shared(topic, essence, rules, evidence, require_english=True, skill_md="", hooks=""):
+    """Returns (ok, fields, reasons, pii_found). fields are PII-masked. ok=False means: do not publish.
+    skill_md + hooks are optional skill-cube fields; checked the same way (secrets/English)."""
+    fields = {"topic": topic or "", "essence": essence or "", "rules": rules or "", "evidence": evidence or "",
+              "skill_md": skill_md or "", "hooks": hooks if isinstance(hooks, str) else ("" if hooks is None else str(hooks))}
     reasons = []
     sec = sorted({l for v in fields.values() for l in secret_labels(v)})
     if sec:
@@ -60,8 +62,29 @@ def prepare_shared(topic, essence, rules, evidence, require_english=True):
     for k in fields:
         fields[k], f = mask_pii(fields[k])
         pii += f
-    if require_english and not is_english(" ".join([fields["topic"], fields["essence"], fields["rules"]])):
+    eng_blob = " ".join([fields["topic"], fields["essence"], fields["rules"], fields["skill_md"], fields["hooks"]])
+    if require_english and not is_english(eng_blob):
         reasons.append("not_english")
     if not fields["essence"].strip() or not fields["rules"].strip():
         reasons.append("empty")
     return (not reasons), fields, reasons, sorted(set(pii))
+
+
+def field_report(**fields):
+    """Strict check for shared cubes: [{field, reason}] for secrets and PII (event ids are allowed evidence)."""
+    out = []
+    for k, v in fields.items():
+        v = v if isinstance(v, str) else ("" if v is None else str(v))
+        for l in secret_labels(v):
+            out.append({"field": k, "reason": "secret:" + l})
+        t = _EVENT.sub("[event]", v)
+        for name, rx in (("email", _EMAIL), ("card", _CARD), ("phone", _PHONE), ("ip", _IP)):
+            for m in rx.finditer(t):
+                g = m.group(0)
+                if name == "phone" and (sum(ch.isdigit() for ch in g) < 10 or re.fullmatch(r"\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?", g.strip())):
+                    continue
+                if name == "card" and sum(ch.isdigit() for ch in g) < 13:
+                    continue
+                out.append({"field": k, "reason": name})
+                break
+    return out

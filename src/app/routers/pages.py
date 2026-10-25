@@ -482,3 +482,37 @@ async def cube_batch():
     text = open(path).read()
     body = "<pre>" + text.replace("&", "&").replace("<", "<") + "</pre>"
     return HTMLResponse("<!doctype html><meta charset=utf-8><title>Cube batch</title><body style=\"font-family:sans-serif;max-width:720px;margin:40px auto\">" + body + "</body>")
+
+
+CONNECT_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "connect.html")
+@router.get("/connect")
+async def connect_page():
+    return HTMLResponse(_read_html(CONNECT_HTML_PATH))
+
+
+# --- SKV local-agent installer (files: /root/skv-core/installer -> downloads/installer via installer/deploy.sh)
+_INST = {"install.sh": "text/plain; charset=utf-8", "install.ps1": "text/plain; charset=utf-8",
+         "skv_hook.py": "text/plain; charset=utf-8", "skv_config.py": "text/plain; charset=utf-8"}
+
+def _inst_file(name: str):
+    if name not in _INST:
+        raise HTTPException(status_code=404)
+    path = os.path.join(os.path.dirname(__file__), "..", "downloads", "installer", name)
+    return FileResponse(path, media_type=_INST[name], headers={"Cache-Control": "no-cache"})
+
+@router.get("/install.sh", include_in_schema=False)
+async def skv_install_sh():
+    return _inst_file("install.sh")
+
+@router.get("/install.ps1", include_in_schema=False)
+async def skv_install_ps1():
+    return _inst_file("install.ps1")
+
+@router.get("/install/{name}", include_in_schema=False)
+async def skv_install_file(name: str):
+    return _inst_file(name)
+
+
+@router.get("/court")
+async def court_page():
+    return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "court.html")))

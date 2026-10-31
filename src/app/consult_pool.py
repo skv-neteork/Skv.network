@@ -18,10 +18,15 @@ from concurrent.futures import ThreadPoolExecutor
 LEDGER = "/data/skv/metadata_store/consult_ledger.db"
 CFG_PATH = os.environ.get("SKV_CONSULT_CFG", "/data/skv/consult_cfg.json")
 DEFAULTS = {
-    "default_mode": "deep",
-    "models": {"claude": "anthropic/claude-sonnet-5", "gpt": "openai/gpt-5.5"},
-    "fallback": {"claude": "anthropic/claude-sonnet-4.6", "gpt": "openai/gpt-4o"},
-    "quick_models": {"claude": "anthropic/claude-sonnet-4.6", "gpt": "openai/gpt-4o"},
+    "default_mode": "quick",
+    # role keys stay "claude"/"gpt" for back-compat (DB columns); models are cheap by default (2026-11-01, owner budget)
+    "models": {"claude": "deepseek/deepseek-v4-pro", "gpt": "qwen/qwen3.6-plus"},
+    "fallback": {"claude": "deepseek/deepseek-v4-flash", "gpt": "qwen/qwen3.8-flash"},
+    "quick_models": {"claude": "deepseek/deepseek-v4-flash", "gpt": "qwen/qwen3.8-flash"},
+    "premium_models": {"claude": "anthropic/claude-sonnet-5", "gpt": "openai/gpt-5.5"},
+    "premium_fallback": {"claude": "anthropic/claude-sonnet-4.6", "gpt": "openai/gpt-4o"},
+    "premium_enabled": True,
+    "key_daily_deep": 1,
     "synth_model": "claude",
     "reasoning_effort": "medium",
     "max_tokens": {"quick": 1500, "answer": 8000, "review": 4000, "synthesis": 10000},
@@ -30,12 +35,12 @@ DEFAULTS = {
     "wait_seconds": 75,
     "max_input_chars": 40000,
     "daily_limit_account": int(os.environ.get("SKV_CONSULT_DAILY", "20")),
-    "key_daily_calls": 10,
-    "key_daily_rub": 400.0,
-    "global_daily_rub": 3000.0,
-    "global_monthly_rub": 30000.0,
+    "key_daily_calls": 5,
+    "key_daily_rub": 50.0,
+    "global_daily_rub": 100.0,
+    "global_monthly_rub": 1500.0,
     "alert_at": 0.8,
-    "estimate_rub": {"quick": 1.0, "deep": 45.0},
+    "estimate_rub": {"quick": 0.05, "deep": 4.0, "premium": 45.0},
     "payer": "owner",
 }
 MAX_TOKENS = DEFAULTS["max_tokens"]["quick"]  # back-compat name
@@ -164,11 +169,11 @@ def _alert(c, kind, spent, cap):
     return msg
 
 
-def budget(user_id, key, mode):
+def budget(user_id, key, mode, premium=False):
     """Pre-flight check. Returns (ok, info). info has per-key and global spend vs caps."""
     v = cfg(); kh = _kh(key); lim = _limits(user_id, kh)
     day, month = time.strftime("%Y-%m-%d"), time.strftime("%Y-%m")
-    est = float(v["estimate_rub"].get(mode, 40.0))
+    est = float(v["estimate_rub"].get("premium" if premium else mode, 40.0))
     c = _ledger()
     try:
         # learn the estimate from the last real runs of this mode
@@ -187,6 +192,10 @@ def budget(user_id, key, mode):
             info["alerts"] = alerts
         if kh and k_runs >= lim["key_daily_calls"]:
             return False, dict(info, reason="daily consult limit for this key reached (%d)" % lim["key_daily_calls"])
+        if kh and mode == "deep":
+            k_deep = c.execute("SELECT COUNT(*) FROM consult_runs WHERE day=? AND key_hash=? AND mode='deep' AND status NOT IN ('refused','failed')", (day, kh)).fetchone()[0]
+            if k_deep >= int(v.get("key_daily_deep", 1)):
+                return False, dict(info, reason="deep consult limit for this key reached (%d/day); use mode=quick" % int(v.get("key_daily_deep", 1)))
         if kh and k_rub + est > lim["key_daily_rub"]:
             return False, dict(info, reason="daily consult budget for this key would be exceeded (%.0f RUB)" % lim["key_daily_rub"])
         if g_day + est > v["global_daily_rub"]:
@@ -343,14 +352,19 @@ def _chat(model, system, user, max_tokens, effort=None):
 
 
 class _Run:
-    def __init__(self, user_id, key, cid, mode):
-        self.user_id, self.kh, self.cid, self.mode = user_id, _kh(key), cid, mode
+    def __init__(self, user_id, key, cid, mode, premium=False):
+        self.user_id, self.kh, self.cid, self.mode, self.premium = user_id, _kh(key), cid, mode, premium
         self.calls = []
 
     def call(self, stage, role, system, user, max_tokens, quick=False):
         v = cfg()
-        primary = (v["quick_models"] if quick else v["models"])[role]
-        chain = [primary] + ([] if quick else [v["fallback"].get(role)])
+        if quick:
+            primary, fb = v["quick_models"][role], None
+        elif self.premium:
+            primary, fb = v["premium_models"][role], v["premium_fallback"].get(role)
+        else:
+            primary, fb = v["models"][role], v["fallback"].get(role)
+        chain = [primary] + ([fb] if fb else [])
         last = None
         for model in [m for m in chain if m]:
             try:
@@ -384,8 +398,8 @@ def _parallel(fn, items):
         return list(ex.map(fn, items))
 
 
-def _execute(user_id, key, cid, mode, task, tried, failed, context):
-    v = cfg(); run = _Run(user_id, key, cid, mode); t0 = time.time()
+def _execute(user_id, key, cid, mode, task, tried, failed, context, premium=False):
+    v = cfg(); run = _Run(user_id, key, cid, mode, premium); t0 = time.time()
     brief = _brief(task, tried, failed, context)
     res = {"answers": {}, "usage": {}, "reviews": {}, "synthesis": "", "stopped": None}
     quick = mode == "quick"
@@ -463,18 +477,20 @@ def _out(cid, mode, row_task, res, info=None):
     return o
 
 
-def ask(user_id, task, tried="", failed="", consent=False, key=None, mode=None, context=""):
+def ask(user_id, task, tried="", failed="", consent=False, key=None, mode=None, context="", premium=False):
     v = cfg()
     task = (task or "").strip()
     mode = (mode or v["default_mode"]).strip().lower()
-    mode = mode if mode in ("quick", "deep") else "deep"
+    mode = mode if mode in ("quick", "deep") else "quick"
+    premium = bool(premium) and mode == "deep" and bool(v.get("premium_enabled", True))
     if not task:
         return {"status": "error", "reason": "task required"}
     if not consent:
-        est = v["estimate_rub"].get(mode)
-        return {"status": "need_consent", "mode": mode,
-                "notice": ("This sends the task (secrets masked) to Claude and ChatGPT via polza.ai. Nothing else: no memory, no keys. It costs money. "
-                           + ("Deep mode: both answer, then each reviews the other, then one synthesis (5 model calls, about 30-60 RUB, 1-4 min). "
+        est = v["estimate_rub"].get("premium" if premium else mode)
+        who = "Claude and ChatGPT (premium)" if premium else "DeepSeek and Qwen"
+        return {"status": "need_consent", "mode": mode, "premium": premium,
+                "notice": ("This sends the task (secrets masked) to %s via polza.ai. Nothing else: no memory, no keys. It costs money. " % who
+                           + ("Deep mode: both answer, then each reviews the other, then one synthesis (5 model calls, about %s RUB, 1-4 min; max 1 deep per key per day). " % est
                               if mode == "deep" else "Quick mode: two short answers (about %s RUB). " % est)
                            + "Ask the user; on yes call again with consent=true. mode=quick for a short opinion.")}
     if not _key():
@@ -485,7 +501,7 @@ def ask(user_id, task, tried="", failed="", consent=False, key=None, mode=None, 
             return {"status": "error", "reason": "daily consult limit reached (%d)" % int(v["daily_limit_account"])}
     finally:
         c.close()
-    good, info = budget(user_id, key, mode)
+    good, info = budget(user_id, key, mode, premium)
     if not good:
         try:
             lc = _ledger()
@@ -509,7 +525,7 @@ def ask(user_id, task, tried="", failed="", consent=False, key=None, mode=None, 
 
     def work():
         try:
-            box["res"] = _execute(user_id, key, cid, mode, task, tried, failed, context)
+            box["res"] = _execute(user_id, key, cid, mode, task, tried, failed, context, premium)
         except Exception as e:
             box["err"] = type(e).__name__
             try:

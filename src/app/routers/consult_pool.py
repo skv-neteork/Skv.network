@@ -27,7 +27,7 @@ def consult(request: Request, data: dict):
     if data.get("consult_id") not in (None, "", 0):
         return result(uid, data.get("consult_id"))
     return ask(uid, data.get("task", ""), data.get("tried", ""), data.get("failed", ""), bool(data.get("consent")),
-               key=key, mode=data.get("mode") or None, context=data.get("context") or "")
+               key=key, mode=data.get("mode") or None, context=data.get("context") or "", premium=bool(data.get("premium")))
 
 
 @router.post("/api/v7/consult/accept")

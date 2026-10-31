@@ -35,7 +35,7 @@ DEFAULTS = {
     "global_daily_rub": 3000.0,
     "global_monthly_rub": 30000.0,
     "alert_at": 0.8,
-    "estimate_rub": {"quick": 3.0, "deep": 40.0},
+    "estimate_rub": {"quick": 1.0, "deep": 45.0},
     "payer": "owner",
 }
 MAX_TOKENS = DEFAULTS["max_tokens"]["quick"]  # back-compat name
@@ -474,7 +474,7 @@ def ask(user_id, task, tried="", failed="", consent=False, key=None, mode=None, 
         est = v["estimate_rub"].get(mode)
         return {"status": "need_consent", "mode": mode,
                 "notice": ("This sends the task (secrets masked) to Claude and ChatGPT via polza.ai. Nothing else: no memory, no keys. It costs money. "
-                           + ("Deep mode: both answer, then each reviews the other, then one synthesis (5 model calls, about %s RUB, 1-4 min). " % est
+                           + ("Deep mode: both answer, then each reviews the other, then one synthesis (5 model calls, about 30-60 RUB, 1-4 min). "
                               if mode == "deep" else "Quick mode: two short answers (about %s RUB). " % est)
                            + "Ask the user; on yes call again with consent=true. mode=quick for a short opinion.")}
     if not _key():

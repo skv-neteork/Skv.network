@@ -338,6 +338,11 @@ from starlette.responses import JSONResponse
 # V7: require a valid API key, user taken from the key
 from app.v7_auth import V7AuthMiddleware
 app.add_middleware(V7AuthMiddleware)
+try:   # public demo sandbox: daily wipe of the shared demo account (app/demo_sandbox.py)
+    from app import demo_sandbox as _demo_sb
+    _demo_sb.start_wipe_thread()
+except Exception as _e_demo:
+    print(f"[demo] wipe thread not started: {_e_demo}", flush=True)
 # Legacy routes: writes outside /api/v7 are owner-only (app/legacy_guard.py)
 from app.legacy_guard import LegacyWriteGuard
 app.add_middleware(LegacyWriteGuard)

@@ -69,6 +69,55 @@ class V7AuthMiddleware:
             return await self.app(scope, receive, send)
         method = scope.get("method", "GET").upper()
         sub = path[len(PREFIX):]
+        # --- public demo sandbox (app/demo_sandbox.py): allowlist + rate limit, never key/profile management ---
+        demo = False
+        try:
+            from app import demo_sandbox as _demo
+            _hk = _header(scope, "authorization")
+            _hk = _hk[7:].strip() if _hk.lower().startswith("bearer ") else _header(scope, "x-api-key").strip()
+            if not _hk and method == "GET":
+                _q0 = dict(parse_qsl(scope.get("query_string", b"").decode("latin-1")))
+                _hk = (_q0.get("key") or _q0.get("k") or "").strip()
+            demo = _demo.is_demo_key(_hk)
+        except Exception:
+            _demo = None
+        if (not demo and _demo is not None and sub.startswith("/profile")
+                and method in ("POST", "PUT", "PATCH", "DELETE") and _demo.demo_key()):
+            # /profile* endpoints read the key from the body themselves: look before letting them through
+            _pb = b""
+            _more = True
+            while _more:
+                _m = await receive()
+                if _m["type"] == "http.disconnect":
+                    return
+                _pb += _m.get("body", b"")
+                _more = _m.get("more_body", False)
+            try:
+                _pd = json.loads(_pb) if _pb else None
+            except Exception:
+                _pd = None
+            if isinstance(_pd, dict) and any(isinstance(_pd.get(f), str) and _demo.is_demo_key(_pd[f]) for f in ("key", "token", "api_key")):
+                return await _send_json(send, 403, {"detail": "Public demo key: profile and key management are disabled"})
+            _sent0 = False
+            _orig_receive = receive
+
+            async def receive():
+                nonlocal _sent0
+                if not _sent0:
+                    _sent0 = True
+                    return {"type": "http.request", "body": _pb, "more_body": False}
+                return await _orig_receive()
+        if demo and method not in ("OPTIONS", "HEAD"):
+            _cl = (scope.get("client") or ("unknown", 0))[0]
+            if _cl.startswith(("172.", "10.", "192.168.", "127.")):
+                _cl = (_header(scope, "x-real-ip") or _header(scope, "x-forwarded-for").split(",")[0]).strip() or _cl
+            try:
+                _blen = int(_header(scope, "content-length") or 0)
+            except ValueError:
+                _blen = 0
+            _deny = _demo.check(sub, method, _blen, _cl)
+            if _deny:
+                return await _send_json(send, _deny[0], {"detail": _deny[1]})
         if method in ("OPTIONS", "HEAD") or sub in PUBLIC_EXACT or sub.startswith(PUBLIC_PREFIXES):
             return await self.app(scope, receive, send)
 
@@ -116,6 +165,11 @@ class V7AuthMiddleware:
 
         if key and not user:
             return await _send_json(send, 401, {"detail": "Invalid API key"})
+        if user and not demo and _demo is not None and _demo.is_demo_user(user):
+            # demo key sent in the body (legacy agents): same gate
+            _deny = _demo.check(sub, method, len(body), "body-key")
+            if _deny:
+                return await _send_json(send, _deny[0], {"detail": _deny[1]})
         if not user:
             # guest web chat keeps working, but only for guest_* ids
             guest_ok = (method == "POST" and sub == "/agent/chat" and isinstance(data, dict)

@@ -74,6 +74,19 @@ async def upload_page():
 GUIDE_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "guide.html")
 CHAT_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "chat.html")
 
+@router.get("/security")
+async def security_page():
+    return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "security.html")))
+
+@router.get("/support")
+async def support_page():
+    return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "support.html")))
+
+@router.get("/llms.txt")
+async def llms_txt():
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(os.path.dirname(__file__), "..", "downloads", "llms.txt"), media_type="text/plain; charset=utf-8")
+
 @router.get("/robots.txt")
 async def robots():
     from fastapi.responses import FileResponse

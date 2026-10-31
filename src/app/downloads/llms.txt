@@ -1,0 +1,24 @@
+# SKV Network
+
+> Memory and answer-checking for AI agents. Your agent saves what matters, searches it before answering, drafts → checks → corrects, and ends with a seal line. Fewer hallucinations, no forgetting. Open source (MIT).
+
+## Connect
+- MCP (streamable HTTP): https://skv.network/mcp — with a key: https://skv.network/mcp/k/<your_sk_key>/ or header `Authorization: Bearer sk_...`
+- Free key: https://skv.network/profile
+- No key yet: `initialize` and `tools/list` work without a key. Public demo sandbox (shared, wiped daily, no private data): https://skv.network/mcp/k/demo/
+- REST / OpenAPI (for GPT Actions etc.): https://skv.network/api/v7/agent/openapi.json
+- Agent guide: https://skv.network/downloads/skv-agent-guide.md
+- Discovery: https://skv.network/.well-known/skv
+
+## Main MCP tools
+- `memory_start` — read once per session: how to work + the constitution (consent question before install)
+- `turn(user_message, draft)` — every answer: memory search + save + Second Look check, returns verdict and the seal line
+- `memory_search`, `memory_dig`, `memory_event` — recall
+- `board_list`, `board_act` — task board
+- `cube_search`, `cube_get` — shared experience cubes
+
+## Docs
+- Security & data: https://skv.network/security
+- Privacy: https://skv.network/privacy
+- Source: https://github.com/skv-neteork/Skv.network
+- Chrome extension (Guard 2, beta, load unpacked): https://skv.network/downloads/skv-guard2-chrome.zip

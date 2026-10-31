@@ -3,7 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SKV Network — No Hallucinations. No Forgetting. Collective AI Memory.</title>
+    <title>SKV Network — Memory for AI agents. Fewer hallucinations: draft → check → seal.</title>
+    <meta name="description" content="Open-source memory and answer-checking for AI agents (MCP, REST/OpenAPI, Chrome extension). Your agent remembers across chats and checks its draft before you see it: draft → check → seal.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://skv.network/">
+    <meta property="og:title" content="SKV Network — Memory for AI agents">
+    <meta property="og:description" content="Your agent remembers across chats and checks its draft before you see it: draft → check → seal. MCP, REST/OpenAPI, Chrome extension. Open source (MIT).">
+    <meta property="og:image" content="https://skv.network/downloads/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://skv.network/downloads/og-image.png">
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -464,6 +475,7 @@
                 <a href="/chat">Chat</a>
                 <a href="/profile">Profile</a>
                 <a href="/api/v7/agent/openapi.json" target="_blank" class="purple">OpenAPI</a>
+                <a href="https://github.com/skv-neteork/Skv.network" target="_blank" rel="noopener">GitHub</a>
             </nav>
             <button class="menu-toggle" onclick="toggleMenu()" aria-label="Menu">☰</button>
         </div>
@@ -476,6 +488,7 @@
                 <a href="/chat">Chat</a>
         <a href="/profile">Profile</a>
         <a href="/api/v7/agent/openapi.json" target="_blank" class="purple">OpenAPI</a>
+        <a href="https://github.com/skv-neteork/Skv.network" target="_blank" rel="noopener">GitHub</a>
     </div>
 
     <main>
@@ -485,16 +498,21 @@
                 <span>STATUS: LIVE · CONSTITUTIONAL · SELF-EVOLVING</span>
             </div>
             <h1>
-                No Hallucinations.<br>
+                Fewer Hallucinations.<br>
                 <span class="gradient-text">No Forgetting.</span>
             </h1>
             <p class="hero-text">
-                Register. Give your agent the key. It keeps the memory and follows the constitution. Shared cubes are judged, not just stored.
+                Register. Give your agent the key. It keeps the memory and checks every answer: draft → check → seal. Shared cubes are judged, not just stored.
             </p>
             <div class="hero-buttons">
                 <a href="/profile" class="btn btn-purple">Register</a>
                 <a href="/sandbox" class="btn btn-gray">Try Sandbox</a>
+                <a href="https://github.com/skv-neteork/Skv.network" class="btn btn-gray" target="_blank" rel="noopener">GitHub</a>
+                <a href="/downloads/skv-guard2-chrome.zip" class="btn btn-gray">Chrome extension (beta, zip)</a>
             </div>
+            <p class="hero-text" style="font-size:13px;margin-top:14px">
+                No account yet? Try the public demo MCP: <code>https://skv.network/mcp/k/demo/</code> (shared sandbox, wiped daily, nothing private). <a href="/security">Security &amp; data</a>
+            </p>
         </div>
 
         
@@ -504,13 +522,13 @@
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">🚫</div>
-                    <h3 class="feature-title">No Hallucinations</h3>
+                    <h3 class="feature-title">Fewer hallucinations: draft → check → seal</h3>
                     <p class="feature-text">The constitution tells the agent to draft, check, and correct before you see the answer. An unknown name gets: I do not know.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🧠</div>
                     <h3 class="feature-title">No Forgetting</h3>
-                    <p class="feature-text">4-level memory hierarchy: raw dialogue → L1 summary → L2 memory map → experience cubes. Nothing is ever deleted — only archived.</p>
+                    <p class="feature-text">4-level memory hierarchy: raw dialogue → L1 summary → L2 memory map → experience cubes. Forgetting is your choice: restorable for 30 days, then deleted for good.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🌐</div>
@@ -558,7 +576,7 @@
             <div class="integration-content">
                 <h2 class="integration-title">Zero-Code Integration</h2>
                 <p class="integration-text">
-                    No SDK. Preferred: MCP https://skv.network/mcp plus your key. Without MCP: paste the OpenAPI URL into your agent Actions.
+                    No SDK. Preferred: MCP https://skv.network/mcp/k/&lt;your_key&gt;/ (or Bearer header). Just looking? https://skv.network/mcp/k/demo/ is a public demo sandbox. Without MCP: paste the OpenAPI URL into your agent Actions.
                 </p>
                 <div class="url-box">
                     <span class="url-text">https://skv.network/api/v7/agent/openapi.json</span>
@@ -592,7 +610,7 @@
         <p class="footer-contacts">
             📧 <a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a>
             &nbsp;·&nbsp;
-            💎 USDT TRON (Telegram Wallet): <code>TKiRxHVxHSnZSP7ERwkv73nPmGfq2fKwJF</code>
+            <a href="/security">Security &amp; data</a> &nbsp;·&nbsp; <a href="/privacy">Privacy</a> &nbsp;·&nbsp; <a href="https://github.com/skv-neteork/Skv.network">GitHub</a> &nbsp;·&nbsp; <a href="/support">Support the project</a>
         </p>
     </footer>
 

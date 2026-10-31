@@ -358,6 +358,9 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
         h = dict(_headers())
         try:   # per-account rate bucket: without it every MCP user shares the docker-gateway IP bucket (300/min for all)
             import hashlib as _hl
+            _dc = _demo_client_var.get() if "_demo_client_var" in globals() else ""
+            if _dc:
+                h["X-Real-IP"] = _dc   # public demo: one bucket per guest IP, not one for all guests
             h.setdefault("X-Real-IP", "mcp-" + _hl.sha1(str(h.get("Authorization", "")).encode()).hexdigest()[:12])
         except Exception:
             pass
@@ -2759,6 +2762,51 @@ def _path_key_valid(key):
 
 API_BASE_FOR_KEYCHECK = "http://127.0.0.1:8000"
 
+# 2026-10-31: public demo sandbox. /mcp/k/demo/ uses the shared demo account; its key stays on the server.
+# Keyless clients may handshake (initialize, tools/list, ...) so directories and agents can inspect the server;
+# tools/call without a key gets a JSON-RPC error that explains how to get a key or use the demo URL.
+import contextvars as _cv_demo, hashlib as _hl_demo, json as _json_demo
+DEMO_KEY_FILE = "/data/skv/.demo_key"
+_demo_client_var = _cv_demo.ContextVar("skv_demo_client", default="")
+KEYLESS_BLOCKED_METHODS = {"tools/call", "resources/read", "prompts/get"}
+DEMO_URL = "https://skv.network/mcp/k/demo/"
+# demo sandbox: memory + agent loop only (the API enforces its own allowlist too)
+DEMO_ALLOWED_TOOLS = {"memory_start", "memory_search", "memory_dig", "memory_event", "turn", "step_zero",
+                      "constitution_get", "constitution_install", "constitution_status", "cube_get", "cube_search",
+                      "feedback_submit", "board_list", "board_act"}
+
+
+def _demo_key():
+    try:
+        with open(DEMO_KEY_FILE) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def _client_ip(headers, scope):
+    ip = (headers.get("x-real-ip") or (headers.get("x-forwarded-for") or "").split(",")[0]).strip()
+    return ip or (scope.get("client") or ("unknown", 0))[0]
+
+
+async def _read_body(receive):
+    body = b""
+    while True:
+        m = await receive()
+        if m["type"] == "http.disconnect":
+            return None
+        body += m.get("body", b"")
+        if not m.get("more_body", False):
+            return body
+
+
+def _keyless_error(msg_id):
+    return {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32001, "message": (
+        "SKV needs an API key for tool calls. Get a free key at https://skv.network/profile and use "
+        "https://skv.network/mcp/k/<your_sk_key>/ (or header Authorization: Bearer sk_...). "
+        "To just try it: public demo sandbox " + DEMO_URL + " (shared with other guests, wiped daily, "
+        "do not store anything private).")}}
+
 
 class BearerKeyASGI:
     """Extract Bearer/X-API-Key into contextvar for the whole ASGI call.
@@ -2785,6 +2833,52 @@ class BearerKeyASGI:
         # CORS preflight — never demand a key
         if method == "OPTIONS":
             await self.app(scope, receive, send)
+            return
+
+        if path == "/k/demo" or path.startswith("/k/demo/"):
+            dkey = _demo_key()
+            if not dkey:
+                await JSONResponse({"error": "public demo is disabled right now; get a free key at https://skv.network/profile"},
+                                   status_code=503)(scope, receive, send)
+                return
+            rest = path[len("/k/demo"):] or "/"
+            if method == "POST":
+                body = await _read_body(receive)
+                if body is None:
+                    return
+                try:
+                    msg = _json_demo.loads(body) if body else None
+                except Exception:
+                    msg = None
+                msgs = msg if isinstance(msg, list) else [msg]
+                bad = [x for x in msgs if isinstance(x, dict) and x.get("method") == "tools/call"
+                       and (x.get("params") or {}).get("name") not in DEMO_ALLOWED_TOOLS]
+                if bad:
+                    errs = [{"jsonrpc": "2.0", "id": x.get("id"), "error": {"code": -32002, "message":
+                             "Not available in the public demo sandbox (memory + agent loop only). "
+                             "Get your own free key at https://skv.network/profile"}} for x in bad]
+                    await JSONResponse(errs if isinstance(msg, list) else errs[0], status_code=200)(scope, receive, send)
+                    return
+                _sent_d = False
+
+                async def _replay_d(_b=body, _r=receive):
+                    nonlocal _sent_d
+                    if not _sent_d:
+                        _sent_d = True
+                        return {"type": "http.request", "body": _b, "more_body": False}
+                    return await _r()
+                receive = _replay_d
+            scope = dict(scope)
+            scope["path"] = rest
+            scope["raw_path"] = rest.encode("latin-1")
+            scope["root_path"] = ""
+            reset = _key_var.set(dkey)
+            reset2 = _demo_client_var.set("demo-" + _hl_demo.sha1(_client_ip(headers, scope).encode()).hexdigest()[:12])
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                _demo_client_var.reset(reset2)
+                _key_var.reset(reset)
             return
 
         m = _PATH_KEY_RE.match(path)
@@ -2836,13 +2930,37 @@ class BearerKeyASGI:
             await self.app(scope, receive, send)
             return
 
-        await JSONResponse(
-            {
-                "error": "Authorization: Bearer sk_YOUR_KEY required "
-                "(from https://skv.network/profile)"
-            },
-            status_code=401,
-        )(scope, receive, send)
+        if method != "POST":   # GET (SSE stream) / DELETE (end session): nothing to call without a key
+            await self.app(scope, receive, send)
+            return
+        body = await _read_body(receive)
+        if body is None:
+            return
+        try:
+            msg = _json_demo.loads(body) if body else None
+        except Exception:
+            msg = None
+        msgs = msg if isinstance(msg, list) else [msg]
+        blocked = [x for x in msgs if isinstance(x, dict) and x.get("method") in KEYLESS_BLOCKED_METHODS]
+        if blocked:
+            errs = [_keyless_error(x.get("id")) for x in blocked if "id" in x]
+            out = errs if isinstance(msg, list) else (errs[0] if errs else None)
+            if out is None:
+                await send({"type": "http.response.start", "status": 202, "headers": [(b"content-length", b"0")]})
+                await send({"type": "http.response.body", "body": b""})
+                return
+            await JSONResponse(out, status_code=200)(scope, receive, send)
+            return
+        sent = False
+
+        async def replay():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
+
+        await self.app(scope, replay, send)
 
 
 def _cors_headers(origin: str | None) -> list[tuple[bytes, bytes]]:

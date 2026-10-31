@@ -1794,12 +1794,12 @@ def profile_precheck(req: ProfilePrecheck):
 
 
 @router.get("/profile/relevant")
-def profile_relevant(user_id: str = "", q: str = "", answer: str = "", session: str = "", compact: str = ""):
+def profile_relevant(user_id: str = "", q: str = "", answer: str = "", session: str = "", compact: str = "", diet: str = ""):
     """Profile rows relevant to this turn (<=5 rows / 800 B), open profile duties, advisory profile_warning."""
     from app import profile as _prof
     if not user_id:
         raise HTTPException(401, "API key required")
-    return _prof.relevant(user_id, q[:2000], answer[:4000], session[:80], bool(compact))
+    return _prof.relevant(user_id, q[:2000], answer[:4000], session[:80], bool(compact), bool(diet))
 
 
 @router.get("/profile/block")

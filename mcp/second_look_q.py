@@ -56,7 +56,8 @@ def _q(s, n=110):
 
 def questions(draft, user_message="", facts=None, tool_text=""):
     """Return up to MAX_Q {rule, quote, ask} dicts; [] when nothing fires."""
-    d = re.sub(r"\n?🔐 SKV \|[^\n]*", "", draft or "").strip()
+    d = re.sub(r"\n?🔐 SKV \|[^\n]*", "", draft or "")
+    d = re.sub(r"(?m)^[ \t]*second_look=[^\n]*\n?", "", d).strip()   # the agent's own meta line is never a claim
     if not d:
         return []
     facts = facts or []
@@ -159,3 +160,26 @@ def stats(path, user, c=None):
     a, ans, k, ch, un = r
     return {"asked": a, "answered": ans, "kept": k, "changed": ch, "unanswered": un,
             "revision_rate": round(ch / (k + ch), 3) if (k + ch) else None}
+
+
+def dedupe(path, user, qs, answer="", ttl=12 * 3600):
+    """Drop questions the agent already answered (same rule + same ask) within ttl; remember what is asked now.
+    Keeps the turn response flat: an answered second_look question is not repeated every turn."""
+    try:
+        c = _db(path)
+        c.execute("CREATE TABLE IF NOT EXISTS sl_seen (user TEXT, ask TEXT, t REAL, PRIMARY KEY (user, ask))")
+        c.execute("CREATE TABLE IF NOT EXISTS sl_last (user TEXT PRIMARY KEY, asks TEXT)")
+        now = time.time()
+        k, ch = parse_answer(answer)
+        if k or ch or (answer or "").strip():
+            r = c.execute("SELECT asks FROM sl_last WHERE user=?", (user,)).fetchone()
+            for a in (r[0].split("\x1f") if r and r[0] else []):
+                c.execute("INSERT OR REPLACE INTO sl_seen (user, ask, t) VALUES (?,?,?)", (user, a, now))
+        seen = {a for (a,) in c.execute("SELECT ask FROM sl_seen WHERE user=? AND t>?", (user, now - ttl))}
+        key = lambda q: (q.get("rule") or "") + "|" + (q.get("ask") or "")
+        out = [q for q in qs if key(q) not in seen]
+        c.execute("INSERT OR REPLACE INTO sl_last (user, asks) VALUES (?,?)", (user, "\x1f".join(key(q) for q in out)))
+        c.commit()
+        return out
+    except Exception:
+        return qs

@@ -2,7 +2,7 @@
 One core for MCP, REST and Guards: schema, op validation, apply, duties, server fallback, relevance, step_zero block, dig.
 Data lives in the account db (profile_rows (named so to avoid the legacy memory_v2_windows user_profile table), profile_log, profile_duties, profile_state); the per-account
 feature flag lives in shared_master.db (profile_flags). Rows are never deleted: correct = supersede, delete = retract."""
-import hashlib, json, re, sqlite3, threading, time, uuid
+import hashlib, json, os, re, sqlite3, threading, time, uuid
 
 SHARED_DB = "/data/skv/metadata_store/shared_master.db"
 KINDS = ("prohibition", "rule", "decision", "preference", "identity")
@@ -249,6 +249,24 @@ def _signals():
             pass
     _SIG_CACHE.update(t=time.time(), rx=rx)
     return rx
+
+
+_DURABLE = re.compile(r"\b(всегда|никогда|впредь|с этого момента|отныне|каждый раз|по умолчанию|запомни|правило|давай всегда|always|never|from now on|every time|by default|remember that|rule)\b", re.I)
+
+
+def _candidate_ok(c, sig, msg):
+    """Plan #4: a profile candidate needs durable wording, or the same weak signal twice (two observations).
+    'make this shorter' is turn-local. Switch off with profile_candidate_strict=false in turn_diet.json."""
+    if not diet_cfg("profile_candidate_strict", True) or _DURABLE.search(msg or ""):
+        return True
+    toks = sorted(_toks(sig))[:12]
+    try:
+        seen = json.loads(_st(c, "weak_sigs", "[]") or "[]")
+    except Exception:
+        seen = []
+    hit = any(len(set(toks) & set(s)) >= 2 for s in seen)
+    _st_set(c, "weak_sigs", json.dumps((seen + [toks])[-20:]))
+    return hit
 
 
 def detect_signal(msg):
@@ -599,7 +617,7 @@ def apply(uid, eid, user_msg="", answer="", ops=None, review=None, has_l2=False,
             _open_duty(c, "profile_conflict", eid, "rows contradict: " + key, key, tn)
         sig = detect_signal(user_msg) if (eid and user_msg and author == "agent") else ""
         handled = any(eid in (n.get("ev") or []) or "__current__" in (n.get("ev") or []) for n in nops + nrops if n["op"] in ("add", "supersede", "confirm", "retract"))
-        if sig and not handled:
+        if sig and not handled and _candidate_ok(c, sig, user_msg):
             _open_duty(c, "profile_candidate", eid, sig, None, tn)
         _refresh_duties(c)
         expired = []
@@ -767,7 +785,8 @@ def relevant_rows(c, q, answer=""):
         ln = _line(r)
         if len(out) >= cfg("profile_turn_rows") or size + len(ln.encode()) > cfg("profile_turn_bytes"):
             break
-        out.append({"id": "prof:" + r["id"], "line": ln, "kind": r["kind"], "text": r["text"]}); size += len(ln.encode())
+        out.append({"id": "prof:" + r["id"], "line": ln, "kind": r["kind"], "text": r["text"],
+                    "_m": bool(sem.get(r["id"], 0.0) >= SEM_MIN or (_toks(r["text"] + " " + (r["keywords"] or "")) & words))}); size += len(ln.encode())
     return out
 
 
@@ -785,7 +804,39 @@ def _warnings(rows, answer):
     return w[:3]
 
 
-def relevant(uid, q="", answer="", session="", compact=False):
+_DIET_CFG = {"m": None, "v": {}}
+
+
+def diet_cfg(k, default):
+    """Shared tuning file of the MCP turn diet (/data/skv/turn_diet.json); defaults when absent."""
+    p = os.environ.get("SKV_TURN_DIET_CFG", "/data/skv/turn_diet.json")
+    try:
+        m = os.path.getmtime(p)
+        if m != _DIET_CFG["m"]:
+            with open(p) as fh:
+                _DIET_CFG.update(m=m, v=json.load(fh))
+    except Exception:
+        pass
+    return _DIET_CFG["v"].get(k, default)
+
+
+def digest(c, chars=320):
+    """~80-token capsule of the active profile: prohibitions and top-priority rows first, no ids."""
+    act = sorted(_active(c), key=lambda r: (_KORD.get(r["kind"], 9), r["priority"], r["author"] == "server_fallback"))
+    parts, n = [], 0
+    for r in act:
+        t = re.sub(r"\s+", " ", r["text"]).strip()
+        t = t if len(t) <= 90 else t[:87].rstrip() + "..."
+        if n + len(t) + 2 > chars:
+            break
+        parts.append(t); n += len(t) + 2
+    if not parts:
+        return ""
+    more = len(act) - len(parts)
+    return "; ".join(parts) + (" (+%d more)" % more if more > 0 else "")
+
+
+def relevant(uid, q="", answer="", session="", compact=False, diet=False):
     """turn read path: <=5 rows / <=800 B. Compact: full set only when profile_version changed for the session; else only new rows."""
     if not enabled(uid):
         return {}
@@ -818,6 +869,11 @@ def relevant(uid, q="", answer="", session="", compact=False):
             out["profile_warning"] = w
         if rows:
             out["profile_check"] = SELF_CHECK_ITEM % ", ".join(r["id"] for r in rows)
+        if diet:   # extra keys for the MCP compact path only; the default response is unchanged
+            out["profile_strict"] = [r["line"] for r in rows if r.get("_m")]
+            dg = digest(c, int(diet_cfg("profile_digest_chars", 320)))
+            if dg:
+                out["profile_digest"] = dg
         c.commit()
         return out
     finally:

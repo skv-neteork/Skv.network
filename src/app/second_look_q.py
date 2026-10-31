@@ -56,7 +56,8 @@ def _q(s, n=110):
 
 def questions(draft, user_message="", facts=None, tool_text=""):
     """Return up to MAX_Q {rule, quote, ask} dicts; [] when nothing fires."""
-    d = re.sub(r"\n?🔐 SKV \|[^\n]*", "", draft or "").strip()
+    d = re.sub(r"\n?🔐 SKV \|[^\n]*", "", draft or "")
+    d = re.sub(r"(?m)^[ \t]*second_look=[^\n]*\n?", "", d).strip()   # the agent's own meta line is never a claim
     if not d:
         return []
     facts = facts or []

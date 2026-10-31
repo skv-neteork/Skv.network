@@ -516,7 +516,7 @@ async def add_server_time(request: Request, call_next):
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     response.headers["X-Server-Time"] = stamp
     ctype = response.headers.get("content-type", "")
-    if "application/json" not in ctype:
+    if "application/json" not in ctype or request.url.path.startswith("/.well-known/glama"):
         return response
     body = b""
     async for chunk in response.body_iterator:

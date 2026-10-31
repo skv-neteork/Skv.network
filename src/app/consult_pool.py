@@ -29,7 +29,11 @@ DEFAULTS = {
     "key_daily_deep": 1,
     "synth_model": "claude",
     "reasoning_effort": "medium",
-    "max_tokens": {"quick": 1500, "answer": 8000, "review": 4000, "synthesis": 10000},
+    # cheap reasoning models spend most tokens thinking (DeepSeek V4 Pro: 5.8k of 8k), so give them room
+    "max_tokens": {"quick": 1500, "answer": 16000, "review": 8000, "synthesis": 16000},
+    "premium_max_tokens": {"quick": 1500, "answer": 8000, "review": 4000, "synthesis": 10000},
+    # per-model reasoning effort; DeepSeek V4 supports only xhigh|high|none
+    "model_effort": {"deepseek/deepseek-v4-pro": "high", "deepseek/deepseek-v4-flash": "high"},
     "continuations": 1,
     "timeout_s": 300,
     "wait_seconds": 75,
@@ -368,7 +372,8 @@ class _Run:
         last = None
         for model in [m for m in chain if m]:
             try:
-                text, u = _chat(model, system, user, max_tokens, None if quick else v.get("reasoning_effort"))
+                eff = None if quick else (v.get("model_effort") or {}).get(model, v.get("reasoning_effort"))
+                text, u = _chat(model, system, user, max_tokens, eff)
                 _log_call(self.user_id, self.kh, self.cid, self.mode, stage, role, model, u, True)
                 self.calls.append(dict(u, stage=stage, role=role, model=model))
                 return text, dict(u, model=model)
@@ -403,7 +408,7 @@ def _execute(user_id, key, cid, mode, task, tried, failed, context, premium=Fals
     brief = _brief(task, tried, failed, context)
     res = {"answers": {}, "usage": {}, "reviews": {}, "synthesis": "", "stopped": None}
     quick = mode == "quick"
-    mt = v["max_tokens"]
+    mt = v["premium_max_tokens"] if premium else v["max_tokens"]
     r1 = _parallel(lambda role: (role,) + run.call("answer", role, PROMPT_QUICK if quick else PROMPT_ANSWER, brief,
                                                      mt["quick"] if quick else mt["answer"], quick=quick), ("claude", "gpt"))
     for role, text, u in r1:

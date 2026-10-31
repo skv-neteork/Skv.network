@@ -364,7 +364,7 @@ _rate_limits = defaultdict(list)
 @app.middleware("http")
 async def rate_limit_middleware(request, call_next):
     # Пропускаем discovery и health
-    if request.url.path in ["/.well-known/skv", "/api/time", "/api/v4/graph/health", "/api/v7/health"]:
+    if request.url.path in ["/.well-known/skv", "/.well-known/glama.json", "/api/time", "/api/v4/graph/health", "/api/v7/health"]:
         return await call_next(request)
     
     client_ip = request.client.host if request.client else "unknown"
@@ -602,6 +602,12 @@ async def api_info():
         "graph_loaded": len(_v4_graph) > 0,
         "cache_enabled": True
     }
+@app.get("/.well-known/glama.json", include_in_schema=False)
+async def glama_claim():
+    """Glama connector ownership claim (public)."""
+    return {"$schema": "https://glama.ai/mcp/schemas/connector.json", "claim": "glama_claim_4MSjxE8R05oKaaWNhGGM5EjQrbUxlA-S"}
+
+
 @app.get("/.well-known/skv")
 async def discovery():
     """What is live. No promised systems that are not running."""

@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 
 router = APIRouter()
 
-SANDBOX_URL = "http://skv_sandbox:8000"
+SANDBOX_URL = "http://172.18.0.1:8011"
 POLZA_KEY = os.environ.get("POLZA_KEY", "")
 MAX_TRIES = 10
 TIMEOUT = 25

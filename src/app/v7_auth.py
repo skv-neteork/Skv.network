@@ -15,7 +15,7 @@ PREFIX = "/api/v7"
 
 PUBLIC_EXACT = {
     "", "/",
-    "/agent/prompt", "/agent/openapi.json", "/constitution", "/agent/guardian.py",
+    "/agent/prompt", "/agent/openapi.json", "/constitution", "/agent/guardian.py", "/health",
     "/start", "/skills", "/agent/start",
     "/auth/register", "/auth/confirm", "/auth/login",
     # these check the key themselves (header or body + password)

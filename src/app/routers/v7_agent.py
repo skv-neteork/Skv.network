@@ -689,6 +689,10 @@ class SessionBootstrapRequest(BaseModel):
     session_id: Optional[str] = None
     # optional explicit token for weak agents (middleware already authenticates)
     key: Optional[str] = None
+    detail: Optional[int] = 0       # 1 = legacy full package (~100 KB); default compact (<= ~12 KB)
+    part: Optional[str] = None      # raw|l1|l2|critical|board|constitution|skills|memory_map: one layer, paged
+    page: Optional[int] = 1
+    max_bytes: Optional[int] = None  # compact size cap (default 12000, min 4000)
 
 
 class StepZeroRequest(BaseModel):
@@ -716,6 +720,9 @@ async def session_step_zero(req: StepZeroRequest, request: Request,
     import asyncio as _asyncio
     d = await _asyncio.to_thread(_sz.build, uid)
     d["ok"] = True
+    from app import session_bootstrap as _sbz
+    d["step_zero"] = {"call": 1, "of": 2, "this": "memory", "next_call": _sbz.BOARD_CALL}
+    d["next"] = "CALL 2 OF 2 NOW: " + _sbz.BOARD_CALL + " (open board), then answer the user."
     return d
 
 
@@ -782,8 +789,11 @@ async def session_bootstrap(req: SessionBootstrapRequest, request: Request,
         raise HTTPException(401, "API key required")
 
     import asyncio as _asyncio
+    if req.part:
+        return await _asyncio.to_thread(_sb.build_part, uid, req.part, req.page or 1, chain_id)
+    full = bool(req.detail)
     pkg = await _asyncio.to_thread(
-        _sb.build_package,
+        _sb.build_package if full else _sb.build_compact,
         uid,
         chain_id=chain_id,
         chain_name=chain_name,
@@ -798,4 +808,7 @@ async def session_bootstrap(req: SessionBootstrapRequest, request: Request,
             pkg["profile"] = pb
     except Exception as _e:
         print(f"[profile] bootstrap block skipped: {_e}", flush=True)
+    if not full and isinstance(pkg, dict) and pkg.get("ok"):
+        _gz = "gzip" in (request.headers.get("accept-encoding") or "").lower()
+        pkg = _sb.fit(pkg, req.max_bytes or (_sb.COMPACT_MAX_BYTES_GZIP if _gz else _sb.COMPACT_MAX_BYTES))
     return pkg

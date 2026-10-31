@@ -40,25 +40,24 @@ async def startup():
 CONSTITUTION_TEXT = [""]
 
 async def preload_constitution():
+    """Preload a short constitution digest from the live source (SQLite cubes_new, the same rows
+    GET /api/v7/constitution serves). The old version read the in-memory v4 cubes_library, which is
+    no longer loaded at startup (PostgreSQL load disabled), so it always printed 0 chars."""
     global CONSTITUTION_TEXT
-    from app.routers.entries import cubes_library
-    CONSTITUTION_CUBES = [
-        "cube_const_00_v5",   # CUBE 00 — Core Algorithm v6.0
-        "cube_const_01_v4",   # CUBE 01 — Moral Compass v4.0
-        "cube_const_02_v4",   # CUBE 02 — Truth & Verification v4.0
-        "cube_const_03_v4",   # CUBE 03 — Anti-Manipulation v4.0
-        "cube_const_05_v4",   # CUBE 05 — Agent Full Protocol v6.0
-        # Governance
-        "const_evolver_protocol_v1",                # Evolver & Self-Improvement
-        "cube_const_creation_standard_v2",
-        "cube_bureau_role_chief_designer_v3",  # Chief Designer Protocol v3
-    ]
-    rules = []
-    for cid in CONSTITUTION_CUBES:
-        if cid in cubes_library:
-            cube = cubes_library[cid]
-            content_data = cube.get("content", {})
-            if isinstance(content_data, dict):
-                rules.extend(content_data.get("rules", [])[:2])
-    CONSTITUTION_TEXT[0] = "SKV Constitution: " + " | ".join(rules[:10]) if rules else ""
-    print(f"[SKV] Constitution preloaded: {len(CONSTITUTION_TEXT[0])} chars")
+    text, src = "", ""
+    try:
+        from app.routers.v7_guards import get_constitution_v8
+        d = await get_constitution_v8()
+        parts = [f"{c['cube']}: {(c.get('essence') or '').strip()}" for c in d.get("cubes", []) if (c.get("essence") or "").strip()]
+        if parts:
+            text, src = "SKV Constitution: " + " | ".join(parts), f"cubes_new ({len(parts)} cubes)"
+    except Exception as e:
+        print(f"[SKV] Constitution preload (cubes_new) failed: {e}", flush=True)
+    if not text:
+        try:
+            from app import memory_v2 as _mv2
+            text, src = _mv2.constitution_compact() or "", "constitution_compact file"
+        except Exception as e:
+            print(f"[SKV] Constitution preload (compact file) failed: {e}", flush=True)
+    CONSTITUTION_TEXT[0] = text
+    print(f"[SKV] Constitution preloaded: {len(text)} chars from {src or 'nothing'}", flush=True)

@@ -206,6 +206,15 @@ def age_out():
     ids = cv.age_out(c); c.commit(); st = cv.unrated_stats(c); c.close()
     if ids:
         log("aged to court (no ratings): " + ", ".join(ids))
+    # 'aged_to_court' is a lifetime counter (cubes with aged_at set), not open cases: the 7 from 21.10 were judged that night.
+    try:
+        c = sqlite3.connect(DB)
+        st["aged_total"] = st.pop("aged_to_court", None)
+        st["court_open"] = c.execute("SELECT COUNT(*) FROM court_queue").fetchone()[0]
+        st["aged_judged"] = c.execute("SELECT COUNT(DISTINCT v.cube_id) FROM court_verdicts v JOIN cubes_new n ON n.cube_id=v.cube_id WHERE n.aged_at IS NOT NULL").fetchone()[0]
+        c.close()
+    except Exception as e:
+        st["court_count_error"] = str(e)[:80]
     log("unrated stats " + json.dumps(st))
 
 
@@ -389,8 +398,23 @@ def watch():
         if os.path.exists(state):
             os.remove(state)
 
+def dry_judge(cid):
+    """One real case through the same judge() path, verdict logged only (no apply, no queue change).
+    Budget guard applies; at most 3 short calls (J1, J2 only if J1 says remove)."""
+    c = sqlite3.connect(DB)
+    cube = c.execute("SELECT essence, rules_markdown, is_constitutional FROM cubes_new WHERE cube_id=?", (cid,)).fetchone()
+    c.close()
+    if not cube or cube[2]:
+        log("dry judge skip " + cid); print("skip"); return
+    v = judge(cube[0] or cid, cube[1] or "", "dry run: court pipeline check")
+    log("DRY judge " + cid + " " + json.dumps({"votes": v.get("votes"), "rewrite": bool((v.get("rules") or "").strip())}, ensure_ascii=False))
+    print(json.dumps({"votes": v.get("votes"), "rewrite_chars": len(v.get("rules") or "")}, ensure_ascii=False))
+
+
 if __name__ == "__main__":
     import sys as _sys
+    if "--dry-judge" in _sys.argv:
+        dry_judge(_sys.argv[_sys.argv.index("--dry-judge") + 1]); raise SystemExit(0)
     if "--watch" in _sys.argv:
         # hourly (Grok-chat decision #7630/#8323): server watch + new users; alarms mail at once, digest once a day. No LLM calls.
         new_users()

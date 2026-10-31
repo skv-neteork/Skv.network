@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><title>SKV Court</title>
+<style>body{font-family:system-ui,sans-serif;max-width:1200px;margin:20px auto;padding:0 12px}h2{margin-top:32px}
+.case{border:1px solid #ccc;border-radius:8px;padding:12px;margin:16px 0}.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;margin-right:6px}
+.co{background:#fde2e2}.hk{background:#fff1c2}.sk{background:#dde9ff}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+pre{white-space:pre-wrap;background:#f7f7f7;padding:8px;border-radius:6px;font-size:12px;max-height:400px;overflow:auto}
+.add{color:#0a6b0a;background:#e6ffe6}.del{color:#a00;background:#ffe6e6}.dh{border:2px solid #e0a800}.ds{border:2px solid #3b6fd8}</style></head>
+<body><h1>SKV Court: pending cases</h1><p>Each case shows the old and new versions in full, plus the diff. The hooks diff and the skill_md diff are shown separately.</p><div id="c">Loading…</div>
+<script>
+const esc=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const dhtml=u=>u?u.split("\n").map(l=>l.startsWith("+")&&!l.startsWith("+++")?`<span class="add">${esc(l)}</span>`:l.startsWith("-")&&!l.startsWith("---")?`<span class="del">${esc(l)}</span>`:esc(l)).join("\n"):"(no change)";
+fetch("/court/fixes").then(r=>r.json()).then(j=>{const el=document.getElementById("c");if(!j.fixes.length){el.textContent="No pending cases.";return}
+el.innerHTML=j.fixes.map(k=>{const f=["essence","rules","skill_md","hooks"];
+return `<div class="case"><b>#${k.id}</b> cube <code>${esc(k.cube_id)}</code>${k.new_cube_id?" → <code>"+esc(k.new_cube_id)+"</code>":""} by ${esc(k.by)} · ${esc(k.ts)}<br>
+${k.court_only?'<span class="badge co">court only</span>':''}${k.hooks_changed?'<span class="badge hk">hooks changed</span>':''}${k.skill_md_changed?'<span class="badge sk">skill_md changed</span>':''}
+<div>${esc(k.reason)}</div><div>open ${k.age_hours}h${k.age_hours>48?' <b style="color:#a00">overdue</b>':''}</div>
+${(k.votes||[]).length?'<div>Votes: '+k.votes.map(v=>esc(v.judge)+': <b>'+esc(v.verdict)+'</b>, '+esc(v.reason)).join('<br>')+'</div>':''}
+${k.decision_reason?'<div>Decision: '+esc(k.decision_reason)+'</div>':''}
+${(k.complaints||[]).length>1?'<details><summary>All complaints ('+k.complaints.length+')</summary><pre>'+k.complaints.map(x=>esc(x.at+' '+x.reason)).join('\n')+'</pre></details>':''}
+<h3>Hooks diff</h3><pre class="dh">${dhtml((k.diff.hooks||{}).unified)}</pre>
+<h3>skill_md diff</h3><pre class="ds">${dhtml((k.diff.skill_md||{}).unified)}</pre>
+<h3>Essence / rules diff</h3><pre>${dhtml((k.diff.essence||{}).unified)}\n${dhtml((k.diff.rules||{}).unified)}</pre>
+<details><summary>Both versions in full</summary>${f.map(x=>`<h4>${x}</h4><div class="cols"><div><i>old</i><pre>${esc(k.old[x])}</pre></div><div><i>new</i><pre>${esc(k.new[x])}</pre></div></div>`).join("")}</details></div>`}).join("")});
+</script></body></html>

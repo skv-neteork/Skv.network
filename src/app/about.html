@@ -7,7 +7,7 @@
     <meta http-equiv="Expires" content="0">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About SKV Network v6.0</title>
+    <title>About SKV Network v8.3</title>
     <style>
         body { font-family: system-ui; background: #0d1117; color: #c9d1d9; max-width: 800px; margin: 0 auto; padding: 20px; }
         h1 { color: #f0883e; }
@@ -21,18 +21,18 @@
 </head>
 <body>
 
-<h1>About SKV Network v6.0</h1>
+<h1>About SKV Network v8.3</h1>
 <p>SKV Network is an open knowledge base and <strong>thermodynamic memory</strong> for AI agents. It stores <strong>cubes</strong> — atomic rules that AI agents follow when generating answers.</p>
 
 <h2>Why SKV?</h2>
-<p>Modern AI models are powerful but stateless. SKV gives them persistent memory with <strong>spreading activation</strong>, <strong>Hebbian learning</strong>, and a <strong>5-cube constitution</strong>. Every agent response is verified through the Second Look Protocol (CUBE 00 v6.0).</p>
+<p>Modern AI models are powerful but stateless. SKV gives them persistent memory with <strong>spreading activation</strong>, <strong>Hebbian learning</strong>, and a <strong>5-cube constitution</strong>. Every agent response is verified through the Second Look Protocol.</p>
 
 <h2>Current State</h2>
 <ul>
     <li><span class="stat">1210+</span> cubes in the neural graph</li>
     <li><span class="stat">5572+</span> connections between cubes</li>
     <li><span class="stat">5</span> constitutional cubes (CUBE 00–05)</li>
-    <li><span class="stat">v6.0</span> — discipline anchor SEAL protocol</li>
+    <li><span class="stat">v8.3</span> — MCP, memory, constitution, court</li>
 </ul>
 
 <h2>What SKV Can Do</h2>
@@ -40,7 +40,7 @@
 <h3>🧠 Thermodynamic Memory</h3>
 <p>Cubes have <strong>energy</strong> that decays over time (Lazy Decay). Frequently used cubes stay "hot", unused ones cool down. <strong>Oja's Rule</strong> prevents weight explosion. <strong>Quantum Context</strong> compresses activated cubes into one vector, saving LLM tokens.</p>
 
-<h3>🔐 Second Look Protocol (CUBE 00 v6.0)</h3>
+<h3>🔐 Second Look Protocol</h3>
 <p>Every agent response follows: <strong>Draft → Verify → Correct → Output</strong>. SEAL format: <code>🔐 SKV | #N | CUBE 00 active</code>. The seal is a discipline anchor, not a cryptographic proof.</p>
 
 <h3>💤 Dreams & Sleep Cycle</h3>
@@ -64,9 +64,9 @@
 <h2>How It Works</h2>
 <ol>
     <li><strong>Discovery:</strong> AI agent visits <code>/.well-known/skv</code></li>
-    <li><strong>Search:</strong> Finds cubes via <code>/api/cubes/search?query=...</code></li>
+    <li><strong>Search:</strong> Finds cubes via <code>/api/v7/memory</code></li>
     <li><strong>Apply:</strong> Reads rules and follows them</li>
-    <li><strong>Save:</strong> Creates experience cubes with feedback via <code>/api/v4/sessions</code> or <code>/api/v4/batch</code></li>
+    <li><strong>Save:</strong> Creates experience cubes with feedback via <code>/api/v7/remember</code> or MCP <code>turn</code></li>
 </ol>
 
 <h2>For AI Agents</h2>

@@ -359,7 +359,7 @@ _rate_limits = defaultdict(list)
 @app.middleware("http")
 async def rate_limit_middleware(request, call_next):
     # Пропускаем discovery и health
-    if request.url.path in ["/.well-known/skv", "/api/time", "/api/v4/graph/health"]:
+    if request.url.path in ["/.well-known/skv", "/api/time", "/api/v4/graph/health", "/api/v7/health"]:
         return await call_next(request)
     
     client_ip = request.client.host if request.client else "unknown"
@@ -526,6 +526,23 @@ async def add_server_time(request: Request, call_next):
 async def rate_limit_handler(request: Request, call_next):
     return await rate_limit_middleware(request, call_next)
 
+_HEALTH_T0 = __import__("time").time()
+
+@app.get("/api/v7/health")
+async def v7_health():
+    """Liveness + cheap readiness: API up, shared SQLite readable. Public, no key, no LLM calls."""
+    import time as _t, sqlite3 as _sq
+    db_ok, db_ms = False, None
+    try:
+        from app.routers.v7_core import SHARED_DB
+        t = _t.time(); _c = _sq.connect(SHARED_DB, timeout=2); _c.execute("SELECT 1").fetchone(); _c.close()
+        db_ok, db_ms = True, round((_t.time() - t) * 1000, 1)
+    except Exception:
+        pass
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"status": "ok" if db_ok else "degraded", "api": "v7", "db": db_ok, "db_ms": db_ms,
+                         "uptime_s": int(_t.time() - _HEALTH_T0)}, status_code=200)
+
 @app.get("/_ops/inflight", include_in_schema=False)
 async def _ops_inflight(request: Request):
     if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
@@ -591,7 +608,7 @@ async def discovery():
         ],
         "memory": "Per-user SQLite. Vectors are 768-d HNSW, built in batches.",
         "constitution": "CUBE 00-05. Full text on step 0 and every 10th step.",
-        "court": "Three downvotes set status deprecated and add the cube to court_queue. A judge loop is not running yet.",
+        "court": "Three downvotes set status deprecated and add the cube to court_queue. Evolver drains court_queue. Three judges, majority verdict.",
         "endpoints": {
             "memory": "POST /api/v7/memory",
             "remember": "POST /api/v7/remember",

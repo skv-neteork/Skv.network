@@ -765,7 +765,7 @@ def memory_bootstrap(
 ) -> str:
     """STEP 0 (preferred). POST /session/bootstrap — continuity package on first connect or chain switch.
     Pass recent_messages_json = JSON list of last 2–3 turns [{role,content},...] for lag check.
-    Returns raw/L1/L2/critical/memory_map + board + constitution + reminders + lag.
+    Makes both step-zero calls: memory (raw/L1/L2/critical/memory_map + constitution + reminders + lag), then the board (part=board).
     If enabled=false, follow the hint (or call memory_start). MUST call before answering."""
     try:
         msgs = json.loads(recent_messages_json) if recent_messages_json else []
@@ -794,6 +794,11 @@ def memory_bootstrap(
         return _dumps(data)
     if int(detail or 0):
         return _page(json.dumps(data, ensure_ascii=False, indent=1), page, "memory_bootstrap")
+    # step zero is two calls: call 1 = memory (above), call 2 = the board
+    b = _board_part()
+    if b:
+        data["board"] = {"text": b.get("text") or "", "open_count": b.get("open_count"), "actions": b.get("actions"),
+                         "pages": b.get("pages"), "via": "step zero call 2 of 2 (part=board)"}
     return _compact_bootstrap(data)
 
 
@@ -838,7 +843,7 @@ def _compact_bootstrap(d: dict) -> str:
             "critical": _cap(cont.get("critical") or "", 600),
             "memory_map": _cap(mm, 500),
         },
-        "board": _shrink(d.get("board"), 300),
+        "board": _shrink(d.get("board"), 2600),
         "attached_skills": skills,
         "next": d.get("next"),
         "memory_line": d.get("memory_line"),
@@ -846,8 +851,9 @@ def _compact_bootstrap(d: dict) -> str:
         "last_seal": last_seal,
         "next_seal": SEAL_FMT.format(n=last_seal + 1),
         "more": "Compact pack. Full raw/skills/constitution: memory_bootstrap(detail=1, page=1..N); constitution_get(page=..); skills_get(name).",
+        "step_zero": "done: memory (call 1) + board (call 2) are both in this result. Answer the user, then turn(user_message, draft).",
     }
-    return _dumps_keep(out, ["continuity.raw_tail", "reminders", "continuity.l1", "continuity.memory_map"])
+    return _dumps_keep(out, ["continuity.raw_tail", "reminders", "continuity.l1", "continuity.memory_map", "continuity.critical", "board.text"])
 
 
 @mcp.tool()
@@ -1890,10 +1896,22 @@ def _step_zero_pages() -> list:
         pblock = (d.get("block") or "") if isinstance(d, dict) else ""
     except Exception:
         pblock = ""
+    # page 1 must stay whole inside one tool response (RESP_LIMIT 9000 incl. JSON escaping + cube_harvest
+    # envelope), otherwise _dumps shrinks the text to 3000 chars and memory + board get cut.
+    BUDGET = 7300
+    links = _links_index()
+    bpart = _board_part()
+    btext = _board_step_zero_text(2600, bpart)
+    fixed = len(USE_TURN) + 300 + len(links) + len(pblock)
     for nt, an in ((5, 800), (4, 700), (4, 500), (3, 450), (2, 400), (1, 300)):
         mem, items = _sz_memory(nt, an)
-        if len(USE_TURN) + len(mem) + 1500 + len(pblock) <= 8800:
+        if fixed + len(mem) + len(btext) <= BUDGET:
             break
+    if fixed + len(mem) + len(btext) > BUDGET:   # board is step zero call 2: keep it, shorter
+        btext = _board_step_zero_text(max(600, BUDGET - fixed - len(mem) - 150), bpart)
+    over = fixed + len(mem) + len(btext) - BUDGET
+    if over > 0 and pblock:
+        pblock = _trim_words(pblock, max(400, len(pblock) - over)) + "\n(full profile: memory_dig(focus_id=prof:list))"
     try:
         mem = _annotate_mem(mem, items)
     except Exception:
@@ -1902,8 +1920,8 @@ def _step_zero_pages() -> list:
     p1 = (USE_TURN + "\n\nCONSTITUTION (" + _const_version() + "): the full texts of CUBE 00-04 + CUBE 05-MCP follow on the next step_zero pages; read EVERY page until done=true." +
           ("\n\n" + pblock if pblock else "") +
           "\n\n=== STEP ZERO: your memory (cite facts by the [ev:id] shown) ===\n" + mem +
-          _board_focus_text() +
-          "\n\n" + _links_index() +
+          btext +
+          "\n\n" + links +
           "\n\nLast seal: #%03d -> turn will issue %s" % (last, SEAL_FMT.format(n=last + 1)))
     try:
         cp = _const_pages(False)
@@ -1977,7 +1995,7 @@ def _not_installed_reply(tool):
 @mcp.tool()
 def step_zero(page: int = 1) -> str:
     """STEP ZERO, right after constitution_install and at every session start once installed: HOW TO WORK + your memory
-    (last session, tail, L2/L1, critical facts), every item with [ev:id]. Read pages until done=true."""
+    (last session, tail, L2/L1, critical facts) + the open board (the tool makes both calls), every item with [ev:id]. Read pages until done=true."""
     _g = _not_installed_reply("step_zero")
     if _g: return _g
     page = int(page or 1)
@@ -2504,6 +2522,27 @@ def _board_relevant(user_message: str, answer: str = "") -> dict:
     except Exception:
         pass
     return {}
+
+
+def _board_part() -> dict:
+    """Step zero, call 2 of 2: the open board (POST /session/bootstrap part=board). {} on failure."""
+    try:
+        d = _req("POST", "/session/bootstrap", _uid_body({"part": "board"}))
+        if isinstance(d, dict) and d.get("ok") is not False and "text" in d:
+            return d
+    except Exception:
+        pass
+    return {}
+
+
+def _board_step_zero_text(cap: int = 2600, b: dict = None) -> str:
+    b = _board_part() if b is None else b
+    t = (b.get("text") or "").strip()
+    if t:
+        if len(t) > cap:
+            t = t[:t.rfind("\n", 0, cap) if t.rfind("\n", 0, cap) > cap // 2 else cap] + "\n…(more: board_list)"
+        return "\n\n=== BOARD: %s open (step zero call 2 of 2; board_list for all, board_act to change) ===\n%s" % (b.get("open_count"), t)
+    return _board_focus_text()
 
 
 def _board_focus_text() -> str:

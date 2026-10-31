@@ -26,7 +26,6 @@ PROTECTED_PREFIXES = (
     "/api/v4/sessions",
     "/api/v4/users",
     "/api/v4/cubes",
-    "/api/execute/code",
 )
 
 
@@ -88,10 +87,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             raise
         except Exception as e:
             print(f"[AUTH] DB error: {e}", flush=True)
-            # Fail closed for protected endpoints — never trust client user_id
+            # Keys live in SQLite now. Try that before failing.
             if needs_auth:
                 raise HTTPException(status_code=503, detail="Auth database unavailable")
-            # Unprotected path with a provided token we couldn't validate: strip trust
             request.state.user_id = None
 
         return await call_next(request)

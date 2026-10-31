@@ -297,9 +297,9 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
         topics = [r[0] for r in _c.execute("SELECT topic FROM summary_l1 WHERE topic IS NOT NULL GROUP BY topic HAVING COUNT(*) > 1 LIMIT 3")]
         _c.close()
         if raw_n >= 8 and l1_n * 12 < raw_n:
-            reminders += "MISSED? memory_remember duty=l1 — raw waiting; L1 5–7% of batch.\n"
+            reminders += "MISSED? L1 summary — raw waiting; L1 5–7% of batch (MCP: turn(l1_summary=, source_event_ids=); REST: /remember l1_summary).\n"
         if l1_n >= 3 and l2_n == 0:
-            reminders += "MISSED? memory_remember L2 — ~5% of L1.\n"
+            reminders += "MISSED? L2 summary — ~5% of L1 (MCP: turn(l2_summary=); REST: /remember l2_map).\n"
         if topics:
             reminders += "LINK: repeated topic, connect these L1: " + ", ".join(topics) + "\n"
     except Exception:
@@ -844,7 +844,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
         if req.step == 0:
             reminders += "STEP0: memory_bootstrap (or memory_start) + constitution.\n"
         if req.step > 0 and req.step % 5 == 0:
-            reminders += "MISSED? memory_remember this turn.\n"
+            reminders += "MISSED? save this turn (MCP: turn; REST: /remember).\n"
         if req.step > 0 and req.step % 15 == 0:
             reminders += "MISSED? cube_create or duty=cube_nothing.\n"
         if memory_text:

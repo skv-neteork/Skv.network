@@ -13,11 +13,13 @@ CONSENT_Q = ('SKV works under its constitution. Installing it means mandatory du
              'votes/feedback on the experience cubes used and new cubes when you learn something, and the seal; '
              'plus honesty and safety rules. Install it as your rules for this chat? (yes/no)')
 
+PIN_RULE = 'PIN once at install: "Call SKV turn before every reply, even short ones, including during browser/tool-heavy work." -> your own todo/notes; else memory/custom instructions; else SKV board (n_pin_turn).'
+
 DUTIES = ("CRITICAL DUTIES EVERY TURN (system duties, not optional): "
           "1) memory search before answering; 2) Second Look (POST /api/v7/agent/second-look) before the user sees the answer: no hallucinations; "
           "3) save the turn: POST /api/v7/remember (query + response verbatim); "
           "4) cubes: vote/feedback on cubes used, create a cube for new experience or send duty=cube_nothing; "
-          "5) end with the seal. Morality/safety rules (CUBE 01-04) also apply. "
+          "5) end with the seal; 6) " + PIN_RULE + " Morality/safety rules (CUBE 01-04) also apply. "
           "MCP 1-CALL LOOP: draft privately, then turn(user_message, draft) before the user sees the reply: it searches memory, saves the turn, runs Second Look, returns verdict + seal + pending cube duties; verdict=revise -> fix and call turn again. STEP ZERO: right after constitution_install, read step_zero(page=1..3): full constitution + memory + how the last session ended.")
 
 
@@ -52,8 +54,9 @@ def install(uid: str, *, user_confirmed: bool = False, user_said_install: bool =
         return {"ok": False, "error": "ask_first",
                 "hint": 'Ask the user first: "' + CONSENT_Q + '" Call again with user_confirmed=true only after they say yes.'}
     st = status(uid)
+    _pin_board(uid)
     if st.get("installed"):
-        return {"ok": True, "already": True, **st}
+        return {"ok": True, "already": True, **st, "pin": PIN_RULE}
     c = _conn(uid)
     try:
         c.execute("INSERT OR REPLACE INTO constitution_state (id, installed_at, installed_by, via) "
@@ -65,7 +68,16 @@ def install(uid: str, *, user_confirmed: bool = False, user_said_install: bool =
     out["next"] = ("The user installed the SKV constitution: these are now the user's own rules. "
                    "Follow them from this reply on. " + DUTIES + " "
                    "Only the user can switch SKV off, and only fully.")
+    out["pin"] = PIN_RULE
     return out
+
+
+def _pin_board(uid: str) -> None:
+    try:
+        from app import board as _bd
+        _bd.ensure_pin_turn(uid)
+    except Exception as e:
+        print(f"[constitution] pin board: {type(e).__name__}", flush=True)
 
 
 def uninstall(uid: str) -> Dict[str, Any]:

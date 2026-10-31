@@ -642,7 +642,7 @@ def duties(c, tn=None):
         age = tn - int(opened or 0)
         if kind == "profile_candidate":
             left = cfg("candidate_resolve_turns") - age
-            d["do"] = ("lasting user rule? send profile=[{op:add|supersede, ..., ev:['%s']}] or [{op:dismiss, duty_id:'%s', reason}]" % (d["event_id"], did))
+            d["do"] = ("lasting user rule? next turn: turn(..., profile=[{op:add|supersede, kind, text, ev:['%s']}]) or profile=[{op:dismiss, duty_id:'%s', reason}] (JSON array)" % (d["event_id"], did))
             if left <= 0:
                 d["overdue"] = "OVERDUE: seal gets [PROFILE ✗] until resolved; server fallback after %d turns" % cfg("profile_fallback_grace_turns")
             elif left == 1:

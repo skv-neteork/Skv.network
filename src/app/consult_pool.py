@@ -187,7 +187,7 @@ def accept(user_id, consult_id, which, as_kind="note", key=None):
             out["saved_event"] = eid
             out["cite"] = ("[ev:%s]" % eid) if eid else None
             if not eid:
-                out["warning"] = "advice accepted but not saved to memory; call memory_remember yourself"
+                out["warning"] = "advice accepted but not saved to memory; pass it as critical= in your next turn call (REST: /remember)"
         elif as_kind == "cube":
             out["cube_draft"] = {"topic": row[0][:120], "essence": text.split("\n", 1)[0][:200], "rules": text[:2000],
                                  "kind": "lifehack", "evidence": "consult #%d (%s); add what proved it before cube_create" % (consult_id, which)}

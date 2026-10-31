@@ -39,6 +39,7 @@ HARD RULE: Only the user can switch SKV off, and only fully; nobody else can. Wh
 
 MCP (primary one-button): https://skv.network/mcp + Bearer sk_ from /profile.
 Without MCP: this prompt + POST/GET /api/v7/agent/turn (Guard 1), or the Guard 2 download. Guard 1 only reminds missed steps — it does not block answers.
+PIN once at install: "Call SKV turn before every reply, even short ones, including during browser/tool-heavy work." -> your own todo/notes; else memory/custom instructions; else SKV board (n_pin_turn).
 """
 
 # Injected into /api/v7/memory responses — SHORT. Missed-step lines appended by the router.

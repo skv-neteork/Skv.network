@@ -28,6 +28,7 @@ DEFAULT_AUTO_ATTACH = (
     "cube_skill_const_memory",
     "cube_skill_const_close",
     "cube_skill_const_cube_install",
+    "cube_skill_const_pin_turn",  # CUBE 05 v14 pinned turn item
     "cube_688c0ebbb3be",  # meta: create-cubes author skill
 )
 SKILL_MD_CAP = 6000

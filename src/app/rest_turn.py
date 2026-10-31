@@ -278,6 +278,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
         try:
             from app import second_look_q as _SLQ
             _slq = _SLQ.questions(clean, user_message, facts)
+            _slq = _SLQ.dedupe(COMPACT_DB, user, _slq, second_look)
             _sls = _SLQ.record(COMPACT_DB, user, len(_slq), second_look, revised=bool(same))
         except Exception:
             _slq = []

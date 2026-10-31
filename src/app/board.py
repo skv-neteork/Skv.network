@@ -8,6 +8,12 @@ import hashlib, re, uuid
 from app import shelves as _sh
 
 KINDS = ("task", "resource", "note")
+# Constitution pin (CUBE 05 v14 "PINNED TODO"): one never-closed note per account; done/park/remove are refused.
+PIN_TURN_KEY = "pin_turn"
+PIN_TURN_ID = "n_pin_turn"
+PIN_TURN_SHORT = 'Call SKV turn before every reply, even short ones, including during browser/tool-heavy work.'
+PIN_TURN_TITLE = "PINNED: Call SKV turn before every reply, even short ones, including during browser/tool-heavy work."
+PIN_TURN_BODY = 'SKV constitution pin (never closed). PIN once at install: "Call SKV turn before every reply, even short ones, including during browser/tool-heavy work." -> your own todo/notes; else memory/custom instructions; else SKV board (n_pin_turn).'
 STATUSES = ("todo", "doing", "blocked", "done", "parked")
 OPEN = ("todo", "doing", "blocked")
 _OLD_STATUS = {"open": "todo", "in_progress": "doing", "closed": "done", "": "todo"}
@@ -111,6 +117,8 @@ def act(uid, item_id="", action="add", text="", kind="", title="", priority=None
         row = c.execute("SELECT kind, title, body, status FROM board_items WHERE item_id=? AND removed=0", (item_id,)).fetchone() if item_id else None
         if action == "update" and not row:
             action = "add"
+        if row and action in ("done", "park", "remove") and (item_id == PIN_TURN_ID or _is_pin(c, item_id)):
+            raise ValueError("pinned SKV rule (constitution): this item is never closed, parked or removed")
         if action == "add_subtask":
             if not parent_id or not c.execute("SELECT 1 FROM board_items WHERE item_id=? AND removed=0", (parent_id,)).fetchone():
                 raise ValueError("add_subtask needs parent_id of an existing item")
@@ -334,3 +342,37 @@ def for_recall(uid, session, cfg, force=False):
     finally:
         c.close()
     return text if due else ""
+
+
+def _is_pin(c, item_id):
+    try:
+        r = c.execute("SELECT idem_key FROM board_items WHERE item_id=?", (item_id,)).fetchone()
+        return bool(r and r[0] == PIN_TURN_KEY)
+    except Exception:
+        return False
+
+
+def ensure_pin_turn(uid):
+    """Idempotent: the constitution's pinned 'call turn before every reply' note (priority 1, kind note, never closed)."""
+    if not uid:
+        return None
+    c = _conn(uid)
+    try:
+        try: c.execute("ALTER TABLE board_items ADD COLUMN idem_key TEXT")
+        except Exception: pass
+        r = c.execute("SELECT item_id, removed FROM board_items WHERE item_id=? OR idem_key=?", (PIN_TURN_ID, PIN_TURN_KEY)).fetchone()
+        if r and not r[1]:
+            return r[0]
+        if r:
+            c.execute("UPDATE board_items SET removed=0, priority=1, important=1, updated_at=datetime('now') WHERE item_id=?", (r[0],)); c.commit()
+            return r[0]
+        c.execute("INSERT INTO board_items (item_id, kind, title, body, status, updated_at, removed, important, priority, parent_id, waiting_for, result, result_event, created_at, idem_key) "
+                  "VALUES (?,?,?,?,'',datetime('now'),0,1,1,'','','','',datetime('now'),?)",
+                  (PIN_TURN_ID, "note", PIN_TURN_TITLE, PIN_TURN_BODY, PIN_TURN_KEY))
+        c.commit()
+        return PIN_TURN_ID
+    except Exception as e:
+        print(f"[board] ensure_pin_turn: {type(e).__name__}: {e}", flush=True)
+        return None
+    finally:
+        c.close()

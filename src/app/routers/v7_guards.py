@@ -74,7 +74,7 @@ async def second_look(req: SecondLookRequest):
         conn.close()
     except Exception:
         saved = False
-    checks.append({"name": "constitution", "ok": saved, "note": "turn saved" if saved else "FAIL: this turn is not saved yet. Call memory_remember(text=user message, response=draft) FIRST, then second_look again (or use the one-call tool turn)."})
+    checks.append({"name": "constitution", "ok": saved, "note": "turn saved" if saved else "FAIL: this turn is not saved yet. Save it FIRST with turn (MCP) or POST /api/v7/agent/turn (REST), then second_look again (or use the one-call tool turn)."})
     checks.append({"name": "critical", "ok": not (req.span > 20 and not req.event_id), "note": "span " + str(req.span) + ": one turn is not the whole topic" + ("" if not (req.span > 20 and not req.event_id) else "; FAIL: wide search (span>20) needs event_id of the turn you rely on")})
     checks.append({"name": "creative", "ok": True, "note": "offer one other reading, do not add a new fact"})
     draft = req.draft or ""
@@ -93,7 +93,7 @@ async def second_look(req: SecondLookRequest):
     checks.append({"name": "hallucination", "ok": ok, "note": note})
     ok = all(c["ok"] for c in checks if c["name"] != "creative")
     return {"status": "pass" if ok else "fail", "checks": checks,
-            "pass_requires": "1) turn saved via memory_remember before this call; 2) cite event id for any memory fact",
+            "pass_requires": "1) turn saved via turn (MCP) or /agent/turn (REST) before this call; 2) cite event id for any memory fact",
             "next": "SEAL and output" if ok else "fix the failed checks (see FAIL notes), then call second-look again"}
 
 
@@ -127,18 +127,29 @@ def _turn_key(request, k=""):
     return (k or request.query_params.get("key") or request.headers.get("x-api-key") or "").strip()
 
 
+def _with_pin(r):
+    """CUBE 05 v15 fallback (c): compact pin reminder only when a missed turn was detected (no per-turn payload)."""
+    if isinstance(r, dict) and "missed_turns" in str(r.get("duties") or ""):
+        try:
+            from app.board import PIN_TURN_SHORT
+            r.setdefault("pin", PIN_TURN_SHORT)
+        except Exception:
+            pass
+    return r
+
+
 @router.post("/agent/turn")
 def agent_turn_post(req: TurnRequest, request: Request):
     """REST twin of the MCP tool turn: self-check context, [ev:] id check, save, server seal #NNN·code."""
     from app.rest_turn import turn as _t
-    return _t(_turn_key(request), req.user_message, req.draft, req.query, req.session_id, req.duty, req.duty_reason, req.task_done, req.critical, req.l1_summary, req.l2_summary, req.source_event_ids, req.sensitive, req.compact, req.answer, req.draft_summary, req.profile, req.profile_review, source=req.source, second_look=req.second_look)
+    return _with_pin(_t(_turn_key(request), req.user_message, req.draft, req.query, req.session_id, req.duty, req.duty_reason, req.task_done, req.critical, req.l1_summary, req.l2_summary, req.source_event_ids, req.sensitive, req.compact, req.answer, req.draft_summary, req.profile, req.profile_review, source=req.source, second_look=req.second_look))
 
 
 @router.get("/agent/turn")
 def agent_turn_get(request: Request, q: str = "", draft: str = "", k: str = "", duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "", compact: bool = False, answer: str = "", draft_summary: str = "", profile: str = "", profile_review: str = "", second_look: str = ""):
     """Same as POST /agent/turn for chats that can only open URLs: ?k=KEY&q=USER_MESSAGE&draft=DRAFT."""
     from app.rest_turn import turn as _t
-    return _t(_turn_key(request, k), q, draft, "", "rest-get", duty, duty_reason, task_done, critical, l1_summary, l2_summary, [x.strip() for x in source_event_ids.split(",") if x.strip()], [x.strip() for x in sensitive.split("|") if x.strip()], compact, answer, draft_summary, profile or None, profile_review or None, second_look=second_look)
+    return _with_pin(_t(_turn_key(request, k), q, draft, "", "rest-get", duty, duty_reason, task_done, critical, l1_summary, l2_summary, [x.strip() for x in source_event_ids.split(",") if x.strip()], [x.strip() for x in sensitive.split("|") if x.strip()], compact, answer, draft_summary, profile or None, profile_review or None, second_look=second_look))
 
 
 from pydantic import BaseModel as _BM

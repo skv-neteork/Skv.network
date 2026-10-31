@@ -497,6 +497,11 @@ async def memory_lines_mw(request: Request, call_next):
         print(f"[lines] filter error: {e}", flush=True); new = raw
     return Response(content=new, status_code=response.status_code, headers=hdrs, media_type=response.media_type)
 
+# 2026-10-31: joint projects (board t_1873ef8e): routes + record writes of project keys (inside GZip)
+from app.routers.v7_joint import router as v7_joint_router, install as _jp_install
+app.include_router(v7_joint_router)
+_jp_install(app)
+
 app.add_middleware(GZipMiddleware, minimum_size=256)
 
 @app.middleware("http")

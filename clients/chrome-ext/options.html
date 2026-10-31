@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>SKV Guard 2</title>
+<style>body{font:14px system-ui;max-width:520px;margin:24px}label{display:block;margin:12px 0 4px}input[type=text],input[type=password]{width:100%}</style>
+<h2>SKV Guard 2 — settings</h2>
+<label>SKV key (sk_…, stored only in this browser's extension storage)</label><input id="key" type="password" autocomplete="off">
+<label>Server</label><input id="base" type="text">
+<label><input id="enabled" type="checkbox"> SKV on (only you can switch it off; also in the toolbar popup)</label>
+<p><button id="save">Save</button> <span id="msg"></span></p>
+<p style="color:#666;font-size:12px">No telemetry. Only the chat turn (secrets masked) goes to your SKV server.</p>
+<script src="options.js"></script>

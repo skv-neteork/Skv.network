@@ -1,0 +1,1 @@
+{"name":"skv-guard2-ext","private":true,"scripts":{"test":"node --test tests/"},"devDependencies":{"jsdom":"^24.0.0"}}

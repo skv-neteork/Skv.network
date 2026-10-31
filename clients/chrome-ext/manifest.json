@@ -1,0 +1,74 @@
+{
+  "manifest_version": 3,
+  "name": "SKV Guard 2",
+  "version": "0.1.6",
+  "description": "SKV memory + server seal for web chats without MCP (ChatGPT; Le Chat, Gemini, Claude unverified). Key stays in the extension.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://skv.network/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "SKV Guard 2",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "mask.js",
+        "seal.js",
+        "adapters/chatgpt.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chat.mistral.ai/*"
+      ],
+      "js": [
+        "mask.js",
+        "seal.js",
+        "adapters/lechat.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "mask.js",
+        "seal.js",
+        "adapters/gemini.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "mask.js",
+        "seal.js",
+        "adapters/claude.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

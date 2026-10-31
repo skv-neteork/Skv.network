@@ -1,6 +1,7 @@
 """SKV v7 API: accounts: profile, keys, auth, root info.
 Split from v7_router.py with behavior unchanged; shared helpers and state come from v7_core."""
 from app.routers import v7_core as _core
+import re
 globals().update({k: v for k, v in vars(_core).items() if not k.startswith("__")})
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -113,14 +114,67 @@ async def homepage_v7():
     return html
 
 _REG_RESEND = {}
+_REG_INLINE = {}          # ip -> [timestamps] of inline confirmation codes (stopgap while email is down)
+_REG_INLINE_MAX = 5       # per IP per hour
+_EMAIL_RX = re.compile(r"^[^@\s<>\"']{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$")
+
+
+def _client_ip(request):
+    h = request.headers if request is not None else {}
+    ip = (h.get("x-real-ip") or (h.get("x-forwarded-for") or "").split(",")[0]).strip()
+    if not ip and request is not None and request.client:
+        ip = request.client.host
+    return ip or "unknown"
+
+
+def _inline_allowed(ip):
+    """Email delivery failed: hand out the code in the response, at most _REG_INLINE_MAX times per IP per hour."""
+    import time as _t
+    now = _t.time()
+    hits = [x for x in _REG_INLINE.get(ip, []) if now - x < 3600]
+    if len(hits) >= _REG_INLINE_MAX:
+        _REG_INLINE[ip] = hits
+        return False
+    hits.append(now)
+    _REG_INLINE[ip] = hits
+    if len(_REG_INLINE) > 5000:
+        for k in [k for k, v in _REG_INLINE.items() if not v or now - v[-1] > 3600]:
+            _REG_INLINE.pop(k, None)
+    return True
+
+
+def _reg_reply(cur, conn, email, code, sent, ip, resent=False):
+    """Normal path: code goes by email. Stopgap: when email cannot be sent (no Resend key or send failed),
+    return the one-time code in the response (rate-limited per IP) and mark the account confirm_via='inline'.
+    As soon as a working Resend key is back, sending succeeds and this path is not taken."""
+    out = {"status": "ok", "email_sent": sent}
+    if resent:
+        out["resent"] = True
+    if sent:
+        cur.execute("UPDATE users SET confirm_via='email' WHERE email=? AND confirmed=0", (email,))
+        conn.commit()
+        out["message"] = "A confirmation code was sent. Check your email."
+        return out
+    if _inline_allowed(ip):
+        cur.execute("UPDATE users SET confirm_via='inline' WHERE email=? AND confirmed=0", (email,))
+        conn.commit()
+        out.update({"confirm_mode": "inline", "confirm_code": code,
+                    "message": "Email delivery is temporarily unavailable. Use this one-time code to confirm now: "
+                               "POST /api/v7/auth/confirm {email, code}. The email address is not verified yet."})
+    else:
+        out["message"] = ("Email delivery is temporarily unavailable and the limit of instant confirmations for your "
+                          "network was reached. Register again with the same email in an hour.")
+    return out
 
 
 @router.post("/auth/register")
-async def register(req: RegisterRequest):
+async def register(req: RegisterRequest, request: Request):
     try:
         import sqlite3
-        if not req.email or "@" not in req.email:
+        req.email = (req.email or "").strip()
+        if not req.email or len(req.email) > 254 or not _EMAIL_RX.match(req.email):
             raise HTTPException(status_code=400, detail="Valid email required")
+        _ip = _client_ip(request)
         if not req.password or len(req.password) < 6:
             raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
         
@@ -131,6 +185,8 @@ async def register(req: RegisterRequest):
         cur.execute("""CREATE TABLE IF NOT EXISTS users (
             email TEXT PRIMARY KEY, password_hash TEXT, confirmed INTEGER DEFAULT 0,
             confirmation_code TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+        if "confirm_via" not in {r[1] for r in cur.execute("PRAGMA table_info(users)")}:
+            cur.execute("ALTER TABLE users ADD COLUMN confirm_via TEXT")
         
         # Check if email exists
         cur.execute("SELECT email, confirmed FROM users WHERE email = ?", (req.email,))
@@ -150,11 +206,11 @@ async def register(req: RegisterRequest):
             cur.execute("UPDATE users SET password_hash=?, confirmation_code=? WHERE email=? AND confirmed=0",
                         (hash_password(req.password), _code, req.email))
             conn.commit()
-            conn.close()
             _sent = bool(send_confirmation_email(req.email, _code))
-            return {"status": "ok", "email_sent": _sent, "resent": True,
-                    "message": ("A new confirmation code was sent. Check your email." if _sent else
-                                "Account not confirmed yet, and the confirmation email could not be sent right now. Try again later or contact support.")}
+            try:
+                return _reg_reply(cur, conn, req.email, _code, _sent, _ip, resent=True)
+            finally:
+                conn.close()
         
         password_hash = hash_password(req.password)
         confirmation_code = secrets.token_hex(4).upper()
@@ -162,9 +218,13 @@ async def register(req: RegisterRequest):
         cur.execute("INSERT INTO users (email, password_hash, confirmation_code) VALUES (?, ?, ?)",
                    (req.email, password_hash, confirmation_code))
         conn.commit()
-        conn.close()
-        
+        import time as _t
+        _REG_RESEND[req.email] = _t.time()
         _sent = bool(send_confirmation_email(req.email, confirmation_code))
+        try:
+            _reply = _reg_reply(cur, conn, req.email, confirmation_code, _sent, _ip)
+        finally:
+            conn.close()
         
                 # Create personal database for new user
         try:
@@ -184,9 +244,7 @@ async def register(req: RegisterRequest):
         except Exception as e:
             print(f"Failed to create user DB: {e}")
         
-        return {"status": "ok", "email_sent": _sent,
-                "message": ("Registration successful. Check email for confirmation code." if _sent else
-                            "Account created, but the confirmation email could not be sent right now. Register again with the same email later to resend, or contact support.")}
+        return _reply
     except HTTPException:
         raise
     except Exception as e:
@@ -440,18 +498,16 @@ async def delete_account(req: DeleteAccountRequest):
     if not row or not verify_password(req.password, row[0] or ""):
         conn.close()
         raise HTTPException(401, "Wrong password")
+    _hashes = [str(r[0] or "").split("$", 1)[-1] for r in conn.execute("SELECT api_key FROM user_api_keys WHERE user_id=?", (user_id,))]
     conn.execute("DELETE FROM user_api_keys WHERE user_id=?", (user_id,))
     conn.execute("DELETE FROM users WHERE email=?", (user_id,))
     conn.commit()
     conn.close()
-    name = "".join(c for c in user_id if c.isalnum() or c in ("_", "-"))
-    for path in (
-        f"/data/skv/metadata_store/{name}.db",
-        f"/data/skv/hnsw/{name}.hnsw",
-        f"/data/skv/hnsw/{name}_ids.npy",
-    ):
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-    return {"status": "deleted", "user": user_id}
+    from app.account_purge import purge as _purge
+    try:
+        rep = _purge(user_id, _hashes)
+    except Exception as e:
+        print(f"[SKV] purge error for deleted account: {e}")
+        rep = {"errors": [str(e)[:200]]}
+    _REG_RESEND.pop(user_id, None)
+    return {"status": "deleted", "user": user_id, "removed": rep}

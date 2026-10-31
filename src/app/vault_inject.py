@@ -33,12 +33,21 @@ def _private(host):
     return False
 
 
+class DomainNotAllowed(Exception):
+    pass
+
+
 class _SafeRedirect(urllib.request.HTTPRedirectHandler):
-    """Redirects must stay https:443 on a public host (no SSRF via 30x)."""
+    """Redirects must stay https:443 on a public host (no SSRF via 30x) and inside the secret's allowed domains
+    (urllib forwards headers such as Authorization on redirect)."""
+    allowed = None
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         p = urlparse(newurl)
         if p.scheme != "https" or not p.hostname or p.port not in (None, 443) or _private(p.hostname):
             raise urllib.error.HTTPError(newurl, code, "redirect blocked", headers, fp)
+        if self.allowed is not None and not vault.host_allowed(p.hostname, self.allowed):
+            raise urllib.error.HTTPError(newurl, code, "redirect to a host outside allowed_domains blocked", headers, fp)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -83,7 +92,19 @@ def inject(user_id, name, purpose, method, url, body="", headers=None, ip=""):
             vault.log(user_id, name, "inject", purpose, ip, False, c)
             c.commit()
             return {"status": "fail", "reason": "no such secret"}
-        vault.log(user_id, name, "inject_intent", purpose, ip, True, c)
+        allowed = vault.allowed_domains(c, user_id, name)
+        host = parsed.hostname.lower().rstrip(".")
+        if not vault.host_allowed(host, allowed):
+            vault.log(user_id, name, "inject_denied", purpose, ip, False, c, host=host)
+            c.commit()
+            if not allowed:
+                raise DomainNotAllowed(
+                    "Secret '%s' has no allowed domains, so inject is denied. The owner sets them in the profile "
+                    "(Vault -> allowed domains) or with POST /api/v7/vault/%s/domains {\"domains\": [\"%s\"]} "
+                    "using the profile session key." % (name, name, host))
+            raise DomainNotAllowed("Host %s is not in the allowed domains of secret '%s' (%s). Only the owner can change them."
+                                   % (host, name, ", ".join(allowed)))
+        vault.log(user_id, name, "inject_intent", purpose, ip, True, c, host=host)
         c.commit()
     finally:
         c.close()
@@ -96,7 +117,9 @@ def inject(user_id, name, purpose, method, url, body="", headers=None, ip=""):
         hdrs[str(k)] = _sub(str(v), name, secret)
     data = body2.encode() if method != "GET" and body2 else None
     req = urllib.request.Request(url2, data=data, headers=hdrs, method=method)
-    opener = urllib.request.build_opener(urllib.request.HTTPSHandler, _SafeRedirect)
+    _redir = _SafeRedirect()
+    _redir.allowed = allowed
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler, _redir)
     try:
         with opener.open(req, timeout=20) as resp:
             raw = resp.read(MAX_BODY + 1)
@@ -113,7 +136,7 @@ def inject(user_id, name, purpose, method, url, body="", headers=None, ip=""):
     text = raw[:MAX_BODY].decode("utf-8", "replace")
     c = vault._db()
     try:
-        vault.log(user_id, name, "inject_ok", purpose, ip, True, c)
+        vault.log(user_id, name, "inject_ok", purpose, ip, True, c, host=host)
         c.execute("UPDATE vault_secrets SET last_used_at=CURRENT_TIMESTAMP, use_count=use_count+1 WHERE user_id=? AND name=?", (user_id, name))
         c.commit()
     finally:

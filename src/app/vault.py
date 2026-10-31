@@ -58,6 +58,12 @@ def _db():
     c.execute("""CREATE TABLE IF NOT EXISTS vault_reveals (
         token_hash TEXT PRIMARY KEY, user_id TEXT, name TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         expires_at TEXT, opened_at TEXT, require_login INTEGER DEFAULT 0, fails INTEGER DEFAULT 0, ip_open TEXT)""")
+    _vcols = {r[1] for r in c.execute("PRAGMA table_info(vault_secrets)")}
+    if "allowed_domains" not in _vcols:
+        c.execute("ALTER TABLE vault_secrets ADD COLUMN allowed_domains TEXT")
+    if "host" not in {r[1] for r in c.execute("PRAGMA table_info(vault_log)")}:
+        c.execute("ALTER TABLE vault_log ADD COLUMN host TEXT")
+    _migrate_domains(c)
     cols = {r[1] for r in c.execute("PRAGMA table_info(vault_reveals)")}
     for col, ddl in (("payload_nonce", "BLOB"), ("payload_ct", "BLOB")):
         if col not in cols:
@@ -66,12 +72,90 @@ def _db():
     return c
 
 
-def log(user_id, name, action, purpose="", ip="", ok=True, conn=None):
+_MIGRATED = False
+DOMAIN_RX = re.compile(r"^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+MAX_DOMAINS = 20
+
+
+def _migrate_domains(c):
+    """Once per process: secrets without an allowlist get the host they were last injected to, if the log has it.
+    Everything else stays NULL = inject denied until the owner sets allowed domains."""
+    global _MIGRATED
+    if _MIGRATED:
+        return
+    _MIGRATED = True
+    try:
+        c.execute("""UPDATE vault_secrets SET allowed_domains = (
+                       SELECT l.host FROM vault_log l WHERE l.user_id=vault_secrets.user_id AND l.name=vault_secrets.name
+                       AND l.action='inject_ok' AND COALESCE(l.host,'')<>'' ORDER BY l.id DESC LIMIT 1)
+                     WHERE allowed_domains IS NULL AND EXISTS (
+                       SELECT 1 FROM vault_log l WHERE l.user_id=vault_secrets.user_id AND l.name=vault_secrets.name
+                       AND l.action='inject_ok' AND COALESCE(l.host,'')<>'')""")
+        c.commit()
+    except Exception:
+        pass
+
+
+def normalize_domains(domains):
+    """'a.com, *.b.org' or a list -> ['a.com', '*.b.org']. Hostnames only, no scheme/port/path, no bare '*'."""
+    if domains is None:
+        return None
+    if isinstance(domains, str):
+        domains = re.split(r"[\s,;]+", domains)
+    out = []
+    for d in domains:
+        d = str(d or "").strip().lower().rstrip(".")
+        if not d:
+            continue
+        if "://" in d or "/" in d or ":" in d or not DOMAIN_RX.match(d):
+            raise ValueError("allowed_domains: hostnames only, e.g. api.example.com or *.example.com (got %r)" % d[:80])
+        if d not in out:
+            out.append(d)
+    if len(out) > MAX_DOMAINS:
+        raise ValueError("allowed_domains: at most %d" % MAX_DOMAINS)
+    return out
+
+
+def host_allowed(host, allowed):
+    host = (host or "").lower().rstrip(".")
+    for d in allowed or []:
+        if d.startswith("*."):
+            if host.endswith(d[1:]) and len(host) > len(d) - 1:
+                return True
+        elif host == d:
+            return True
+    return False
+
+
+def allowed_domains(c, user_id, name):
+    row = c.execute("SELECT allowed_domains FROM vault_secrets WHERE user_id=? AND name=?", (user_id, name)).fetchone()
+    if not row or not row[0]:
+        return []
+    return [d for d in row[0].split(",") if d]
+
+
+def set_domains(user_id, name, domains, ip=""):
+    name = check_name(name)
+    doms = normalize_domains(domains) or []
+    c = _db()
+    try:
+        n = c.execute("UPDATE vault_secrets SET allowed_domains=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND name=?",
+                      (",".join(doms) or None, user_id, name)).rowcount
+        if not n:
+            return None
+        log(user_id, name, "domains", ",".join(doms)[:200], ip, True, c)
+        c.commit()
+        return {"name": name, "allowed_domains": doms}
+    finally:
+        c.close()
+
+
+def log(user_id, name, action, purpose="", ip="", ok=True, conn=None, host=None):
     own = conn is None
     conn = conn or _db()
     try:
-        conn.execute("INSERT INTO vault_log (user_id, name, action, purpose, ip, ok) VALUES (?,?,?,?,?,?)",
-                     (user_id, name, action, (purpose or "")[:200], (ip or "")[:64], 1 if ok else 0))
+        conn.execute("INSERT INTO vault_log (user_id, name, action, purpose, ip, ok, host) VALUES (?,?,?,?,?,?,?)",
+                     (user_id, name, action, (purpose or "")[:200], (ip or "")[:64], 1 if ok else 0, (host or "")[:253] or None))
         if own:
             conn.commit()
     finally:
@@ -90,8 +174,9 @@ def check_name(name):
     return name
 
 
-def put(user_id, name, value, kind="secret", note="", source_event_id=None, ip="", overwrite=True):
+def put(user_id, name, value, kind="secret", note="", source_event_id=None, ip="", overwrite=True, allowed_domains=None):
     name = check_name(name)
+    doms = normalize_domains(allowed_domains)
     if not value or len(value) > 16384:
         raise ValueError("value: 1-16384 chars")
     nonce = secrets.token_bytes(12)
@@ -105,6 +190,8 @@ def put(user_id, name, value, kind="secret", note="", source_event_id=None, ip="
                      VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(user_id, name) DO UPDATE SET kind=excluded.kind, note=excluded.note,
                      nonce=excluded.nonce, ct=excluded.ct, fingerprint=excluded.fingerprint, updated_at=CURRENT_TIMESTAMP""",
                   (user_id, name, (kind or "secret")[:40], (note or "")[:300], nonce, ct, _fp(value), source_event_id))
+        if doms is not None:   # None = keep the existing allowlist on overwrite
+            c.execute("UPDATE vault_secrets SET allowed_domains=? WHERE user_id=? AND name=?", (",".join(doms) or None, user_id, name))
         log(user_id, name, "update" if ex else "create", note, ip, True, c)
         c.commit()
         return {"name": name, "status": "updated" if ex else "created", "ref": f"[vault:{name}]"}
@@ -115,11 +202,12 @@ def put(user_id, name, value, kind="secret", note="", source_event_id=None, ip="
 def listing(user_id):
     c = _db()
     try:
-        rows = c.execute("SELECT name, kind, note, created_at, updated_at, last_used_at, use_count, source_event_id FROM vault_secrets WHERE user_id=? ORDER BY name", (user_id,)).fetchall()
+        rows = c.execute("SELECT name, kind, note, created_at, updated_at, last_used_at, use_count, source_event_id, allowed_domains FROM vault_secrets WHERE user_id=? ORDER BY name", (user_id,)).fetchall()
     finally:
         c.close()
     return [{"name": r[0], "ref": f"[vault:{r[0]}]", "kind": r[1], "note": r[2], "created_at": r[3], "updated_at": r[4],
-             "last_used_at": r[5], "use_count": r[6], "from_event": r[7]} for r in rows]
+             "last_used_at": r[5], "use_count": r[6], "from_event": r[7],
+             "allowed_domains": [d for d in (r[8] or "").split(",") if d]} for r in rows]
 
 
 def _get(c, user_id, name):

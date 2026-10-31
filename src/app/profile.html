@@ -600,7 +600,10 @@ Guard 1: paste https://skv.network/api/v7/agent/openapi.json into Actions. It re
                     <input id="vaultName" placeholder="name" style="width:100%;margin-top:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:8px">
                     <input id="vaultValue" type="password" placeholder="secret" style="width:100%;margin-top:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:8px">
                     <input id="vaultNote" placeholder="note, optional" style="width:100%;margin-top:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:8px">
+                    <input id="vaultDomains" placeholder="allowed domains for inject, e.g. api.example.com, *.example.org" style="width:100%;margin-top:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:8px">
+                    <p style="color:#8b949e;font-size:13px;margin:6px 0 0">Agents can use a secret (vault_inject) only on these hosts. Empty = inject denied. Only you can change them here.</p>
                     <button class="btn btn-primary" style="margin-top:10px" onclick="vaultSave()">Save secret</button>
+                    <button class="btn btn-secondary" style="margin-top:10px" onclick="vaultSetDomains()">Set domains only</button>
                     <button class="btn btn-secondary" style="margin-top:10px" onclick="vaultList()">Show names</button>
                     <div id="vaultStatus" style="margin-top:8px;color:#8b949e"></div>
                 </div>
@@ -723,11 +726,20 @@ Guard 1: paste https://skv.network/api/v7/agent/openapi.json into Actions. It re
             const btn = document.getElementById('btn-register');
             btn.disabled = true; btn.textContent = 'Creating...';
             try {
-                await apiCall('/api/v7/auth/register', 'POST', { email, password });
+                const reg = await apiCall('/api/v7/auth/register', 'POST', { email, password });
                 tempEmail = email;
                 document.getElementById('conf-email').value = email;
-                showAlert('register', 'success', 'Account created! Check your email for the confirmation code.');
-                setTimeout(() => showState('confirm'), 800);
+                if (reg && reg.confirm_code) {
+                    // email delivery is down: the server handed out a one-time code (rate-limited)
+                    document.getElementById('conf-code').value = reg.confirm_code;
+                    showAlert('register', 'success', 'Account created. Email delivery is temporarily unavailable, so your one-time code is filled in. Press Confirm.');
+                    setTimeout(() => { showState('confirm'); showAlert('confirm', 'success', 'Your code is filled in. Press Confirm Email.'); }, 800);
+                } else if (reg && reg.email_sent === false) {
+                    showAlert('register', 'error', reg.message || 'The confirmation email could not be sent. Try again later.');
+                } else {
+                    showAlert('register', 'success', 'Account created! Check your email for the confirmation code.');
+                    setTimeout(() => showState('confirm'), 800);
+                }
             } catch (err) {
                 showAlert('register', 'error', err.message);
             } finally {
@@ -961,8 +973,11 @@ Guard 1: paste https://skv.network/api/v7/agent/openapi.json into Actions. It re
             const note=document.getElementById('vaultNote').value.trim();
             const st=document.getElementById('vaultStatus');
             try {
-                const d=await apiCall('/api/v7/vault','POST',{name:name,value:value,note:note});
-                st.textContent='Saved as '+d.ref+'. The value is not shown again.';
+                const dom=document.getElementById('vaultDomains').value.trim();
+                const body={name:name,value:value,note:note};
+                if (dom) body.allowed_domains=dom;
+                const d=await apiCall('/api/v7/vault','POST',body);
+                st.textContent='Saved as '+d.ref+'. The value is not shown again.'+(dom?'':' Inject stays denied until you set allowed domains.');
                 document.getElementById('vaultValue').value='';
             } catch(e) { st.textContent=e.message; }
         }
@@ -970,8 +985,18 @@ Guard 1: paste https://skv.network/api/v7/agent/openapi.json into Actions. It re
             const st=document.getElementById('vaultStatus');
             try {
                 const d=await apiCall('/api/v7/vault');
-                const names=(d.secrets||[]).map(x=>x.ref).join(', ')||'none';
+                const names=(d.secrets||[]).map(x=>x.ref+' → '+((x.allowed_domains||[]).join(' ')||'no domains')).join('; ')||'none';
                 st.textContent='Names: '+names;
+            } catch(e) { st.textContent=e.message; }
+        }
+        async function vaultSetDomains() {
+            const name=document.getElementById('vaultName').value.trim();
+            const dom=document.getElementById('vaultDomains').value.trim();
+            const st=document.getElementById('vaultStatus');
+            if (!name) { st.textContent='Enter the secret name.'; return; }
+            try {
+                const d=await apiCall('/api/v7/vault/'+encodeURIComponent(name)+'/domains','POST',{domains:dom});
+                st.textContent=d.name+': '+((d.allowed_domains||[]).join(', ')||'no domains, inject denied');
             } catch(e) { st.textContent=e.message; }
         }
         async function importPasted() {

@@ -33,7 +33,33 @@ class VaultPut(BaseModel):
     value: str
     kind: str = "secret"
     note: str = ""
+    allowed_domains: object = None   # list or "a.com, *.b.org"; None keeps the current allowlist
     user_id: str = ""
+
+
+class VaultDomains(BaseModel):
+    domains: object = None
+    user_id: str = ""
+
+
+def _key_kind(request: Request):
+    """Kind of the key that made this call: 'session' (profile page, the owner) or 'agent'/'legacy'."""
+    h = request.headers
+    key = (h.get("authorization") or "")
+    key = key[7:].strip() if key.lower().startswith("bearer ") else (h.get("x-api-key") or "").strip()
+    if not key:
+        return ""
+    try:
+        import sqlite3
+        from app.api_keys import hash_key
+        c = sqlite3.connect(vault.MASTER_DB, timeout=10)
+        try:
+            row = c.execute("SELECT kind FROM user_api_keys WHERE api_key=? AND is_active=1", (hash_key(key),)).fetchone()
+        finally:
+            c.close()
+        return (row[0] or "") if row else ""
+    except Exception:
+        return ""
 
 
 class VaultName(BaseModel):
@@ -75,7 +101,7 @@ async def vault_list(request: Request):
     _need()
     uid = _uid(request)
     return {"secrets": vault.listing(uid), "how": {"inject": "POST /api/v7/vault/inject {name, purpose, method, url, body}", "reveal_link": "POST /api/v7/vault/reveal {name, ttl_s<=3600, require_login}",
-            "store": "POST /api/v7/vault {name, value, kind, note}", "delete": "DELETE /api/v7/vault/<name>", "log": "GET /api/v7/vault/log"},
+            "store": "POST /api/v7/vault {name, value, kind, note, allowed_domains}", "domains": "POST /api/v7/vault/<name>/domains {domains} (owner, profile session key; inject is denied until set)", "delete": "DELETE /api/v7/vault/<name>", "log": "GET /api/v7/vault/log"},
             "rule": "Memory keeps only [vault:<name>] references. Never paste a secret value into memory, chat or cubes."}
 
 
@@ -84,7 +110,7 @@ async def vault_put(req: VaultPut, request: Request):
     _need()
     uid = _uid(request)
     try:
-        return vault.put(uid, req.name, req.value, req.kind, req.note, ip=_ip(request))
+        return vault.put(uid, req.name, req.value, req.kind, req.note, ip=_ip(request), allowed_domains=req.allowed_domains)
     except ValueError as e:
         raise HTTPException(422, str(e))
 
@@ -99,14 +125,32 @@ class VaultInject(BaseModel):
     user_id: str = ""
 
 
+@router.post("/api/v7/vault/{name}/domains")
+async def vault_set_domains(name: str, req: VaultDomains, request: Request):
+    """Owner only (profile session key): hosts this secret may be injected into. Empty list = inject denied."""
+    _need()
+    uid = _uid(request)
+    if _key_kind(request) != "session":
+        raise HTTPException(403, "Only the owner can change allowed domains: use the profile page (session key), not an agent key.")
+    try:
+        r = vault.set_domains(uid, name, req.domains, _ip(request))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    if r is None:
+        raise HTTPException(404, "No such secret")
+    return r
+
+
 @router.post("/api/v7/vault/inject")
 async def vault_inject(req: VaultInject, request: Request):
     """Agent path. Server substitutes the secret and sends the request. Returns status only, never the value."""
     _need()
     uid = _uid(request)
-    from app.vault_inject import inject
+    from app.vault_inject import inject, DomainNotAllowed
     try:
         return inject(uid, req.name, req.purpose, req.method, req.url, req.body, req.headers, _ip(request))
+    except DomainNotAllowed as e:
+        raise HTTPException(403, str(e))
     except ValueError as e:
         raise HTTPException(422, str(e))
 

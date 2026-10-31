@@ -1,6 +1,6 @@
 """/api/v7/search without a valid 768-d query_vector used to crash the worker (malloc in HNSW -> 502).
 Text queries now go through the same semantic + keyword (RRF) path as /memory."""
-def text_search(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
+def _text_search_core(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
     if since or until or exclude_imports or (source and source.lower() != "events"):
         return filtered_search(uid, query, top_k, since, until, exclude_imports, source)
     from app import semantic as _sem
@@ -176,4 +176,130 @@ def filtered_search(uid, query, top_k=20, since=None, until=None, exclude_import
     out = _out(uid, ranked)
     if src == "all":
         out = sorted(out + _board(uid, query, max(3, top_k // 3)), key=lambda x: -x["score"])[:top_k]
+    return out
+
+
+# ---- 2026-11-01: line-aware over-fetch + critical / vault metadata in search ----
+# 1) memory lines: semantic/FTS indexes are not line-shadowed, the middleware drops foreign hits AFTER top_k was cut,
+#    so a key on a non-main line got 0-1 of top_k hits. Over-fetch and drop foreign ids before cutting.
+# 2) critical facts (critical_auto) and the vault are separate stores: search now also matches their NON-SECRET
+#    metadata (kind / value of a critical fact; vault name, kind, note, domains, and the scrubbed context around the
+#    [vault:name] reference). A vault value is never read here (no decrypt; vault.listing() has no value column).
+def _line_ctx():
+    try:
+        from app import memory_lines as _ml
+        return _ml.LINE_CTX.get()
+    except Exception:
+        return None
+
+
+def _visible(ctx, eid):
+    if not ctx or not isinstance(eid, str) or "::" not in eid:
+        return True
+    ids = ctx.get("_idset")
+    if ids is None:
+        ids = ctx["_idset"] = set(ctx.get("ids") or [])
+    return (eid not in ids) if ctx.get("mode") == "deny" else (eid in ids)
+
+
+def _stems(query):
+    from app import search_v2 as _v2
+    return [st for _, st, _ in _v2.query_terms(query)]
+
+
+def _need(stems):
+    """2 terms -> both; 3+ -> 2/3; metadata rows are short, one generic word ("account") is not a match."""
+    return 1.0 if len(stems) <= 2 else 0.6
+
+
+def _match(stems, query, text):
+    from app import search_v2 as _v2
+    if not stems or not text:
+        return 0.0
+    st_txt = set(_v2.stem_text(text).split())
+    hit = sum(1 for s in stems if s in st_txt or (len(s) >= 5 and any(w.startswith(s[:max(4, len(s) - 2)]) for w in st_txt)))
+    if query.strip().lower() in text.lower():
+        hit = len(stems)
+    return hit / len(stems)
+
+
+def _critical_hits(uid, query, stems, ctx, limit=3):
+    from app import search_v2 as _v2
+    out = []
+    try:
+        c = _sq3.connect("file:" + _v2._db(uid) + "?mode=ro", uri=True, timeout=10)   # ro -> line-shadowed view
+    except Exception:
+        return out
+    try:
+        rows = c.execute("SELECT kind, value, context, event_id, time_str FROM critical_auto").fetchall()
+    except Exception:
+        rows = []
+    finally:
+        c.close()
+    for kind, value, cx, eid, ts in rows:
+        if not _visible(ctx, eid):
+            continue
+        f = _match(stems, query, "%s %s %s" % (kind or "", value or "", cx or ""))
+        if f >= _need(stems):
+            out.append(((f, ts or ""), {"event_id": eid or "critical:%s" % (value or "")[:40], "score": f, "source": "critical",
+                            "summary": ("[critical %s] %s — %s" % (kind, value, cx or ""))[:300], "metadata": {"time_str": ts}}))
+    out.sort(key=lambda x: x[0], reverse=True)
+    return [o for _, o in out[:limit]]
+
+
+def _vault_hits(uid, query, stems, limit=3):
+    out = []
+    try:
+        from app import vault as _vault
+        items = _vault.listing(uid)
+    except Exception:
+        return out
+    ctxs = {}
+    eids = [i.get("from_event") for i in items if i.get("from_event")]
+    if eids:
+        try:
+            from app.recall_polish import _rows
+            rows = _rows(uid, eids)
+            for i in items:
+                raw = (rows.get(i.get("from_event")) or {}).get("raw") or ""
+                ref = "[vault:%s]" % i["name"]
+                k = raw.find(ref)
+                if k >= 0:   # memory text is already scrubbed: only the reference sits there, never the value
+                    ctxs[i["name"]] = _re.sub(r"\s+", " ", raw[max(0, k - 90):k + len(ref) + 60]).strip()
+        except Exception as e:
+            print(f"[search_text] vault ctx skipped: {e}", flush=True)
+    for i in items:
+        cx = ctxs.get(i["name"], "")
+        doms = ",".join(i.get("allowed_domains") or [])
+        f = _match(stems, query, "vault secret %s %s %s %s %s" % (i["name"].replace("_", " "), i.get("kind") or "", i.get("note") or "", doms, cx))
+        if f >= _need(stems):
+            s = "[vault] %s stored as [vault:%s]%s%s — value hidden; use it via vault inject/reveal, never paste it" % (
+                i.get("kind") or "secret", i["name"], (" (domains: %s)" % doms) if doms else "", (" — context: " + cx) if cx else "")
+            out.append(((f, 1 if cx else 0, i.get("updated_at") or ""), {"event_id": i.get("from_event") or "vault:%s" % i["name"], "score": f, "source": "vault",
+                            "summary": s[:300], "metadata": {"time_str": i.get("updated_at")}}))
+    out.sort(key=lambda x: x[0], reverse=True)
+    return [o for _, o in out[:limit]]
+
+
+def text_search(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
+    ctx = _line_ctx()
+    k = min(120, max(top_k * 4, 40)) if ctx else top_k
+    out = _text_search_core(uid, query, k, since, until, exclude_imports, source)
+    if ctx:
+        out = [o for o in out if _visible(ctx, o.get("event_id"))]
+    out = out[:top_k]
+    src = (source or "events").lower()
+    if src in ("events", "all") and not (since or until):
+        try:
+            stems = _stems(query)
+            have = {o.get("event_id") for o in out}
+            top = max([float(o.get("score") or 0) for o in out] or [1.0]) or 1.0
+            extra = [x for x in _critical_hits(uid, query, stems, ctx) + _vault_hits(uid, query, stems) if x["event_id"] not in have or x["source"] == "vault"]
+            for x in extra:
+                x["score"] = round(top * (0.6 + 0.35 * x["score"]), 5)   # full match ranks near the best event hit
+            if extra:
+                keep = max(0, top_k - len(extra)) if len(out) >= top_k else len(out)
+                out = sorted(out[:keep] + extra, key=lambda x: -float(x.get("score") or 0))
+        except Exception as e:
+            print(f"[search_text] critical/vault skipped: {e}", flush=True)
     return out

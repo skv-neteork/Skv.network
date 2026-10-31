@@ -418,6 +418,10 @@ _REQ_RETRY_WINDOW = float(os.environ.get("SKV_REQ_RETRY_WINDOW", "15"))   # API 
 # TCP connects, which used to hang a call for the whole 90 s timeout (MCP -32001 on turn)
 _CONNECT_TMO = float(os.environ.get("SKV_CONNECT_TIMEOUT", "2.5"))
 _SLOW_PATHS = ("/consult", "/import", "/sandbox", "/bureau", "/court")
+# idempotent reads: first try with a short read timeout, then one retry on a fresh connection. The box tunnel
+# sometimes loses a response on a reused keep-alive connection (server answered in 0.02 s, client waited 20 s).
+_FAST_READ = float(os.environ.get("SKV_FAST_READ_TIMEOUT", "4"))
+_IDEMPOTENT_POST = ("/search",)
 
 
 def _http_client(base: str) -> "httpx.Client":
@@ -437,6 +441,8 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
     c = _http_client((base or BASE).rstrip('/'))
     slow = any(x in path for x in _SLOW_PATHS)
     tmo = httpx.Timeout(120.0 if slow else 20.0, connect=_CONNECT_TMO, pool=5.0)
+    idem = (method.upper() == "GET" or path.rstrip("/") in _IDEMPOTENT_POST) and not slow
+    tmo_fast = httpx.Timeout(_FAST_READ, connect=_CONNECT_TMO, pool=5.0) if idem else tmo
     if True:
         h = dict(_headers())
         try:   # per-account rate bucket: without it every MCP user shares the docker-gateway IP bucket (300/min for all)
@@ -453,7 +459,7 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
         _w = 0.0; _rt = 0; r = None
         while True:
             try:
-                r = c.request(method, url, headers=h, json=body, params=params, timeout=tmo)
+                r = c.request(method, url, headers=h, json=body, params=params, timeout=tmo_fast if _rt == 0 else tmo)
                 if r.status_code not in (502, 503) or _w >= _REQ_RETRY_WINDOW:
                     break
             except (httpx.ConnectTimeout, httpx.PoolTimeout, httpx.RemoteProtocolError) as e:
@@ -464,7 +470,7 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
                 if _w >= _REQ_RETRY_WINDOW:
                     return {"ok": False, "status": 503, "error": "SKV API unavailable (restart?): %s" % str(e)[:120]}
             except (httpx.ReadTimeout, httpx.ReadError, httpx.WriteError, httpx.WriteTimeout) as e:
-                if method.upper() != "GET" or _rt >= 1:
+                if not idem or _rt >= 1:
                     return {"ok": False, "status": 504, "error": "SKV API timeout on %s: %s" % (path[:60], str(e)[:120] or type(e).__name__)}
                 _rt += 1; continue
             _d = 1.0 if _w < 5 else 3.0
@@ -832,7 +838,7 @@ def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = Fals
         if (not _turn_rel_ok(query, summ)) if turn_context else _rel(query, summ) < 0.5:
             continue                            # lexical relevance: unrelated questions get no memory_check
         seen.add(key)
-        out.append({"event_id": r.get("event_id"), "score": round(sc, 4), "summary": _trim_words(_norm_seal(summ), 300), "source": r.get("source")})
+        out.append({"event_id": r.get("event_id"), "score": round(sc, 4), "summary": _fact_text(_norm_seal(summ)), "source": r.get("source")})
         if len(out) >= top_k:
             break
     _mark_conflicts(out)
@@ -1171,6 +1177,16 @@ def _kw_hits(query: str, limit: int = 6) -> list:
 
 
 @mcp.tool()
+def _fact_text(text: str, whole: int = 320, cut: int = 300) -> str:
+    """Short facts come back whole (no [cut] under ~300 chars); only long ones are cut at a word boundary."""
+    text = text or ""
+    return text if len(text) <= whole else _trim_words(text, cut)
+
+
+_NOT_IN_MEMORY = ("not in memory: no saved fact (events, critical marks, vault names) matches this. "
+                  "Say so plainly; do not invent. Deeper: memory_search lines=all, memory_dig, memory_recall_later.")
+
+
 def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", offset: int = 0, since: str = "", until: str = "", exclude_imports: bool = False, source: str = "") -> str:
     """Quick text search POST /search. Default: only this key's memory line; lines="all" searches all lines of the account. Prefer memory_consult for full agent protocol.
     Multi-word queries match any term (stemmed, RU/EN); ranking = relevance x recency.
@@ -1209,7 +1225,7 @@ def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", o
         results.append({
             "event_id": r.get("event_id"),
             "score": r.get("score"),
-            "summary": _trim_words(_norm_seal(r.get("summary") or ""), 300),
+            "summary": _fact_text(_norm_seal(r.get("summary") or "")),
             "source": r.get("source"),
         })
     try:
@@ -1222,7 +1238,7 @@ def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", o
             if _sid(e) not in have:
                 have.add(_sid(e))
                 results.append({"event_id": pre + e if pre and "::" not in e else e, "score": None,
-                                "summary": _trim_words(_norm_seal(txt), 300), "source": "entity-match (%d terms)" % nh})
+                                "summary": _fact_text(_norm_seal(txt)), "source": "entity-match (%d terms)" % nh})
     except Exception:
         pass
     _mark_conflicts(results)
@@ -1247,11 +1263,15 @@ def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", o
         out["note"] = data.get("note")
     if not results:
         out["reliable_matches"] = False
-        out["message"] = (
-            "No reliable matches in quick search. Say this plainly to yourself; "
-            "do not invent. Try memory_consult, memory_dig, or memory_recall_later."
-        )
+        out["not_in_memory"] = True
+        out["message"] = "Not in memory: nothing saved matches %r (searched events, critical marks, vault names; vault values are never searched). " \
+                         "Say this plainly; do not invent. Deeper: lines=all, memory_dig, memory_recall_later." % (query or "")[:80]
         out["offer"] = "memory_recall_later"
+    elif not any(_rel(query, x.get("summary") or "") > 0 for x in results) and _qwords(query):
+        out["reliable_matches"] = False
+        out["not_in_memory"] = True
+        out["message"] = "Likely not in memory: no hit shares a word with %r (only loose semantic neighbours below). " \
+                         "Say so plainly; do not invent." % (query or "")[:80]
     else:
         out["reliable_matches"] = True
     return _dumps(out)
@@ -1490,14 +1510,14 @@ _PLACEHOLDER_ID = re.compile(r"^(<[^>]*>|id|ids|event_id|\.{2,}|…|x+|n+|_+|\*+
 def _real_cites(text):
     """[ev:...] citations minus doc placeholders like [ev:id], [ev:ID], [ev:<id>], [ev:...]."""
     return [c for c in dict.fromkeys(re.findall(r"\[ev:([^\]\s]+)\]", text or "")) if not _PLACEHOLDER_ID.match(c.strip())]
-def _compact_facts(hits, own, rel=0.7, n=3, chars=200):
+def _compact_facts(hits, own, rel=0.7, n=3, chars=300):
     top = max([float(h.get("score") or 0) for h in hits] or [0])
     out = []
     for h in hits:
         if _sid(h.get("event_id")) == own: continue
         if top and h.get("score") is not None and float(h.get("score") or 0) < rel * top: continue
         s = re.sub(r"\s+", " ", str(h.get("summary") or "")).strip()
-        out.append({"ev": _sid(h.get("event_id")), "time": _ev_time(h.get("event_id") or ""), "fact": (s[:chars].rstrip() + " [cut]" if len(s) > chars else s) + " [ev:%s]" % _sid(h.get("event_id"))})
+        out.append({"ev": _sid(h.get("event_id")), "time": _ev_time(h.get("event_id") or ""), "fact": (_trim_words(s, chars) if len(s) > chars + 20 else s) + " [ev:%s]" % _sid(h.get("event_id"))})
         if len(out) >= n: break
     return out
 def _compact_gate(user, session, cubes, checklist, db):
@@ -1601,7 +1621,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     COMPACT MODE (opt-in, compact=true): self-check FIRST, then send the FINAL answer once as answer=<final text>
     (draft= stays a backward-compatible alias). It is saved verbatim and sealed but never echoed back. Optional
     draft_summary=<short gist> is only logged/id-checked. facts: max 3, only strong hits (>=0.7 of best score), each
-    <=200 chars ending with [ev:id]. cubes and self_check are returned only when changed since this session's last
+    whole when short (<=~300 chars, longer ones cut), ending with [ev:id]; no facts -> facts_note "not in memory". cubes and self_check are returned only when changed since this session's last
     turn; otherwise only cubes_version / checklist_version (+ *_unchanged=true): reuse the ones you already have.
     Seal, [ev:id] check, saving and summary_due/duties are identical in both modes.
     PROFILE (lasting rules about HOW to work with the user): profile=<JSON list of ops> when the user states/changes one:
@@ -1634,7 +1654,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     same = t["last_user"] == user_message and _time.time() - t["saved_t"] < 900 and t["last_eid"]
     hits = [] if _is_low(user_message) and not query else _hits(q, 5, lines, turn_context=True)
     own = _sid(t.get("last_eid") or "") if same else ""
-    facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _trim_words(h["summary"], 60)} for h in hits if _sid(h["event_id"]) != own]
+    facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _fact_text(h["summary"])} for h in hits if _sid(h["event_id"]) != own]
     cubes = []
     try:
         if not _is_low(user_message):
@@ -1657,11 +1677,12 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     if compact:
         facts = _compact_facts(hits, own)
         cg, cg_commit = _compact_gate(_caller_id() or "env", session_id or "mcp", cubes, checklist, COMPACT_DB)
+    _nim = {} if facts or _is_low(user_message) else {"facts_note": _NOT_IN_MEMORY}
     if not draft and compact:
         cg_commit()
-        return _dumps({"mode": "context", "compact": True, "facts": facts, **cg, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, True), "next": "self-check, then turn(user_message, answer=<final>, compact=true)"})
+        return _dumps({"mode": "context", "compact": True, "facts": facts, **_nim, **cg, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, True), "next": "self-check, then turn(user_message, answer=<final>, compact=true)"})
     if not draft:
-        return _dumps({"mode": "context", "facts": facts, "cubes": cubes, "self_check": checklist, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, False),
+        return _dumps({"mode": "context", "facts": facts, **_nim, "cubes": cubes, "self_check": checklist, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, False),
                        "next_seal": SEAL_FMT.format(n=_last_seal() + 1), "next": "draft, run the self_check, then turn(user_message, draft)"})
     clean = re.sub(r"\n?🔐 SKV \|[^\n]*", "", draft).rstrip()
     # deterministic check: cited ids must exist in THIS account
@@ -1781,7 +1802,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     if compact:
         if ok_saved: cg_commit()
         r = {**_slh, "verdict": t["verdict"], "saved": ok_saved, "compact": True, "event_id": (saved or {}).get("event_id") if isinstance(saved, dict) else None,
-             "seal": seal if ok_saved else None, "cited_ok": cited, "facts": facts, **(cg if ok_saved else {"cubes": cubes, "self_check": checklist}), "duties": duties}
+             "seal": seal if ok_saved else None, "cited_ok": cited, "facts": facts, **_nim, **(cg if ok_saved else {"cubes": cubes, "self_check": checklist}), "duties": duties}
         if isinstance(saved, dict) and saved.get("summary_due"): r["summary_due"] = saved.get("summary_due")
         if drawn: r["seal_warning"] = "self-written seal in your answer ignored; only this seal field is valid"
         if isinstance(saved, dict) and saved.get("supersedes"): r["supersedes"] = saved.get("supersedes")
@@ -1790,7 +1811,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
         return _dumps(_diet(r, session_id, verbose, clean, checklist, _slq, prof_extra, facts, cited))
     _br = _board_relevant(user_message, clean, session_id)
     return _dumps(_diet({**_slh, "verdict": t["verdict"], "saved": ok_saved, "event_id": (saved or {}).get("event_id") if isinstance(saved, dict) else None,
-                   "seal": seal if ok_saved else None, "cited_ok": cited, "facts": facts, "cubes": cubes, "self_check": checklist,
+                   "seal": seal if ok_saved else None, "cited_ok": cited, "facts": facts, **_nim, "cubes": cubes, "self_check": checklist,
                    "duties": duties, **_br, **prof, "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server-issued seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else None,
                    "supersedes": (saved or {}).get("supersedes") if isinstance(saved, dict) else None,
                    **({"second_look_stats": _sls} if _slq and _sls else {}), **(_rc or {})}, session_id, verbose, clean, checklist, _slq, prof_extra, facts, cited))

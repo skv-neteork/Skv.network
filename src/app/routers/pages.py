@@ -529,3 +529,15 @@ async def skv_install_file(name: str):
 @router.get("/court")
 async def court_page():
     return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "court.html")))
+
+@router.get("/.well-known/mcp-registry-auth")
+async def mcp_registry_auth():
+    # Public proof record for the official MCP Registry (HTTP auth, namespace network.skv). Public key only.
+    from fastapi.responses import PlainTextResponse
+    with open(os.path.join(os.path.dirname(__file__), "..", "downloads", "mcp-registry-auth")) as f:
+        return PlainTextResponse(f.read().strip())
+
+@router.get("/.well-known/mcp/server-card.json")
+async def mcp_server_card():
+    # Static MCP server card (SEP-1649) for directories such as Smithery
+    return FileResponse(os.path.join(os.path.dirname(__file__), "..", "downloads", "mcp-server-card.json"), media_type="application/json")

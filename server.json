@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "network.skv/skv",
+  "title": "SKV Network",
+  "description": "Memory + answer checks for AI agents: recall across chats, draft→check→seal, fewer hallucinations.",
+  "version": "1.30.0",
+  "websiteUrl": "https://skv.network",
+  "repository": {
+    "url": "https://github.com/skv-neteork/Skv.network",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://skv.network/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer sk_... — free key at https://skv.network/profile (or use the public demo URL https://skv.network/mcp/k/demo/)",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

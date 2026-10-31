@@ -5,7 +5,7 @@ Fewer hallucinations, no forgetting. Works with any MCP client (Claude, Cursor, 
 
 [Website](https://skv.network) · [Security & data](https://skv.network/security) · [llms.txt](https://skv.network/llms.txt) · [OpenAPI](https://skv.network/api/v7/agent/openapi.json) · License: MIT
 
-<!-- Built with: PLACEHOLDER (to be confirmed by the author before publishing a "Built with …" line) -->
+Built with help from Claude as a design consultant.
 
 ## How it works
 
@@ -78,11 +78,11 @@ Full list: `tools/list` on `https://skv.network/mcp` (no key needed).
 - **Vault** secrets are stored encrypted, separately from memory.
 - **Demo sandbox** is shared and wiped daily; it cannot touch profiles, keys or the vault.
 
-Details: https://skv.network/security. Found a vulnerability? Email denizchavdarov@icloud.com with "security" in the subject; please do not post it publicly first.
+Details: https://skv.network/security. Found a vulnerability? Email denizchavdarov@gmail.com with "security" in the subject; please do not post it publicly first.
 
 ## Founding testers wanted
 
-We are looking for the first 5–20 people who use AI agents every day and will try SKV for a week and tell us honestly what broke. Open an [issue](https://github.com/skv-neteork/Skv.network/issues) or email denizchavdarov@icloud.com.
+We are looking for the first 5–20 people who use AI agents every day and will try SKV for a week and tell us honestly what broke. Open an [issue](https://github.com/skv-neteork/Skv.network/issues) or email denizchavdarov@gmail.com.
 
 ## Repository layout
 

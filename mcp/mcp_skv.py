@@ -2785,8 +2785,12 @@ def _demo_key():
 
 
 def _client_ip(headers, scope):
+    peer = (scope.get("client") or ("unknown", 0))[0]
+    # trust proxy headers only from nginx/local peers; a direct hit on :8765 cannot spoof its rate-limit bucket
+    if not peer.startswith(("127.", "172.", "10.", "192.168.")):
+        return peer
     ip = (headers.get("x-real-ip") or (headers.get("x-forwarded-for") or "").split(",")[0]).strip()
-    return ip or (scope.get("client") or ("unknown", 0))[0]
+    return ip or peer
 
 
 async def _read_body(receive):

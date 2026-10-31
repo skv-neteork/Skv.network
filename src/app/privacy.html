@@ -1,18 +1,49 @@
 <!DOCTYPE html>
-<html>
-<head><title>Privacy Policy — SKV Network</title><link rel="icon" href="/favicon.ico?v=2" sizes="any">
-<link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
-</head>
-<body>
-<h1>Privacy Policy</h1>
-<p>SKV Network collects minimal data:</p>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy policy — SKV Network</title><meta name="description" content="SKV Network privacy policy: what we store, why, who processes it, how long we keep it and how to delete it.">
+<meta property="og:title" content="Privacy policy — SKV Network"><meta property="og:image" content="https://skv.network/downloads/og-image.png"><meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.ico?v=2" sizes="any"><link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+<style>body{background:#0a0c12;color:#d1d5db;font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;margin:0}
+main{max-width:760px;margin:0 auto;padding:40px 20px}h1{color:#fff}h2{color:#10b981;margin-top:32px;font-size:20px}
+a{color:#a78bfa}code{background:#1f2430;padding:2px 6px;border-radius:4px;color:#e5e7eb;word-break:break-all}
+li{margin:6px 0}nav{margin-bottom:24px}nav a{margin-right:14px}footer{max-width:760px;margin:0 auto;padding:20px;color:#6b7280;font-size:14px}</style>
+</head><body><main><nav><a href="/">← SKV Network</a><a href="/security">Security</a><a href="/support">Support</a><a href="https://github.com/skv-neteork/Skv.network">GitHub</a></nav>
+<h1>Privacy policy</h1>
+<p>Last updated: 31 October 2026. The short technical version is on <a href="/security">Security &amp; data</a>; this page says the same in policy form.</p>
+<h2>What we collect</h2>
 <ul>
-  <li><b>Email:</b> Used as user_id for personal memory. Not shared.</li>
-  <li><b>Sessions:</b> Stored in PostgreSQL. You can delete anytime via API.</li>
-  <li><b>Cookies:</b> We do NOT use tracking cookies.</li>
-  <li><b>Third parties:</b> We do NOT share data with third parties.</li>
+<li><b>Account:</b> your email (it is your user id) and a password hash.</li>
+<li><b>Keys:</b> API keys, stored only as SHA-256 hashes.</li>
+<li><b>Memory:</b> what your agent sends to SKV (turns, summaries, search vectors, board items, profile rules), stored in a separate database per account.</li>
+<li><b>Cubes you publish</b> (only with your consent) and feedback you send.</li>
+<li><b>Vault</b> (optional): secrets you store, encrypted, separate from memory.</li>
+<li><b>Technical logs:</b> IP address, time and request path, kept for security and rate limiting.</li>
 </ul>
-<p>Contact: denizchavdarov@icloud.com</p>
-</body>
-</html>
+<h2>Why</h2>
+<ul>
+<li>To give your agent memory across chats and to check its drafts against that memory (draft → check → seal).</li>
+<li>To protect the service from abuse (rate limits, security logs).</li>
+</ul>
+<p>We do not show ads, do not use tracking cookies and do not sell or rent data.</p>
+<h2>Who processes it</h2>
+<ul>
+<li>Our server stores the data.</li>
+<li>To build summaries and run the Second Look check, parts of saved text are sent to LLM providers through an API aggregator (Polza.ai). Do not save secrets in memory; the server and the Chrome extension mask common key formats before saving.</li>
+<li>Published cubes are public by design. Joint project notes are shared only with the members you invite.</li>
+</ul>
+<h2>How long</h2>
+<ul>
+<li>Memory is kept until you or your agent forget it, or until you delete the account.</li>
+<li>Forgotten items can be restored for 30 days, then they are deleted permanently together with their vectors.</li>
+<li>The public demo sandbox (<code>/mcp/k/demo/</code>) is shared by all guests and wiped every day; never write private data there.</li>
+</ul>
+<h2>Your choices</h2>
+<ul>
+<li><b>Export:</b> <code>GET /api/v7/profile/export</code> with your key.</li>
+<li><b>Forget:</b> your agent can forget events (<code>/api/v7/memory/forget/*</code>).</li>
+<li><b>Delete account:</b> on <a href="/profile">/profile</a>. It removes your keys and your memory database.</li>
+<li><b>Keys:</b> rotate or revoke any key on <a href="/profile">/profile</a>.</li>
+</ul>
+<h2>Contact</h2>
+<p>Questions or requests: <a href="mailto:denizchavdarov@gmail.com">denizchavdarov@gmail.com</a> or <a href="https://github.com/skv-neteork/Skv.network/issues">GitHub issues</a>. Security issues: email with "security" in the subject and do not post them publicly first.</p>
+</main><footer>© 2026 SKV Network · <a href="/security">Security</a> · <a href="/privacy">Privacy</a> · <a href="https://github.com/skv-neteork/Skv.network">GitHub</a></footer></body></html>

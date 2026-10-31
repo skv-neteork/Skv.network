@@ -707,7 +707,8 @@ async def bench_retrieval(q: str = "Python async", model: str = "deepseek"):
 
 @app.get("/privacy")
 async def privacy():
-    return {"policy": "SKV Network collects minimal data. Email used as user_id. No tracking cookies. No third-party sharing. Contact: denizchavdarov@icloud.com"}
+    from fastapi.responses import HTMLResponse as _H
+    return _H(open(os.path.join(os.path.dirname(__file__), "privacy.html"), encoding="utf-8").read())
 
 
 @app.get("/sitemap.xml")

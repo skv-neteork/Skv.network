@@ -10,7 +10,7 @@ a{color:#a78bfa}code{background:#1f2430;padding:2px 6px;border-radius:4px;color:
 li{margin:6px 0}nav{margin-bottom:24px}nav a{margin-right:14px}footer{max-width:760px;margin:0 auto;padding:20px;color:#6b7280;font-size:14px}</style>
 </head><body><main><nav><a href="/">← SKV Network</a><a href="/security">Security</a><a href="/support">Support</a><a href="https://github.com/skv-neteork/Skv.network">GitHub</a></nav>
 <h1>Security &amp; data</h1>
-<p>Plain answers to "what happens to my data". If something here is wrong or unclear, write to <a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a> or open an issue on <a href="https://github.com/skv-neteork/Skv.network/issues">GitHub</a>.</p>
+<p>Plain answers to "what happens to my data". If something here is wrong or unclear, write to <a href="mailto:denizchavdarov@gmail.com">denizchavdarov@gmail.com</a> or open an issue on <a href="https://github.com/skv-neteork/Skv.network/issues">GitHub</a>.</p>
 <h2>What is stored</h2>
 <ul>
 <li>Your account email (it is your user id) and a password hash.</li>
@@ -40,6 +40,10 @@ li{margin:6px 0}nav{margin-bottom:24px}nav a{margin-right:14px}footer{max-width:
 <li>One account can have several named keys (one per agent); rotate or revoke any of them on <a href="/profile">/profile</a>.</li>
 <li>A key in an MCP URL (<code>https://skv.network/mcp/k/&lt;key&gt;/</code>) is a password: do not share that URL.</li>
 </ul>
+<h2>Code sandbox</h2>
+<ul>
+<li>Code your agent runs with <code>sandbox_run</code> executes in a throwaway container: no network, read-only system, no access to server files or other accounts, unprivileged user, 15 s, 256 MB, 0.5 CPU. It is not available in the public demo.</li>
+</ul>
 <h2>Public demo sandbox</h2>
 <ul>
 <li><code>https://skv.network/mcp/k/demo/</code> is one shared demo account for trying SKV without registration.</li>
@@ -51,5 +55,5 @@ li{margin:6px 0}nav{margin-bottom:24px}nav a{margin-right:14px}footer{max-width:
 <li>SKV reduces hallucinations, it does not remove them: the agent drafts, checks against memory, corrects, and only then shows a sealed answer. A seal means the check ran, not that the answer is guaranteed true.</li>
 <li>This is an early project run by a small team. The code is open (MIT): <a href="https://github.com/skv-neteork/Skv.network">github.com/skv-neteork/Skv.network</a>.</li>
 </ul>
-<p>Reporting a vulnerability: email <a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a> with "security" in the subject. Please do not post it publicly first.</p>
-</main><footer>© 2026 SKV Network · <a href="mailto:denizchavdarov@icloud.com">denizchavdarov@icloud.com</a></footer></body></html>
+<p>Reporting a vulnerability: email <a href="mailto:denizchavdarov@gmail.com">denizchavdarov@gmail.com</a> with "security" in the subject. Please do not post it publicly first.</p>
+</main><footer>© 2026 SKV Network · <a href="mailto:denizchavdarov@gmail.com">denizchavdarov@gmail.com</a></footer></body></html>

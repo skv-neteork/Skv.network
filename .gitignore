@@ -49,3 +49,5 @@ ops/profile_import_*.json
 /done
 /2f2a4fb482ee
 *.bak_*
+docs/profile_import_*
+*.backup*

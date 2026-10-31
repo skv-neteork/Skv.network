@@ -51,3 +51,4 @@ ops/profile_import_*.json
 *.bak_*
 docs/profile_import_*
 *.backup*
+*.bak[0-9]*

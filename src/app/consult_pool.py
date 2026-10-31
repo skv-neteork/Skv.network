@@ -71,18 +71,19 @@ def _usage(data):
 
 
 def _ask(model, task, tried, failed):
-    body = json.dumps({
+    body = {
         "model": model,
         "messages": [
             {"role": "system", "content": PROMPT},
             {"role": "user", "content": "Task: %s\nTried: %s\nFailed: %s" % (task, tried or "-", failed or "-")},
         ],
         "max_tokens": MAX_TOKENS,
-    }).encode()
-    req = urllib.request.Request(POLZA, data=body, headers={
-        "Authorization": "Bearer " + _key(), "Content-Type": "application/json"})
+    }
+    from app.security import polza_post
     t0 = time.time()
-    data = json.loads(urllib.request.urlopen(req, timeout=90).read().decode())
+    r = polza_post(body, timeout=90)
+    r.raise_for_status()
+    data = r.json()
     u = _usage(data)
     u["seconds"] = round(time.time() - t0, 1)
     ch = data["choices"][0]

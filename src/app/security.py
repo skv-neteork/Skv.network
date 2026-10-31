@@ -78,6 +78,44 @@ def resend_post(json_body: dict, user_agent: str = "skv-auth", timeout: int = 25
 
 
 
+_POLZA_SESSION = None
+
+
+def polza_post(json_body: dict, timeout: float = 90, connect_timeout: float = 5, tries: int = 3):
+    """POST to polza.ai /v1/chat/completions (consult). Route from this server intermittently stalls the TLS handshake
+    (measured 01.11.2026: ~30-50% of fresh connections hung until timeout; old code waited up to 90 s per model).
+    Fix: one pooled keep-alive session (no new handshake per call), classic key share (small ClientHello, as resend_post),
+    short connect+handshake timeout and a retry on connection errors; the read timeout stays long for the model answer."""
+    global _POLZA_SESSION
+    import ssl, requests
+    from requests.adapters import HTTPAdapter
+
+    if _POLZA_SESSION is None:
+        class _ClassicTLS(HTTPAdapter):
+            def init_poolmanager(self, *a, **kw):
+                ctx = ssl.create_default_context()
+                try:
+                    ctx.set_ecdh_curve("prime256v1")
+                except Exception:
+                    pass
+                kw["ssl_context"] = ctx
+                return super().init_poolmanager(*a, **kw)
+
+        sess = requests.Session()
+        sess.mount("https://", _ClassicTLS(pool_connections=2, pool_maxsize=8))
+        _POLZA_SESSION = sess
+    hdrs = {"Authorization": "Bearer " + (os.getenv("POLZA_KEY", "") or "").strip(), "Content-Type": "application/json"}
+    last = None
+    for _ in range(max(1, tries)):
+        try:
+            return _POLZA_SESSION.post("https://api.polza.ai/v1/chat/completions", headers=hdrs, json=json_body,
+                                       timeout=(connect_timeout, timeout))
+        except (requests.exceptions.ConnectTimeout, requests.exceptions.SSLError, requests.exceptions.ConnectionError) as e:
+            last = e
+    raise last
+
+
+
 def get_skv_salt() -> str:
     """Pepper for legacy SHA-256 hashes only. Prefer bcrypt for new passwords."""
     return os.getenv("SKV_SALT", "").strip()

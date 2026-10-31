@@ -135,40 +135,89 @@ _MSG_REF_RX = re.compile(r"\bt(\d{1,7})u\b")
 _TW_QUIET_MIN = float(os.environ.get("SKV_TURN_QUIET_MIN", "5"))
 
 
-_MSG_RANGE_RX = re.compile(r"\bt(\d{1,7})u?\s*(?:-|–|\.\.)\s*t?(\d{1,7})u\b")
+_MSG_RANGE_RX = re.compile(r"\bt(\d{1,7})u?\s*(?:-|\u2013|\u2014|\.\.)\s*t?(\d{1,7})u?\b")
+
+
+def _msg_ref_span(msg_ref: str, user_message: str) -> tuple:
+    """(lo, hi) client message ordinals of this turn; (0, 0) = unknown.
+    msg_ref='t648u' / '648' / 't754u-t755u' / 't754u,t755u', or [tNNNu] tags at the head of user_message.
+    A range [t754u-t755u] (also t754-t755, t754u..t755u) covers every message in it: lo opens it, hi closes it."""
+    for src, head in ((msg_ref or "", False), ((user_message or "")[:80], True)):
+        if not src.strip():
+            continue
+        nums = []
+        for r in _MSG_RANGE_RX.finditer(src):
+            a, b = int(r.group(1)), int(r.group(2))
+            if b >= a and b - a <= 50:
+                nums += [a, b]
+        nums += [int(x) for x in _MSG_REF_RX.findall(src)]
+        if not head and not nums:
+            m = re.fullmatch(r"\s*(\d{1,7})\s*", src)
+            if m:
+                nums = [int(m.group(1))]
+        if nums:
+            return min(nums), max(nums)
+    return 0, 0
 
 
 def _msg_ref_num(msg_ref: str, user_message: str) -> int:
-    """Client message ordinal: msg_ref='t648u' / '648', or a [t648u] tag inside user_message. 0 = unknown.
-    A range tag [t754u-t755u] (or t754u..t755u) covers every message in it: the highest number counts."""
-    for src in (msg_ref or "", (user_message or "")[:200]):
-        r = _MSG_RANGE_RX.search(src)
-        if r and int(r.group(2)) >= int(r.group(1)):
-            return int(r.group(2))
-    for src in (msg_ref or "", user_message or ""):
-        m = _MSG_REF_RX.search(src) or (re.fullmatch(r"\s*(\d{1,7})\s*", src) if src is msg_ref else None)
-        if m:
-            return int(m.group(1))
-    return 0
+    """Highest client message ordinal covered by this turn (see _msg_ref_span). 0 = unknown."""
+    return _msg_ref_span(msg_ref, user_message)[1]
 
 
-def _tw_ref(k: str, ref: int, saved: bool):
-    """Returns (previous saved ref, gap). Gap = client messages skipped between two saved turns."""
+def _tw_cov_db():
     import sqlite3 as _sq
-    if not ref:
-        return 0, 0
     c = _sq.connect(COMPACT_DB, timeout=10)
     c.execute("create table if not exists tw_ref(k text primary key, last_ref int, t real)")
+    c.execute("create table if not exists tw_cov(k text, ref int, t real, primary key(k, ref))")
+    return c
+
+
+def _tw_cover(refs) -> None:
+    """Recaps cover missed client messages: they no longer count as missed."""
+    try:
+        nums = sorted({int(r) for r in refs if r})
+        if not nums:
+            return
+        k = _tw_key(); c = _tw_cov_db(); now = _time.time()
+        c.executemany("insert or replace into tw_cov values(?,?,?)", [(k, n, now) for n in nums])
+        c.execute("delete from tw_cov where t < ?", (now - 7 * 86400,)); c.commit(); c.close()
+    except Exception:
+        pass
+
+
+def _tw_ref(k: str, ref, saved: bool):
+    """Returns (previous saved ref, gap, missing refs). ref = int or (lo, hi). Gap = client messages skipped
+    between the previous saved turn and lo, minus messages covered by recaps. On save the high end is stored."""
+    lo, hi = (ref if isinstance(ref, tuple) else (ref, ref))
+    if not hi:
+        return 0, 0, []
+    c = _tw_cov_db()
     r = c.execute("select last_ref from tw_ref where k=?", (k,)).fetchone()
     prev = int(r[0]) if r and r[0] else 0
-    gap = ref - prev - 1 if prev and ref > prev + 1 else 0
-    if saved and ref >= prev:
-        c.execute("insert or replace into tw_ref values(?,?,?)", (k, ref, _time.time())); c.commit()
+    missing = []
+    if prev and lo > prev + 1:
+        cov = {int(x[0]) for x in c.execute("select ref from tw_cov where k=? and ref>? and ref<?", (k, prev, lo))}
+        missing = [n for n in range(prev + 1, lo) if n not in cov]
+    if saved and hi >= prev:
+        c.execute("insert or replace into tw_ref values(?,?,?)", (k, hi, _time.time()))
+        c.execute("delete from tw_cov where k=? and ref<=?", (k, hi))
+        c.commit()
     c.close()
-    return prev, gap
+    return prev, len(missing), missing
 
 
-def _tw_turn(saved: bool, seal_n: int = 0, ref: int = 0) -> dict:
+def _fmt_refs(ns: list) -> str:
+    out, i = [], 0
+    while i < len(ns):
+        j = i
+        while j + 1 < len(ns) and ns[j + 1] == ns[j] + 1:
+            j += 1
+        out.append("t%du" % ns[i] if i == j else "t%du..t%du" % (ns[i], ns[j])); i = j + 1
+    return ",".join(out)
+
+
+def _tw_turn(saved: bool, seal_n: int = 0, ref=0) -> dict:
     """On turn: detect answers given since the previous saved turn (missed turns); reset on save.
     Signals: (1) client message ordinal jump (msg_ref / [tNNNu]) = exact; (2) tool-call bursts; (3) a long quiet gap = soft question."""
     out = {}
@@ -176,13 +225,16 @@ def _tw_turn(saved: bool, seal_n: int = 0, ref: int = 0) -> dict:
         now = _time.time(); k = _tw_key(); c = _tw_db()
         lt, lc, b, n, ls = _tw_step(c, k, now)
         missed = max(0, b - 1) if lt else 0
-        prev, gap = _tw_ref(k, ref, saved)
+        prev, gap, miss = _tw_ref(k, ref, saved)
+        ref = (ref[1] if isinstance(ref, tuple) else ref) or 0
         if gap:
             out = {"id": "missed_turns", "kind": "missed_turns", "n": gap, "since_seal": ls or None, "source": "msg_ref",
-                   "pin": PIN_SHORT,
-                   "do": "t%du..t%du (%d) answered without turn: next turn add recap='tNu: ask => answer' (one line each, ONE call)"
-                         % (prev + 1, ref - 1, gap)}
+                   "pin": PIN_SHORT, "refs": _fmt_refs(miss)[:200],
+                   "do": "%s (%d) answered without turn: in your next turn call add recap='tNu: ask => answer' (one line per missed answer; turn is the only save tool)"
+                         % (_fmt_refs(miss)[:200], gap)}
             missed = 0
+        elif ref and ref > prev:
+            missed = 0   # exact client ordinal, no gap: tool-call bursts (browser-heavy work) are not missed answers
         elif not ref and lt and not missed and (now - lt) / 60.0 > _TW_QUIET_MIN:
             out = {"id": "gap_check", "kind": "reminder", "since_seal": ls or None,
                    "do": "last turn #%03d was %d min ago; if you answered since without turn, add recap='ask => answer' lines to this turn (ONE call). Pass msg_ref=tNNNu."
@@ -190,7 +242,7 @@ def _tw_turn(saved: bool, seal_n: int = 0, ref: int = 0) -> dict:
         if missed:
             out = {"id": "missed_turns", "kind": "missed_turns", "n": missed, "since_seal": ls or None,
                    "pin": PIN_SHORT,
-                   "do": "~%d answer(s) since #%03d (%d min) not saved: next turn add recap='ask => answer' (one line each, ONE call)"
+                   "do": "~%d answer(s) since #%03d (%d min) not saved: in your next turn call add recap='tNu: ask => answer' (one line per missed answer; turn is the only save tool)"
                          % (missed, ls or 0, int((now - lt) / 60))}
         if saved:
             lt, b, n, ls = now, 0, 0, seal_n or ls
@@ -360,9 +412,32 @@ def _uid_body(extra: Optional[dict] = None) -> dict:
     return body
 
 
+_HTTP_CLIENTS: dict = {}
+_REQ_RETRY_WINDOW = float(os.environ.get("SKV_REQ_RETRY_WINDOW", "15"))   # API restart window we wait out (was 60 s: longer than MCP client timeouts)
+# connect timeout short + immediate retry: some egress tunnels (e.g. the sandbox box) silently drop ~1/3 of new
+# TCP connects, which used to hang a call for the whole 90 s timeout (MCP -32001 on turn)
+_CONNECT_TMO = float(os.environ.get("SKV_CONNECT_TIMEOUT", "2.5"))
+_SLOW_PATHS = ("/consult", "/import", "/sandbox", "/bureau", "/court")
+
+
+def _http_client(base: str) -> "httpx.Client":
+    """One keep-alive client per API base: TLS handshake once (~0.7 s via proxy) instead of on every call
+    (a turn makes ~10 sequential calls). Short connect/pool timeouts: a stalled connection fails fast and is retried."""
+    # one client for all bases: API and SITE share the host, so they share the keep-alive pool
+    c = _HTTP_CLIENTS.get("*")
+    if c is None or c.is_closed:
+        c = httpx.Client(timeout=httpx.Timeout(20.0, connect=_CONNECT_TMO, pool=5.0),
+                         limits=httpx.Limits(max_keepalive_connections=8, keepalive_expiry=60.0))
+        _HTTP_CLIENTS["*"] = c
+    return c
+
+
 def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None, base: Optional[str] = None) -> Any:
     url = f"{(base or BASE).rstrip('/')}{path}"
-    with httpx.Client(timeout=90.0) as c:
+    c = _http_client((base or BASE).rstrip('/'))
+    slow = any(x in path for x in _SLOW_PATHS)
+    tmo = httpx.Timeout(120.0 if slow else 20.0, connect=_CONNECT_TMO, pool=5.0)
+    if True:
         h = dict(_headers())
         try:   # per-account rate bucket: without it every MCP user shares the docker-gateway IP bucket (300/min for all)
             import hashlib as _hl
@@ -372,18 +447,27 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
             h.setdefault("X-Real-IP", "mcp-" + _hl.sha1(str(h.get("Authorization", "")).encode()).hexdigest()[:12])
         except Exception:
             pass
-        # API restart window (~30 s): retry only when the request surely was not processed
-        # (connection refused, or the proxy's 502/503 = upstream unreachable). Up to ~60 s, then report.
-        _w = 0.0
+        # API restart window: retry only when the request surely was not processed (connect failed / pool stalled /
+        # stale keep-alive dropped before a response, or the proxy's 502/503 = upstream unreachable).
+        # Read timeouts are retried once for GET only (a POST may already be saved). Total wait <= _REQ_RETRY_WINDOW.
+        _w = 0.0; _rt = 0; r = None
         while True:
             try:
-                r = c.request(method, url, headers=h, json=body, params=params)
-                if r.status_code not in (502, 503) or _w >= 60:
+                r = c.request(method, url, headers=h, json=body, params=params, timeout=tmo)
+                if r.status_code not in (502, 503) or _w >= _REQ_RETRY_WINDOW:
                     break
+            except (httpx.ConnectTimeout, httpx.PoolTimeout, httpx.RemoteProtocolError) as e:
+                if _w >= _REQ_RETRY_WINDOW:
+                    return {"ok": False, "status": 503, "error": "SKV API unreachable: %s" % (str(e)[:120] or type(e).__name__)}
+                _w += _CONNECT_TMO; continue   # dropped connect / stale keep-alive: retry at once on a fresh connection
             except httpx.ConnectError as e:
-                if _w >= 60:
+                if _w >= _REQ_RETRY_WINDOW:
                     return {"ok": False, "status": 503, "error": "SKV API unavailable (restart?): %s" % str(e)[:120]}
-            _d = 2.0 if _w < 10 else 5.0
+            except (httpx.ReadTimeout, httpx.ReadError, httpx.WriteError, httpx.WriteTimeout) as e:
+                if method.upper() != "GET" or _rt >= 1:
+                    return {"ok": False, "status": 504, "error": "SKV API timeout on %s: %s" % (path[:60], str(e)[:120] or type(e).__name__)}
+                _rt += 1; continue
+            _d = 1.0 if _w < 5 else 3.0
             _time.sleep(_d); _w += _d
         try:
             data = r.json()
@@ -1489,6 +1573,7 @@ def _save_recaps(recap: str, session_id: str = "mcp", sensitive: str = "") -> di
         e = (d.get("event_id") or ((d.get("saved") or [""])[0])) if isinstance(d, dict) and d.get("ok") is not False else ""
         if e: ids.append(_sid(e))
         else: errs.append(ref or u[:40])
+    _tw_cover([m.group(1) for m in (re.search(r"t(\d{1,7})u", r or "") for r, _u, _a in items) if m])
     out = {"recap_saved": len(ids), "recap_event_ids": ids}
     if errs: out["recap_failed"] = errs
     if not items: out["recap_error"] = "recap is empty or unreadable: pass a JSON list of {ref,user,answer}"
@@ -1663,7 +1748,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
             duties.insert(0, saved["cube_harvest"])
         if saved.get("status") == "revise" and saved.get("profile_errors"):
             ok_saved = False
-    mt = _tw_turn(ok_saved, seal_n if ok_saved else 0, _msg_ref_num(msg_ref, user_message) if not same else 0)
+    mt = _tw_turn(ok_saved, seal_n if ok_saved else 0, _msg_ref_span(msg_ref, user_message) if not same else 0)
     _sd = saved.get("summary_due") if isinstance(saved, dict) else None
     if isinstance(_sd, dict) and _sd.get("l1_pending", 0) >= 20:   # overdue L1: lift it to the top of duties with ready ids
         duties.insert(0, {"id": "l1_overdue", "kind": "summary", "do": _sd.get("l1"), "source_event_ids": _sd.get("l1_source_event_ids")})

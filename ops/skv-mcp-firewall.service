@@ -1,0 +1,12 @@
+[Unit]
+Description=SKV: allow MCP :8765 only from localhost/docker bridge (nginx)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh /root/skv-core/ops/mcp_firewall.sh
+
+[Install]
+WantedBy=multi-user.target

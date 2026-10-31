@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SKV safe sandbox launcher (host). stdin JSON {code, language, files{name:text}} -> stdout JSON {stdout, stderr, exit_code, timed_out}.
 Fixed flags only; the caller controls nothing but code/language/files."""
-import json, subprocess, sys, uuid
+import json, subprocess, sys, uuid, os, time, fcntl
 IMG = "skv_sandbox_safe:1"; TIMEOUT = 15; CAP = 16000
 BOOT = r'''
 import json,os,sys,subprocess,re
@@ -18,8 +18,26 @@ else:
     cmd=["python","-m","pytest","-q","-p","no:cacheprovider"] if t else ["python","main.py"]
 os.execvp(cmd[0],cmd)
 '''
+MAX_PARALLEL = int(os.environ.get("SKV_SANDBOX_MAX_PARALLEL", "3")); SLOT_DIR = "/run/skv-sandbox"; WAIT_S = 5
+def _slot():
+    """Global cap across all callers (MCP sandbox_run, 8011 bridge): hold one of N flock slots, wait up to WAIT_S."""
+    os.makedirs(SLOT_DIR, exist_ok=True)
+    end = time.time() + WAIT_S
+    while True:
+        for i in range(MAX_PARALLEL):
+            fd = os.open(f"{SLOT_DIR}/slot{i}.lock", os.O_CREAT | os.O_RDWR, 0o600)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB); return fd
+            except OSError:
+                os.close(fd)
+        if time.time() >= end: return None
+        time.sleep(0.25)
 def main():
     d = json.load(sys.stdin)
+    slot = _slot()
+    if slot is None:
+        print(json.dumps({"stdout": "", "stderr": "sandbox busy: %d runs already in progress, retry in a few seconds" % MAX_PARALLEL,
+                          "exit_code": None, "timed_out": False, "busy": True, "error": "sandbox busy, retry in a few seconds"})); return
     lang = d.get("language") or "python"
     if lang not in ("python", "pytest", "node"):
         print(json.dumps({"error": "language must be python|pytest|node"})); return

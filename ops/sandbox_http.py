@@ -27,6 +27,8 @@ class H(BaseHTTPRequestHandler):
             "stderr": out.get("stderr") or "",
             "exit_code": out.get("exit_code"),
         }
+        if out.get("busy"):
+            body["busy"] = True; body["error"] = out.get("error") or "sandbox busy"
         data = json.dumps(body).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

@@ -202,6 +202,8 @@ async def consult_rag(request: Request):
         user_id = f"guest_{int(__import__('time').time())}"
     is_admin = (user_id == "denizchavdarov@gmail.com" or user_id == "deniz" or user_id == "admin")
     model_key = data.get("model", "deepseek")
+    if not user_id or user_id.startswith(("demo_", "guest_")) or user_id == "anonymous":
+        model_key = "deepseek"   # no key: cheap model only (public endpoint must not proxy paid premium models)
     model = MODELS.get(model_key, "deepseek/deepseek-v4-flash")
     history = data.get("history", [])
 

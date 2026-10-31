@@ -377,7 +377,7 @@ def send_confirmation_email(email: str, code: str):
         resend_key = get_resend_api_key()
         if not resend_key:
             print(f"[SKV] confirmation mail skipped, no key, for {email}")
-            return
+            return False
         
         resp = requests.post(
             "https://api.resend.com/emails",
@@ -392,10 +392,12 @@ def send_confirmation_email(email: str, code: str):
         )
         if resp.status_code == 200:
             print(f"[SKV] Email sent to {email}: {resp.json().get('id', 'ok')}")
-        else:
-            print(f"[SKV] Email failed for {email}: {resp.status_code}")
+            return True
+        print(f"[SKV] Email failed for {email}: {resp.status_code}")
+        return False
     except Exception as e:
         print(f"[SKV] Email error for {email}: {e}")
+        return False
 
 class RegisterRequest(BaseModel):
     email: str

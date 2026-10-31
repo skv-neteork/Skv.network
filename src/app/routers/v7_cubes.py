@@ -569,9 +569,8 @@ async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
     """Read shared cubes_new OR the caller's private experience_cubes (skill packages)."""
     import sqlite3, os
     from app import cubes_v2 as _cv2
-    uid = (user_id or "").strip()
-    if not uid and request is not None:
-        uid = (_request_user(request) or "").strip()
+    # the authenticated user wins; a user_id param is only a fallback (auth middleware also overrides it)
+    uid = ((_request_user(request) if request is not None else "") or "").strip() or (user_id or "").strip()
     conn = sqlite3.connect(SHARED_DB)
     _cv2.ensure(conn)
     row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier from cubes_new where cube_id=?", (cube_id,)).fetchone()
@@ -583,7 +582,7 @@ async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
     if not row and cube_id.startswith("cube_const_") and cube_id.count("_") >= 3:
         # old version link -> current version of the same constitution cube
         prefix = "_".join(cube_id.split("_")[:3]) + "_v%"
-        row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier from cubes_new where cube_id like ? order by cube_id desc limit 1", (prefix,)).fetchone()
+        row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier from cubes_new where cube_id like ? order by (coalesce(status,'') in ('archived','rejected','removed','deleted')) asc, cast(substr(cube_id, ?) as integer) desc limit 1", (prefix, len(prefix))).fetchone()
     conn.close()
     shared = True
     if not row and uid:

@@ -33,6 +33,15 @@ def _private(host):
     return False
 
 
+class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+    """Redirects must stay https:443 on a public host (no SSRF via 30x)."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        p = urlparse(newurl)
+        if p.scheme != "https" or not p.hostname or p.port not in (None, 443) or _private(p.hostname):
+            raise urllib.error.HTTPError(newurl, code, "redirect blocked", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def _sub(text, name, secret):
     if not text:
         return ""
@@ -87,7 +96,7 @@ def inject(user_id, name, purpose, method, url, body="", headers=None, ip=""):
         hdrs[str(k)] = _sub(str(v), name, secret)
     data = body2.encode() if method != "GET" and body2 else None
     req = urllib.request.Request(url2, data=data, headers=hdrs, method=method)
-    opener = urllib.request.build_opener(urllib.request.HTTPSHandler)
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler, _SafeRedirect)
     try:
         with opener.open(req, timeout=20) as resp:
             raw = resp.read(MAX_BODY + 1)

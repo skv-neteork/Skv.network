@@ -112,6 +112,9 @@ async def homepage_v7():
 </html>"""
     return html
 
+_REG_RESEND = {}
+
+
 @router.post("/auth/register")
 async def register(req: RegisterRequest):
     try:
@@ -130,10 +133,28 @@ async def register(req: RegisterRequest):
             confirmation_code TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
         
         # Check if email exists
-        cur.execute("SELECT email FROM users WHERE email = ?", (req.email,))
-        if cur.fetchone():
+        cur.execute("SELECT email, confirmed FROM users WHERE email = ?", (req.email,))
+        _ex = cur.fetchone()
+        if _ex and _ex[1]:
             conn.close()
             raise HTTPException(status_code=409, detail="Email already registered")
+        if _ex:
+            # unconfirmed: new code + password, resend (throttled), so a lost or failed mail is not a dead end
+            import time as _t
+            _last = _REG_RESEND.get(req.email, 0)
+            if _t.time() - _last < 60:
+                conn.close()
+                raise HTTPException(status_code=429, detail="Confirmation code was just sent. Wait a minute and try again.")
+            _REG_RESEND[req.email] = _t.time()
+            _code = secrets.token_hex(4).upper()
+            cur.execute("UPDATE users SET password_hash=?, confirmation_code=? WHERE email=? AND confirmed=0",
+                        (hash_password(req.password), _code, req.email))
+            conn.commit()
+            conn.close()
+            _sent = bool(send_confirmation_email(req.email, _code))
+            return {"status": "ok", "email_sent": _sent, "resent": True,
+                    "message": ("A new confirmation code was sent. Check your email." if _sent else
+                                "Account not confirmed yet, and the confirmation email could not be sent right now. Try again later or contact support.")}
         
         password_hash = hash_password(req.password)
         confirmation_code = secrets.token_hex(4).upper()
@@ -143,7 +164,7 @@ async def register(req: RegisterRequest):
         conn.commit()
         conn.close()
         
-        send_confirmation_email(req.email, confirmation_code)
+        _sent = bool(send_confirmation_email(req.email, confirmation_code))
         
                 # Create personal database for new user
         try:
@@ -163,7 +184,9 @@ async def register(req: RegisterRequest):
         except Exception as e:
             print(f"Failed to create user DB: {e}")
         
-        return {"status": "ok", "message": "Registration successful. Check email for confirmation code."}
+        return {"status": "ok", "email_sent": _sent,
+                "message": ("Registration successful. Check email for confirmation code." if _sent else
+                            "Account created, but the confirmation email could not be sent right now. Register again with the same email later to resend, or contact support.")}
     except HTTPException:
         raise
     except Exception as e:

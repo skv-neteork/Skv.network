@@ -379,17 +379,13 @@ def send_confirmation_email(email: str, code: str):
             print(f"[SKV] confirmation mail skipped, no key, for {email}")
             return False
         
-        resp = requests.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json", "User-Agent": "skv-auth"},
-            json={
+        from app.security import resend_post
+        resp = resend_post({
                 "from": "SKV Network <noreply@skv.network>",
                 "to": email,
                 "subject": "SKV Network — Email Confirmation",
                 "text": f"Your confirmation code: {code}\n\nEnter this code on the registration page to activate your account."
-            },
-            timeout=10
-        )
+            }, user_agent="skv-auth", timeout=25)
         if resp.status_code == 200:
             print(f"[SKV] Email sent to {email}: {resp.json().get('id', 'ok')}")
             return True

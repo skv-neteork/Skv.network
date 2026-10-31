@@ -48,6 +48,35 @@ def get_resend_api_key() -> str:
     except Exception:
         return ""
 
+def resend_post(json_body: dict, user_agent: str = "skv-auth", timeout: int = 25):
+    """POST to Resend /emails. Forces a classic (non post-quantum) TLS key share: OpenSSL 3.5 sends a large
+    hybrid ClientHello that DPI on the server route to Cloudflare drops intermittently (31.10.2026).
+    One retry on connection errors."""
+    import ssl, requests
+    from requests.adapters import HTTPAdapter
+
+    class _ClassicTLS(HTTPAdapter):
+        def init_poolmanager(self, *a, **kw):
+            ctx = ssl.create_default_context()
+            try:
+                ctx.set_ecdh_curve("prime256v1")
+            except Exception:
+                pass
+            kw["ssl_context"] = ctx
+            return super().init_poolmanager(*a, **kw)
+
+    s = requests.Session()
+    s.mount("https://", _ClassicTLS())
+    hdrs = {"Authorization": f"Bearer {get_resend_api_key()}", "Content-Type": "application/json", "User-Agent": user_agent}
+    last = None
+    for _ in range(2):
+        try:
+            return s.post("https://api.resend.com/emails", headers=hdrs, json=json_body, timeout=timeout)
+        except requests.exceptions.ConnectionError as e:
+            last = e
+    raise last
+
+
 
 def get_skv_salt() -> str:
     """Pepper for legacy SHA-256 hashes only. Prefer bcrypt for new passwords."""

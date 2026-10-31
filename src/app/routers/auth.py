@@ -35,21 +35,13 @@ def send_email(email: str, code: str) -> bool:
         print(f"[SKV] RESEND_API_KEY not set — confirmation email not sent for {email}")
         return False
     try:
-        resp = requests.post(
-            "https://api.resend.com/emails",
-            headers={
-                "Authorization": f"Bearer {resend_key}",
-                "Content-Type": "application/json",
-                "User-Agent": "SKV-Network/2.0",
-            },
-            json={
+        from app.security import resend_post
+        resp = resend_post({
                 "from": "SKV Network <noreply@skv.network>",
                 "to": email,
                 "subject": "SKV Network - Email Confirmation",
                 "text": f"Your SKV confirmation code: {code}",
-            },
-            timeout=10,
-        )
+            }, user_agent="SKV-Network/2.0", timeout=25)
         if resp.status_code == 200:
             print(f"[SKV] Email sent to {email}: {resp.json().get('id', 'ok')}")
             return True

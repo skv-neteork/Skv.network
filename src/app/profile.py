@@ -606,7 +606,7 @@ def apply(uid, eid, user_msg="", answer="", ops=None, review=None, has_l2=False,
         if eid:
             for did, dev, opened, signal in c.execute("SELECT id, event_id, opened_turn, signal FROM profile_duties WHERE status='open' AND kind='profile_candidate'").fetchall():
                 if tn - int(opened or 0) >= cfg("profile_fallback_grace_turns"):
-                    c.execute("UPDATE profile_duties SET status='fallback', resolution='agent ignored it %d turns', resolved_at=? WHERE id=?", (tn - int(opened or 0), _now(), did))
+                    c.execute("UPDATE profile_duties SET status='fallback', resolution=?, resolved_at=? WHERE id=?", ("agent ignored it %d turns" % (tn - int(opened or 0)), _now(), did))
                     expired.append((did, dev, signal))
         if has_l2 and int(_st(c, "l2_skip_streak", 0) or 0) >= 2:
             _st_set(c, "l2_skip_streak", 0)

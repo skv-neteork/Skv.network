@@ -2,7 +2,7 @@
 import re
 _RX = [re.compile(r"(?<![\[\w:])([A-Za-z0-9][\w\-.@/+=]{3,})(\s*)\[SECRET\]"),
        re.compile(r"(?i)((?:secret|token|api[ _-]?key|key|password|passcode|пароль|токен|ключ)\s*(?:is|=|:|—|-|это)\s*[\"«']?)(?=[^\s\"«']*\d)([A-Za-z0-9][\w\-.@/+=]{5,})"),
-       re.compile(r"\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{6,}\b|\bsk-[A-Za-z0-9_-]{16,}\b|\bgh[pousr]_[A-Za-z0-9]{20,}\b")]
+       re.compile(r"\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{6,}\b|\bsk-[A-Za-z0-9_-]{16,}\b|\bgh[pousr]_[A-Za-z0-9]{20,}\b|\b(?:pza|skint)_[A-Za-z0-9_\-]{8,}|\bsk_[A-Za-z0-9]{16,}\b")]
 
 
 def scrub(s, sensitive=None):

@@ -177,7 +177,9 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
     last_user, saved_t, last_eid, last_seal, last_final, last_verdict = row
     now = time.time()
     from app.secret_scrub import scrub as _scrub
-    _um_h = "h:" + hashlib.sha256((user_message or "").encode()).hexdigest()  # state keeps a hash, never the raw text
+    ext_src = str(source or "").startswith(("guard2_ext", "ext", "hook"))
+    # ext/hook: the same prompt on another site (or sent again in a new reply) is a NEW turn, not a revision -> hash includes the source
+    _um_h = "h:" + hashlib.sha256(((user_message or "") + (("|" + str(source)) if ext_src else "")).encode()).hexdigest()  # state keeps a hash, never the raw text
     same = bool(last_user in (_um_h, user_message) and now - (saved_t or 0) < 900 and last_eid)
     q = _scrub((query or user_message or "")[:500], sensitive)
     hits = [] if (_is_low(user_message) and not query) else _hits(key, q)
@@ -211,6 +213,8 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
                 "next": "write the draft, run the self_check, then call turn again with user_message and draft; the seal comes only from that call"}
     drawn = [m.group(0) for m in re.finditer(r"🔐?\s*SKV\s*\|\s*#[^\n]*", draft)]
     clean = re.sub(r"\n?🔐?\s*SKV\s*\|\s*#[^\n]*", "", draft).rstrip()
+    if same and ext_src and re.sub(r"\n?🔐?\s*SKV\s*\|\s*#[^\n]*", "", last_final or "").rstrip() != clean:
+        same = False   # ext: a different reply to the same prompt = new turn with its own seal number (agents keep revise-retry semantics)
     cited = _real_cites(clean + "\n" + (draft_summary or ""))
     known = {_sid(h["event_id"]) for h in hits}
     invalid = []
@@ -225,7 +229,6 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
             known.add(sx)
         else:
             invalid.append(x)
-    ext_src = str(source or "").startswith(("guard2_ext", "ext", "hook"))
     unverified = list(invalid) if (invalid and ext_src) else []   # ext/hook: save anyway, flag [VERIFY ?]; MCP/REST agents stay strict
     if invalid and not ext_src:
         c.close()
@@ -241,7 +244,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
             return {"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
                     "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}
     seal_n = last_seal if (same and last_verdict == "pass" and last_seal) else _next_seal(key, user, same)
-    seal = SEAL_CODE_FMT.format(n=seal_n, c=seal_code(user, seal_n, clean)).replace("[VERIFY ✓]", "[VERIFY ?]" if unverified else "[VERIFY ✓]") + ((" " + pc["seal_mark"]) if pc.get("seal_mark") else "")
+    seal = SEAL_CODE_FMT.format(n=seal_n, c=seal_code(user, seal_n, clean)).replace("[VERIFY ✓]", "[VERIFY ?]" if unverified else "[VERIFY ✓]") + ((" " + pc["seal_mark"]) if (pc.get("seal_mark") and not ext_src) else "")   # ext/hook cannot send profile ops: open candidates go to the server fallback, no [PROFILE ✗]
     final = clean + "\n" + seal
     if same and last_final == final:
         saved = {"event_id": last_eid, "note": "identical turn already saved: not saved again"}

@@ -100,6 +100,7 @@ _SECRET_PATTERNS = [
     (re.compile(r"\b(ghp|gho|ghs|github_pat)_[A-Za-z0-9_]{20,}\b"), "[github token masked]"),
     (re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b"), "[slack token masked]"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "[aws key masked]"),
+    (re.compile(r"\b(?:pza|skint)_[A-Za-z0-9_\-]{8,}"), "[api key masked]"),
     (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]{16,}"), "Bearer [masked]"),
     (re.compile(r"(?i)\b(api[_-]?key|apikey|password|passwd|пароль|secret|token|ssh_pass|private[_-]?key)(\s*[:=]\s*)([\"']?)([^\s\"',;]{6,})"),
      lambda m: m.group(1) + m.group(2) + m.group(3) + "[masked]"),

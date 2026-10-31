@@ -293,6 +293,8 @@ def open_reveal(token, email="", password="", ip=""):
 _AUTO = [
     ("private_key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), 0),
     ("skv_key", re.compile(r"\bsk_[A-Za-z0-9]{16,}\b"), 0),
+    ("polza_key", re.compile(r"\bpza_[A-Za-z0-9_\-]{8,}"), 0),
+    ("skv_internal_key", re.compile(r"\bskint_[A-Za-z0-9_\-]{8,}"), 0),
     ("github_token", re.compile(r"\b(?:ghp|gho|ghs|github_pat)_[A-Za-z0-9_]{20,}\b"), 0),
     ("slack_token", re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b"), 0),
     ("aws_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b"), 0),

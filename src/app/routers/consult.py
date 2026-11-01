@@ -523,6 +523,7 @@ async def deepseek_chat(request: Request):
     """Прямой доступ к DeepSeek API."""
     import json, urllib.request as req
     body = await request.json()
+    user_id = (body.get("user_id") or "").strip() or "anonymous"  # guardian_meta needs it (was NameError)
     prompt = body.get("prompt", "")
     api_body = json.dumps({
         "model": "deepseek/deepseek-chat",

@@ -46,7 +46,7 @@
     "/api/v7/remember": {
       "post": {
         "operationId": "memory_remember",
-        "summary": "memory_remember — save turn immediately after answer (PROTOCOL step F).",
+        "summary": "Legacy low-level save (kept for old clients). Agents: use POST /api/v7/agent/turn instead.",
         "requestBody": {
           "required": true,
           "content": {
@@ -168,7 +168,7 @@
     "/api/v7/experience/vote": {
       "post": {
         "operationId": "cube_vote",
-        "summary": "cube_vote — rate a cube, or use memory_remember(duty=vote_nothing).",
+        "summary": "cube_vote — rate a cube, or pass duty=vote_nothing in turn.",
         "requestBody": {
           "required": true,
           "content": {

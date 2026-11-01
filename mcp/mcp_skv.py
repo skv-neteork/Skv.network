@@ -3322,7 +3322,7 @@ SHORT_DESC = {
  "memory_dig": "Dig deeper: memory_dig(query) scans all history incl. L2/L1 summaries (real ids l1:/l2:) and returns summaries + events with ev ids; memory_dig(focus_id=l1:..|l2:..|crit:..|board:..) opens that summary, critical fact or board item with its source events; memory_dig(focus_event_id=ev) opens the episode around an event. Use before saying you do not remember.",
  "memory_lens": "Expand a hit's cluster (focus_event_id).",
  "memory_event": "Open one memory event in full by id.",
- "memory_remember": "DUTY: save EVERY turn (text=query, response verbatim). duty=cube_nothing|vote_nothing+duty_reason at task end; task_done; critical; l1_summary/l2_map; optional cube_* fields (skill: cube_skill_md, cube_hooks).",
+ "memory_remember": "Legacy (hidden, kept for old clients): use turn.",
  "memory_critical": "Pin a critical fact.",
  "memory_recall_later": "Schedule a recall reminder.",
  "memory_recall_status": "Pending recalls.",

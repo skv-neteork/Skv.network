@@ -3,7 +3,7 @@
 and returns the server seal. Installed by https://skv.network/install.sh. Never blocks the agent (fail-open).
 
 Modes (argv[1]):
-  claude-prompt   Claude Code UserPromptSubmit: remember the user message
+  claude-prompt   Claude Code UserPromptSubmit: remember the user message, remind the agent to call turn
   claude-stop     Claude Code Stop: save turn (user msg + last_assistant_message), show seal
   cursor-prompt   Cursor beforeSubmitPrompt: remember the user message
   cursor-response Cursor afterAgentResponse: save turn
@@ -17,6 +17,8 @@ D = os.environ.get("SKV_HOME") or os.path.join(HOME, ".skv")
 BASE = (os.environ.get("SKV_BASE") or "https://skv.network").rstrip("/")
 SEAL_RE = re.compile(r"(?:🔐\s*)?SKV\s*\|\s*#\d+·[0-9a-f]{4}")
 TIMEOUT = 20
+REMIND = ("SKV: before you answer, call the skv MCP tool turn(user_message, draft) and end the answer "
+          "with the seal it returns. If the tool is unavailable, answer normally (the Stop hook saves the turn).")
 
 
 def log(msg):
@@ -132,6 +134,8 @@ def main():
         if os.environ.get("CURSOR_VERSION"):   # Cursor also runs Claude Code hooks: Cursor has its own
             return
         remember_prompt(ev.get("session_id"), ev.get("prompt") or "")
+        if not os.path.exists(os.path.join(D, "off")):   # per-prompt reminder (stdout -> agent context)
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": REMIND}}))
     elif mode == "claude-stop":
         if os.environ.get("CURSOR_VERSION"):
             return

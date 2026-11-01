@@ -20,5 +20,5 @@
 ## Docs
 - Security & data: https://skv.network/security
 - Privacy: https://skv.network/privacy
-- Source: https://github.com/skv-neteork/Skv.network
+- Home: https://skv.network (open source, MIT)
 - Chrome extension (Guard 2, beta, load unpacked): https://skv.network/downloads/skv-guard2-chrome.zip

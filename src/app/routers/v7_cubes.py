@@ -650,8 +650,7 @@ async def cube_install(req: CubeInstallRequest, request: Request,
     Private cubes: owner chain only. Shared: after existing publish Guard; still needs yes.
     """
     from app import chain_skills as _cs
-    uid, chain_id, _, _ = _cs.chain_from_request(request, authorization, x_api_key)
-    uid = (req.user_id or "").strip() or uid
+    uid, chain_id, _, _ = _cs.owner_uid(request, authorization, x_api_key, req.user_id)   # key owner wins
     if req.user_quote:
         print(f"[cube_install] consent quote uid={uid} cube={req.cube_id} quote={req.user_quote[:120]!r}", flush=True)
     chain = (req.chain_id or "").strip() or chain_id
@@ -696,8 +695,7 @@ async def constitution_install(req: ConstitutionInstallRequest, request: Request
                                authorization: str = Header(None), x_api_key: str = Header(None)):
     """User installs the SKV constitution as their own rules. Requires explicit user yes."""
     from app import chain_skills as _cs, constitution_consent as _cc
-    uid, _c, _n, _k = _cs.chain_from_request(request, authorization, x_api_key)
-    uid = (req.user_id or "").strip() or uid
+    uid, _c, _n, _k = _cs.owner_uid(request, authorization, x_api_key, req.user_id)   # key owner wins
     out = _cc.install(uid, user_confirmed=bool(req.user_confirmed),
                       user_said_install=bool(req.user_said_install), by=uid, via="api")
     if not out.get("ok"):
@@ -710,8 +708,7 @@ async def constitution_uninstall(req: ConstitutionInstallRequest, request: Reque
                                  authorization: str = Header(None), x_api_key: str = Header(None)):
     """User switches the SKV constitution off (only the user may)."""
     from app import chain_skills as _cs, constitution_consent as _cc
-    uid, _c, _n, _k = _cs.chain_from_request(request, authorization, x_api_key)
-    uid = (req.user_id or "").strip() or uid
+    uid, _c, _n, _k = _cs.owner_uid(request, authorization, x_api_key, req.user_id)   # key owner wins
     out = _cc.uninstall(uid)
     if not out.get("ok"):
         raise HTTPException(401, out.get("error"))
@@ -722,8 +719,7 @@ async def constitution_uninstall(req: ConstitutionInstallRequest, request: Reque
 async def constitution_status(request: Request, user_id: str = "",
                               authorization: str = Header(None), x_api_key: str = Header(None)):
     from app import chain_skills as _cs, constitution_consent as _cc
-    uid, _c, _n, _k = _cs.chain_from_request(request, authorization, x_api_key)
-    uid = (user_id or "").strip() or uid
+    uid, _c, _n, _k = _cs.owner_uid(request, authorization, x_api_key, user_id)   # key owner wins
     if not uid:
         raise HTTPException(401, "API key required")
     return _cc.status(uid)
@@ -734,8 +730,7 @@ async def cube_uninstall(req: CubeUninstallRequest, request: Request,
                          authorization: str = Header(None), x_api_key: str = Header(None)):
     """Detach a skill cube from this chain."""
     from app import chain_skills as _cs
-    uid, chain_id, _, _ = _cs.chain_from_request(request, authorization, x_api_key)
-    uid = (req.user_id or "").strip() or uid
+    uid, chain_id, _, _ = _cs.owner_uid(request, authorization, x_api_key, req.user_id)   # key owner wins
     chain = (req.chain_id or "").strip() or chain_id
     out = _cs.uninstall(uid, chain, req.cube_id)
     if not out.get("ok"):

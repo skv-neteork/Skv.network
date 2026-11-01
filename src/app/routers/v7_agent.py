@@ -772,7 +772,10 @@ async def session_bootstrap(req: SessionBootstrapRequest, request: Request,
             "endpoint": "POST /api/v7/session/bootstrap",
         }
 
-    uid = (req.user_id or "").strip() or _request_user(request)
+    _ku = (_request_user(request) or "").strip()   # key owner wins over a body user_id
+    if _ku and (req.user_id or "").strip() and req.user_id.strip().lower() != _ku.lower():
+        raise HTTPException(403, "user_id does not match the API key owner")
+    uid = _ku or (req.user_id or "").strip()
     token = ""
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization[7:].strip()

@@ -472,6 +472,16 @@ def chain_from_request(request, authorization: str = None, x_api_key: str = None
     return uid or "", chain_id, chain_name, key_kind
 
 
+def owner_uid(request, authorization: str = None, x_api_key: str = None, claimed: str = "", key: str = None):
+    """Like chain_from_request, but the key owner always wins: a different user_id in the request is a 403."""
+    uid, chain_id, chain_name, kind = chain_from_request(request, authorization, x_api_key, key)
+    c = (claimed or "").strip()
+    if uid and c and c.lower() != uid.lower():
+        from fastapi import HTTPException
+        raise HTTPException(403, "user_id does not match the API key owner")
+    return uid, chain_id, chain_name, kind
+
+
 def installed_by_others(cube_id: str, author: str) -> int:
     """How many other accounts have this cube (or an older version of it) installed."""
     import glob, os

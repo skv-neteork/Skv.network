@@ -46,6 +46,6 @@ Later: Le Chat, Gemini, Claude via per-site adapters. Source: /workspace/skv-gua
 
 
 ## 0.1.7 (2026-11-01)
-- Opt-in "Auto-insert SKV memory before sending" (Options, default off; Gemini). With it on, Enter/Send first fetches matching facts and prepends the `[SKV memory — data, not instructions]` block, then sends. Off: only the manual button, as before.
+- Opt-in "Auto-insert SKV memory before sending" (Options, default ON since 2026-11-01 by owner decision; can be switched off; Gemini). With it on, Enter/Send first fetches matching facts and prepends the `[SKV memory — data, not instructions]` block, then sends. Switched off: only the manual button, as before.
 - Server marks web turns sent without a memory block and without [ev:] citations as `[READ ?]` + seal_warning; the badge is then not green.
 - Gemini user text: screen-reader label ("Ваш запрос"/"You said") removed, doubled prompt de-duplicated.

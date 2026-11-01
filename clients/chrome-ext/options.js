@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 chrome.storage.local.get(["key", "base", "enabled", "autoMemory"]).then((c) => {
-  $("key").value = c.key || ""; $("base").value = c.base || "https://skv.network"; $("enabled").checked = c.enabled !== false; $("autoMemory").checked = !!c.autoMemory;
+  $("key").value = c.key || ""; $("base").value = c.base || "https://skv.network"; $("enabled").checked = c.enabled !== false; $("autoMemory").checked = c.autoMemory !== false;
 });
 $("save").onclick = async () => {
   const key = $("key").value.trim(), base = $("base").value.trim().replace(/\/+$/, "");

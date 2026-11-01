@@ -50,9 +50,9 @@
     status("Inserted " + r.facts.length + " facts. Review before sending.");
   };
 
-  // Opt-in (Options: "Auto-insert SKV memory before sending"): on Enter / Send, fetch facts for the typed
-  // message, put the memory block in front of it, then send. Off by default: the user's message is changed
-  // only after the user switched this on. Needs adapter.sendButton (Gemini for now); other sites: manual button.
+  // Options: "Auto-insert SKV memory before sending" (on by default since 0.1.7; owner can switch off): on Enter / Send, fetch facts for the typed
+  // message, put the memory block in front of it, then send. The user can switch this off in Options;
+  // then only the manual button changes the message. Needs adapter.sendButton (Gemini for now); other sites: manual button.
   let autoMem = false, bypass = false, busy = false;
   const refreshAuto = () => send({ type: "status" }).then((s) => { autoMem = !!(s && s.enabled && s.hasKey && s.autoMemory); });
   refreshAuto(); setInterval(refreshAuto, 15000);

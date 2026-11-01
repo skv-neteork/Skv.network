@@ -59,3 +59,8 @@ test("background: off blocks turn/context before any network call", () => {
   const off = b.indexOf('if (!c.enabled) return reply({ error: "off" })'), turn = b.indexOf('msg.type === "turn"');
   assert.ok(off > 0 && off < turn);
 });
+test("0.1.7: auto-insert SKV memory is on by default, can be switched off", () => {
+  const fs = require("fs"), path = require("path"), r = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  assert.match(r("background.js"), /autoMemory: true \}/);
+  assert.match(r("options.js"), /c\.autoMemory !== false/);
+});

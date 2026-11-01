@@ -1,6 +1,6 @@
 // Service worker: the only place that knows the SKV key and talks to the server.
 importScripts("mask.js");
-const DEFAULTS = { base: "https://skv.network", enabled: true, key: "", autoMemory: false };
+const DEFAULTS = { base: "https://skv.network", enabled: true, key: "", autoMemory: true };
 async function cfg() { return Object.assign({}, DEFAULTS, await chrome.storage.local.get(["base", "enabled", "key", "autoMemory"])); }
 
 let lastErr = null, lastOk = null;

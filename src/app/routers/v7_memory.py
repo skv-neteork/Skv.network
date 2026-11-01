@@ -1294,7 +1294,42 @@ async def search_by_date(data: dict):
     return {"results": results, "count": len(results)}
 
 
+_REM_IDEM = {}   # (user_id, client_key) -> [t, result or None while running]; one uvicorn worker, so in-process is enough
+_REM_IDEM_TTL = 600
+
+
 @router.post("/remember")
+async def remember_route(req: RememberRequest):
+    """/remember with an optional client_key: a client that lost the response (network) resends the same key and gets
+    the first result back instead of a second saved event. A resend during the first run waits for it."""
+    import asyncio, time as _t
+    ck = (req.client_key or "").strip()[:80]
+    if not ck:
+        return await remember(req)
+    now = _t.time()
+    for _k in [k for k, v in _REM_IDEM.items() if now - v[0] > _REM_IDEM_TTL]:
+        _REM_IDEM.pop(_k, None)
+    key = (req.user_id, ck)
+    if key in _REM_IDEM:
+        for _ in range(300):   # <= 30 s for a first run still in progress
+            ent = _REM_IDEM.get(key)
+            if ent is None:
+                break   # first run failed: run again below
+            if ent[1] is not None:
+                return {**ent[1], "replayed": True} if isinstance(ent[1], dict) else ent[1]
+            await asyncio.sleep(0.1)
+        else:
+            return {"ok": False, "status": 504, "error": "first request with this client_key is still running"}
+    _REM_IDEM[key] = [now, None]
+    try:
+        res = await remember(req)
+    except BaseException:
+        _REM_IDEM.pop(key, None)
+        raise
+    _REM_IDEM[key] = [now, res]
+    return res
+
+
 async def remember(req: RememberRequest):
     import sqlite3, json, time
     from app.account_memory import queue_turn, account_db_name

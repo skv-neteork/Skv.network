@@ -776,6 +776,7 @@ class RememberRequest(BaseModel):
     cube_type: str = ""         # cube kind: moment|fact|culture|lifehack|warning|code
     profile: Optional[Any] = None         # profile ops (list or JSON string), see docs/user_profile_design.md
     profile_review: Optional[Any] = None  # with l2_map: {"ops":[...]} or {"no_changes":true,"reason":...}
+    client_key: str = ""        # idempotency key from the client: a resend with the same key replays the first result (no double save)
 
 def _event_time_str(value):
     """ISO 8601 time -> stored time_str ('YYYY-MM-DD HH:MM', UTC like the server clock). Naive values are taken as UTC.

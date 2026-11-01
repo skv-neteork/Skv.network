@@ -16,6 +16,8 @@ import logging as _lg
 _lg.getLogger("httpx").setLevel(_lg.WARNING)   # URLs carry user text: never log them
 _lg.getLogger("httpcore").setLevel(_lg.WARNING)
 import contextvars
+import threading
+import uuid
 import time as _time
 import json
 import re
@@ -420,8 +422,10 @@ _CONNECT_TMO = float(os.environ.get("SKV_CONNECT_TIMEOUT", "2.5"))
 _SLOW_PATHS = ("/consult", "/import", "/sandbox", "/bureau", "/court")
 # idempotent reads: first try with a short read timeout, then one retry on a fresh connection. The box tunnel
 # sometimes loses a response on a reused keep-alive connection (server answered in 0.02 s, client waited 20 s).
-_FAST_READ = float(os.environ.get("SKV_FAST_READ_TIMEOUT", "4"))
-_IDEMPOTENT_POST = ("/search",)
+_FAST_READ = float(os.environ.get("SKV_FAST_READ_TIMEOUT", "2.5"))
+# POSTs safe to resend: reads, validation, get/set and the seal counter (a resend can only skip one seal number).
+# /remember is resent only with a client_key: the server replays the first result instead of saving twice.
+_IDEMPOTENT_POST = ("/search", "/profile/precheck", "/session/step_zero", "/account/timezone", "/agent/seal_next")
 
 
 def _http_client(base: str) -> "httpx.Client":
@@ -441,7 +445,8 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
     c = _http_client((base or BASE).rstrip('/'))
     slow = any(x in path for x in _SLOW_PATHS)
     tmo = httpx.Timeout(120.0 if slow else 20.0, connect=_CONNECT_TMO, pool=5.0)
-    idem = (method.upper() == "GET" or path.rstrip("/") in _IDEMPOTENT_POST) and not slow
+    idem = (method.upper() == "GET" or path.rstrip("/") in _IDEMPOTENT_POST
+            or (isinstance(body, dict) and bool(body.get("client_key")))) and not slow
     tmo_fast = httpx.Timeout(_FAST_READ, connect=_CONNECT_TMO, pool=5.0) if idem else tmo
     if True:
         h = dict(_headers())
@@ -455,7 +460,9 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
             pass
         # API restart window: retry only when the request surely was not processed (connect failed / pool stalled /
         # stale keep-alive dropped before a response, or the proxy's 502/503 = upstream unreachable).
-        # Read timeouts are retried once for GET only (a POST may already be saved). Total wait <= _REQ_RETRY_WINDOW.
+        # Read timeouts: idempotent calls (GET, _IDEMPOTENT_POST, bodies with client_key) wait _FAST_READ first and are
+        # resent once on a fresh try (some client networks lose a response on a reused connection); other POSTs wait
+        # the full timeout and are never resent. Total wait <= _REQ_RETRY_WINDOW.
         _w = 0.0; _rt = 0; r = None
         while True:
             try:
@@ -1734,6 +1741,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
         if same:
             body["query"] = "[revision of ev:%s] " % _sid(t["last_eid"]) + body["query"]
             body["supersedes"] = t["last_eid"]
+        body["client_key"] = "t-" + uuid.uuid4().hex   # lets _req resend a lost /remember without a double save
         saved = _req("POST", "/remember", body)
         if isinstance(saved, dict) and saved.get("ok") is not False:
             if same:
@@ -1752,7 +1760,9 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
         _sl = final
         for _x in [x.strip() for x in (sensitive or "").split("|") if len(x.strip()) >= 3]:
             _sl = _sl.replace(_x, "[SECRET]")
-        _req("POST", "/agent/second-look", _uid_body({"user_id": USER or "from_key", "draft": _sl, "event_id": "", "span": 0, "searched": True, "hit_ids": []}))
+        _slb = _uid_body({"user_id": USER or "from_key", "draft": _sl, "event_id": "", "span": 0, "searched": True, "hit_ids": []})
+        _slc = contextvars.copy_context()   # keeps the caller's key/demo context (public server) in the thread
+        threading.Thread(target=lambda b=_slb, c=_slc: c.run(_req, "POST", "/agent/second-look", b), daemon=True).start()   # duty log only: never on the reply path
         with open("/var/log/skv_selfcheck.log", "a") as fh:
             fh.write(json.dumps({"t": int(_time.time()), "user": _caller_id(), "self_check": True, "cited": len(cited), "facts": len(facts), "cubes": len(cubes)}) + "\n")
     except Exception:

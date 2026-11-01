@@ -50,32 +50,82 @@
     status("Inserted " + r.facts.length + " facts. Review before sending.");
   };
 
-  // Options: "Auto-insert SKV memory before sending" (on by default since 0.1.7; owner can switch off): on Enter / Send, fetch facts for the typed
-  // message, put the memory block in front of it, then send. The user can switch this off in Options;
-  // then only the manual button changes the message. Needs adapter.sendButton (Gemini for now); other sites: manual button.
-  let autoMem = false, bypass = false, busy = false;
-  const refreshAuto = () => send({ type: "status" }).then((s) => { autoMem = !!(s && s.enabled && s.hasKey && s.autoMemory); });
-  refreshAuto(); setInterval(refreshAuto, 15000);
-  async function autoSend(e) {
-    if (bypass || !autoMem || !A.sendButton || busy) return;
-    const q = A.composerText(document);
-    if (!q || q.includes(MEM_TAG)) return;          // empty or memory already inserted: send as is
-    e.preventDefault(); e.stopImmediatePropagation();
-    busy = true; status("Adding SKV memory…");
-    let r = null;
-    try { r = await Promise.race([send({ type: "context", user_message: q }), new Promise((res) => setTimeout(() => res({ error: "timeout" }), 5000))]); } catch (x) { r = { error: String(x) }; }
-    if (r && !r.error && r.facts && r.facts.length) { A.setComposerText(document, memBlock(r.facts) + q); status("Added " + r.facts.length + " SKV facts to the message."); }
-    else status(r && r.error ? "SKV memory not added (" + (r.message || r.error) + "); sent without it." : "SKV memory: no matching facts; sent as is.");
-    setTimeout(() => { const b = A.sendButton(document); bypass = true; try { if (b && !b.disabled) b.click(); } finally { bypass = false; busy = false; } }, 250);
+  // Auto-insert SKV memory before sending (Options; on by default since 0.1.7, the owner can switch it off).
+  // 0.1.7b, after the live Gemini test (auto-insert did not fire): the hook was only on `document`, only for
+  // e.key === "Enter", only when e.target was inside the composer, only for "click", and a second Enter/click
+  // while the facts were loading went through bare. Now: window capture phase (runs before any page listener),
+  // Enter by key/code/keyCode (automation often sends keyCode 13 without `key`), composer found via
+  // composedPath/activeElement, keydown+keypress and pointerdown/mousedown/click on the send button, every
+  // further send attempt swallowed while busy, then send by clicking the button (or a synthetic Enter) and a
+  // check that the composer was really emptied. The last hook decision is shown in diagnostics.
+  const VER = (() => { try { return chrome.runtime.getManifest().version; } catch (e) { return "?"; } })();
+  let autoMem = null, bypass = false, busy = false, lastHook = "-";
+  const hookLog = (t) => { lastHook = t + " @" + new Date().toTimeString().slice(0, 8); };
+  const refreshAuto = () => send({ type: "status" }).then((s) => { if (s && !s.error) autoMem = !!(s.enabled && s.hasKey && s.autoMemory !== false); });
+  refreshAuto(); setInterval(refreshAuto, 10000);
+  window.addEventListener("focus", refreshAuto); document.addEventListener("visibilitychange", refreshAuto);
+  const isEnter = (e) => (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter" || e.keyCode === 13 || e.which === 13 || e.charCode === 13);
+  function inComposer(e) {
+    const c = A.composer(document); if (!c) return false;
+    const path = e.composedPath ? e.composedPath() : [];
+    if (path.includes(c)) return true;
+    const t = e.target, ae = document.activeElement;
+    return !!((t && t.nodeType === 1 && (c === t || c.contains(t))) || (ae && (ae === c || c.contains(ae))));
   }
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
-    const c = A.composer(document); if (c && (c === e.target || c.contains(e.target))) autoSend(e);
-  }, true);
-  document.addEventListener("click", (e) => {
-    const b = A.sendButton && A.sendButton(document);
-    if (b && (b === e.target || b.contains(e.target))) autoSend(e);
-  }, true);
+  function onSendButton(e) {
+    const b = A.sendButton && A.sendButton(document); if (!b) return false;
+    const path = e.composedPath ? e.composedPath() : [];
+    return path.includes(b) || (e.target && e.target.nodeType === 1 && (b === e.target || b.contains(e.target)));
+  }
+  const stop = (e) => { e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation(); };
+  const needsMemory = () => { const q = A.composerText(document); return q && !q.includes(MEM_TAG) ? q : ""; };
+  function triggerSend() {
+    const b = A.sendButton(document);
+    bypass = true;
+    try {
+      if (b && !b.disabled && b.getAttribute("aria-disabled") !== "true") { b.click(); return "button"; }
+      const c = A.composer(document); if (!c) return "none";
+      c.focus();
+      const o = { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true };
+      c.dispatchEvent(new KeyboardEvent("keydown", o)); c.dispatchEvent(new KeyboardEvent("keyup", o));
+      return "enter";
+    } finally { bypass = false; }
+  }
+  async function intercept(e, how) {
+    stop(e);
+    if (busy) return hookLog(how + ": swallowed (memory loading)");
+    const q = needsMemory(); busy = true; status("Adding SKV memory…");
+    let r = null, note;
+    try { r = await Promise.race([send({ type: "context", user_message: q }), new Promise((res) => setTimeout(() => res({ error: "timeout" }), 6000))]); } catch (x) { r = { error: String(x) }; }
+    if (r && !r.error && r.facts && r.facts.length) { A.setComposerText(document, memBlock(r.facts) + q); note = "+" + r.facts.length + " facts"; status("Added " + r.facts.length + " SKV facts to the message."); }
+    else { note = r && r.error ? "no memory (" + (r.message || r.error) + ")" : "no matching facts"; status("SKV memory not added: " + note + "; sent as is."); }
+    await new Promise((res) => setTimeout(res, 300));      // let the editor (Quill) take the new text
+    const via = triggerSend();
+    hookLog(how + " → " + note + " → send via " + via);
+    setTimeout(() => {
+      busy = false;
+      const left = A.composerText(document);
+      if (left && left.includes(MEM_TAG)) { status("SKV memory is in the message, but the site did not send it. Press Enter or Send."); hookLog(how + " → " + note + " → NOT sent (via " + via + "), waiting for user"); }
+    }, 1500);
+  }
+  function hookKey(e) {
+    if (bypass || !isEnter(e) || e.shiftKey || e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!inComposer(e)) return;
+    if (busy) { stop(e); return hookLog(e.type + ": swallowed (memory loading)"); }
+    if (autoMem === false) return hookLog(e.type + " Enter: auto-insert off");
+    if (!needsMemory()) return hookLog(e.type + " Enter: empty or memory already in");
+    const d = e.type + "(key=" + (e.key || "∅") + " kc=" + e.keyCode + (e.isTrusted ? "" : " synthetic") + ")";
+    if (e.type === "keypress" || e.type === "keydown") intercept(e, d);
+  }
+  function hookPointer(e) {
+    if (bypass || !onSendButton(e)) return;
+    if (busy) { stop(e); return; }
+    if (autoMem === false || !needsMemory()) return;
+    if (e.type === "click") intercept(e, "click(send" + (e.isTrusted ? "" : " synthetic") + ")");
+    else stop(e);                                        // pointerdown/mousedown: keep the site from sending early
+  }
+  for (const t of ["keydown", "keypress"]) window.addEventListener(t, hookKey, true);
+  for (const t of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) window.addEventListener(t, hookPointer, true);
   $("inst").onclick = async () => {
     if (!confirm("Install the SKV constitution as your rules? It means mandatory per-turn save, Second Look and cube duties.")) return;
     const r = await send({ type: "install", user_confirmed: true });
@@ -141,7 +191,7 @@
     if (r.verdict === "revise") lines.push("Server found an unknown [ev:id] in the reply.");
     // Server duties (L1/L2, cubes…) are agent instructions, not user text: never shown in the widget.
     if (r.seal_warning) lines.push("warning: " + r.seal_warning);
-    if (r.seal && r.seal.includes("[READ ?]") && !autoMem) lines.push("Tip: switch on auto-insert of SKV memory in Options, or click Insert SKV memory before sending.");
+    if (r.seal && r.seal.includes("[READ ?]") && autoMem === false) lines.push("Tip: switch on auto-insert of SKV memory in Options, or click Insert SKV memory before sending.");
     status(lines.join("\n"));
   }
 
@@ -152,7 +202,7 @@
       const d = A.diag(document), b = await send({ type: "diag" });
       const pt = d.parts ? "stop=" + d.parts.stop + " state=" + d.parts.state + " copy=" + d.parts.copy + " done=" + d.parts.done : "no reply";
       $("dg").textContent = d.adapter + " | user=" + d.users + " asst=" + d.assistants + " composer=" + d.composer + "\n" + pt +
-        "\nkey=" + b.hasKey + " on=" + b.enabled + " | last ok: " + (b.lastOk || "-") + "\nlast err: " + (b.lastErr || lastSendErr || "-");
+        "\nv=" + VER + "/" + (b.version || "?") + " key=" + b.hasKey + " on=" + b.enabled + " auto=" + (autoMem === null ? "?" : autoMem ? "on" : "off") + " send=" + !!(A.sendButton && A.sendButton(document)) + "\nhook: " + lastHook + "\nlast ok: " + (b.lastOk || "-") + "\nlast err: " + (b.lastErr || lastSendErr || "-");
     } catch (e) { $("dg").textContent = "diag error: " + e.message; }
   }
   setInterval(diag, 2000); diag();

@@ -328,6 +328,8 @@ async def consult_rag(request: Request):
         for cid, cube in _v4_graph.items():
             if hasattr(cube, 'vector') and cube.vector is not None:
                 cv = np.array(cube.vector)
+                if cv.shape != qv.shape:  # placeholder/old-model vectors (e.g. 3-d const cubes) vs 768-d query
+                    continue
                 sim = float(np.dot(qv, cv) / (np.linalg.norm(qv) * np.linalg.norm(cv) + 1e-8))
                 if sim > 0.15:
                     activated.append({"id": cid, "title": cube.metadata.get('title', cid[:30]), "sim": sim})

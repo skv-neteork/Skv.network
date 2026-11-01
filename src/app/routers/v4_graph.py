@@ -72,6 +72,8 @@ class TensorCube:
     def cosine_similarity(self, other_vector) -> float:
         """Косинусное сходство (вектор уже нормализован)"""
         other = np.array(other_vector, dtype=np.float32)
+        if other.shape != self.vector.shape:  # dimension mismatch -> no similarity instead of a shape error
+            return 0.0
         norm = np.linalg.norm(other)
         if norm > 0:
             other = other / norm

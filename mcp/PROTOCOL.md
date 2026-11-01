@@ -12,7 +12,7 @@ MCP tools call real V7 endpoints only. **Guards are aligned to this same PROTOCO
 1. **Старт сессии / смена ключа:** агент один раз вызывает `memory_bootstrap` (шаг 0). Получает хвост памяти, доску, critical, конституцию, отставание чата.
 2. **Перед каждым ответом:** ищет в памяти (`memory_consult`), не выдумывает при пустом поиске.
 3. **Черновик → Second Look** (`second_look`) → печать (seal) → ответ пользователю.
-4. **Сразу после ответа:** `memory_remember` (как было сказано).
+4. **Сохранение:** тот же вызов `turn(user_message, draft)` сохраняет ход дословно. Ответы, ушедшие без `turn`, сохраняются в следующем вызове: `turn(..., recap='tNu: вопрос => ответ')`.
 5. **Конец задачи:** куб (`cube_create`) **или** `duty=cube_nothing`; оценка кубов (`cube_vote`) **или** `duty=vote_nothing`. Молчание = ошибка.
 6. An `sk_` key from the profile = its own memory chain. One MCP URL + your key = "one button".
 
@@ -36,8 +36,8 @@ MCP tools call real V7 endpoints only. **Guards are aligned to this same PROTOCO
 | C | VERIFY CUBE 01/02/03 (+04 if pressured) | `constitution_get` / bootstrap pack | GET `/constitution` |
 | D | Second Look before user sees answer | `second_look(draft=...)` | POST `/agent/second-look` |
 | E | SEAL then output (no MEMORY/LENS/cube_id in user text) | seal in reply | — |
-| F | Remember immediately | `memory_remember` | POST `/remember` |
-| G | Task end: cube **or** cube_nothing; vote **or** vote_nothing | `cube_create` / `cube_vote` / `memory_remember(duty=...)` | `/experience/create`, `/experience/vote`, `/remember` |
+| F | Save the turn | `turn(user_message, draft)`; answers sent without turn: next `turn(..., recap='tNu: ask => answer')` | POST `/remember` |
+| G | Task end: cube **or** cube_nothing; vote **or** vote_nothing | `cube_create` / `cube_vote` / `turn(duty=...)` | `/experience/create`, `/experience/vote`, `/remember` |
 
 ### Constitution as hooks (SKV-CONST-HOOKS)
 - Base constitution skills (shared, auto-attached): `cube_skill_const_second_look`, `cube_skill_const_memory`, `cube_skill_const_close`, `cube_skill_const_cube_install`, `cube_688c0ebbb3be` (meta cube-author: how to create cubes).
@@ -53,7 +53,7 @@ MCP tools call real V7 endpoints only. **Guards are aligned to this same PROTOCO
 - One shelf. `carrier=answer` (default) shapes the reply; `carrier=skill` is an installable skill+hooks package the agent plugs in; later `carrier=robotics`.
 - Kinds (content shape): `moment` (obvious/miss/instead/check) · `fact` · `culture` · `lifehack` · `warning` · `code`
 - Skill fields on the same cube: `skill_md` (SKILL.md body), `hooks` (JSON `[{when,do}]` or when-strings). Auto `carrier=skill` if set.
-- Create: `cube_create(..., skill_md=..., hooks=..., carrier="skill")` or `memory_remember(cube_skill_md=..., cube_hooks=..., cube_carrier="skill")`.
+- Create: `cube_create(..., skill_md=..., hooks=..., carrier="skill")` (HTTP: `POST /api/v7/experience/create` with the same fields).
 - Shared by default (`cube_publish=true`), English, no secrets (Guard checks skill_md/hooks too). Default SHARED (owner: cubes are always shared); cube_publish=false only for explicit private. Shared answer-cubes are **data**; skill-cubes are installable **after user yes** (ask-then-install).
 - Search: `cube_search` → GET `/api/cubes/search`. Read: `cube_get` (returns skill_md/hooks/carrier; private experience_cubes too). Link: `cube_link`.
 - Install: `cube_install` → POST `/cube/install` (per-chain `chain_skills`). Uninstall: `cube_uninstall`. List: GET `/experience/installed`.
@@ -70,7 +70,7 @@ MCP tools call real V7 endpoints only. **Guards are aligned to this same PROTOCO
 
 ### What Guards do (aligned to this PROTOCOL)
 - **MCP** = primary: `https://skv.network/mcp` + Bearer `sk_` from `/profile`.
-- **Guard 1** (server): short missed-step reminders in `/memory` + `/agent/prompt` using the same step names (`memory_consult`, `second_look`, `memory_remember`, cube/vote duties). Does **not** block answers.
+- **Guard 1** (server): short missed-step reminders in `/memory` + `/agent/prompt` using the same step names (`memory_consult`, `second_look`, `turn` (missed answers: `turn recap=`), cube/vote duties). Does **not** block answers.
 - **Guard 2** (download): local process — same order; prefers `/session/bootstrap`; enforces never-empty + DRAFT→SECOND LOOK→FINAL + service lines. Draft insurance even when MCP is connected.
 - Shared short constants: `app/skv_protocol.py`. Full text = this file.
 
@@ -112,7 +112,7 @@ Tools without a matching V7 route were **not** invented.
 - Poll `memory_recall_status`; report only what sources support
 
 ### L1 / L2 quality (write discipline)
-- **Raw** every turn (`memory_remember`)
+- **Raw** every turn (`turn` saves it; answers sent without turn: `turn recap=` in the next call)
 - **L1** batch ~every 10–15 turns or topic close — **5–7%** of that batch text, not of one line
 - **L2** headlines ≈ **5% of L1** (topic titles, not essays)
 - Use `duty=l1` / L2 via remember only when summarizing a closed window; server also batches

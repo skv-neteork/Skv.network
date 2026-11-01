@@ -76,7 +76,7 @@ Order: **bootstrap → skills/constitution → memory_consult → draft → seco
 | memory_dig | POST `/api/v7/memory/dig` |
 | memory_lens | POST `/api/v7/memory/lens` |
 | memory_event | GET `/api/v7/event/{id}` |
-| memory_remember | POST `/api/v7/remember` |
+| turn | POST `/api/v7/remember` (saves the turn; `recap=` saves answers sent without turn) |
 | memory_critical | POST `/api/v7/remember` (critical) |
 | memory_recall_later / _status | `/api/v7/memory/recall_later` |
 | second_look | POST `/api/v7/agent/second-look` |

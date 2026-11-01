@@ -16,7 +16,7 @@ Fields on the same experience cube:
 Create:
 - MCP `cube_create(topic, essence, rules, skill_md=..., hooks=..., carrier="skill", cube_publish=true)`
 - HTTP `POST /api/v7/experience/create` with the same fields
-- or (legacy, unlisted) `memory_remember` with `cube_*` fields
+- or `turn(..., task_done=true)` and answer the cube duty it returns (`cube_create` or `duty=cube_nothing`)
 
 Shared by default (`cube_publish=true`): English, no secrets (Guard checks skill_md + hooks too). Default SHARED (owner: cubes are always shared); cube_publish=false only for explicit private.
 Give `essence` yourself, never the user's question.

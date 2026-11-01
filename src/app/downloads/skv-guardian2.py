@@ -3,7 +3,8 @@
 
 Guard 1 (server) only marks a missed step (short PROTOCOL reminders). Guard 2 emulates the same PROTOCOL core as MCP
 for non-MCP agents and is draft insurance even with MCP. MCP agents: bootstrap → (install → step_zero pages) → draft → turn(user_message, draft) → output with seal. This guard (HTTP): bootstrap → consult → draft → second_look → remember → cube/vote.
-  memory_consult -> draft+service lines -> memory_remember -> second_look -> cube_vote -> clean answer to the user.
+  memory_consult -> draft+service lines -> save turn (POST /remember) -> second_look -> cube_vote -> clean answer to the user.
+  (MCP agents: turn is the only save tool; answers sent without turn go into the next turn as recap='tNu: ask => answer'.)
 Service lines the agent must write (hidden from the user):
   L1: <stage summary, only when the guard asks: about every 15 turns; stages = done / decided / outcome; 5-8% of the raw text>
   L2: <headlines, rare: after 10 stage L1s; about 5% of L1>
@@ -47,7 +48,7 @@ PROTOCOL CHECKLIST (mandatory order — do not dump all MCP tools here):
   0 memory_bootstrap once/session (POST /api/v7/session/bootstrap + last 2–3 msgs; fallback GET /api/v7/memory/start)
   1 memory_consult each turn (POST /api/v7/memory) — this guard calls it before your draft
   2 draft → SECOND LOOK → FINAL, then hidden service lines
-  3 memory_remember immediately (POST /api/v7/remember) — guard saves after draft
+  3 save the turn immediately (POST /api/v7/remember; MCP: turn, missed answers via turn recap=) — guard saves after draft
   4 second_look API (POST /api/v7/agent/second-look) — guard calls it
   5 cube_create|CUBE_NOTHING + cube_vote|RATE / vote_nothing — your lines; silence = error
 

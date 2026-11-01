@@ -1,4 +1,4 @@
-> **CURRENT LOOP (2026-10-24):** tools/list shows only `turn`, `step_zero`, `constitution_status`, `constitution_install`, `memory_start`, `memory_search`, `memory_event`, `cube_search/get/install/vote/create`, `feedback_submit`, `board_list/act`. Every turn = one `turn(user_message, draft)` call; the seal is server-issued by `turn` (self-drawn seal = violation). Installed constitution → `step_zero(page=1..N)` at session start, consent already given. Tools below marked bootstrap/consult/second_look/remember are legacy: still callable, not listed.
+> **CURRENT LOOP (2026-10-24):** core tools in tools/list: `turn`, `step_zero`, `constitution_status`, `constitution_install`, `memory_start`, `memory_dig`, `memory_event`, `cube_search/get/install/vote/create`, `feedback_submit`, `board_list/act`. Every turn = one `turn(user_message, draft)` call; the seal is server-issued by `turn` (self-drawn seal = violation). Installed constitution → `step_zero(page=1..N)` at session start, consent already given. Tools below marked bootstrap/consult/second_look/remember are legacy: still callable, not listed.
 
 # SKV MCP — full agent protocol
 

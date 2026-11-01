@@ -35,6 +35,7 @@ Without any key, `https://skv.network/mcp` still answers `initialize` and `tools
 2. Connect your agent:
    - **MCP, header auth** (Cursor, Claude Code, Claude Desktop, …): URL `https://skv.network/mcp`, header `Authorization: Bearer sk_…`
    - **MCP, no custom headers** (e.g. claude.ai custom connector): `https://skv.network/mcp/k/sk_…/`. This URL contains your key, so keep it private.
+   - **One command for Claude Code / Cursor** (MCP entry + save hooks, asks before every change, key kept in `~/.skv/key`): `curl -fsSL https://skv.network/install.sh | bash` (Windows PowerShell: `irm https://skv.network/install.ps1 | iex`). Remove: `curl -fsSL https://skv.network/install.sh | bash -s -- --uninstall`.
    - **REST / GPT Actions**: import `https://skv.network/api/v7/agent/openapi.json`, auth = Bearer key.
 3. First message in a new chat: ask the agent to call `memory_start`, read the constitution, and install it after your yes (`constitution_install(user_confirmed=true)`). From then on, every answer goes through `turn`.
 
@@ -61,7 +62,7 @@ SKV Guard 2 for ChatGPT, Claude, Gemini and Le Chat web UIs: download [skv-guard
 |---|---|
 | `memory_start` | how to work + the constitution (once per session) |
 | `turn(user_message, draft)` | every answer: memory search + save + Second Look → verdict and seal |
-| `memory_search`, `memory_dig`, `memory_event` | recall by meaning, keywords, date; full event text |
+| `memory_dig`, `memory_event` | dig the archive by keywords or date; full event text (search by meaning runs inside `turn`) |
 | `board_list`, `board_act` | a task board the agent keeps |
 | `cube_search`, `cube_get`, `cube_create`, `cube_vote` | shared experience cubes (published only with your consent) |
 | `vault_inject` | use a stored secret without the agent seeing its value |

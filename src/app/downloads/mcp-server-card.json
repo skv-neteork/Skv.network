@@ -181,7 +181,8 @@
       "type": "string"
      },
      "profile_review": {
-      "type": "string"
+      "type": "string",
+      "description": "With l2_summary: JSON {\"ops\":[...]} or {\"no_changes\":true,\"reason\":\"<why, >=20 chars>\"}; required after the first 3 L2 (else L2 rejected)."
      },
      "msg_ref": {
       "type": "string"

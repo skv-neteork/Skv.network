@@ -3312,6 +3312,8 @@ def _build_public_app():
     return app
 
 
+PARAM_DESC = {"turn": {"profile_review": "With l2_summary: JSON {\"ops\":[...]} or {\"no_changes\":true,\"reason\":\"<why, >=20 chars>\"}; required after the first 3 L2 (else L2 rejected)."}}
+
 SHORT_DESC = {
  "memory_bootstrap": "STEP 0 (preferred): compact continuity pack (consent step, rule 0, duties, seal, memory tail, board). MUST call before first answer. detail=1&page=N = full pack.",
  "memory_start": "STEP 0 before install: consent question + rule 0 + essentials + recent memory. Once installed use step_zero.",
@@ -3379,6 +3381,10 @@ def _slim_tools() -> None:
         if t.name in SHORT_DESC:
             t.description = SHORT_DESC[t.name]
         t.parameters = _strip_titles(t.parameters)
+        for _pn, _pd in PARAM_DESC.get(t.name, {}).items():
+            _pp = (t.parameters.get("properties") or {}).get(_pn)
+            if isinstance(_pp, dict):
+                _pp["description"] = _pd
 
 
 

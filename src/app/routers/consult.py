@@ -547,7 +547,9 @@ async def deepseek_chat(request: Request):
 async def generate_anketa(request: Request):
     import json as _json, urllib.request as _req
     body = await request.json()
-    query = body.get("query", "")
+    query = (body.get("query") or "").strip() if isinstance(body, dict) else ""
+    if not query:  # empty query: no LLM call (was a 120 s wait / timeout)
+        return {"status": "ok", "anketa": {}, "note": "empty query"}
     prompt = f"Generate SKV anketa JSON for: {query}"
     api_body = _json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}).encode()
     r = _req.Request("https://api.polza.ai/v1/chat/completions", data=api_body, headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "") + ""})

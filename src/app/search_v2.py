@@ -204,10 +204,43 @@ def hybrid(uid, query, top_k=20, vec_k=None, with_cos=False):
     except Exception as e:
         print(f"[search_v2] semantic skipped: {e}", flush=True)
     words, rare = fts_ranked(uid, query, limit=c["fts_limit"])
-    fused = wrrf(sem, words, c["w_vec"], word_weight(c, rare))[:top_k]
+    fused = wrrf(sem, words, c["w_vec"], word_weight(c, rare))
+    if not c.get("chunks"):
+        fused = _impute_pending(uid, fused, sem, words, c["w_vec"])
+    fused = fused[:top_k]
     if with_cos:
         return fused, rare, (sem[0][1] if sem else 0.0), bool(words)
     return fused, rare
+
+
+def _impute_pending(uid, fused, sem, words, w_vec, k=60):
+    """Fresh turns wait for the lazy vectorizer (idle_s, ~10 min) and have no vector yet, so in RRF they
+    lose the whole vector half and sink under older, vectorized events (2026-11-01: a codeword saved 2 min
+    earlier was not returned). For a word hit with NO vector at all, use its word rank as its vector rank."""
+    if not words:
+        return fused
+    have = {e for e, _s in sem}
+    cand = [e for e, _s in words if e not in have]
+    if not cand:
+        return fused
+    try:
+        from app import semantic as _sem
+        table = _sem.MODELS[_sem.active_tag()]["table"]
+        conn = sqlite3.connect(_db(uid), timeout=10)
+        try:
+            q = ",".join("?" * len(cand))
+            vec = {r[0] for r in conn.execute(f"SELECT event_id FROM {table} WHERE event_id IN ({q})", cand)}
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[search_v2] impute skipped: {e}", flush=True)
+        return fused
+    rank = {e: r for r, (e, _s) in enumerate(words)}
+    d = dict(fused)
+    for e in cand:
+        if e not in vec:
+            d[e] = d.get(e, 0.0) + w_vec / (k + rank[e] + 1)
+    return sorted(d.items(), key=lambda x: -x[1])
 
 
 def word_weight(c, rare):

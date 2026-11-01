@@ -244,7 +244,11 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
             return {"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
                     "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}
     seal_n = last_seal if (same and last_verdict == "pass" and last_seal) else _next_seal(key, user, same)
-    seal = SEAL_CODE_FMT.format(n=seal_n, c=seal_code(user, seal_n, clean)).replace("[VERIFY ✓]", "[VERIFY ?]" if unverified else "[VERIFY ✓]") + ((" " + pc["seal_mark"]) if (pc.get("seal_mark") and not ext_src) else "")   # ext/hook cannot send profile ops: open candidates go to the server fallback, no [PROFILE ✗]
+    # Web extension: the model only saw SKV memory if the user inserted the memory block (or the reply cites [ev:]).
+    # Otherwise the seal must not claim READ: [READ ?] + a warning naming how many facts the model did not see.
+    ext_web = str(source or "").startswith(("guard2_ext", "ext"))
+    no_read = bool(ext_web and "[SKV memory" not in (user_message or "") and not cited and facts)
+    seal = SEAL_CODE_FMT.format(n=seal_n, c=seal_code(user, seal_n, clean)).replace("[VERIFY ✓]", "[VERIFY ?]" if unverified else "[VERIFY ✓]").replace("[READ ✓]", "[READ ?]" if no_read else "[READ ✓]") + ((" " + pc["seal_mark"]) if (pc.get("seal_mark") and not ext_src) else "")   # ext/hook cannot send profile ops: open candidates go to the server fallback, no [PROFILE ✗]
     final = clean + "\n" + seal
     if same and last_final == final:
         saved = {"event_id": last_eid, "note": "identical turn already saved: not saved again"}
@@ -301,12 +305,14 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
         if isinstance(saved, dict) and saved.get("summary_due"): r["summary_due"] = saved.get("summary_due")
         if ext: r["summary_mode"] = "server"
         if drawn: r["seal_warning"] = "self-written seal in your answer ignored; only this seal field is valid"
+        elif no_read: r["seal_warning"] = "SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)
         if not ok: r["error"] = saved
         r.update(_board_rel(user, user_message, clean)); r.update(prof)
         return r
     return {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "event_id": eid or None, "seal": seal if ok else None,
             "cited_ok": cited, "facts": facts, "cubes": cubes, "self_check": checklist, "duties": [str(d)[:300] for d in duties], **_board_rel(user, user_message, clean), **prof,
-            "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else None,
+            "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else
+                            (("SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)) if no_read else None),
             "summary_due": saved.get("summary_due") if isinstance(saved, dict) else None, "saved_parts": saved.get("saved") if isinstance(saved, dict) else None,
             "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}
 

@@ -11,3 +11,8 @@ test("saved with [VERIFY ?] shows seal + unknown ids", () => {
 test("clean seal ok", () => { const b = badgeFor({ saved: true, seal: "S" }); assert.equal(b.text, "S"); assert.equal(b.ok, true); });
 test("error", () => { assert.match(badgeFor({ error: "http_401", message: "Invalid API key" }).text, /not saved \(Invalid API key\)/); });
 test("saved without seal", () => { assert.equal(badgeFor({ saved: true }).text, "SKV: saved, no seal returned"); });
+test("badge: [READ ?] seal is shown but not green", () => {
+  const S = require("../seal.js");
+  const b = S.badgeFor({ saved: true, verdict: "pass", seal: "🔐 SKV | #2887·1dce | [READ ?] [VERIFY ✓] [CORRECT ✓] [OUTPUT ✓]" });
+  assert.strictEqual(b.ok, false); assert.ok(b.text.startsWith("🔐 SKV | #2887·1dce") && b.text.includes("not given"));
+});

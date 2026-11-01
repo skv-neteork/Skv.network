@@ -13,6 +13,7 @@
     }
     if (!r.seal) return { text: "SKV: saved, no seal returned", ok: false };
     if (r.unknown_ids && r.unknown_ids.length) return { text: r.seal + " · unknown ev id: " + r.unknown_ids.join(", "), ok: false };
+    if (r.seal.includes("[READ ?]")) return { text: r.seal + " · SKV memory was not given to the model", ok: false };
     return { text: r.seal, ok: true };
   }
   const api = { hasSeal: (t) => SEAL.test(t || ""), badgeFor };

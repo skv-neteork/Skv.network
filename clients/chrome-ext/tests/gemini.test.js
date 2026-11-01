@@ -20,3 +20,12 @@ test("gemini: composer read/write", () => {
   let n = 0; A.composer(d).addEventListener("input", () => n++);
   A.setComposerText(d, "a\nb"); assert.strictEqual(n, 1); assert.ok(A.composer(d).textContent.includes("b"));
 });
+test("gemini: user text without screen-reader label and duplicate (live 2026-11-01)", () => {
+  const d = new JSDOM('<main><div class="conversation-container" id="c_r2"><user-query><span class="cdk-visually-hidden">Ваш запрос</span><div class="x">What is my test codeword?</div><div class="y">What is my test codeword?</div></user-query>' +
+    '<model-response><message-content><div class="markdown"><p>ok</p></div></message-content></model-response></div></main><button class="send-button" aria-label="Send message"></button>').window.document;
+  const t = A.turns(d);
+  assert.strictEqual(t[0].text, "What is my test codeword?");
+  assert.strictEqual(A.cleanUser("Ваш запрос Remember: X.  Remember: X."), "Remember: X.");
+  assert.strictEqual(A.cleanUser("hi hi there"), "hi hi there");
+  assert.ok(A.sendButton(d));
+});

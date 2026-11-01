@@ -7,7 +7,9 @@
     user: ["user-query", ".user-query-container", "[data-test-id='user-query']"],
     assistant: ["model-response", ".model-response-container", "[data-test-id='model-response']"],
     assistantText: ["message-content .markdown", ".model-response-text .markdown", "message-content", ".markdown"],
-    userText: [".query-text", ".query-text-line", ".user-query-bubble-with-background"],
+    userText: [".query-text", "[id^='user-query-content'] .query-text", ".query-content", ".query-text-line", ".user-query-bubble-with-background"],
+    hidden: [".cdk-visually-hidden", ".visually-hidden", ".sr-only", "[aria-hidden='true']", "[hidden]"],
+    send: ["button.send-button:not(.stop)", "button[aria-label='Send message']", "button[aria-label*='Send' i]", "button[aria-label*='Отправ' i]"],
     stop: ["button[aria-label='Stop response']", "button.send-button.stop", "button[aria-label*='Stop' i]"],
     copy: ["copy-button button", "button[aria-label='Copy']", "button[data-test-id='copy-button']", "button[aria-label^='Copy' i]"]
   };
@@ -33,8 +35,22 @@
         if (parts.length) return Array.from(parts).map(txt).join("\n").trim();
       }
       const b = first(el, role === "user" ? S.userText : S.assistantText.slice(1)) || el;
-      const c = b.cloneNode(true); c.querySelectorAll("button").forEach((x) => x.remove()); return txt(c);
+      const c = b.cloneNode(true); c.querySelectorAll("button").forEach((x) => x.remove());
+      if (role !== "user") return txt(c);
+      // Live Gemini (2026-11-01): user text came as "Ваш запрос X  X" = screen-reader label + the prompt twice.
+      for (const h of S.hidden) { try { c.querySelectorAll(h).forEach((x) => x.remove()); } catch (e) {} }
+      return adapter.cleanUser(txt(c));
     },
+    cleanUser(t) {
+      let s = String(t || "").replace(/^\s*(Ваш запрос|Вы сказали|You said|Your prompt)\s*[:\n]?\s*/i, "").trim();
+      const n = s.replace(/\s+/g, " ").trim(), h = n.length;
+      for (const cut of [Math.floor((h - 1) / 2), Math.floor(h / 2)]) {   // "X X" (same text twice) -> "X"
+        const a = n.slice(0, cut).trim(), b = n.slice(cut).trim();
+        if (a && a === b) return a;
+      }
+      return s;
+    },
+    sendButton(doc) { return first(doc, S.send); },
     // Gemini: done = no "Stop response" button anywhere; Copy on the response is a hint only.
     doneParts(doc, el) {
       const stop = !!first(doc, S.stop);

@@ -1,7 +1,7 @@
 // Service worker: the only place that knows the SKV key and talks to the server.
 importScripts("mask.js");
-const DEFAULTS = { base: "https://skv.network", enabled: true, key: "" };
-async function cfg() { return Object.assign({}, DEFAULTS, await chrome.storage.local.get(["base", "enabled", "key"])); }
+const DEFAULTS = { base: "https://skv.network", enabled: true, key: "", autoMemory: false };
+async function cfg() { return Object.assign({}, DEFAULTS, await chrome.storage.local.get(["base", "enabled", "key", "autoMemory"])); }
 
 let lastErr = null, lastOk = null;
 // Diagnostic timestamps in the user's zone (Moscow), labelled.
@@ -39,7 +39,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     const c = await cfg();
     if (msg.type === "diag") return reply({ lastErr, lastOk, enabled: c.enabled, hasKey: !!c.key });
-    if (msg.type === "status") return reply({ enabled: c.enabled, hasKey: !!c.key });
+    if (msg.type === "status") return reply({ enabled: c.enabled, hasKey: !!c.key, autoMemory: !!c.autoMemory });
     if (!c.enabled) return reply({ error: "off" });
     if (msg.type === "turn")
       return reply(slim(await api("/api/v7/agent/turn", { user_message: m(msg.user_message), draft: m(msg.draft), source: "guard2_ext:" + (msg.site || "") })));

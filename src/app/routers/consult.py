@@ -1,6 +1,7 @@
 import os
 import json
 import json, urllib.request as _req, time as _time
+from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, HTTPException
 from app.security import polza_urlopen as _polza_urlopen
 from app.routers.tensor_cube import TensorCube, spread_activation
@@ -566,7 +567,11 @@ async def mark_important(request: Request):
     """Сохранить PII в SessionCube с изоляцией"""
     try:
         data = await request.json()
-        user_id = data.get("user_id", "unknown")
+        _ku = (getattr(request.state, "user_id", None) or "").strip()   # a valid key wins over body user_id
+        _bu = (data.get("user_id") or "").strip()
+        if _ku and _bu and _bu.lower() != _ku.lower():
+            return JSONResponse({"status": "error", "reason": "user_id does not match the API key owner"}, status_code=403)
+        user_id = _ku or _bu or "unknown"
         pii_type = data.get("type", "note")
         value = data.get("value", "")
         context = data.get("context", "")
@@ -599,7 +604,7 @@ async def mark_important(request: Request):
             import psycopg2, os
             conn = psycopg2.connect(os.getenv("DATABASE_URL", ""))
             cur = conn.cursor()
-            print(f"[search_memory] SQL: user={user_id} query={query}", flush=True)
+            print(f"[mark_important] save user={user_id} type={pii_type}", flush=True)   # was: undefined `query` -> NameError, row never written
             cur.execute(
                 "INSERT INTO pii_cubes (cube_id, user_id, pii_type, value, context) VALUES (%s,%s,%s,%s,%s) ON CONFLICT (cube_id) DO UPDATE SET value=%s, context=%s",
                 (cube.cube_id, user_id, pii_type, value, context, value, context)

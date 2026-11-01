@@ -17,6 +17,7 @@ import urllib.request
 
 from app.memory_v2 import BASE_DIR, clip, config, est_tokens, mask_text, norm_date, strip_critical
 from app import memory_v2_windows as W
+from app.security import polza_urlopen
 
 URL = "https://api.polza.ai/v1/chat/completions"
 USAGE_LOG = "/data/skv/llm_usage.jsonl"
@@ -34,7 +35,7 @@ def _llm(messages, max_tokens, json_mode=False):
         "model": _c("llm_model", "deepseek/deepseek-chat-v3.1"), "messages": messages,
         "temperature": 0.1, "max_tokens": max_tokens, **({"response_format": {"type": "json_object"}} if json_mode else {})}).encode(),
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"})
-    with urllib.request.urlopen(req, timeout=int(_c("llm_timeout_s", 60))) as r:
+    with polza_urlopen(req, timeout=int(_c("llm_timeout_s", 60))) as r:
         d = json.loads(r.read())
     u = d.get("usage") or {}
     cost = u.get("cost_rub", d.get("cost_rub", u.get("cost", d.get("cost"))))

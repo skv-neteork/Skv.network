@@ -2,6 +2,7 @@ import os
 import json
 import json, urllib.request as _req, time as _time
 from fastapi import APIRouter, Request, HTTPException
+from app.security import polza_urlopen as _polza_urlopen
 from app.routers.tensor_cube import TensorCube, spread_activation
 from app.routers.v4_middleware import get_embedding_cached
 import numpy as np
@@ -78,18 +79,15 @@ SUGGESTION = can improve (optional)
 
 Be strict about Safety rules. Be brief."""
     
-    async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.post("https://api.polza.ai/v1/chat/completions",
-            json={
-                "model": "deepseek/deepseek-chat",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
-                "max_tokens": 800
-            },
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {POLZA_KEY}"
-            })
+    if True:   # polza_post: pooled keep-alive + retry on connect/TLS stalls (sync, run in a thread)
+        import asyncio as _aio
+        from app.security import polza_post as _pp
+        r = await _aio.to_thread(_pp, {
+            "model": "deepseek/deepseek-chat",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 800
+        }, 30)
         data = r.json()
         text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
     
@@ -138,18 +136,15 @@ Do NOT mention that you fixed anything. Just output the improved answer.
 Do NOT say "Based on SKV Constitution" or "I fixed...".
 Just give the clean, improved answer."""
     
-    async with httpx.AsyncClient(timeout=60) as c:
-        r = await c.post("https://api.polza.ai/v1/chat/completions",
-            json={
-                "model": "deepseek/deepseek-chat",
-                "messages": [{"role": "user", "content": fix_prompt}],
-                "temperature": 0.3,
-                "max_tokens": 5000
-            },
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {POLZA_KEY}"
-            })
+    if True:   # polza_post: pooled keep-alive + retry on connect/TLS stalls (sync, run in a thread)
+        import asyncio as _aio
+        from app.security import polza_post as _pp
+        r = await _aio.to_thread(_pp, {
+            "model": "deepseek/deepseek-chat",
+            "messages": [{"role": "user", "content": fix_prompt}],
+            "temperature": 0.3,
+            "max_tokens": 5000
+        }, 60)
         data = r.json()
         return data.get("choices", [{}])[0].get("message", {}).get("content", compiled)
 
@@ -378,7 +373,7 @@ async def consult_rag(request: Request):
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {POLZA_KEY}"
             })
-            resp = _req.urlopen(req, timeout=30)
+            resp = _polza_urlopen(req, timeout=30)
             _llm_time = round((_time.time() - _start_llm) * 1000)
             print(f"[SKV] LLM response time: {_llm_time}ms")
             answer = _json.loads(resp.read())["choices"][0]["message"]["content"]
@@ -417,7 +412,7 @@ async def consult_rag(request: Request):
                         _fix_req = _req.Request("https://api.polza.ai/v1/chat/completions", data=_fix_body, headers={
                             "Content-Type": "application/json", "Authorization": f"Bearer {POLZA_KEY}"
                         })
-                        _fix_resp = _req.urlopen(_fix_req, timeout=60)
+                        _fix_resp = _polza_urlopen(_fix_req, timeout=60)
                         answer = _json.loads(_fix_resp.read())["choices"][0]["message"]["content"]
                         print(f"[SECOND-LOOK] Corrected violations: {len(violations)}", flush=True)
                     except:
@@ -536,7 +531,7 @@ async def deepseek_chat(request: Request):
     }).encode()
     r = req.Request("https://api.polza.ai/v1/chat/completions", data=api_body,
         headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "") + ""})
-    resp = json.loads(req.urlopen(r, timeout=120).read())
+    resp = json.loads(_polza_urlopen(r, timeout=120).read())
     # Guardian L1: добавляем метаданные
     try:
         from app.routers.guardian_middleware import tracker
@@ -555,7 +550,7 @@ async def generate_anketa(request: Request):
     prompt = f"Generate SKV anketa JSON for: {query}"
     api_body = _json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}).encode()
     r = _req.Request("https://api.polza.ai/v1/chat/completions", data=api_body, headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "") + ""})
-    resp = _json.loads(_req.urlopen(r, timeout=120).read())
+    resp = _json.loads(_polza_urlopen(r, timeout=120).read())
     answer = resp["choices"][0]["message"]["content"].replace("```json", "").replace("```", "").strip()
     try:
         return {"status": "ok", "anketa": _json.loads(answer)}

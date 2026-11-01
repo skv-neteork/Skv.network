@@ -107,7 +107,8 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
                 + const + "\n\nPACK:\n" + pack + "\n\nMEMORY:\n" + memory_text[:700] + "\n\n" + hist + calc + "\n\nQuestion: " + req.message
             )
             body = json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 800}).encode()
-            final = json.loads(urlreq.urlopen(urlreq.Request("https://api.polza.ai/v1/chat/completions", data=body, headers=headers), timeout=60).read())["choices"][0]["message"]["content"].strip()
+            from app.security import polza_urlopen as _polza_urlopen
+            final = json.loads(_polza_urlopen(urlreq.Request("https://api.polza.ai/v1/chat/completions", data=body, headers=headers), timeout=60).read())["choices"][0]["message"]["content"].strip()
             seal = "SKV | probe | READ | VERIFY | " + str(len(cubes)) + " cubes"
             try:
                 from app.account_memory import queue_turn

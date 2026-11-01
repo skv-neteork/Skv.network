@@ -816,7 +816,8 @@ def _polza(prompt, system="", max_tokens=500, model=None):
                          "temperature": 0.1, "max_tokens": max_tokens, "response_format": {"type": "json_object"}}).encode(),
         headers={"Content-Type": "application/json", "Authorization": "Bearer " + key},
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    from app.security import polza_urlopen
+    with polza_urlopen(req, timeout=120) as resp:
         return json.loads(resp.read())["choices"][0]["message"]["content"]
 
 

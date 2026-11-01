@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import json
 import re
 import secrets
 from pathlib import Path
@@ -81,7 +82,7 @@ def resend_post(json_body: dict, user_agent: str = "skv-auth", timeout: int = 25
 _POLZA_SESSION = None
 
 
-def polza_post(json_body: dict, timeout: float = 90, connect_timeout: float = 5, tries: int = 3):
+def polza_post(json_body: dict, timeout: float = 90, connect_timeout: float = 5, tries: int = 3, api_key: str = None):
     """POST to polza.ai /v1/chat/completions (consult). Route from this server intermittently stalls the TLS handshake
     (measured 01.11.2026: ~30-50% of fresh connections hung until timeout; old code waited up to 90 s per model).
     Fix: one pooled keep-alive session (no new handshake per call), classic key share (small ClientHello, as resend_post),
@@ -104,16 +105,50 @@ def polza_post(json_body: dict, timeout: float = 90, connect_timeout: float = 5,
         sess = requests.Session()
         sess.mount("https://", _ClassicTLS(pool_connections=2, pool_maxsize=8))
         _POLZA_SESSION = sess
-    hdrs = {"Authorization": "Bearer " + (os.getenv("POLZA_KEY", "") or "").strip(), "Content-Type": "application/json"}
+    hdrs = {"Authorization": "Bearer " + ((os.getenv("POLZA_KEY", "") or "").strip() or (api_key or "").strip()), "Content-Type": "application/json"}
     last = None
+    import time as _t
     for _ in range(max(1, tries)):
+        t0 = _t.monotonic()
         try:
             return _POLZA_SESSION.post("https://api.polza.ai/v1/chat/completions", headers=hdrs, json=json_body,
                                        timeout=(connect_timeout, timeout))
         except (requests.exceptions.ConnectTimeout, requests.exceptions.SSLError, requests.exceptions.ConnectionError) as e:
             last = e
+        except requests.exceptions.ReadTimeout as e:
+            # a stalled TLS handshake surfaces as ReadTimeout after ~connect_timeout: retry that one;
+            # a real read timeout (model still answering after the read timeout) is raised as before
+            if _t.monotonic() - t0 > connect_timeout + 2 and timeout > connect_timeout + 2:
+                raise
+            last = e
     raise last
 
+
+
+class _PolzaResp:
+    """urlopen-like response (read(), status, context manager) over a requests.Response."""
+    def __init__(self, r):
+        self._r = r; self.status = r.status_code
+    def read(self):
+        return self._r.content
+    def __enter__(self):
+        return self
+    def __exit__(self, *a):
+        return False
+
+
+def polza_urlopen(req, timeout: float = 60):
+    """Drop-in for urllib.request.urlopen(Request(polza url, data=json bytes, ...)) through polza_post
+    (pooled keep-alive, short connect timeout, retry on connect/TLS errors). HTTP >= 400 raises HTTPError like urlopen."""
+    import io, urllib.error
+    data = getattr(req, "data", req)
+    body = data if isinstance(data, dict) else json.loads(data.decode() if isinstance(data, (bytes, bytearray)) else data)
+    auth = req.get_header("Authorization") if hasattr(req, "get_header") else None
+    r = polza_post(body, timeout=timeout, tries=4, api_key=(auth.split(" ", 1)[1] if auth and " " in auth else None))
+    if r.status_code >= 400:
+        raise urllib.error.HTTPError(getattr(req, "full_url", "https://api.polza.ai/v1/chat/completions"), r.status_code,
+                                     r.reason or "error", r.headers, io.BytesIO(r.content))
+    return _PolzaResp(r)
 
 
 def get_skv_salt() -> str:

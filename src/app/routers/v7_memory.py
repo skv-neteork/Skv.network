@@ -895,7 +895,8 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
         polza_body = json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt + " You may call memory, dig, event, or sandbox before answering."}], "tools": tools, "temperature": 0.3, "max_tokens": 1400}).encode()
         polza_key = os.environ.get("POLZA_KEY", "")
         r = urlreq.Request("https://api.polza.ai/v1/chat/completions", data=polza_body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
-        with urlreq.urlopen(r, timeout=120) as resp:
+        from app.security import polza_urlopen as _polza_urlopen
+        with _polza_urlopen(r, timeout=120) as resp:
             response_data = json.loads(resp.read().decode())
             message = response_data["choices"][0]["message"]
             
@@ -953,7 +954,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                     followup_req = urlreq.Request("https://api.polza.ai/v1/chat/completions",
                         data=followup_body,
                         headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
-                    with urlreq.urlopen(followup_req, timeout=30) as followup_resp:
+                    with _polza_urlopen(followup_req, timeout=30) as followup_resp:
                         answer = json.loads(followup_resp.read().decode())["choices"][0]["message"]["content"]
                 else:
                     answer = message.get("content", "")
@@ -965,7 +966,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                 break
             if not m:
                 follow = urlreq.Request("https://api.polza.ai/v1/chat/completions", data=json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}, {"role": "assistant", "content": answer}, {"role": "user", "content": "Нет. Напиши TOOL: memory query=Т-пары или === ЗАКЛЮЧЕНИЕ ===. Не отвечай пользователю."}], "temperature": 0.2, "max_tokens": 400}).encode(), headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
-                with urlreq.urlopen(follow, timeout=60) as follow_resp:
+                with _polza_urlopen(follow, timeout=60) as follow_resp:
                     answer = json.loads(follow_resp.read().decode())["choices"][0]["message"]["content"]
                 continue
             name, arg, val = m.group(1), m.group(2), m.group(3).strip()
@@ -990,7 +991,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
             except Exception as e:
                 result = str(e)
             follow = urlreq.Request("https://api.polza.ai/v1/chat/completions", data=json.dumps({"model": "deepseek/deepseek-chat", "messages": [{"role": "user", "content": prompt}, {"role": "assistant", "content": answer}, {"role": "user", "content": "Результат:\n" + result + "\nTOOL or === ЗАКЛЮЧЕНИЕ ==="}], "temperature": 0.3, "max_tokens": 1400}).encode(), headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
-            with urlreq.urlopen(follow, timeout=90) as follow_resp:
+            with _polza_urlopen(follow, timeout=90) as follow_resp:
                 answer = json.loads(follow_resp.read().decode())["choices"][0]["message"]["content"]
         # Remove SEAL from user-facing response
         answer = re.sub(r"🔐.*$", "", answer, flags=re.DOTALL).strip()

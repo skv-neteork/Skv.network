@@ -81,8 +81,16 @@ def _llm(messages, max_tokens):
             data=json.dumps(body).encode(),
             headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "")},
         )
-        with urllib.request.urlopen(req, timeout=90) as r:
-            d = json.loads(r.read())
+        try:
+            with urllib.request.urlopen(req, timeout=float(cfg.get("recall_later_llm_timeout", 60) or 60)) as r:
+                d = json.loads(r.read())
+        except Exception as e:
+            # v3: a slow reasoning call (timeout) is retried once with reasoning disabled (recall_later_timeout_retry)
+            if attempt == 0 and str(cfg.get("recall_later_timeout_retry", True)).lower() not in ("0", "false", "off", "no") \
+                    and ("timed out" in str(e).lower() or "timeout" in type(e).__name__.lower()):
+                print(f"[recall_later] llm timeout, retry without reasoning", flush=True)
+                continue
+            raise
         u = d.get("usage") or {}
         cost = u.get("cost_rub", d.get("cost_rub", u.get("cost", d.get("cost")))) or 0
         total += float(cost or 0)
@@ -686,6 +694,22 @@ _PLAN_SYSTEM = (
     '"terms":["4-8 keywords: names, nouns, verbs, both English and original language"]}'
 )
 
+# plan v2 (recall_later_plan_v2, default on): forms in the MEMORY's base language (where the answer was said),
+# no guessed answers (v1 forms hallucinated facts: "Caroline is a robot from Japan", "16 GB" ...).
+_PLAN_SYSTEM_V2 = (
+    "You turn a memory question into search material for a personal memory written mostly in {base}. "
+    "Reply with ONE JSON object only: "
+    '{{"forms":["2-4 short declarative sentences in {base} that someone could have literally said in the past '
+    'conversation when talking about this topic"],'
+    '"native":["1 such sentence in {qlang} (the question language); [] if that is {base}"],'
+    '"terms":["4-8 keywords/synonyms in {base} plus names as written in the question"]}}. '
+    "Do NOT guess the answer: never invent numbers, dates, places, names, objects or attributes that are not in the "
+    "question; where the answer would go, use a generic word (something, some place, some time, кое-что, где-то). "
+    "Vary the wording across forms (synonyms, first person, how people actually talk). In terms, expand abbreviations "
+    "and acronyms both ways and add the other-language spelling of names/products (HN <-> Hacker News, GH <-> GitHub, "
+    "ДР <-> день рождения, Гугл диск <-> Google Drive)."
+)
+
 _LANG_TXT = {
     "ru": ("Материал для ответа по запросу «{q}»: {n} событий (дословный текст, даты, соседние реплики). "
            "Это не ответ: ответ формулирует агент сам, со ссылками [ev:id].",
@@ -725,10 +749,22 @@ def _cfg_bool(cfg, key, default=True):
     return str(v).lower() not in ("0", "false", "off", "no", "none") if v is not None else default
 
 
-def _plan(q):
-    """One cheap LLM call -> statement forms (EN + native) and terms. ({} on failure)."""
+def _plan(q, uid=None):
+    """One cheap LLM call -> statement forms (EN + native, or base language with plan_v2) and terms. ({} on failure)."""
     try:
-        txt, k, _m = _llm([{"role": "system", "content": _PLAN_SYSTEM}, {"role": "user", "content": q[:400]}], 400)
+        sysp = _PLAN_SYSTEM
+        if uid and _cfg_bool(config(), "recall_later_plan_v2"):
+            try:
+                from app import passage_rr as P
+                bl, ql = P.base_lang(uid) or "en", P.lang(q) or "en"
+            except Exception:
+                bl, ql = "en", "en"
+            ml = [l for l in _mem_langs(uid) if l in _LNAME]
+            base = " and ".join(_LNAME[l] for l in ml[:2]) if len(ml) > 1 else _LNAME.get(bl, "English")
+            if len(ml) > 1:
+                base += " (mixed memory: write the forms in BOTH languages)"
+            sysp = _PLAN_SYSTEM_V2.format(base=base, qlang=_LNAME.get(ql, "English"))
+        txt, k, _m = _llm([{"role": "system", "content": sysp}, {"role": "user", "content": q[:400]}], 400)
         d = _json(txt)
         out = {}
         for key, n in (("forms", 4), ("native", 2), ("terms", 8)):
@@ -788,11 +824,60 @@ def _preview_rows(uid, ids, cap=160):
 _LNAME = {"ru": "Russian", "uk": "Ukrainian", "en": "English", "de": "German", "es": "Spanish", "fr": "French"}
 
 
-def _base_q(uid, q):
-    """(translation into the memory's base language, cost) or ('', 0) when same language / failed."""
+_ML = {}
+
+
+def _mem_langs(uid, share=0.2, ttl=86400):
+    """Languages of the memory (last 400 events) with >= share of events, most common first. A memory where
+    reports/agent answers are English and chat is Russian is 'mixed': ['ru', 'en']."""
+    h = _ML.get(uid)
+    if h and time.time() - h[1] < ttl:
+        return h[0]
+    out = []
     try:
         from app import passage_rr as P
-        bl, ql = P.base_lang(uid), P.lang(q)
+        c = P._db(uid)
+        try:
+            rows = c.execute("SELECT raw_dialogue FROM event_metadata WHERE raw_dialogue IS NOT NULL ORDER BY rowid DESC LIMIT 400").fetchall()
+        finally:
+            c.close()
+        votes = {}
+        for (t,) in rows:
+            for part in re.split(r"\nA:", (t or "")[:3000], maxsplit=1):   # question and answer can differ in language
+                if len(re.findall(r"[A-Za-zА-Яа-яЁё]", part)) >= 20:
+                    lg = P.lang(part); votes[lg] = votes.get(lg, 0) + 1
+        tot = sum(votes.values()) or 1
+        out = [l for l, v in sorted(votes.items(), key=lambda x: -x[1]) if v / tot >= share]
+    except Exception:
+        out = []
+    _ML[uid] = (out, time.time())
+    return out
+
+
+def _base_qs(uid, q, cfg):
+    """Translations of q into every main language of the memory other than q's own (mixed memory -> RU and EN)."""
+    try:
+        from app import passage_rr as P
+        ql = P.lang(q)
+        tg = [P.base_lang(uid)]
+        if _cfg_bool(cfg, "recall_later_mixed_lang"):
+            tg += _mem_langs(uid)
+    except Exception:
+        return [], 0.0
+    out, cost = [], 0.0
+    for t in [x for x in dict.fromkeys(tg) if x and x != ql and x in _LNAME][:2]:
+        qb, k = _base_q(uid, q, t)
+        cost += k
+        if qb:
+            out.append(qb)
+    return out, cost
+
+
+def _base_q(uid, q, target=None):
+    """(translation into the memory's base language (or target), cost) or ('', 0) when same language / failed."""
+    try:
+        from app import passage_rr as P
+        bl, ql = (target or P.base_lang(uid)), P.lang(q)
         if not bl or not ql or bl == ql or bl not in _LNAME:
             return "", 0.0
         txt, k, _m = _llm([{"role": "system", "content": (
@@ -840,13 +925,79 @@ def _verbatim_scan(uid, queries, pool, n=80, keep=20):
     return [e for _b, _r, e in sorted(sc, reverse=True)][:keep]
 
 
+# v3 recency (recall_later_recency, default on): "last / latest / most recent" questions get an extra pool list =
+# the 20 most relevant candidates re-sorted newest first (its top-3 are reserved by the diversity slots)
+_RECENT_RX = re.compile(r"(последн|недавн|свеж|в прошлый раз|прошл\w* раз|latest|most recent|last time|\blast\b|recent|newest|"
+                        r"zuletzt|neueste|letzte|último|ultima|reciente)", re.I)
+
+
+def _by_recency(uid, ids):
+    from app.memory_v2 import _event_rows
+    rows = _event_rows(uid, ids)
+    return sorted([e for e in ids if e in rows], key=lambda e: norm_date(str(rows[e]["date"] or "")), reverse=True)
+
+
+def _recent_scan(uid, queries, window=600, keep=10):
+    """Latest events about the topic: last `window` events scored by idf-weighted share of query stems;
+    those within 60% of the best score, newest first (so 'the last backup' finds the newest backup note)."""
+    import math, sqlite3
+    from app import passage_rr as P
+    from app.memory_v2 import db_path
+    c = sqlite3.connect(f"file:{db_path(uid)}?mode=ro", uri=True, timeout=10)
+    try:
+        rows = c.execute("SELECT rowid, event_id, raw_dialogue FROM event_metadata ORDER BY rowid DESC LIMIT ?", (window,)).fetchall()
+    finally:
+        c.close()
+    docs = [(rid, e, set(P.toks(t or ""))) for rid, e, t in rows if t and not t.startswith("[archived]")]
+    if not docs:
+        return []
+    df = {}
+    for _r, _e, w in docs:
+        for t in w:
+            df[t] = df.get(t, 0) + 1
+    idf = lambda t: math.log(1 + len(docs) / (1 + df.get(t, 0)))
+    qs = [set(P.toks(x)) for x in queries if x]
+    qs = [(qt, sum(idf(t) for t in qt)) for qt in qs if qt]
+    sc = []
+    for rid, e, w in docs:
+        best = max((sum(idf(t) for t in qt & w) / tot for qt, tot in qs if tot), default=0.0)
+        if best >= 0.3:
+            sc.append((best, rid, e))
+    if not sc:
+        return []
+    top = max(b for b, _r, _e in sc)
+    return [e for _b, _r, e in sorted([x for x in sc if x[0] >= 0.6 * top], key=lambda x: -x[1])][:keep]
+
+
+def _recency_lists(uid, q, expanded, pool, cfg):
+    """v3 recency (recall_later_recency): for 'last / latest' questions add two pool lists, newest first:
+    the 20 best candidates by date, and the latest on-topic events from the recent-memory scan."""
+    if not (_cfg_bool(cfg, "recall_later_recency") and _RECENT_RX.search(q or "")):
+        return 0
+    rec = _by_recency(uid, pool.ranked()[:20])
+    pool.add(rec[:10], 1.0, "recent")
+    rs = _recent_scan(uid, expanded or [q])
+    pool.add(rs, 1.0, "recent")
+    return len(rec) + len(rs)
+
+
 class _Pool:
     """Candidate events: weighted RRF over all search lists, provenance kept."""
 
     def __init__(self):
-        self.score, self.src = {}, {}
+        self.score, self.src, self.lists, self.fast = {}, {}, [], []
 
     def add(self, ids, w, tag, k=60):
+        if tag == "recent":   # recency lists answer 'the last X': their top slots go first
+            self.lists.insert(0, list(ids))
+        elif tag.endswith(":q2s") or tag == "verbatim":
+            self.lists.append(list(ids))
+        if tag == "fast":     # fast hits are reserved slots only; they do not reweight the fusion ranking
+            for e in ids:
+                self.src.setdefault(e, [])
+                if tag not in self.src[e]:
+                    self.src[e].append(tag)
+            return
         for r, e in enumerate(ids):
             self.score[e] = self.score.get(e, 0.0) + w / (k + r + 1)
             self.src.setdefault(e, [])
@@ -872,6 +1023,60 @@ def _no_infer(s: str) -> str:
     return out if out else s
 
 
+def _win(text, qt, words):
+    """~`words`-word window of text around the best overlap with query tokens qt ('…' marks cuts)."""
+    w = (text or "").split()
+    if len(w) <= words:
+        return " ".join(w)
+    best, bi = -1, 0
+    if qt:
+        from app import passage_rr as P
+        hit = [1 if (set(P.toks(x)) & qt) else 0 for x in w]
+        cur = sum(hit[:words])
+        best = cur
+        for i in range(1, len(w) - words + 1):
+            cur += hit[i + words - 1] - hit[i - 1]
+            if cur > best:
+                best, bi = cur, i
+    out = " ".join(w[bi:bi + words])
+    return ("… " if bi > 0 else "") + out + (" …" if bi + words < len(w) else "")
+
+
+def _cap_evidence(ev, max_bytes, short_words, qt):
+    """Shrink substrate to max_bytes, weakest first (unselected tail before agent picks):
+    neighbour snippets dropped, then text cut to short_words, then whole events dropped. Returns list of steps."""
+    size = lambda: len(json.dumps(ev, ensure_ascii=False).encode())
+    steps = []
+    uns = [x for x in reversed(ev) if not x["selected"]]
+    sel = [x for x in reversed(ev) if x["selected"]]
+
+    def ctx(xs):
+        for x in xs:
+            if size() <= max_bytes:
+                return True
+            if x.get("context"):
+                x["context"] = []; steps.append("ctx-" + x["ev"])
+        return size() <= max_bytes
+
+    def short(xs, n):
+        for x in xs:
+            if size() <= max_bytes:
+                return True
+            t = _win(x["text"].replace("… ", "").replace(" …", ""), qt, n)
+            if len(t) < len(x["text"]):
+                x["text"] = t; x["short"] = True; steps.append("short-" + x["ev"])
+        return size() <= max_bytes
+
+    # unselected search hits shrink first; agent-checked picks keep more text
+    if ctx(uns) or short(uns, short_words) or ctx(sel) or short(sel, max(short_words, 35)) or short(sel, short_words):
+        return steps
+    for x in uns + sel:
+        if size() <= max_bytes:
+            return steps
+        ev.remove(x); steps.append("drop-" + x["ev"])
+    return steps
+
+
 def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
     """Assemble ranked evidence: agent picks first, then pool by score; verbatim text + neighbours from the DB."""
     import sqlite3
@@ -879,16 +1084,43 @@ def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
     K = max(1, min(20, int(cfg.get("recall_later_evidence_k", 18) or 18)))
     rad = max(0, min(3, int(cfg.get("recall_later_context_radius", 1) or 0)))
     order, why = [], {}
-    for p in picks:
+    for p in picks[:K]:
         if p["id"] not in order:
             order.append(p["id"]); why[p["id"]] = p.get("why") or ""
+    # v3 diversity (recall_later_div, default 3): each sub-query list keeps its top-d events, so a hit found by
+    # only one wording is not buried by RRF across the other lists
+    fast = list(getattr(pool, "fast", []))
+    div = max(0, min(5, int(cfg.get("recall_later_div", 3) or 0)))
+    for d in range(div):
+        for lst in getattr(pool, "lists", []):
+            if len(lst) > d and lst[d] not in order and len(order) < K:
+                order.append(lst[d])
     for e in pool.ranked():
         if len(order) >= K:
             break
         if e not in order:
             order.append(e)
     order = order[:K]
+    # v3 fast merge: the fast-search top-N always present (extra slots right after the agent picks, not displacing)
+    np_ = sum(1 for e in order if e in why)
+    for e in fast:
+        if e not in order:
+            order.insert(np_, e); np_ += 1
     ev = []
+    # v3 compact substrate (recall_later_max_bytes > 0, default 8000): event text = ~tw words around the best query
+    # match (not head/tail), neighbours = ~cw-word snippets of prev/next turn, total capped at max_bytes
+    # (weakest unselected events shrink/drop first). Full text by id: MCP memory_event(event_id) / GET /api/v7/event/{id}.
+    max_bytes = int(cfg.get("recall_later_max_bytes", 8000) or 0)
+    compact = max_bytes > 0
+    tw = max(20, int(cfg.get("recall_later_text_words", 60) or 60))
+    cw = max(10, int(cfg.get("recall_later_ctx_words", 30) or 30))
+    qt = set()
+    if compact:
+        try:
+            from app import passage_rr as P
+            qt = {t for x in (expanded or [q]) for t in P.toks(x or "")}
+        except Exception:
+            qt = set()
     conn = sqlite3.connect(f"file:{db_path(uid)}?mode=ro", uri=True, timeout=10)
     try:
         for i, e in enumerate(order):
@@ -904,7 +1136,14 @@ def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
                 except Exception:
                     pass
             ctx = []
-            if rad:
+            if compact:
+                if rad:
+                    b = conn.execute("SELECT event_id, time_str, raw_dialogue FROM event_metadata WHERE rowid < ? ORDER BY rowid DESC LIMIT 1", (r[0],)).fetchone()
+                    a = conn.execute("SELECT event_id, time_str, raw_dialogue FROM event_metadata WHERE rowid > ? ORDER BY rowid ASC LIMIT 1", (r[0],)).fetchone()
+                    for side, x in (("before", b), ("after", a)):
+                        if x and (x[2] or "").strip() and not (x[2] or "").startswith("[archived]"):
+                            ctx.append({"side": side, "ev": x[0], "text": mask_text(_win(strip_critical(x[2] or "") or (x[2] or ""), qt, cw))})
+            elif rad:
                 b = conn.execute("SELECT event_id, time_str, raw_dialogue FROM event_metadata WHERE rowid < ? ORDER BY rowid DESC LIMIT ?", (r[0], rad)).fetchall()
                 a = conn.execute("SELECT event_id, time_str, raw_dialogue FROM event_metadata WHERE rowid > ? ORDER BY rowid ASC LIMIT ?", (r[0], rad)).fetchall()
                 for side, rows in (("before", list(reversed(b))), ("after", a)):
@@ -914,13 +1153,21 @@ def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
             picked = e in why
             ev.append({
                 "rank": len(ev) + 1, "ev": e, "date": norm_date(r[1] or "")[:16],
-                "text": mask_text(clip(strip_critical(raw) or raw, 180, headtail=True)),
+                "text": mask_text(_win(strip_critical(raw) or raw, qt, tw) if compact else clip(strip_critical(raw) or raw, 180, headtail=True)),
                 "context": ctx,
                 "why": mask_text(_no_infer(why.get(e) or ""))[:160] if picked else "search rank (%s), not checked by the agent" % "+".join(pool.src.get(e, ["search"])[:3]),
                 "selected": picked,
             })
     finally:
         conn.close()
+    capped = []
+    if compact:
+        for x in ev:
+            if not x["selected"]:
+                x["why"] = "search:" + "+".join(t.split(":")[0] for t in pool.src.get(x["ev"], ["search"])[:3])
+        capped = _cap_evidence(ev, max_bytes, 20, qt)
+        for i, x in enumerate(ev):
+            x["rank"] = i + 1
     T = _LANG_TXT.get(lang, _LANG_TXT["en"])
     miss = mask_text(_no_infer(str(missing or "")))[:300]
     if not model_ok:
@@ -935,6 +1182,8 @@ def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
         "evidence": ev,
         "missing": miss,
         "queries": expanded[:12],
+        **({"full_text": "event text is a snippet; full text: memory_event(event_id) or GET /api/v7/event/{id}",
+            "capped": len(capped)} if compact else {}),
         # compat for old readers: sources = evidence ids; no answer lines
         "sources": [{"id": x["ev"], "date": x["date"][:10], "note": x["why"][:80]} for x in ev],
         "lines": [],
@@ -980,7 +1229,7 @@ def _run_substrate(uid, jid):
             # seeds (do not count against agent steps)
             plan = {}
             if _cfg_bool(cfg, "recall_later_plan"):
-                plan, k = _plan(q)
+                plan, k = _plan(q, uid)
                 cost += k
                 steps_log.append({"action": "plan", "seed": True, "ok": bool(plan)})
             forms = (plan.get("forms") or []) + (plan.get("native") or [])
@@ -988,12 +1237,30 @@ def _run_substrate(uid, jid):
             observations.append(_search(q, "q", 1.0))
             steps_log.append({"action": "search", "query": q, "seed": True})
             if _cfg_bool(cfg, "recall_later_base_lang"):
-                qb, k = _base_q(uid, q)
+                qbs, k = _base_qs(uid, q, cfg)
                 cost += k
-                if qb:
+                for qb in qbs:
                     observations.append(_search(qb, "base", 1.0))
                     steps_log.append({"action": "search", "query": qb, "seed": True, "base_lang": True})
                     expanded.append(qb)
+            # v3 fast merge (recall_later_fast_merge, default 5): the fast /memory text search top-N for the question
+            # (and its translations) is always in the evidence, so deep search never loses what fast search found
+            fastn = max(0, min(10, int(cfg.get("recall_later_fast_merge", 5) or 0)))
+            if fastn:
+                try:
+                    from app import search_text as _st
+                    fl = []
+                    for fq in expanded[:2]:
+                        ids = [o.get("event_id") for o in _st.text_search(uid, fq, fastn) if str(o.get("event_id") or "").startswith(f"{uid}::")]
+                        pool.add(ids, 1.0, "fast"); fl.append(ids)
+                        known_ids |= set(ids)
+                    for i in range(fastn):   # interleave question / translation hits, keep fastn in total
+                        for ids in fl:
+                            if len(ids) > i and ids[i] not in pool.fast and len(pool.fast) < fastn:
+                                pool.fast.append(ids[i])
+                    steps_log.append({"action": "fast_merge", "seed": True, "n": len(pool.fast)})
+                except Exception as e:
+                    print(f"[recall_later] fast merge skipped: {type(e).__name__}", flush=True)
             if forms:
                 observations.append(_search(q, "forms", 1.0, forms=forms) .replace(f"search({q!r})", f"search(forms={forms[:2]!r})", 1))
                 steps_log.append({"action": "search_forms", "forms": forms, "seed": True})
@@ -1099,6 +1366,12 @@ def _run_substrate(uid, jid):
                     steps_log.append({"action": "verbatim_scan", "seed": True, "hits": len(vb)})
                 except Exception as e:
                     print(f"[recall_later] verbatim scan skipped: {type(e).__name__}", flush=True)
+            if _cfg_bool(cfg, "recall_later_recency") and _RECENT_RX.search(q):
+                try:
+                    n_rec = _recency_lists(uid, q, expanded, pool, cfg)
+                    steps_log.append({"action": "recency", "seed": True, "n": n_rec})
+                except Exception as e:
+                    print(f"[recall_later] recency skipped: {type(e).__name__}", flush=True)
             report = _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg)
             report["seed_steps"] = sum(1 for s in steps_log if s.get("seed"))
             report["agent_steps"] = agent_n

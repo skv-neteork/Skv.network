@@ -273,7 +273,7 @@ def _mask_text(x: str) -> str:
 
 
 _UTC_RX = re.compile(r"\b(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?(?:\.\d+)?\s*(?:UTC|Z|\+00:00)(?![\w(])")
-_TIME_TOOLS = _MASK_TOOLS | {"memory_recall_later", "cube_consent", "board_act"}
+_TIME_TOOLS = _MASK_TOOLS | {"memory_recall_later", "memory_recall_status", "cube_consent", "board_act"}
 _BARE_UTC = re.compile(r'"(date|time)"(\s*:\s*)"(\d{4}-\d{2}-\d{2} \d{2}:\d{2})(?::\d{2})?"')   # memory_dig/memory_event store bare UTC
 
 
@@ -324,7 +324,7 @@ def _local_times(x: str, tz: str) -> str:
 def _post(name, r):
     if not isinstance(r, str):
         return r
-    if name in ("memory_dig", "memory_event"):
+    if name in ("memory_dig", "memory_event", "memory_recall_status"):
         r = _BARE_UTC.sub(lambda m: '"%s"%s"%s UTC"' % (m.group(1), m.group(2), m.group(3)), r)
     if name in _TIME_TOOLS:
         try:
@@ -1607,13 +1607,49 @@ def memory_recall_later(query: str) -> str:
     return _dumps(_req("POST", "/memory/recall_later", _uid_body({"query": query})))
 
 
+_RS_PAGE = 6000   # chars of evidence JSON per page (dates expand to local time + age later; whole reply stays < RESP_LIMIT)
+
+
 @mcp.tool()
-def memory_recall_status(job_id: str) -> str:
+def memory_recall_status(job_id: str, page: int = 1) -> str:
     """Result of a deep background search (memory_recall_later). status queued|running|done|error; when done:
-    report = evidence substrate, not an answer: evidence[{ev, date, text (verbatim), context (neighbour turns), why}],
-    missing (what was not found), queries tried. Answer yourself from the evidence, citing [ev:id]; no relevant evidence -> say you do not know."""
+    report = evidence substrate, not an answer: evidence[{ev, date, text (snippet around the match), context (neighbour-turn
+    snippets), why}], missing (what was not found), queries tried. Long results are paged: page=1..pages (next_page).
+    Full text of any event: memory_event(event_id). Answer yourself from the evidence, citing [ev:id]; no relevant evidence -> say you do not know."""
     params = {"user_id": USER} if USER else None
-    return _dumps(_req("GET", f"/memory/recall_later/{job_id}", params=params))
+    d = _req("GET", f"/memory/recall_later/{job_id}", params=params)
+    if not isinstance(d, dict) or d.get("ok") is False:
+        return _dumps(d)
+    out = {k: d[k] for k in ("job_id", "query", "status", "progress", "steps_n", "cost_rub", "error") if k in d and d[k] not in (None, "")}
+    for k in ("created_at", "ready_at"):
+        if isinstance(d.get(k), (int, float)) and d[k]:
+            out[k] = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime(d[k]))
+    rep = d.get("report") if isinstance(d.get("report"), dict) else None
+    if rep is None:
+        return _dumps(dict(out, **{k: v for k, v in d.items() if k not in out and k not in ("created_at", "ready_at")}))
+    ev = list(rep.get("evidence") or [])
+    pages, cur, n = [], [], 0
+    for x in ev:
+        sz = len(json.dumps(x, ensure_ascii=False, separators=(",", ":")))
+        if cur and n + sz > _RS_PAGE:
+            pages.append(cur); cur, n = [], 0
+        if sz > _RS_PAGE:   # one oversized event (legacy substrate): shorten its strings, never cut the JSON
+            x = _shrink(x, max(200, _RS_PAGE // 4)); sz = len(json.dumps(x, ensure_ascii=False, separators=(",", ":")))
+        cur.append(x); n += sz
+    if cur or not pages:
+        pages.append(cur)
+    p = max(1, min(int(page or 1), len(pages)))
+    r = {k: rep[k] for k in ("format", "found", "evidence_n", "summary", "missing", "full_text") if k in rep}
+    if p == 1:
+        r["queries"] = (rep.get("queries") or [])[:8]
+    r["evidence"] = pages[p - 1]
+    out["report"] = r
+    out["page"], out["pages"] = p, len(pages)
+    if p < len(pages):
+        out["next_page"] = p + 1
+    if "full_text" not in r:
+        r["full_text"] = "evidence text may be clipped; full text: memory_event(event_id)"
+    return _dumps(out)
 
 
 # ─── Second Look / constitution / skills ──────────────────────────────

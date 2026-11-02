@@ -2071,6 +2071,7 @@ def board_focus(user_id: str = ""):
 class RecallLaterRequest(BaseModel):
     user_id: str = ""
     query: str = ""
+    search_as: Any = None   # optional: agent statement forms (list or "a | b"), base language; 2026-11-02
 
 
 @router.post("/memory/recall_later")
@@ -2081,7 +2082,7 @@ async def recall_later_submit(req: RecallLaterRequest):
     if not req.user_id:
         raise HTTPException(401, "API key required")
     try:
-        jid = _rl.submit(req.user_id, req.query)
+        jid = _rl.submit(req.user_id, req.query, search_as=req.search_as)
         return {"status": "queued", "job_id": jid, "poll": f"/api/v7/memory/recall_later/{jid}"}
     except OverflowError as e:
         raise HTTPException(429, str(e))
@@ -2102,6 +2103,8 @@ async def recall_later_get(job_id: str, user_id: str = ""):
            "progress": job.get("progress"), "steps_n": job.get("steps_n"),
            "cost_rub": job.get("cost_rub"), "created_at": job.get("created_at"),
            "ready_at": job.get("ready_at")}
+    if job.get("search_as"):
+        out["search_as"] = job["search_as"]
     if job.get("status") == "done":
         out["report"] = job.get("report") or {}
         out["lines"] = job.get("lines") or []

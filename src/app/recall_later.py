@@ -53,6 +53,7 @@ def _conn(uid):
         ("steps_json", "TEXT"),
         ("progress", "TEXT"),
         ("steps_n", "INTEGER"),
+        ("search_as_json", "TEXT"),
     ):
         if col not in cols:
             c.execute(f"ALTER TABLE recall_later ADD COLUMN {col} {decl}")
@@ -262,10 +263,29 @@ def _report_from_obs(query, observations, known_ids):
     return {"found": found, "summary": summary, "sources": sources[:8], "lines": lines[:3]}
 
 
-def submit(uid, query):
+def _sa_clean(search_as, query=""):
+    """Agent statement forms (search_as) -> max 3 masked strings (q2s.sanitize rules)."""
+    try:
+        from app import q2s
+        if isinstance(search_as, str):
+            t = search_as.strip()
+            try:
+                search_as = json.loads(t) if t.startswith("[") else re.split(r"\s*(?:\n|\|)\s*", t)
+            except Exception:
+                search_as = [t]
+        if isinstance(search_as, (list, tuple)):   # strip template placeholders ("[число]", "...", " N ") the agent left
+            search_as = [re.sub(r"\s+", " ", re.sub(r"\[[^\]]{0,30}\]|<[^>]{0,30}>|\.{3,}|…|\b[NX]\b", " ", str(x))).strip(" ,.-—") for x in search_as]
+        fs = q2s.sanitize(search_as, query)
+    except Exception:
+        fs = []
+    return [mask_text(f)[:160] for f in fs if f][:3]
+
+
+def submit(uid, query, search_as=None):
     query = mask_text((query or "").strip())[:500]
     if len(query) < 2:
         raise ValueError("query required")
+    sa = _sa_clean(search_as, query) if search_as else []
     jid = "rl_" + secrets.token_hex(8)
     c = _conn(uid)
     try:
@@ -275,8 +295,8 @@ def submit(uid, query):
         ).fetchone()[0] >= 3:
             raise OverflowError("too many recall_later jobs running")
         c.execute(
-            "INSERT INTO recall_later (job_id, query, status, created_at, created_n, progress, steps_n) VALUES (?,?,?,?,?,?,?)",
-            (jid, query, "queued", time.time(), _n(c), "queued", 0),
+            "INSERT INTO recall_later (job_id, query, status, created_at, created_n, progress, steps_n, search_as_json) VALUES (?,?,?,?,?,?,?,?)",
+            (jid, query, "queued", time.time(), _n(c), "queued", 0, json.dumps(sa, ensure_ascii=False) if sa else None),
         )
         c.commit()
     finally:
@@ -563,13 +583,19 @@ def get(uid, jid):
     try:
         cols = ("job_id", "query", "status", "created_at", "ready_at", "delivered_at",
                 "lines_json", "expanded_json", "cost_rub", "error", "report_json",
-                "steps_json", "progress", "steps_n")
+                "steps_json", "progress", "steps_n", "search_as_json")
         r = c.execute(
             "SELECT %s FROM recall_later WHERE job_id=?" % ",".join(cols), (jid,)
         ).fetchone()
         if not r:
             return None
         d = dict(zip(cols, r))
+        try:
+            d["search_as"] = json.loads(d.pop("search_as_json") or "[]")
+        except Exception:
+            d["search_as"] = []
+        if not d["search_as"]:
+            d.pop("search_as")
         for k in ("lines_json", "expanded_json", "report_json", "steps_json"):
             try:
                 d[k.replace("_json", "")] = json.loads(d.pop(k) or ("[]" if "steps" in k or "lines" in k or "expanded" in k else "{}"))
@@ -1199,7 +1225,11 @@ def _run_substrate(uid, jid):
     cost, steps_log, observations, known_ids = 0.0, [], [], set()
     pool, picks, missing, err, model_ok = _Pool(), [], "", None, True
     c = _conn(uid)
-    q = c.execute("SELECT query FROM recall_later WHERE job_id=?", (jid,)).fetchone()[0]
+    q, sa_raw = c.execute("SELECT query, search_as_json FROM recall_later WHERE job_id=?", (jid,)).fetchone()
+    try:
+        agent_sa = json.loads(sa_raw or "[]") if _cfg_bool(cfg, "recall_later_search_as") else []
+    except Exception:
+        agent_sa = []
     c.execute("UPDATE recall_later SET status='running', progress=? WHERE job_id=?", ("running", jid))
     c.commit(); c.close()
     expanded = [q]
@@ -1261,6 +1291,26 @@ def _run_substrate(uid, jid):
                     steps_log.append({"action": "fast_merge", "seed": True, "n": len(pool.fast)})
                 except Exception as e:
                     print(f"[recall_later] fast merge skipped: {type(e).__name__}", flush=True)
+            # agent search_as (recall_later_search_as, default on): the calling agent's own statement forms are a
+            # seed list of their own (q2s forms search, same as fast turn/memory_search search_as); forms not in a
+            # memory language get a base-language translation (one cheap call each, only on mismatch)
+            if agent_sa:
+                sa_forms = list(agent_sa)
+                try:
+                    from app import passage_rr as P
+                    ml = set(_mem_langs(uid) or []) | {P.base_lang(uid)}
+                    for f in list(agent_sa):
+                        if P.lang(f) not in ml and _cfg_bool(cfg, "recall_later_base_lang"):
+                            fb, k = _base_q(uid, f)
+                            cost += k
+                            if fb and fb not in sa_forms:
+                                sa_forms.append(fb)
+                except Exception:
+                    pass
+                sa_forms = sa_forms[:4]
+                observations.append(_search(q, "agent", 1.0, forms=sa_forms).replace(f"search({q!r})", f"search(search_as={sa_forms[:2]!r})", 1))
+                steps_log.append({"action": "search_as", "forms": sa_forms, "seed": True})
+                expanded += [f for f in sa_forms if f not in expanded]
             if forms:
                 observations.append(_search(q, "forms", 1.0, forms=forms) .replace(f"search({q!r})", f"search(forms={forms[:2]!r})", 1))
                 steps_log.append({"action": "search_forms", "forms": forms, "seed": True})

@@ -90,7 +90,11 @@ _TW_STALE_MIN = float(os.environ.get("SKV_TURN_STALE_MIN", "10"))
 _TW_BURST_GAP = float(os.environ.get("SKV_TURN_BURST_GAP_S", "90"))   # a pause this long between tool calls = a new answer
 _TW_EXEMPT = {"turn", "constitution_status", "constitution_install", "constitution_get", "step_zero", "memory_bootstrap", "memory_start"}
 _tw_depth: contextvars.ContextVar[int] = contextvars.ContextVar("skv_tw_depth", default=0)
-TURN_REMINDER = "call turn(user_message, draft) before you answer; no seal without it"
+# 2026-11-02 (Deniz, t883u): reminders/duties in single-call mode + single-call wording of the turn hints.
+# Rollback: SKV_TURN_RECAP_REMINDERS=0 (flag turn_recap_reminders): old hint texts, recap-sealed turns return no duties.
+_RECAP_REM_ON = os.environ.get("SKV_TURN_RECAP_REMINDERS", "1") != "0"
+TURN_REMINDER = ("call turn(user_message=<new message>, msg_ref=tNNNu, recap=[{ref,user,answer=<your previous answer as sent>}]) before you answer; no seal without it"
+                 if _RECAP_REM_ON else "call turn(user_message, draft) before you answer; no seal without it")
 
 
 def _tw_db():
@@ -219,6 +223,13 @@ def _fmt_refs(ns: list) -> str:
     return ",".join(out)
 
 
+_MT_DO = ("in your next turn call put each missed answer into recap as {\"ref\":\"tNu\",\"user\":\"<ask>\",\"answer\":\"<answer as sent>\"} "
+          "(oldest first, max 5, together with your previous answer; each item is saved and sealed; turn is the only save tool)") if _RECAP_REM_ON else \
+         "in your next turn call add recap='tNu: ask => answer' (one line per missed answer; turn is the only save tool)"
+_GAP_DO = "if you answered since without turn, put those answers into recap=[{ref,user,answer}] of this ONE call. Pass msg_ref=tNNNu." if _RECAP_REM_ON else \
+          "if you answered since without turn, add recap='ask => answer' lines to this turn (ONE call). Pass msg_ref=tNNNu."
+
+
 def _tw_turn(saved: bool, seal_n: int = 0, ref=0) -> dict:
     """On turn: detect answers given since the previous saved turn (missed turns); reset on save.
     Signals: (1) client message ordinal jump (msg_ref / [tNNNu]) = exact; (2) tool-call bursts; (3) a long quiet gap = soft question."""
@@ -232,20 +243,17 @@ def _tw_turn(saved: bool, seal_n: int = 0, ref=0) -> dict:
         if gap:
             out = {"id": "missed_turns", "kind": "missed_turns", "n": gap, "since_seal": ls or None, "source": "msg_ref",
                    "pin": PIN_SHORT, "refs": _fmt_refs(miss)[:200],
-                   "do": "%s (%d) answered without turn: in your next turn call add recap='tNu: ask => answer' (one line per missed answer; turn is the only save tool)"
-                         % (_fmt_refs(miss)[:200], gap)}
+                   "do": "%s (%d) answered without turn: %s" % (_fmt_refs(miss)[:200], gap, _MT_DO)}
             missed = 0
         elif ref and ref > prev:
             missed = 0   # exact client ordinal, no gap: tool-call bursts (browser-heavy work) are not missed answers
         elif not ref and lt and not missed and (now - lt) / 60.0 > _TW_QUIET_MIN:
             out = {"id": "gap_check", "kind": "reminder", "since_seal": ls or None,
-                   "do": "last turn #%03d was %d min ago; if you answered since without turn, add recap='ask => answer' lines to this turn (ONE call). Pass msg_ref=tNNNu."
-                         % (ls or 0, int((now - lt) / 60))}
+                   "do": "last turn #%03d was %d min ago; %s" % (ls or 0, int((now - lt) / 60), _GAP_DO)}
         if missed:
             out = {"id": "missed_turns", "kind": "missed_turns", "n": missed, "since_seal": ls or None,
                    "pin": PIN_SHORT,
-                   "do": "~%d answer(s) since #%03d (%d min) not saved: in your next turn call add recap='tNu: ask => answer' (one line per missed answer; turn is the only save tool)"
-                         % (missed, ls or 0, int((now - lt) / 60))}
+                   "do": "~%d answer(s) since #%03d (%d min) not saved: %s" % (missed, ls or 0, int((now - lt) / 60), _MT_DO)}
         if saved:
             lt, b, n, ls = now, 0, 0, seal_n or ls
         c.execute("insert or replace into tw values(?,?,?,?,?,?)", (k, lt, lc, b, n, ls)); c.commit(); c.close()
@@ -360,8 +368,10 @@ _TG_MIN = float(os.environ.get("SKV_TURN_GATE_MIN", "30"))
 _TG_EXEMPT = _TW_EXEMPT | {"turn_stats", "skills_list", "skills_get", "keys_list", "memory_recall_status", "feedback_submit",
                            "drive_queue_list", "drive_queue_payload", "drive_queue_complete", "drive_queue_process", "vectors_process"} | \
     {x.strip() for x in os.environ.get("SKV_TURN_GATE_EXEMPT", "").split(",") if x.strip()}
-TURN_GATE_NOTICE = ("Call turn(user_message, draft) first: it delivers memory, rules and constitution; "
-                    "without turn no seal is saved.")
+TURN_GATE_NOTICE = (("Call turn first (ONE call: turn(user_message=<new message>, msg_ref=tNNNu, recap=[{ref,user,answer=<your previous answer as sent>}])): "
+                     "it saves+seals your previous answer and delivers memory, rules, duties and the seal; without turn no seal is saved.")
+                    if _RECAP_REM_ON else ("Call turn(user_message, draft) first: it delivers memory, rules and constitution; "
+                    "without turn no seal is saved."))
 
 
 def _tg_db():
@@ -1298,7 +1308,7 @@ _NOT_IN_MEMORY = ("not in memory: no saved fact (events, critical marks, vault n
                   "Say so plainly; do not invent. Deeper: memory_search lines=all, memory_recall_later.")
 # Deep-search hint on empty/weak results (flag: SKV_RECALL_HINT=0 disables). 2026-11-02
 _RECALL_HINT_ON = os.environ.get("SKV_RECALL_HINT", "1") != "0"
-_RECALL_HINT = "nothing reliable found -> call memory_recall_later(query) (deep background search ~10-30 s, ~0.1 RUB), then memory_recall_status(job_id) before saying you do not remember."
+_RECALL_HINT = "nothing reliable found -> call memory_recall_later(query, search_as) (deep background search ~10-30 s, ~0.1 RUB), then memory_recall_status(job_id) before saying you do not remember."
 
 
 def _recall_hint(query: str) -> dict:
@@ -1599,12 +1609,16 @@ def memory_critical(text: str, topic: str = "critical") -> str:
 
 
 @mcp.tool()
-def memory_recall_later(query: str) -> str:
+def memory_recall_later(query: str, search_as: Union[list, str] = "") -> str:
     """Deep background memory search: an on-server agent runs 5-15 search/expand steps over all memory
     (~10-30 s, ~0.1 RUB) and returns ranked evidence events (verbatim text, ids, dates, neighbour turns), not an answer.
     Use when turn/memory_search found nothing reliable, before saying you do not remember.
+    Pass search_as too (the same statement forms you gave turn/memory_search, in the memory base_language): used as an extra seed.
     Returns job_id at once; poll memory_recall_status(job_id) every ~10 s until status=done."""
-    return _dumps(_req("POST", "/memory/recall_later", _uid_body({"query": query})))
+    body = {"query": query}
+    if _sa_list(search_as):
+        body["search_as"] = _sa_list(search_as)
+    return _dumps(_req("POST", "/memory/recall_later", _uid_body(body)))
 
 
 _RS_PAGE = 6000   # chars of evidence JSON per page (dates expand to local time + age later; whole reply stays < RESP_LIMIT)
@@ -1620,7 +1634,7 @@ def memory_recall_status(job_id: str, page: int = 1) -> str:
     d = _req("GET", f"/memory/recall_later/{job_id}", params=params)
     if not isinstance(d, dict) or d.get("ok") is False:
         return _dumps(d)
-    out = {k: d[k] for k in ("job_id", "query", "status", "progress", "steps_n", "cost_rub", "error") if k in d and d[k] not in (None, "")}
+    out = {k: d[k] for k in ("job_id", "query", "search_as", "status", "progress", "steps_n", "cost_rub", "error") if k in d and d[k] not in (None, "")}
     for k in ("created_at", "ready_at"):
         if isinstance(d.get(k), (int, float)) and d[k]:
             out[k] = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime(d[k]))
@@ -1784,6 +1798,13 @@ def _seal_recaps(recap, session_id: str = "mcp", sensitive: str = "") -> dict:
     items = [x for x in _parse_recap(recap) if x[1] or x[2]][:5]
     sens = [x.strip() for x in (sensitive or "").split("|") if x.strip()]
     t = _tr(); seals, ids, errs, dup = [], [], [], []
+    resps, mts, smark = [], [], ""
+    if _RECAP_REM_ON and items:   # same [PROFILE ✗] seal mark as the draft path (overdue profile duty)
+        try:
+            pc = _req("POST", "/profile/precheck", _uid_body({"profile": None, "profile_review": None, "has_l2": False}))
+            smark = (pc.get("seal_mark") or "") if isinstance(pc, dict) else ""
+        except Exception:
+            smark = ""
     for ref, u, a in items:
         m = re.search(r"t?(\d{1,7})u?", ref or ""); rn = int(m.group(1)) if m else 0
         clean = re.sub(r"\n?🔐 SKV \|[^\n]*", "", a or "").rstrip()
@@ -1798,7 +1819,7 @@ def _seal_recaps(recap, session_id: str = "mcp", sensitive: str = "") -> dict:
             continue
         sn = _seal_next(False)
         code = _seal_code(_caller_id(), sn, clean)
-        seal = SEAL_CODE_FMT.format(n=sn, c=code)
+        seal = SEAL_CODE_FMT.format(n=sn, c=code) + ((" " + smark) if smark else "")
         body = _uid_body({"query": (u or "")[:8000], "response": (clean[:30000] + "\n" + seal), "session_id": session_id or "mcp",
                           "self_check": True, "sensitive": sens})
         body["client_key"] = "r-" + uuid.uuid4().hex
@@ -1807,6 +1828,7 @@ def _seal_recaps(recap, session_id: str = "mcp", sensitive: str = "") -> dict:
         if not e:
             errs.append(ref or (u or "")[:40]); continue
         ids.append(_sid(e)); seals.append({"ref": ref or None, "seal": seal, "event_id": _sid(e)})
+        if isinstance(d, dict): resps.append(d)
         _rs_put(rn, sn, code, e)
         t["last_user"] = u; t["last_eid"] = e; t["saved_t"] = _time.time(); t["seal"] = sn; t["last_final"] = clean + "\n" + seal; t["verdict"] = "pass"
         try:
@@ -1816,7 +1838,8 @@ def _seal_recaps(recap, session_id: str = "mcp", sensitive: str = "") -> dict:
             pass
         try:
             mt = _tw_turn(True, sn, (rn, rn) if rn else 0)
-            if mt: seals[-1]["duty"] = mt
+            if mt and _RECAP_REM_ON: mts.append(mt)
+            elif mt: seals[-1]["duty"] = mt
         except Exception:
             pass
     _tw_cover([m.group(1) for m in (re.search(r"t(\d{1,7})u", r or "") for r, _u, _a in items) if m])
@@ -1827,6 +1850,71 @@ def _seal_recaps(recap, session_id: str = "mcp", sensitive: str = "") -> dict:
     if dup: out["recap_already_sealed"] = [x["ref"] for x in dup]
     if errs: out["recap_failed"] = errs
     if not items: out["recap_error"] = "recap is empty or unreadable: pass a JSON list of {ref,user,answer}"
+    if _RECAP_REM_ON:
+        try:
+            du, pr = _recap_duties(resps, mts)
+            out["_duties"] = du; out["_prof"] = pr; out["_n_sealed"] = len(seals)
+        except Exception:
+            pass
+    return out
+
+
+def _recap_duties(resps: list, mts: list):
+    """Duties of recap-sealed turns, built exactly like the draft path (each sealed recap = one /remember turn: L1/L2
+    summary_due, cube duty / RATE / CUBE NUDGE, cube_harvest, duty_errors, profile duties, l1_overdue, missed_turns).
+    Counter-based summary_due comes from the newest turn only; event-like notes (nudge, harvest) from every turn."""
+    duties, seen = [], set()
+
+    def add(x, front=False):
+        k = json.dumps(x, ensure_ascii=False, sort_keys=True, default=str)
+        if k in seen: return
+        seen.add(k)
+        duties.insert(0, x) if front else duties.append(x)
+    last = resps[-1] if resps else {}
+    for d in resps:
+        for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders"):
+            if k == "summary_due" and d is not last: continue
+            if d.get(k): add(_shrink(d.get(k), 300))
+        for pd in d.get("profile_duties") or []: add(pd)
+    for d in resps:
+        if d.get("cube_harvest"): add(d["cube_harvest"], front=True)
+    sd = last.get("summary_due")
+    if isinstance(sd, dict) and sd.get("l1_pending", 0) >= 20:
+        add({"id": "l1_overdue", "kind": "summary", "do": sd.get("l1"), "source_event_ids": sd.get("l1_source_event_ids")}, front=True)
+    for mt in reversed(mts): add(mt, front=True)
+    prof = {}
+    for d in resps:
+        for k in ("profile_applied", "profile_warnings", "profile_errors", "profile_mark", "profile_fallback_started"):
+            if d.get(k): prof[k] = d[k]
+    return duties, prof
+
+
+def _recap_gate(duties: list, session_id: str, n_sealed: int) -> dict:
+    """Same duty diet as the draft path (turn_diet): caps fix always; after the session's first turn dedupe/cooldown/
+    max-shows/one-interruption for non-critical duties (critical ones always shown). Counts every sealed recap as a turn."""
+    out = {}
+    try:
+        user, sid = _caller_id() or "env", session_id or "mcp"
+        cp = _caps()
+        if _DIET.cfg("caps_check") and duties:
+            duties = _DIET.caps_fix(duties, cp["tools"], cp["params"])
+        first, st = _DIET.session(COMPACT_DB, user, sid)
+        c = _DIET._db(COMPACT_DB)
+        ur = c.execute("select turns from diet_user where user=?", (user,)).fetchone()
+        turn_no = int((ur or [0])[0] or 0) + max(1, n_sealed)
+        if duties and _DIET.cfg("enabled") and not first:
+            if any(isinstance(d, dict) and d.get("id") == "l1_overdue" for d in duties):
+                duties = [d for d in duties if not (isinstance(d, dict) and "l1_source_event_ids" in d and d.get("id") != "l1_overdue")]
+            duties, held = _DIET.gate_duties(c, user, turn_no, duties, False)
+            if held: out["duties_held"] = held
+        if n_sealed:
+            c.execute("insert into diet_user(user, turns) values(?,?) on conflict(user) do update set turns=excluded.turns", (user, turn_no))
+            c.execute("insert into diet_sess(user, session, turns, last_t) values(?,?,?,?) on conflict(user, session) do update set "
+                      "turns=diet_sess.turns+excluded.turns, last_t=excluded.last_t", (user, sid, n_sealed, _time.time()))
+        c.commit(); c.close()
+    except Exception:
+        pass
+    if duties: out["duties"] = duties
     return out
 
 
@@ -2084,6 +2172,9 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         return _dumps({"mode": "recap", **_rc, "next": "recaps saved; call turn(user_message, answer=<final>) for the current answer"})
     _rsx = {}
     if _single:
+        _rdu, _rpr, _rn = _rc.pop("_duties", None), _rc.pop("_prof", None) or {}, _rc.pop("_n_sealed", 0)
+        if _rdu is not None:
+            _rc = {**_recap_gate(_rdu, session_id, _rn), **_rpr, **_rc}
         _rsx = {"mode": "context+seal", **_rc,
                 "next": ("SINGLE-CALL MODE: 'seal' certifies your PREVIOUS answer (now saved). Write the reply to user_message from the facts/cubes/self_check above, end it with this seal as the last line; on the next user message call turn(user_message=<new>, recap=[{ref,user,answer=<this reply verbatim>}]).")
                 if _rc.get("seal") else "recap not sealed (see recap_failed/recap_error); context for user_message is above"}
@@ -3768,6 +3859,8 @@ def _build_public_app():
 PARAM_DESC = {"turn": {"profile_review": "With l2_summary: JSON {\"ops\":[...]} or {\"no_changes\":true,\"reason\":\"<why, >=20 chars>\"}; required after the first 3 L2 (else L2 rejected)."}}
 PARAM_DESC["turn"]["search_as"] = "Optional, recommended when the user asks a question about the past: up to 3 short statements of how the answer was most likely WRITTEN in memory - statement form, not a question; first person as the speaker said it (\"my kids loved...\", \"I went to...\") and third person with names; in the memory's base_language (turn/step_zero report it; translate the question if the user wrote in another language; keep names); never invent the unknown fact. Searched together with the question (finds answers a question-shaped query misses, esp. cross-language)."   # Q2S 2026-11-02
 PARAM_DESC.setdefault("memory_search", {})["search_as"] = PARAM_DESC["turn"]["search_as"]
+PARAM_DESC.setdefault("memory_recall_later", {})["search_as"] = "Optional, recommended: the same up to 3 statement forms you passed to turn/memory_search (how the answer was most likely WRITTEN in memory, base_language, keep names, never invent the unknown fact). Used as an extra seed of the deep search."   # 2026-11-02
+PARAM_DESC["memory_recall_later"]["query"] = "The question in the memory base_language (turn/step_zero report base_language); keep names and exact terms."
 PARAM_DESC["turn"]["query"] = "Optional search text instead of user_message: the user's question in the memory base_language (turn/step_zero report base_language)."
 PARAM_DESC["memory_search"]["query"] = "Search text in the memory base_language (turn/step_zero report base_language); keep names and exact terms."
 
@@ -3781,10 +3874,10 @@ SHORT_DESC = {
  "memory_event": "Open one memory event in full by id.",
  "memory_remember": "Legacy (hidden, kept for old clients): use turn.",
  "memory_critical": "Pin a critical fact.",
- "memory_recall_later": "Deep background memory search (query in the memory base_language) when turn/memory_search found nothing reliable: on-server agent collects ranked evidence (~10-30 s, ~0.1 RUB). Returns job_id; poll memory_recall_status(job_id).",
+ "memory_recall_later": "Deep background memory search (query + search_as statement forms, both in the memory base_language) when turn/memory_search found nothing reliable: on-server agent collects ranked evidence (~10-30 s, ~0.1 RUB). Returns job_id; poll memory_recall_status(job_id).",
  "memory_recall_status": "Poll a deep search job by job_id. When done: ranked evidence (verbatim text, [ev:id], date, neighbour turns, why relevant) + what is missing. Not an answer: answer yourself from it.",
  "second_look": "Legacy (use turn): checks only that every [ev:id] in the draft exists in your memory.",
- "turn": "EVERY TURN, ONE CALL. Single-call mode (fewest calls): turn(user_message=<new user text>, msg_ref=<id>, recap=[{ref,user,answer=<your PREVIOUS answer exactly as sent>}]) with no draft: saves+seals the previous turn and returns the context for the new message (facts, cubes, self_check) + seal: end your new reply with that seal (one-step lag; your current reply goes in the next call's recap). Classic mode: turn(user_message, draft) before the user sees the reply. Compact mode (compact=true): self-check first, send the final answer once as answer=<final> (draft alias); saved+sealed, not echoed; missed_turns duty -> add recap=[{ref,user,answer}] to your next turn; facts max 3 x 200 chars; cubes/self_check only when changed (else cubes_version/checklist_version). Memory is searched in its base_language (returned as base_language + search_language_rule): when the user writes in another language pass query=<the question in base_language> and search_as in it. The server does not judge your draft: it returns memory facts with [ev:id], relevant cubes and a self_check list - check the draft yourself; if you change it, call turn again (same user_message). Server checks only that every [ev:id] exists in your memory (else verdict=revise + invalid_ids, nothing saved), saves the turn and returns the seal: append it as the last line. No draft = context only. Memory missing or user says remember/вспомни: dig deeper first - memory_search by meaning and by keywords (lines=all, offset for older), memory_event for full text; still nothing -> memory_recall_later(query) deep search (~10-30 s), poll memory_recall_status - only then say you do not remember.",
+ "turn": "EVERY TURN, ONE CALL. Single-call mode (fewest calls): turn(user_message=<new user text>, msg_ref=<id>, recap=[{ref,user,answer=<your PREVIOUS answer exactly as sent>}]) with no draft: saves+seals the previous turn and returns the context for the new message (facts, cubes, self_check) + seal: end your new reply with that seal (one-step lag; your current reply goes in the next call's recap). Classic mode: turn(user_message, draft) before the user sees the reply. Compact mode (compact=true): self-check first, send the final answer once as answer=<final> (draft alias); saved+sealed, not echoed; missed_turns duty -> add recap=[{ref,user,answer}] to your next turn; facts max 3 x 200 chars; cubes/self_check only when changed (else cubes_version/checklist_version). Memory is searched in its base_language (returned as base_language + search_language_rule): when the user writes in another language pass query=<the question in base_language> and search_as in it. The server does not judge your draft: it returns memory facts with [ev:id], relevant cubes and a self_check list - check the draft yourself; if you change it, call turn again (same user_message). Server checks only that every [ev:id] exists in your memory (else verdict=revise + invalid_ids, nothing saved), saves the turn and returns the seal: append it as the last line. No draft = context only. Memory missing or user says remember/вспомни: dig deeper first - memory_search by meaning and by keywords (lines=all, offset for older), memory_event for full text; still nothing -> memory_recall_later(query, search_as=<same statement forms>) deep search (~10-30 s), poll memory_recall_status - only then say you do not remember.",
  "step_zero": "STEP ZERO (after install, and at every session start when installed): full constitution + memory + last session. page=1..N until done=true.",
  "constitution_get": "Full constitution, paged.",
  "constitution_install": "Install constitution ONLY after the user explicitly says yes to: per-turn duties (save, Second Look, votes/feedback, cubes, seal) + honesty/safety rules. Pass user_confirmed=true. Never silent; if no, plain memory tool. Returns step_zero page 1; then call step_zero(page=2..N).",

@@ -352,12 +352,97 @@ def _post(name, r):
     return r
 
 
+# ─── turn gate (2026-11-02, Deniz): memory tools want turn first. Per API key (sha256 prefix): when the key made no
+# turn in the last SKV_TURN_GATE_MIN minutes, a non-turn tool still runs but its result starts with TURN_GATE_NOTICE;
+# the key's first-ever call (not turn/step_zero) also carries the step_zero page-1 package. SKV_TURN_GATE=0 = off.
+_TG_ON = os.environ.get("SKV_TURN_GATE", "1") != "0"
+_TG_MIN = float(os.environ.get("SKV_TURN_GATE_MIN", "30"))
+_TG_EXEMPT = _TW_EXEMPT | {"turn_stats", "skills_list", "skills_get", "keys_list", "memory_recall_status", "feedback_submit",
+                           "drive_queue_list", "drive_queue_payload", "drive_queue_complete", "drive_queue_process", "vectors_process"} | \
+    {x.strip() for x in os.environ.get("SKV_TURN_GATE_EXEMPT", "").split(",") if x.strip()}
+TURN_GATE_NOTICE = ("Call turn(user_message, draft) first: it delivers memory, rules and constitution; "
+                    "without turn no seal is saved.")
+
+
+def _tg_db():
+    import sqlite3 as _sq
+    c = _sq.connect(COMPACT_DB, timeout=10)
+    c.execute("create table if not exists turn_gate(kh text primary key, last_turn real, gated int default 0)")
+    return c
+
+
+def _tg_mark_turn() -> None:
+    try:
+        kh = _sz_kh()
+        if not kh:
+            return
+        c = _tg_db()
+        c.execute("insert into turn_gate(kh, last_turn) values(?,?) on conflict(kh) do update set last_turn=excluded.last_turn",
+                  (kh, _time.time()))
+        c.commit(); c.close()
+    except Exception:
+        pass
+
+
+def _tg_check(name: str):
+    """-> (gated, first_ever) for a non-exempt tool call of the active key. Never raises."""
+    if not _TG_ON or name in _TG_EXEMPT:
+        return False, False
+    try:
+        kh = _sz_kh()
+        if not kh:
+            return False, False
+        c = _tg_db(); r = c.execute("select last_turn from turn_gate where kh=?", (kh,)).fetchone()
+        gated = not r or not r[0] or _time.time() - float(r[0]) > _TG_MIN * 60
+        if gated:
+            c.execute("insert into turn_gate(kh, last_turn, gated) values(?,0,1) on conflict(kh) do update set gated=turn_gate.gated+1", (kh,))
+            c.commit()
+        c.close()
+        return gated, _sz_auto_due()
+    except Exception:
+        return False, False
+
+
+def _tg_apply(r, first: bool):
+    sz = None
+    if first:
+        try:
+            pages = _step_zero_pages(); _tr()["sz_pages"] = (_time.time(), pages)
+            sz = {"note": SZ_AUTO_NOTE, "page": 1, "pages": len(pages), "next_page": 2 if len(pages) > 1 else None, "text": pages[0]}
+            _sz_seen_mark(auto=True)
+        except Exception as e:
+            sz = {"note": SZ_AUTO_NOTE, "error": "auto step_zero failed: %s; call step_zero(page=1)" % str(e)[:120]}
+    if not isinstance(r, str):
+        return r
+    try:
+        d = json.loads(r)
+    except Exception:
+        d = None
+    if isinstance(d, dict):
+        head = {"TURN_REQUIRED": TURN_GATE_NOTICE}
+        if sz:
+            head["step_zero"] = sz
+        out = {**head, **{k: v for k, v in d.items() if k not in head and k != "turn_reminder"}}
+        s = json.dumps(out, ensure_ascii=False)
+        cap = 2000
+        while sz and len(s) > _SZ_AUTO_LIMIT and cap >= 100:   # trim the tool part, never the notice/step_zero
+            out = {**head, **{k: _shrink(v, cap) for k, v in d.items() if k not in head and k != "turn_reminder"}}
+            s = json.dumps(out, ensure_ascii=False); cap //= 2
+        return s
+    pre = "TURN_REQUIRED: " + TURN_GATE_NOTICE + "\n\n"
+    if sz:
+        pre += "step_zero (auto, first call of this key):\n" + json.dumps(sz, ensure_ascii=False) + "\n\n"
+    return pre + r
+
+
 def _tw_wrap(fn):
     import functools
     name = fn.__name__
 
     @functools.wraps(fn)
     def w(*a, **kw):
+        top = _tw_depth.get() == 0
+        gated, first = _tg_check(name) if top else (False, False)
         tok = _tw_depth.set(_tw_depth.get() + 1)
         try:
             r = fn(*a, **kw)
@@ -365,8 +450,12 @@ def _tw_wrap(fn):
             _tw_depth.reset(tok)
         if _tw_depth.get() > 0:
             return r
+        if name == "turn":
+            _tg_mark_turn()
         r = _post(name, r)
         rem = _tw_touch(name)
+        if gated:
+            return _tg_apply(r, first)
         if not rem or not isinstance(r, str):
             return r
         try:

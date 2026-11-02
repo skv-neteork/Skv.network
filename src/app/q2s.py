@@ -23,7 +23,7 @@ SEARCH_AS = contextvars.ContextVar("q2s_search_as", default=None)
 CFG = "/data/skv/search_config.json"
 DEF = {"q2s": False, "q2s_rules": True, "q2s_llm": False, "q2s_model": "google/gemini-2.5-flash-lite", "q2s_timeout_s": 1.5,
        "q2s_w_raw": 1.0, "q2s_w_raw_agent": 0.3, "q2s_w_rules": 1.0, "q2s_w_agent": 1.0, "q2s_w_llm": 0.8, "q2s_fuse_agent": "max", "q2s_fuse_rules": "sum",
-       "q2s_pron": False}
+       "q2s_pron": False, "q2s_forms_nf": None}
 CACHE = "/data/skv/metadata_store/q2s_cache.db"
 _cfg_cache = {"m": None, "v": dict(DEF)}
 STATS = {"agent": 0, "rules": 0, "llm": 0, "skip": 0, "err": 0}
@@ -224,6 +224,33 @@ def plan(query, search_as=None):
     return "rules", fs   # a question with no rule forms still gets raw hybrid (not the name_and_meaning route)
 
 
+def _hybrid_pair(uid, query, pool):
+    """2026-11-02 DIAG (flag q2s_forms_nf): one vector + one keyword search, fused twice: with the name boost of
+    search_v2.hybrid (x5 cosine for turns that contain a capitalized query word) and without it. LoCoMo turns rarely
+    carry the asked name (the speaker is never written), so on rule forms the boost pushed 37 of 63 named golds down
+    (e.g. L10 "How long has Caroline had her current group of friends": rank 6 -> 77). Falls back to hybrid() twice."""
+    from app import search_v2 as _v2, semantic as _sem
+    c = _v2.cfg()
+    nfil = getattr(_v2, "name_filter", None)
+    if c.get("chunks") or nfil is None:
+        r = _v2.hybrid(uid, query, top_k=pool)[0]
+        return r, r
+    sem = []
+    try:
+        sem, _v = _sem.semantic_events(uid, query, k=100)
+        sem = [(e, s) for e, s in sem if e.startswith(uid + "::")]
+    except Exception as e:
+        print("[q2s] semantic skipped: %s" % type(e).__name__, flush=True)
+    words, rare = _v2.fts_ranked(uid, query, limit=c["fts_limit"])
+    ww = _v2.word_weight(c, rare)
+    out = []
+    for s in (nfil(uid, sem, query), sem):
+        fused = _v2.wrrf(s, words, c["w_vec"], ww)
+        fused = _v2._impute_pending(uid, fused, s, words, c["w_vec"])
+        out.append(fused[:pool])
+    return out[0], out[1]
+
+
 def search(uid, query, top_k=20, search_as=None):
     """Fused [(event_id, score)] or None when Q2S does not apply."""
     from app import search_v2 as _v2
@@ -237,9 +264,16 @@ def search(uid, query, top_k=20, search_as=None):
     w_raw = v["q2s_w_raw_agent"] if kind == "agent" else v["q2s_w_raw"]
     w_f = {"agent": v["q2s_w_agent"], "rules": v["q2s_w_rules"], "llm": v["q2s_w_llm"]}[kind]
     lists = [(w_raw, raw, "raw")]
+    nf = v.get("q2s_forms_nf") if kind == "rules" else None   # 2026-11-02 DIAG: share of the no-name-boost hybrid per rule form
     for f in fs:
         try:
-            lists.append((w_f, _v2.hybrid(uid, f, top_k=pool)[0], kind))
+            if nf:
+                boosted, plain = _hybrid_pair(uid, f, pool)
+                b = min(max(float(nf), 0.0), 1.0)
+                lists.append((w_f * (1 - b), boosted, "rules_nb%d" % len(lists)))
+                lists.append((w_f * b, plain, "rules_np%d" % len(lists)))
+            else:
+                lists.append((w_f, _v2.hybrid(uid, f, top_k=pool)[0], kind))
         except Exception as e:
             print("[q2s] form skipped: %s" % type(e).__name__, flush=True)
     STATS[kind] += 1

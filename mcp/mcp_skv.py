@@ -1607,6 +1607,86 @@ def _save_recaps(recap: str, session_id: str = "mcp", sensitive: str = "") -> di
     return out
 
 
+
+# 2026-11-02 (Deniz): the FIRST turn made with any API key (new key after rotate / another key of the same memory
+# chain) carries the real step_zero page-1 package (tail, L1/L2, critical, profile, board), so an agent that switches
+# keys sees the latest context at once. Only once per key: later turns are unchanged. A key that already called
+# step_zero counts as seen. Keys are stored only as a sha256 prefix.
+_SZ_AUTO_LIMIT = int(os.environ.get("SKV_SZ_AUTO_LIMIT", "15000"))   # this one response may exceed RESP_LIMIT
+_SZ_AUTO_IDLE_H = float(os.environ.get("SKV_SZ_AUTO_IDLE_H", "0"))   # >0: also re-send after this many idle hours
+SZ_AUTO_NOTE = ("auto: new key on this memory chain. This is step_zero page 1 (latest context: last session, tail, "
+                "L2/L1, critical facts, profile, board). Read it before answering; constitution pages: step_zero(page=2..N).")
+
+
+def _sz_kh() -> str:
+    import hashlib as _h
+    k = _active_key()
+    return _h.sha256(k.encode()).hexdigest()[:24] if k else ""
+
+
+def _sz_seen_db():
+    import sqlite3 as _sq
+    c = _sq.connect(COMPACT_DB, timeout=10)
+    c.execute("create table if not exists sz_key_seen(kh text primary key, first_at real, last_at real, auto_at real)")
+    return c
+
+
+def _sz_seen_mark(auto: bool = False) -> None:
+    try:
+        kh = _sz_kh()
+        if not kh:
+            return
+        now = _time.time(); c = _sz_seen_db()
+        c.execute("insert into sz_key_seen(kh, first_at, last_at, auto_at) values(?,?,?,?) on conflict(kh) do update set "
+                  "last_at=excluded.last_at, auto_at=coalesce(excluded.auto_at, sz_key_seen.auto_at)", (kh, now, now, now if auto else None))
+        c.commit(); c.close()
+    except Exception:
+        pass
+
+
+def _sz_auto_due() -> bool:
+    try:
+        kh = _sz_kh()
+        if not kh:
+            return False
+        c = _sz_seen_db(); r = c.execute("select last_at from sz_key_seen where kh=?", (kh,)).fetchone(); c.close()
+        if r is None:
+            return True
+        return bool(_SZ_AUTO_IDLE_H > 0 and _time.time() - float(r[0] or 0) > _SZ_AUTO_IDLE_H * 3600)
+    except Exception:
+        return False
+
+
+def _sz_auto_attach(res: str, due: Optional[bool] = None) -> str:
+    """Wrap a turn() result: on the first turn of this key add step_zero page 1; always mark the key seen."""
+    try:
+        o = json.loads(res)
+    except Exception:
+        return res
+    if not isinstance(o, dict) or o.get("mode") == "recap" or o.get("installed") is False:
+        return res
+    if due is None:
+        due = _sz_auto_due()
+    if not due:
+        _sz_seen_mark()
+        return res
+    try:
+        pages = _step_zero_pages(); _tr()["sz_pages"] = (_time.time(), pages)
+        sz = {"note": SZ_AUTO_NOTE, "page": 1, "pages": len(pages), "next_page": 2 if len(pages) > 1 else None, "text": pages[0]}
+    except Exception as e:
+        _sz_seen_mark()
+        o["step_zero"] = {"note": SZ_AUTO_NOTE, "error": "auto step_zero failed: %s; call step_zero(page=1)" % str(e)[:120]}
+        return _dumps(o)
+    _sz_seen_mark(auto=True)
+    out = {"step_zero": sz, **{k: v for k, v in o.items() if k != "step_zero"}}
+    s = json.dumps(out, ensure_ascii=False, separators=(",", ":"))
+    cap = 2000
+    while len(s) > _SZ_AUTO_LIMIT and cap >= 100:   # trim the turn part, never the step_zero package
+        out = {"step_zero": sz, **{k: _shrink(v, cap) for k, v in o.items() if k != "step_zero"}}
+        s = json.dumps(out, ensure_ascii=False, separators=(",", ":")); cap //= 2
+    return s
+
+
 @mcp.tool()
 def turn(user_message: str, draft: str = "", query: str = "", session_id: str = "mcp", event_id: str = "",
          duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", lines: str = "",
@@ -1646,6 +1726,15 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     The first turn of a session returns everything. Later turns return only what changed or matters now: empty
     fields, the static self_check and repeated board/profile items are left out (profile_digest + the 1-2 matching
     rows stay). verbose=true returns the full response any time. turn_stats() shows sizes and second_look stats."""
+    return _sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose))
+
+
+def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: str = "mcp", event_id: str = "",
+         duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", lines: str = "",
+         l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "",
+         compact: bool = False, answer: str = "", draft_summary: str = "", profile: Union[list, str] = "", profile_review: Union[dict, str] = "",
+         msg_ref: str = "", second_look: str = "", recap: str = "", verbose: bool = False) -> str:
+    """turn() body; turn() adds the auto step_zero package on the first turn of a key."""
     _g = _not_installed_reply("turn")
     if _g: return _g
     _rc = _save_recaps(recap, session_id, sensitive) if recap else None
@@ -2225,6 +2314,7 @@ def step_zero(page: int = 1) -> str:
     page = int(page or 1)
     if page == 1:
         _DIET.session_reset(COMPACT_DB, _caller_id() or "env")   # new session: the next turn is a full one
+        _sz_seen_mark()   # key seen: its first turn needs no auto step_zero
     t = _tr(); c = t.get("sz_pages")
     if page > 1 and c and _time.time() - c[0] < 900:
         pages = c[1]   # same page set as page 1: no renumbering between calls

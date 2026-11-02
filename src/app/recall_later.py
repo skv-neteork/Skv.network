@@ -10,7 +10,9 @@ Trigger: agent requests deep_search, or fast /search returns no_confident_match.
 
 Config: recall_later_enabled, recall_later_tokens (400), recall_later_delay (3),
 recall_later_model (falls back to llm_model), recall_later_max_cost_rub (3.0),
-recall_later_max_steps (15, clamped 5..30), recall_later_min_steps (5).
+recall_later_max_steps (15, clamped 5..30), recall_later_min_steps (5),
+recall_later_reasoning ('retry' default: on empty LLM content retry once with
+reasoning disabled; 'off': always disable reasoning; 'legacy': no handling).
 """
 import json, re, secrets, threading, time
 from app import shelves as _sh
@@ -64,21 +66,32 @@ def _llm(messages, max_tokens):
     import os, urllib.request
     cfg = config()
     model = cfg.get("recall_later_model") or cfg.get("llm_model") or "meta-llama/llama-3.1-8b-instruct"
-    req = urllib.request.Request(
-        L.URL,
-        data=json.dumps({
-            "model": model, "messages": messages, "temperature": 0.1, "max_tokens": max_tokens,
-        }).encode(),
-        headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "")},
-    )
-    with urllib.request.urlopen(req, timeout=90) as r:
-        d = json.loads(r.read())
-    u = d.get("usage") or {}
-    cost = u.get("cost_rub", d.get("cost_rub", u.get("cost", d.get("cost")))) or 0
-    L._log({"ts": time.time(), "job": "recall_later", "model": model,
-            "prompt": u.get("prompt_tokens", 0), "completion": u.get("completion_tokens", 0),
-            "cost_rub": cost})
-    return d["choices"][0]["message"]["content"], float(cost or 0), model
+    mode = str(cfg.get("recall_later_reasoning", "retry") or "retry").lower()
+    total = 0.0
+    for attempt in (0, 1):
+        body = {"model": model, "messages": messages, "temperature": 0.1, "max_tokens": max_tokens}
+        if mode == "off" or attempt == 1:
+            body["reasoning"] = {"enabled": False}
+        req = urllib.request.Request(
+            L.URL,
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ.get("POLZA_KEY", "")},
+        )
+        with urllib.request.urlopen(req, timeout=90) as r:
+            d = json.loads(r.read())
+        u = d.get("usage") or {}
+        cost = u.get("cost_rub", d.get("cost_rub", u.get("cost", d.get("cost")))) or 0
+        total += float(cost or 0)
+        L._log({"ts": time.time(), "job": "recall_later", "model": model,
+                "prompt": u.get("prompt_tokens", 0), "completion": u.get("completion_tokens", 0),
+                "cost_rub": cost, "attempt": attempt})
+        ch = d["choices"][0]
+        content = (ch.get("message") or {}).get("content") or ""
+        # Reasoning models can burn all max_tokens on hidden reasoning -> empty content.
+        # mode "retry" (default): repeat once with reasoning disabled; "legacy": old behaviour.
+        if content.strip() or mode != "retry" or attempt == 1:
+            return content, total, model
+    return content, total, model
 
 
 def _json(s):

@@ -94,6 +94,7 @@ class SearchRequest(BaseModel):
     until: Optional[str] = None
     exclude_imports: bool = False     # drop kind=import, archived and test events
     source: Optional[str] = None      # events (default) | board | all
+    search_as: Optional[List[str]] = None   # Q2S: up to 3 statements of how the answer was written (agent-supplied)
 
 
 class ChatRequest(BaseModel):

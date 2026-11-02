@@ -284,7 +284,8 @@ def _vault_hits(uid, query, stems, limit=3):
 def text_search(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
     ctx = _line_ctx()
     k = min(120, max(top_k * 4, 40)) if ctx else top_k
-    out = _text_search_core(uid, query, k, since, until, exclude_imports, source)
+    from app import q2s as _q2s   # 2026-11-02 Q2S: question -> statement forms (flag search_config q2s; off = _text_search_core)
+    out = _q2s.text_core(uid, query, k, since, until, exclude_imports, source)
     if ctx:
         out = [o for o in out if _visible(ctx, o.get("event_id"))]
     out = out[:top_k]

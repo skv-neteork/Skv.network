@@ -753,8 +753,12 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
             from app import search_v2 as _v2
             if _v2.enabled():
                 return _v2.grouped(req.user_id, req.query_text, top_k=min(req.top_k, 12), parent_id=req.parent_id)
-        from app import search_text as _st
-        return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=getattr(req, "since", None), until=getattr(req, "until", None), exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
+        from app import search_text as _st, q2s as _q2s
+        _tok = _q2s.SEARCH_AS.set(getattr(req, "search_as", None))
+        try:
+            return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=getattr(req, "since", None), until=getattr(req, "until", None), exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
+        finally:
+            _q2s.SEARCH_AS.reset(_tok)
     q_vec = np.array(req.query_vector, dtype=np.float32)
     try:
         # v7.8: pass layer_weights for dynamic masks

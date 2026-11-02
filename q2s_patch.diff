@@ -1,0 +1,180 @@
+--- src/app/search_text.py
++++ src/app/search_text.py
+@@ -288,7 +288,8 @@
+ def text_search(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
+     ctx = _line_ctx()
+     k = min(120, max(top_k * 4, 40)) if ctx else top_k
+-    out = _text_search_core(uid, query, k, since, until, exclude_imports, source)
++    from app import q2s as _q2s   # 2026-11-02 Q2S: question -> statement forms (flag search_config q2s; off = _text_search_core)
++    out = _q2s.text_core(uid, query, k, since, until, exclude_imports, source)
+     if ctx:
+         out = [o for o in out if _visible(ctx, o.get("event_id"))]
+     out = out[:top_k]
+--- src/app/routers/v7_core.py
++++ src/app/routers/v7_core.py
+@@ -94,6 +94,7 @@
+     until: Optional[str] = None
+     exclude_imports: bool = False     # drop kind=import, archived and test events
+     source: Optional[str] = None      # events (default) | board | all
++    search_as: Optional[List[str]] = None   # Q2S: up to 3 statements of how the answer was written (agent-supplied)
+ 
+ 
+ class ChatRequest(BaseModel):
+--- src/app/routers/v7_memory.py
++++ src/app/routers/v7_memory.py
+@@ -779,8 +779,12 @@
+             from app import search_v2 as _v2
+             if _v2.enabled():
+                 return _v2.grouped(req.user_id, req.query_text, top_k=min(req.top_k, 12), parent_id=req.parent_id)
+-        from app import search_text as _st
+-        return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=getattr(req, "since", None), until=getattr(req, "until", None), exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
++        from app import search_text as _st, q2s as _q2s
++        _tok = _q2s.SEARCH_AS.set(getattr(req, "search_as", None))
++        try:
++            return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=getattr(req, "since", None), until=getattr(req, "until", None), exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
++        finally:
++            _q2s.SEARCH_AS.reset(_tok)
+     q_vec = np.array(req.query_vector, dtype=np.float32)
+     try:
+         # v7.8: pass layer_weights for dynamic masks
+--- src/app/routers/v7_guards.py
++++ src/app/routers/v7_guards.py
+@@ -118,6 +118,7 @@
+     profile_review: Optional[Any] = None   # with l2_summary: {"ops":[...]} or {"no_changes":true,"reason":...}
+     source: str = ""                       # e.g. guard2_ext:chatgpt -> no L1/L2 duties, server summarises
+     second_look: str = ""                  # answers to last turn's second_look_questions: "kept|changed: <what>"
++    search_as: Optional[List[str]] = None  # Q2S: up to 3 statements of how the answer was written in memory
+ 
+ 
+ def _turn_key(request, k=""):
+@@ -142,7 +143,7 @@
+ def agent_turn_post(req: TurnRequest, request: Request):
+     """REST twin of the MCP tool turn: self-check context, [ev:] id check, save, server seal #NNN·code."""
+     from app.rest_turn import turn as _t
+-    return _with_pin(_t(_turn_key(request), req.user_message, req.draft, req.query, req.session_id, req.duty, req.duty_reason, req.task_done, req.critical, req.l1_summary, req.l2_summary, req.source_event_ids, req.sensitive, req.compact, req.answer, req.draft_summary, req.profile, req.profile_review, source=req.source, second_look=req.second_look))
++    return _with_pin(_t(_turn_key(request), req.user_message, req.draft, req.query, req.session_id, req.duty, req.duty_reason, req.task_done, req.critical, req.l1_summary, req.l2_summary, req.source_event_ids, req.sensitive, req.compact, req.answer, req.draft_summary, req.profile, req.profile_review, source=req.source, second_look=req.second_look, search_as=req.search_as))
+ 
+ 
+ @router.get("/agent/turn")
+--- src/app/rest_turn.py
++++ src/app/rest_turn.py
+@@ -57,8 +57,11 @@
+     return " ".join(w[:n]) + (" …" if len(w) > n else "")
+ 
+ 
+-def _hits(key, q):
+-    d = _req(key, "POST", "/search", {"query_text": q, "top_k": 20})
++def _hits(key, q, search_as=None):
++    _b = {"query_text": q, "top_k": 20}
++    if search_as:
++        _b["search_as"] = [str(x)[:160] for x in (search_as if isinstance(search_as, list) else [search_as])][:3]
++    d = _req(key, "POST", "/search", _b)
+     allr = (d or {}).get("results") or [] if isinstance(d, dict) else []
+     top = max([float(r.get("score") or 0) for r in allr] or [0])
+     out, seen = [], set()
+@@ -163,7 +166,7 @@
+         return {}
+ 
+ 
+-def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look=""):
++def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None):
+     if answer and not draft:
+         draft = answer
+     if not key:
+@@ -182,7 +185,7 @@
+     _um_h = "h:" + hashlib.sha256(((user_message or "") + (("|" + str(source)) if ext_src else "")).encode()).hexdigest()  # state keeps a hash, never the raw text
+     same = bool(last_user in (_um_h, user_message) and now - (saved_t or 0) < 900 and last_eid)
+     q = _scrub((query or user_message or "")[:500], sensitive)
+-    hits = [] if (_is_low(user_message) and not query) else _hits(key, q)
++    hits = [] if (_is_low(user_message) and not query and not search_as) else _hits(key, q, search_as)
+     own = _sid(last_eid) if same else ""
+     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _words(h["summary"], 60)} for h in hits if _sid(h["event_id"]) != own]
+     cubes = []
+--- mcp/mcp_skv.py
++++ mcp/mcp_skv.py
+@@ -814,8 +814,23 @@
+     return m >= 1 and (m / len(qs) >= 0.34 or m >= 2)
+ 
+ 
+-def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = False) -> list:
++def _sa_list(search_as) -> list:
++    """Q2S agent forms: list, JSON list or 'a | b' string -> max 3 x 160 chars."""
++    if not search_as:
++        return []
++    if isinstance(search_as, str):
++        s = search_as.strip()
++        try:
++            search_as = json.loads(s) if s.startswith("[") else re.split(r"\s*(?:\n|\|)\s*", s)
++        except Exception:
++            search_as = [s]
++    return [str(x).strip()[:160] for x in (search_as if isinstance(search_as, list) else []) if str(x).strip()][:3]
++
++
++def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = False, search_as: Union[list, str] = "") -> list:
+     body: dict[str, Any] = _uid_body({"query_text": query, "top_k": 20})
++    if _sa_list(search_as):
++        body["search_as"] = _sa_list(search_as)
+     if (lines or "").lower() == "all":
+         body["lines"] = "all"
+     data = _req("POST", "/search", body)
+@@ -1194,7 +1209,7 @@
+                   "Say so plainly; do not invent. Deeper: memory_search lines=all, memory_recall_later.")
+ 
+ 
+-def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", offset: int = 0, since: str = "", until: str = "", exclude_imports: bool = False, source: str = "") -> str:
++def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", offset: int = 0, since: str = "", until: str = "", exclude_imports: bool = False, source: str = "", search_as: Union[list, str] = "") -> str:
+     """Quick text search POST /search. Default: only this key's memory line; lines="all" searches all lines of the account. Prefer memory_consult for full agent protocol.
+     Multi-word queries match any term (stemmed, RU/EN); ranking = relevance x recency.
+     Filters: since/until ("3d", "12h", "2026-10-23" or "2026-10-23 18:00", account time); exclude_imports=true drops imported chats,
+@@ -1211,6 +1226,7 @@
+     if until: body["until"] = until
+     if exclude_imports: body["exclude_imports"] = True
+     if source: body["source"] = source
++    if _sa_list(search_as): body["search_as"] = _sa_list(search_as)
+     data = _req("POST", "/search", body)
+     if isinstance(data, dict) and data.get("ok") is False:
+         return _dumps(data)
+@@ -1692,7 +1708,7 @@
+          duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", lines: str = "",
+          l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "",
+          compact: bool = False, answer: str = "", draft_summary: str = "", profile: Union[list, str] = "", profile_review: Union[dict, str] = "",
+-         msg_ref: str = "", second_look: str = "", recap: str = "", verbose: bool = False) -> str:
++         msg_ref: str = "", second_look: str = "", recap: str = "", verbose: bool = False, search_as: Union[list, str] = "") -> str:
+     """ONE CALL PER TURN: self-check context + save + seal. Write your draft privately, then call
+     turn(user_message=<exact user text>, draft=<draft>) BEFORE the user sees it.
+     The server does NOT judge the meaning of the draft. It returns: memory facts with [ev:id] (deduped, latest only),
+@@ -1726,14 +1742,14 @@
+     The first turn of a session returns everything. Later turns return only what changed or matters now: empty
+     fields, the static self_check and repeated board/profile items are left out (profile_digest + the 1-2 matching
+     rows stay). verbose=true returns the full response any time. turn_stats() shows sizes and second_look stats."""
+-    return _sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose))
++    return _sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose, search_as=search_as))
+ 
+ 
+ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: str = "mcp", event_id: str = "",
+          duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", lines: str = "",
+          l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "",
+          compact: bool = False, answer: str = "", draft_summary: str = "", profile: Union[list, str] = "", profile_review: Union[dict, str] = "",
+-         msg_ref: str = "", second_look: str = "", recap: str = "", verbose: bool = False) -> str:
++         msg_ref: str = "", second_look: str = "", recap: str = "", verbose: bool = False, search_as: Union[list, str] = "") -> str:
+     """turn() body; turn() adds the auto step_zero package on the first turn of a key."""
+     _g = _not_installed_reply("turn")
+     if _g: return _g
+@@ -1748,7 +1764,7 @@
+     if not draft and event_id:
+         return _dumps({"mode": "event", "event": _req("GET", f"/event/{_full_eid(event_id)}", params={"lines": "all"})})
+     same = t["last_user"] == user_message and _time.time() - t["saved_t"] < 900 and t["last_eid"]
+-    hits = [] if _is_low(user_message) and not query else _hits(q, 5, lines, turn_context=True)
++    hits = [] if _is_low(user_message) and not query and not search_as else _hits(q, 5, lines, turn_context=True, search_as=search_as)
+     own = _sid(t.get("last_eid") or "") if same else ""
+     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _fact_text(h["summary"])} for h in hits if _sid(h["event_id"]) != own]
+     cubes = []
+@@ -3404,6 +3420,8 @@
+ 
+ 
+ PARAM_DESC = {"turn": {"profile_review": "With l2_summary: JSON {\"ops\":[...]} or {\"no_changes\":true,\"reason\":\"<why, >=20 chars>\"}; required after the first 3 L2 (else L2 rejected)."}}
++PARAM_DESC["turn"]["search_as"] = "Optional, recommended when the user asks a question about the past: up to 3 short statements of how the answer was most likely WRITTEN in memory - statement form, not a question; first person as the speaker said it (\"my kids loved...\", \"I went to...\") and third person with names; in the memory's language (translate the question if memory is in another language; keep names); never invent the unknown fact. Searched together with the question (finds answers a question-shaped query misses, esp. cross-language)."   # Q2S 2026-11-02
++PARAM_DESC.setdefault("memory_search", {})["search_as"] = PARAM_DESC["turn"]["search_as"]
+ 
+ SHORT_DESC = {
+  "memory_bootstrap": "STEP 0 (preferred): compact continuity pack (consent step, rule 0, duties, seal, memory tail, board). MUST call before first answer. detail=1&page=N = full pack.",

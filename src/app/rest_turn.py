@@ -57,8 +57,11 @@ def _words(s, n):
     return " ".join(w[:n]) + (" …" if len(w) > n else "")
 
 
-def _hits(key, q):
-    d = _req(key, "POST", "/search", {"query_text": q, "top_k": 20})
+def _hits(key, q, search_as=None):
+    _b = {"query_text": q, "top_k": 20}
+    if search_as:
+        _b["search_as"] = [str(x)[:160] for x in (search_as if isinstance(search_as, list) else [search_as])][:3]
+    d = _req(key, "POST", "/search", _b)
     allr = (d or {}).get("results") or [] if isinstance(d, dict) else []
     top = max([float(r.get("score") or 0) for r in allr] or [0])
     out, seen = [], set()
@@ -163,7 +166,7 @@ def _prof_rel(user, msg, answer, session_id, compact):
         return {}
 
 
-def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look=""):
+def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None):
     if answer and not draft:
         draft = answer
     if not key:
@@ -182,7 +185,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
     _um_h = "h:" + hashlib.sha256(((user_message or "") + (("|" + str(source)) if ext_src else "")).encode()).hexdigest()  # state keeps a hash, never the raw text
     same = bool(last_user in (_um_h, user_message) and now - (saved_t or 0) < 900 and last_eid)
     q = _scrub((query or user_message or "")[:500], sensitive)
-    hits = [] if (_is_low(user_message) and not query) else _hits(key, q)
+    hits = [] if (_is_low(user_message) and not query and not search_as) else _hits(key, q, search_as)
     own = _sid(last_eid) if same else ""
     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _words(h["summary"], 60)} for h in hits if _sid(h["event_id"]) != own]
     cubes = []

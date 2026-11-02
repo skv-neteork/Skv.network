@@ -1206,7 +1206,7 @@ def _fact_text(text: str, whole: int = 320, cut: int = 300) -> str:
 
 
 _NOT_IN_MEMORY = ("not in memory: no saved fact (events, critical marks, vault names) matches this. "
-                  "Say so plainly; do not invent. Deeper: memory_search lines=all, memory_dig, memory_recall_later.")
+                  "Say so plainly; do not invent. Deeper: memory_search lines=all, memory_recall_later.")
 
 
 def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", offset: int = 0, since: str = "", until: str = "", exclude_imports: bool = False, source: str = "", search_as: Union[list, str] = "") -> str:
@@ -1288,7 +1288,7 @@ def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", o
         out["reliable_matches"] = False
         out["not_in_memory"] = True
         out["message"] = "Not in memory: nothing saved matches %r (searched events, critical marks, vault names; vault values are never searched). " \
-                         "Say this plainly; do not invent. Deeper: lines=all, memory_dig, memory_recall_later." % (query or "")[:80]
+                         "Say this plainly; do not invent. Deeper: lines=all, memory_recall_later." % (query or "")[:80]
         out["offer"] = "memory_recall_later"
     elif not any(_rel(query, x.get("summary") or "") > 0 for x in results) and _qwords(query):
         out["reliable_matches"] = False
@@ -2088,6 +2088,7 @@ def _sz_memory(n_tail: int = 4, an: int = 700) -> tuple:
     if rows:
         r = rows[0]; txt = qa(r[2], 600, 1500)
         parts.append("=== HOW THE LAST SESSION ENDED ===\n[ev:%s] %s %s" % (_sid(r[1]), _ev_time(r[1]), txt)); items.append((r[1], txt))
+        parts.append("=== AGENT NOTE (first reply only) ===\nTell the user in one line: memory line loaded, the last thing you remember, ready to continue. Do not repeat this every turn.")
         tl = []
         for r in rows[1:]:
             txt = qa(r[2], 260, an); tl.append("[ev:%s] %s %s" % (_sid(r[1]), _ev_time(r[1]), txt)); items.append((r[1], txt))
@@ -3419,9 +3420,9 @@ def _build_public_app():
 
 
 PARAM_DESC = {"turn": {"profile_review": "With l2_summary: JSON {\"ops\":[...]} or {\"no_changes\":true,\"reason\":\"<why, >=20 chars>\"}; required after the first 3 L2 (else L2 rejected)."}}
-
 PARAM_DESC["turn"]["search_as"] = "Optional, recommended when the user asks a question about the past: up to 3 short statements of how the answer was most likely WRITTEN in memory - statement form, not a question; first person as the speaker said it (\"my kids loved...\", \"I went to...\") and third person with names; in the memory's language (translate the question if memory is in another language; keep names); never invent the unknown fact. Searched together with the question (finds answers a question-shaped query misses, esp. cross-language)."   # Q2S 2026-11-02
 PARAM_DESC.setdefault("memory_search", {})["search_as"] = PARAM_DESC["turn"]["search_as"]
+
 SHORT_DESC = {
  "memory_bootstrap": "STEP 0 (preferred): compact continuity pack (consent step, rule 0, duties, seal, memory tail, board). MUST call before first answer. detail=1&page=N = full pack.",
  "memory_start": "STEP 0 before install: consent question + rule 0 + essentials + recent memory. Once installed use step_zero.",
@@ -3561,11 +3562,11 @@ def vault_inject(name: str, purpose: str, url: str, method: str = "POST", body: 
 
 
 VISIBLE = {"constitution_get", "turn", "step_zero", "constitution_status", "constitution_install", "memory_start", "memory_search", "memory_event",
-           "cube_search", "cube_get", "cube_install", "cube_vote", "cube_create", "feedback_submit", "board_list", "board_act", "sandbox_run", "memory_dig",
-           "cube_consent", "court_case", "court_removal_request", "cube_link", "consult", "consult_accept", "vault_inject", "joint_project", "joint_search", "turn_stats"}
+           "cube_search", "cube_get", "cube_install", "cube_vote", "cube_create", "feedback_submit", "board_list", "board_act", "sandbox_run",
+           "cube_consent", "court_case", "court_removal_request", "cube_link", "consult", "consult_accept", "vault_inject", "joint_project", "joint_search", "turn_stats", "memory_recall_later", "memory_recall_status"}
 
 
-_MEMTOOLS = {"step_zero", "memory_start", "constitution_install", "constitution_get", "constitution_status", "turn", "memory_search", "memory_consult", "memory_event", "memory_start", "memory_bootstrap", "step_zero", "memory_lens", "memory_dig"}
+_MEMTOOLS = {"step_zero", "memory_start", "constitution_install", "constitution_get", "constitution_status", "turn", "memory_search", "memory_consult", "memory_event", "memory_start", "memory_bootstrap", "step_zero", "memory_lens", "memory_recall_later", "memory_recall_status"}
 
 
 def _with_time(fn, name=""):

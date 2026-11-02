@@ -211,7 +211,12 @@ def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, du
         if _n and not s["pending_cube"] and not ended:   # long work chain with no task_done / topic change: soft nudge
             _t = _turns(conn, uid)
             if _t >= _n and _t % _n == 0:
-                notes.append(CUBE_NUDGE % _t)
+                try:
+                    from app.cube_harvest import latest_cube_id as _lc
+                    _mc = _lc()
+                except Exception:
+                    _mc = "cube_688c0ebbb3be"
+                notes.append(CUBE_NUDGE % (_t, _mc))
     return notes
 
 
@@ -221,8 +226,8 @@ def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, du
 # Flag: env SKV_CUBE_NUDGE_TURNS or memory_config.json "cube_nudge_turns" (default 25; 0 = off).
 # Rollback: set it to 0, or cp src/app/cubes_v2.py.bak.20261102nudge + docker restart skv_api.
 CUBE_NUDGE = ("• CUBE NUDGE: %d turns since your last cube/cube_nothing. Reusable procedure, fix or user correction in this "
-              "chain? Write a cube per the cube-author meta cube (cube_search \"cube author\") + task_done=true; else "
-              "duty=cube_nothing + duty_reason. Reminder only.")
+              "chain? cube_get(cube_id=\"%s\") (cube author) and follow it, then task_done=true; else duty=cube_nothing "
+              "+ duty_reason. Reminder only.")
 
 
 def cube_nudge_turns():

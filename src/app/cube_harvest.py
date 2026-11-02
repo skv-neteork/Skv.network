@@ -9,6 +9,29 @@ MIN_TURNS = 10          # fewer new turns than this: nothing worth harvesting, s
 TURN_COOLDOWN_S = 6 * 3600   # in turn() show it at most every 6 h; step_zero always shows it while due
 
 
+def latest_cube_id(cid=None):
+    """CUBE_ID may be superseded by newer versions (cube_688c0ebbb3be -> ... ): follow links_json.superseded_by so the
+    reminder points at the live harvest/author cube. Falls back to CUBE_ID. (2026-11-02)"""
+    import json
+    cid = cid or CUBE_ID
+    try:
+        c = sqlite3.connect("file:/data/skv/metadata_store/shared_master.db?mode=ro", uri=True, timeout=5)
+        try:
+            for _ in range(20):
+                r = c.execute("select coalesce(status,''), links_json from cubes_new where cube_id=?", (cid,)).fetchone()
+                if not r or r[0] != "superseded":
+                    break
+                nxt = (json.loads(r[1] or "{}") or {}).get("superseded_by") if (r[1] or "").startswith("{") else None
+                if not nxt:
+                    break
+                cid = nxt
+        finally:
+            c.close()
+    except Exception:
+        return CUBE_ID
+    return cid
+
+
 def _days():
     try:
         return max(0.01, float(os.environ.get("SKV_CUBE_HARVEST_DAYS", "3")))
@@ -74,10 +97,11 @@ def due(user, where="turn"):
         if where == "turn":   # step_zero shows it without starting the turn cooldown
             c.execute("update h set shown_t=? where user=?", (now, user)); c.commit()
         c.close()
+        _cid = latest_cube_id()
         return {"cube_harvest": {
-            "due": True, "kind": "reminder", "cube_id": CUBE_ID, "turns": n, "from_ev": a, "to_ev": b, "since": since,
-            "do": "Harvest experience from these turns: cube_get(cube_id=\"%s\") and follow its HARVEST section "
-                  "(repeated mistakes, fixes that worked, user corrections, new craft facts; search before writing; 0-2 strong cubes is normal)." % CUBE_ID,
+            "due": True, "kind": "reminder", "cube_id": _cid, "turns": n, "from_ev": a, "to_ev": b, "since": since,
+            "do": "Harvest experience from these turns: cube_get(cube_id=\"%s\") and follow its cube_harvest-duty path "
+                  "(repeated mistakes, fixes that worked, user corrections, new craft facts; search before writing; 0-2 strong cubes is normal)." % _cid,
             "close": "turn(..., duty=\"cube_harvest\", duty_reason=\"created: <ids> | fixed: <ids> | nothing: <why>\") resets the timer",
             "note": "reminder only, nothing is blocked"}}
     except Exception as e:

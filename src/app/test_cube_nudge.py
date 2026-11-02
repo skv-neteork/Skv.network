@@ -16,4 +16,4 @@ c2 = sqlite3.connect(":memory:"); c2.execute("create table cubes_new(cube_id tex
 for i in range(2): cv.on_remember(c2, "x", i, turn=True)
 n = cv.on_remember(c2, "x", 3, turn=True, task_done=True)
 assert any("task ended" in x for x in n) and not any("NUDGE" in x for x in n), n
-print("PASS", cv.CUBE_NUDGE % 25)
+print("PASS", cv.CUBE_NUDGE % (25, "cube_x"))

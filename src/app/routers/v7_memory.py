@@ -133,13 +133,16 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
         # EQ-12: reformulate query into entities (exact) + narrative (vector)
         _eq12_ref = None
-        _eq12_vec_query = req.query_text
+        _eq12_mode = "off"
+        _eq12_vec_query = req.query_text  # nd/off: semantic query is never stripped
         if req.query_text:
             try:
-                from app.eq12 import reformulate as _eq12_reform
-                _eq12_ref = _eq12_reform(req.query_text)
-                if _eq12_ref.narrative and _eq12_ref.has_entities:
-                    _eq12_vec_query = _eq12_ref.narrative
+                from app import eq12 as _eq12m
+                _eq12_mode = _eq12m.mode()
+                if _eq12_mode == "legacy":  # old destructive path (rollback only)
+                    _eq12_ref = _eq12m.reformulate(req.query_text)
+                    if _eq12_ref.narrative and _eq12_ref.has_entities:
+                        _eq12_vec_query = _eq12_ref.narrative
             except Exception as _e:
                 print(f"[eq12] reformulate skipped: {_e}", flush=True)
         # Try VectorRouter (HNSW) first, fallback to _cached_search
@@ -189,6 +192,11 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
                             raw_results.append(r)
                 except Exception as _e:
                     print(f"[eq12] boost skipped: {_e}", flush=True)
+            elif _eq12_mode == "nd":
+                try:
+                    raw_results = _eq12m.exact_signal(req.user_id, req.query_text, raw_results)
+                except Exception as _e:
+                    print(f"[eq12] exact signal skipped: {_e}", flush=True)
             # newer fact on the same subject ranks above the older one
             try:
                 _order, _sup = _sem.supersede(req.user_id, [r["event_id"] for r in raw_results])

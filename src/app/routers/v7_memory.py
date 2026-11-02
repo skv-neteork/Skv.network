@@ -131,10 +131,21 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
     try:
         # v7.8: pass layer_weights for dynamic masks
         lw = req.layer_weights if hasattr(req, 'layer_weights') else None
+        # EQ-12: reformulate query into entities (exact) + narrative (vector)
+        _eq12_ref = None
+        _eq12_vec_query = req.query_text
+        if req.query_text:
+            try:
+                from app.eq12 import reformulate as _eq12_reform
+                _eq12_ref = _eq12_reform(req.query_text)
+                if _eq12_ref.narrative and _eq12_ref.has_entities:
+                    _eq12_vec_query = _eq12_ref.narrative
+            except Exception as _e:
+                print(f"[eq12] reformulate skipped: {_e}", flush=True)
         # Try VectorRouter (HNSW) first, fallback to _cached_search
         if _sem_tag != "bge" and req.query_text:
             from app import search_v2 as _v2
-            hnsw_results, _sem_vec = _sem.semantic_events(req.user_id, req.query_text, k=max(req.top_k * 3, _v2.cfg()["vec_k"] if _v2.enabled() else 20))
+            hnsw_results, _sem_vec = _sem.semantic_events(req.user_id, _eq12_vec_query, k=max(req.top_k * 3, _v2.cfg()["vec_k"] if _v2.enabled() else 20))
             hnsw_results = [(e, sc) for e, sc in hnsw_results if e.startswith(f"{req.user_id}::")]
         else:
             hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id.replace("@", "").replace(".", ""), q_vec, top_k=req.top_k)
@@ -163,6 +174,21 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
             _sem_scores = {r["event_id"]: r["score"] for r in raw_results}
             raw_results = [{"event_id": e, "score": round(sc, 5), "semantic": _sem_scores.get(e), "source": "personal"}
                            for e, sc in _fused[:max(req.top_k * 2, 10)]]
+            # EQ-12: boost results that contain extracted entities
+            if _eq12_ref and _eq12_ref.has_entities:
+                try:
+                    from app.eq12 import boost_by_entities as _eq12_boost
+                    _pairs = [(r["event_id"], r["score"]) for r in raw_results]
+                    _boosted = _eq12_boost(req.user_id, _pairs, _eq12_ref.entities)
+                    _by_id = {r["event_id"]: r for r in raw_results}
+                    raw_results = []
+                    for eid, sc in _boosted:
+                        if eid in _by_id:
+                            r = _by_id[eid]
+                            r["score"] = round(sc, 5)
+                            raw_results.append(r)
+                except Exception as _e:
+                    print(f"[eq12] boost skipped: {_e}", flush=True)
             # newer fact on the same subject ranks above the older one
             try:
                 _order, _sup = _sem.supersede(req.user_id, [r["event_id"] for r in raw_results])

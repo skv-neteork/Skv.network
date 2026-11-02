@@ -1721,10 +1721,10 @@ import os as _os
 COMPACT_DB = "/data/skv/metadata_store/compact_state_mcp.db" if _os.path.isdir("/data/skv/metadata_store") else _os.path.expanduser("~/.skv_compact_state.db")
 
 
-def _parse_recap(recap: str) -> list:
+def _parse_recap(recap) -> list:
     items = []
     try:
-        o = json.loads(recap)
+        o = recap if isinstance(recap, (list, dict)) else json.loads(recap)
         if isinstance(o, dict): o = [o]
         if isinstance(o, list):
             for x in o:
@@ -1735,6 +1735,8 @@ def _parse_recap(recap: str) -> list:
             return items
     except Exception:
         pass
+    if not isinstance(recap, str):
+        return items
     for ln in (recap or "").splitlines():
         ln = ln.strip()
         if not ln: continue
@@ -1745,7 +1747,90 @@ def _parse_recap(recap: str) -> list:
     return items
 
 
-def _save_recaps(recap: str, session_id: str = "mcp", sensitive: str = "") -> dict:
+# 2026-11-02 (Deniz, t880u): ONE call per reply. turn(user_message=<new msg>, recap=[{ref,user,answer}] with the agent's
+# PREVIOUS already-sent answer) saves that previous turn as a normal sealed turn and returns its seal + the context for
+# the new message (one-step lag). A ref already sealed via draft/answer is not sealed twice (turn_ref_seal table).
+# Rollback: SKV_TURN_RECAP_SEAL=0 (old behaviour: recap saved as topic=recap, no seal, no context).
+_RECAP_SEAL_ON = os.environ.get("SKV_TURN_RECAP_SEAL", "1") != "0"   # flag turn_recap_seal
+
+
+def _rs_db():
+    import sqlite3 as _sq
+    c = _sq.connect(COMPACT_DB, timeout=10)
+    c.execute("create table if not exists turn_ref_seal(k text, ref int, seal int, code text, eid text, t real, primary key(k, ref))")
+    return c
+
+
+def _rs_get(ref: int):
+    try:
+        c = _rs_db(); r = c.execute("select seal, code, eid from turn_ref_seal where k=? and ref=?", (_tw_key(), int(ref))).fetchone(); c.close()
+        return r
+    except Exception:
+        return None
+
+
+def _rs_put(ref: int, seal_n: int, code: str, eid: str) -> None:
+    try:
+        if not ref: return
+        c = _rs_db(); now = _time.time()
+        c.execute("insert or replace into turn_ref_seal values(?,?,?,?,?,?)", (_tw_key(), int(ref), int(seal_n), code or "", eid or "", now))
+        c.execute("delete from turn_ref_seal where t < ?", (now - 30 * 86400,)); c.commit(); c.close()
+    except Exception:
+        pass
+
+
+def _seal_recaps(recap, session_id: str = "mcp", sensitive: str = "") -> dict:
+    """Single-call mode: save each recap item as a full sealed turn (query=user, response=answer + seal)."""
+    items = [x for x in _parse_recap(recap) if x[1] or x[2]][:5]
+    sens = [x.strip() for x in (sensitive or "").split("|") if x.strip()]
+    t = _tr(); seals, ids, errs, dup = [], [], [], []
+    for ref, u, a in items:
+        m = re.search(r"t?(\d{1,7})u?", ref or ""); rn = int(m.group(1)) if m else 0
+        clean = re.sub(r"\n?🔐 SKV \|[^\n]*", "", a or "").rstrip()
+        old = _rs_get(rn) if rn else None
+        if not old and t.get("last_eid") and t.get("last_user") == u and t.get("seal") and _time.time() - (t.get("saved_t") or 0) < 3600:
+            old = (t["seal"], "", t["last_eid"])
+        if old:
+            sn, code, eid = old
+            code = code or ((t.get("last_final") or "").split("·")[1][:4] if "·" in (t.get("last_final") or "") else "")
+            s = SEAL_CODE_FMT.format(n=int(sn), c=code) if code else SEAL_FMT.format(n=int(sn))
+            dup.append({"ref": ref, "seal": s, "event_id": _sid(eid) if eid else None, "note": "already sealed (draft/answer or an earlier recap): not saved or sealed again"})
+            continue
+        sn = _seal_next(False)
+        code = _seal_code(_caller_id(), sn, clean)
+        seal = SEAL_CODE_FMT.format(n=sn, c=code)
+        body = _uid_body({"query": (u or "")[:8000], "response": (clean[:30000] + "\n" + seal), "session_id": session_id or "mcp",
+                          "self_check": True, "sensitive": sens})
+        body["client_key"] = "r-" + uuid.uuid4().hex
+        d = _req("POST", "/remember", body)
+        e = (d.get("event_id") or ((d.get("saved") or [""])[0])) if isinstance(d, dict) and d.get("ok") is not False else ""
+        if not e:
+            errs.append(ref or (u or "")[:40]); continue
+        ids.append(_sid(e)); seals.append({"ref": ref or None, "seal": seal, "event_id": _sid(e)})
+        _rs_put(rn, sn, code, e)
+        t["last_user"] = u; t["last_eid"] = e; t["saved_t"] = _time.time(); t["seal"] = sn; t["last_final"] = clean + "\n" + seal; t["verdict"] = "pass"
+        try:
+            with open("/data/skv/skv_seals.log", "a") as fh:
+                fh.write(json.dumps({"t": int(_time.time()), "user": _caller_id(), "seal": sn, "code": code, "event_id": e, "via": "recap"}) + "\n")
+        except Exception:
+            pass
+        try:
+            mt = _tw_turn(True, sn, (rn, rn) if rn else 0)
+            if mt: seals[-1]["duty"] = mt
+        except Exception:
+            pass
+    _tw_cover([m.group(1) for m in (re.search(r"t(\d{1,7})u", r or "") for r, _u, _a in items) if m])
+    out = {"recap_saved": len(ids), "recap_event_ids": ids}
+    allp = seals + dup
+    if allp:
+        out["seal"] = allp[-1]["seal"]; out["seal_for"] = allp[-1]["ref"]; out["recap_seals"] = allp
+    if dup: out["recap_already_sealed"] = [x["ref"] for x in dup]
+    if errs: out["recap_failed"] = errs
+    if not items: out["recap_error"] = "recap is empty or unreadable: pass a JSON list of {ref,user,answer}"
+    return out
+
+
+def _save_recaps(recap, session_id: str = "mcp", sensitive: str = "") -> dict:
     """missed_turns duty: save one-line recaps of answers that went out without turn (topic=recap, no seal)."""
     items = [x for x in _parse_recap(recap) if x[1] or x[2]][:20]
     sens = [x.strip() for x in (sensitive or "").split("|") if x.strip()]
@@ -1941,7 +2026,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
          duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", lines: str = "",
          l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "",
          compact: bool = False, answer: str = "", draft_summary: str = "", profile: Union[list, str] = "", profile_review: Union[dict, str] = "",
-         msg_ref: str = "", second_look: str = "", recap: str = "", verbose: bool = False, search_as: Union[list, str] = "") -> str:
+         msg_ref: str = "", second_look: str = "", recap: Union[list, str] = "", verbose: bool = False, search_as: Union[list, str] = "") -> str:
     """ONE CALL PER TURN: self-check context + save + seal. Write your draft privately, then call
     turn(user_message=<exact user text>, draft=<draft>) BEFORE the user sees it.
     The server does NOT judge the meaning of the draft. It returns: memory facts with [ev:id] (deduped, latest only),
@@ -1969,8 +2054,12 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     second_look_questions (first field, only when a rule fires): 2-4 questions that quote YOUR draft. Answer each
     from facts/tools, not from the draft; then on your NEXT turn call pass second_look="kept|changed: <what>" (one word per
     question, "|"-separated). Changing the answer now = call turn again with the same user_message and the new draft.
-    recap=<JSON list [{"ref":"t738u","user":"<ask, short>","answer":"<answer, short>"}] or one "ref: ask => answer" per line>: one-line recaps
-    of answers that went out without turn (missed_turns duty). Saved as topic=recap events, no seal; returned as recap_saved.
+    SINGLE-CALL MODE (recommended, fewest calls): turn(user_message=<new user text>, msg_ref=<its id>, recap=[{"ref":"t738u","user":"<previous user text>","answer":"<your PREVIOUS answer exactly as sent>"}])
+    without draft/answer: the server saves that previous turn verbatim and seals it, and returns in ONE reply the context for the
+    new message (facts with [ev:id], cubes, self_check, profile) + "seal" (for the saved previous turn): end your new reply with it.
+    One-step lag: the reply you write now is saved by your next call. A ref already sealed via draft/answer is not sealed twice.
+    recap may be a JSON list or a JSON string. With draft/answer present, recap keeps its old role: one-line recaps of answers
+    that went out without turn (missed_turns duty; also "ref: ask => answer" lines), saved as topic=recap, no seal.
     Duties missed_turns / profile_candidate / profile_conflict / profile_unconfirmed come back in duties: resolve them.
     The first turn of a session returns everything. Later turns return only what changed or matters now: empty
     fields, the static self_check and repeated board/profile items are left out (profile_digest + the 1-2 matching
@@ -1982,13 +2071,22 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
          duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", lines: str = "",
          l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "",
          compact: bool = False, answer: str = "", draft_summary: str = "", profile: Union[list, str] = "", profile_review: Union[dict, str] = "",
-         msg_ref: str = "", second_look: str = "", recap: str = "", verbose: bool = False, search_as: Union[list, str] = "") -> str:
+         msg_ref: str = "", second_look: str = "", recap: Union[list, str] = "", verbose: bool = False, search_as: Union[list, str] = "") -> str:
     """turn() body; turn() adds the auto step_zero package on the first turn of a key."""
     _g = _not_installed_reply("turn")
     if _g: return _g
-    _rc = _save_recaps(recap, session_id, sensitive) if recap else None
-    if _rc is not None and not (draft or answer):
+    _single = bool(recap) and not (draft or answer) and _RECAP_SEAL_ON
+    if _single:
+        _rc = _seal_recaps(recap, session_id, sensitive)
+    else:
+        _rc = _save_recaps(recap, session_id, sensitive) if recap else None
+    if _rc is not None and not (draft or answer) and not _single:
         return _dumps({"mode": "recap", **_rc, "next": "recaps saved; call turn(user_message, answer=<final>) for the current answer"})
+    _rsx = {}
+    if _single:
+        _rsx = {"mode": "context+seal", **_rc,
+                "next": ("SINGLE-CALL MODE: 'seal' certifies your PREVIOUS answer (now saved). Write the reply to user_message from the facts/cubes/self_check above, end it with this seal as the last line; on the next user message call turn(user_message=<new>, recap=[{ref,user,answer=<this reply verbatim>}]).")
+                if _rc.get("seal") else "recap not sealed (see recap_failed/recap_error); context for user_message is above"}
     if answer and not draft:
         draft = answer
     t = _tr()
@@ -2033,10 +2131,10 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         pass
     if not draft and compact:
         cg_commit()
-        return _dumps({"mode": "context", "compact": True, "facts": facts, **_nim, **cg, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, True), "next": "self-check, then turn(user_message, answer=<final>, compact=true)"})
+        return _dumps({"mode": "context", "compact": True, "facts": facts, **_nim, **cg, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, True), "next": "self-check, then turn(user_message, answer=<final>, compact=true)", **_rsx})
     if not draft:
         return _dumps({"mode": "context", "facts": facts, **_nim, "cubes": cubes, "self_check": checklist, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, False),
-                       "next_seal": SEAL_FMT.format(n=_last_seal() + 1), "next": "draft, run the self_check, then turn(user_message, draft)"})
+                       **({} if _rsx else {"next_seal": SEAL_FMT.format(n=_last_seal() + 1)}), "next": "draft, run the self_check, then turn(user_message, draft)", **_rsx})
     clean = re.sub(r"\n?🔐 SKV \|[^\n]*", "", draft).rstrip()
     # deterministic check: cited ids must exist in THIS account
     cited = _real_cites(clean + "\n" + (draft_summary or ""))
@@ -2096,6 +2194,10 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
             t["last_eid"] = saved.get("event_id") or ((saved.get("saved") or [""])[0]) or ""
             saved["event_id"] = t["last_eid"]
             t["seal"] = seal_n; t["last_final"] = final
+            try:
+                _rs_put(_msg_ref_span(msg_ref, user_message)[1], seal_n, seal.split("·")[1][:4], t["last_eid"])
+            except Exception:
+                pass
             try:
                 with open("/data/skv/skv_seals.log", "a") as fh:
                     fh.write(json.dumps({"t": int(_time.time()), "user": _caller_id(), "seal": seal_n, "code": seal.split("·")[1][:4], "event_id": t["last_eid"]}) + "\n")
@@ -3682,7 +3784,7 @@ SHORT_DESC = {
  "memory_recall_later": "Deep background memory search (query in the memory base_language) when turn/memory_search found nothing reliable: on-server agent collects ranked evidence (~10-30 s, ~0.1 RUB). Returns job_id; poll memory_recall_status(job_id).",
  "memory_recall_status": "Poll a deep search job by job_id. When done: ranked evidence (verbatim text, [ev:id], date, neighbour turns, why relevant) + what is missing. Not an answer: answer yourself from it.",
  "second_look": "Legacy (use turn): checks only that every [ev:id] in the draft exists in your memory.",
- "turn": "EVERY TURN, ONE CALL: turn(user_message, draft) before the user sees the reply. Compact mode (compact=true): self-check first, send the final answer once as answer=<final> (draft alias); saved+sealed, not echoed; missed_turns duty -> add recap=[{ref,user,answer}] to your next turn; facts max 3 x 200 chars; cubes/self_check only when changed (else cubes_version/checklist_version). Memory is searched in its base_language (returned as base_language + search_language_rule): when the user writes in another language pass query=<the question in base_language> and search_as in it. The server does not judge your draft: it returns memory facts with [ev:id], relevant cubes and a self_check list - check the draft yourself; if you change it, call turn again (same user_message). Server checks only that every [ev:id] exists in your memory (else verdict=revise + invalid_ids, nothing saved), saves the turn and returns the seal: append it as the last line. No draft = context only. Memory missing or user says remember/вспомни: dig deeper first - memory_search by meaning and by keywords (lines=all, offset for older), memory_event for full text; still nothing -> memory_recall_later(query) deep search (~10-30 s), poll memory_recall_status - only then say you do not remember.",
+ "turn": "EVERY TURN, ONE CALL. Single-call mode (fewest calls): turn(user_message=<new user text>, msg_ref=<id>, recap=[{ref,user,answer=<your PREVIOUS answer exactly as sent>}]) with no draft: saves+seals the previous turn and returns the context for the new message (facts, cubes, self_check) + seal: end your new reply with that seal (one-step lag; your current reply goes in the next call's recap). Classic mode: turn(user_message, draft) before the user sees the reply. Compact mode (compact=true): self-check first, send the final answer once as answer=<final> (draft alias); saved+sealed, not echoed; missed_turns duty -> add recap=[{ref,user,answer}] to your next turn; facts max 3 x 200 chars; cubes/self_check only when changed (else cubes_version/checklist_version). Memory is searched in its base_language (returned as base_language + search_language_rule): when the user writes in another language pass query=<the question in base_language> and search_as in it. The server does not judge your draft: it returns memory facts with [ev:id], relevant cubes and a self_check list - check the draft yourself; if you change it, call turn again (same user_message). Server checks only that every [ev:id] exists in your memory (else verdict=revise + invalid_ids, nothing saved), saves the turn and returns the seal: append it as the last line. No draft = context only. Memory missing or user says remember/вспомни: dig deeper first - memory_search by meaning and by keywords (lines=all, offset for older), memory_event for full text; still nothing -> memory_recall_later(query) deep search (~10-30 s), poll memory_recall_status - only then say you do not remember.",
  "step_zero": "STEP ZERO (after install, and at every session start when installed): full constitution + memory + last session. page=1..N until done=true.",
  "constitution_get": "Full constitution, paged.",
  "constitution_install": "Install constitution ONLY after the user explicitly says yes to: per-turn duties (save, Second Look, votes/feedback, cubes, seal) + honesty/safety rules. Pass user_confirmed=true. Never silent; if no, plain memory tool. Returns step_zero page 1; then call step_zero(page=2..N).",

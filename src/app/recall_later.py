@@ -11,6 +11,10 @@ Trigger: agent requests deep_search, or fast /search returns no_confident_match.
 Config: recall_later_enabled, recall_later_tokens (400), recall_later_delay (3),
 recall_later_model (falls back to llm_model), recall_later_max_cost_rub (3.0),
 recall_later_max_steps (15, clamped 5..30), recall_later_min_steps (5),
+recall_later_format ('substrate' default: report = ranked evidence events with verbatim
+text, ids, dates, neighbour turns, why/missing notes, no answer; 'answer' = legacy _run_answer),
+recall_later_plan / recall_later_q2s_seed / recall_later_agent_steps (6) / recall_later_min_agent_steps (1) /
+recall_later_evidence_k (8) / recall_later_context_radius (1) for substrate mode,
 recall_later_reasoning ('retry' default: on empty LLM content retry once with
 reasoning disabled; 'off': always disable reasoning; 'legacy': no handling).
 """
@@ -273,7 +277,8 @@ def submit(uid, query):
     return jid
 
 
-def run(uid, jid):
+def _run_answer(uid, jid):
+    """Legacy answer-style report (recall_later_format=answer)."""
     from app import inflight
     cfg = config()
     cap = float(cfg.get("recall_later_max_cost_rub", 3.0))
@@ -589,6 +594,15 @@ def for_recall(uid, cfg):
                     rep = json.loads(rj or "{}")
                 except Exception:
                     rep = {}
+                if rep.get("format") == "substrate":
+                    block = _substrate_block(q, rep, budget - used)
+                    cost_t = est_tokens("\n".join(block))
+                    if L and used + cost_t > budget:
+                        break
+                    L += block
+                    used += cost_t
+                    sent.append(jid)
+                    continue
                 ls = rep.get("lines") or json.loads(lj or "[]")
                 summary = (rep.get("summary") or "").strip()
                 block = [f"Вспомнилось по запросу «{clip(q, 20)}»:"]
@@ -637,3 +651,403 @@ def jobs(uid, limit=20):
         return out
     finally:
         c.close()
+
+
+# ---------------- 2026-11-02 SUBSTRATE mode ----------------
+# Deferred search returns evidence for the calling agent, never an answer.
+# Flag recall_later_format: "substrate" (default) | "answer" (legacy _run_answer).
+# Sub-flags: recall_later_plan (LLM query plan: statement forms + EN/native terms, default true),
+# recall_later_q2s_seed (q2s/search_v2 pipeline as a seed, default true),
+# recall_later_agent_steps (max agent LLM actions after seeds, default 6),
+# recall_later_min_agent_steps (default 1), recall_later_evidence_k (8), recall_later_context_radius (1).
+
+_SUB_SYSTEM = (
+    "You collect EVIDENCE from a person's memory for another agent who will answer the question. "
+    "You never answer the question yourself and never state conclusions.\n"
+    "Reply with exactly ONE JSON object, no markdown.\n"
+    "Actions:\n"
+    '{"action":"search","query":"short query (any language; try English and the question language, names, synonyms, '
+    'a declarative sentence that could appear in the conversation)"}\n'
+    '{"action":"focus","event_id":"<id from observations>","query":"why"}  (neighbouring turns of an event)\n'
+    '{"action":"more","query":"same query","cursor":N}\n'
+    '{"action":"done","evidence":[{"id":"<id from observations>","why":"what this event contains that relates to the question, <=100 chars; describe, do not compute or state the answer"}],'
+    '"missing":"which information the question needs that no observation shows, <=200 chars"}\n'
+    "Rules: ids only from observations; evidence ordered best first, up to 8, include indirect evidence "
+    "(dates, events around it, people involved); if nothing is relevant, evidence=[] and say what is missing. "
+    "Search with different wordings before done. NEVER write the answer or a conclusion anywhere (no resolved relative dates, "
+    "no 'so/therefore/indicating', no counts or totals): only point at events; the other agent reasons."
+)
+
+_PLAN_SYSTEM = (
+    "You turn a memory question into search material. Reply with ONE JSON object only: "
+    '{"forms":["2-4 short declarative sentences in ENGLISH that could literally appear in the past conversation '
+    'and contain the answer topic (no invented facts; names in their usual Latin/English spelling)"],'
+    '"native":["1-2 such sentences in the question\'s own language if it is not English"],'
+    '"terms":["4-8 keywords: names, nouns, verbs, both English and original language"]}'
+)
+
+_LANG_TXT = {
+    "ru": ("Материал для ответа по запросу «{q}»: {n} событий (дословный текст, даты, соседние реплики). "
+           "Это не ответ: ответ формулирует агент сам, со ссылками [ev:id].",
+           "Модель недоступна: события упорядочены только поиском, без отбора.",
+           "Ничего похожего не найдено."),
+    "es": ("Material para responder «{q}»: {n} eventos (texto literal, fechas, turnos vecinos). "
+           "No es una respuesta: el agente responde citando [ev:id].",
+           "Modelo no disponible: eventos ordenados solo por la búsqueda, sin selección.",
+           "No se encontró nada parecido."),
+    "de": ("Material zur Beantwortung von «{q}»: {n} Ereignisse (wörtlicher Text, Daten, Nachbarbeiträge). "
+           "Keine Antwort: der Agent antwortet selbst mit [ev:id].",
+           "Modell nicht verfügbar: Ereignisse nur nach Suche sortiert, ohne Auswahl.",
+           "Nichts Ähnliches gefunden."),
+    "en": ("Evidence for «{q}»: {n} events (verbatim text, dates, neighbouring turns). "
+           "Not an answer: answer it yourself from this, citing [ev:id].",
+           "Model unavailable: events ranked by search only, not selected.",
+           "Nothing similar found."),
+}
+
+
+def _lang(q):
+    q = q or ""
+    if re.search(r"[А-Яа-яЁё]", q):
+        return "ru"
+    ql = q.lower()
+    if re.search(r"[¿¡ñ]", ql) or re.match(r"\s*(qu[ée]|c[oó]mo|cu[aá]ndo|d[oó]nde|por qu[ée]|qui[eé]n|cu[aá]l)\b", ql):
+        return "es"
+    de_w = r"\b(der|die|das|den|dem|hat|haben|ist|sind|und|nicht|sie|er|ihr|ihre|sein|seine|gemacht|wann|welche\w*|warum|wie)\b"
+    if (re.search(r"[äöüß]", ql) or len(re.findall(de_w, ql)) >= 2
+            or re.match(r"\s*(was|wann|wo|wer|wie|warum|welche\w*)\s+(hat|ist|sind|haben|war|waren|wurde|macht|mag|kann|will)\b", ql)):
+        return "de"
+    return "en"
+
+
+def _cfg_bool(cfg, key, default=True):
+    v = cfg.get(key, default)
+    return str(v).lower() not in ("0", "false", "off", "no", "none") if v is not None else default
+
+
+def _plan(q):
+    """One cheap LLM call -> statement forms (EN + native) and terms. ({} on failure)."""
+    try:
+        txt, k, _m = _llm([{"role": "system", "content": _PLAN_SYSTEM}, {"role": "user", "content": q[:400]}], 400)
+        d = _json(txt)
+        out = {}
+        for key, n in (("forms", 4), ("native", 2), ("terms", 8)):
+            v = d.get(key) or []
+            out[key] = [mask_text(str(x))[:200] for x in v if isinstance(x, (str, int))][:n] if isinstance(v, list) else []
+        return out, k
+    except Exception as e:
+        print(f"[recall_later] plan skipped: {e}", flush=True)
+        return {}, 0.0
+
+
+def _q2s_list(uid, q, forms=None, k=20):
+    """[(eid, score)] from the q2s/search_v2 pipeline (agent forms when given), hybrid fallback."""
+    try:
+        from app import q2s
+        r = q2s.search(uid, q, top_k=k, search_as=forms or None)
+        if r:
+            return [(e, s) for e, s in r if str(e).startswith(f"{uid}::")]
+    except Exception as e:
+        print(f"[recall_later] q2s seed skipped: {type(e).__name__}", flush=True)
+    try:
+        from app import search_v2 as _v2
+        r, _ = _v2.hybrid(uid, q, top_k=k)
+        return [(e, s) for e, s in r if str(e).startswith(f"{uid}::")]
+    except Exception:
+        return []
+
+
+def _lens_ids(res):
+    out = []
+    for cl in (res or {}).get("clusters") or []:
+        center = cl.get("center") or cl.get("event") or {}
+        e = center.get("event_id") or cl.get("event_id")
+        if e:
+            out.append(e)
+    return out
+
+
+def _preview_rows(uid, ids, cap=160):
+    from app.memory_v2 import _event_rows
+    rows = _event_rows(uid, ids)
+    lines = []
+    for e in ids:
+        r = rows.get(e)
+        if r:
+            lines.append(f"id={e} {str(r['date'])[:10]} :: {mask_text(clip(r['text'] or '', cap // 4, headtail=True))}")
+    return lines
+
+
+class _Pool:
+    """Candidate events: weighted RRF over all search lists, provenance kept."""
+
+    def __init__(self):
+        self.score, self.src = {}, {}
+
+    def add(self, ids, w, tag, k=60):
+        for r, e in enumerate(ids):
+            self.score[e] = self.score.get(e, 0.0) + w / (k + r + 1)
+            self.src.setdefault(e, [])
+            if tag not in self.src[e]:
+                self.src[e].append(tag)
+
+    def ranked(self):
+        return [e for e, _ in sorted(self.score.items(), key=lambda x: -x[1])]
+
+
+def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
+    """Assemble ranked evidence: agent picks first, then pool by score; verbatim text + neighbours from the DB."""
+    import sqlite3
+    from app.memory_v2 import db_path, strip_critical
+    K = max(1, min(15, int(cfg.get("recall_later_evidence_k", 8) or 8)))
+    rad = max(0, min(3, int(cfg.get("recall_later_context_radius", 1) or 0)))
+    order, why = [], {}
+    for p in picks:
+        if p["id"] not in order:
+            order.append(p["id"]); why[p["id"]] = p.get("why") or ""
+    for e in pool.ranked():
+        if len(order) >= K:
+            break
+        if e not in order:
+            order.append(e)
+    order = order[:K]
+    ev = []
+    conn = sqlite3.connect(f"file:{db_path(uid)}?mode=ro", uri=True, timeout=10)
+    try:
+        for i, e in enumerate(order):
+            r = conn.execute("SELECT rowid, time_str, raw_dialogue, essence FROM event_metadata WHERE event_id=?", (e,)).fetchone()
+            if not r:
+                continue
+            raw = r[2] or r[3] or ""
+            if raw.startswith("[archived]"):
+                try:
+                    from app.archive_store import text_of
+                    ar = conn.execute("SELECT raw_dialogue, body_z FROM event_archive WHERE event_id=?", (e,)).fetchone()
+                    raw = (text_of(ar[0], ar[1]) if ar else "") or raw
+                except Exception:
+                    pass
+            ctx = []
+            if rad:
+                b = conn.execute("SELECT event_id, time_str, raw_dialogue FROM event_metadata WHERE rowid < ? ORDER BY rowid DESC LIMIT ?", (r[0], rad)).fetchall()
+                a = conn.execute("SELECT event_id, time_str, raw_dialogue FROM event_metadata WHERE rowid > ? ORDER BY rowid ASC LIMIT ?", (r[0], rad)).fetchall()
+                for side, rows in (("before", list(reversed(b))), ("after", a)):
+                    for x in rows:
+                        ctx.append({"side": side, "ev": x[0], "date": norm_date(x[1] or "")[:16],
+                                    "text": mask_text(clip(strip_critical(x[2] or "") or (x[2] or ""), 60, headtail=True))})
+            picked = e in why
+            ev.append({
+                "rank": len(ev) + 1, "ev": e, "date": norm_date(r[1] or "")[:16],
+                "text": mask_text(clip(strip_critical(raw) or raw, 180, headtail=True)),
+                "context": ctx,
+                "why": mask_text(why.get(e) or "")[:160] if picked else "search rank (%s), not checked by the agent" % "+".join(pool.src.get(e, ["search"])[:3]),
+                "selected": picked,
+            })
+    finally:
+        conn.close()
+    T = _LANG_TXT.get(lang, _LANG_TXT["en"])
+    miss = mask_text(str(missing or ""))[:300]
+    if not model_ok:
+        miss = (T[1] + (" " + miss if miss else "")).strip()
+    if not ev:
+        miss = (T[2] + (" " + miss if miss else "")).strip()
+    return {
+        "format": "substrate",
+        "found": any(x["selected"] for x in ev),
+        "evidence_n": len(ev),
+        "summary": T[0].format(q=clip(q, 60), n=len(ev)),
+        "evidence": ev,
+        "missing": miss,
+        "queries": expanded[:12],
+        # compat for old readers: sources = evidence ids; no answer lines
+        "sources": [{"id": x["ev"], "date": x["date"][:10], "note": x["why"][:80]} for x in ev],
+        "lines": [],
+    }
+
+
+def _run_substrate(uid, jid):
+    from app import inflight
+    cfg = config()
+    cap = float(cfg.get("recall_later_max_cost_rub", 3.0))
+    max_agent = max(0, min(20, int(cfg.get("recall_later_agent_steps", 6) or 0)))
+    min_agent = max(0, min(max_agent, int(cfg.get("recall_later_min_agent_steps", 1) or 0)))
+    cost, steps_log, observations, known_ids = 0.0, [], [], set()
+    pool, picks, missing, err, model_ok = _Pool(), [], "", None, True
+    c = _conn(uid)
+    q = c.execute("SELECT query FROM recall_later WHERE job_id=?", (jid,)).fetchone()[0]
+    c.execute("UPDATE recall_later SET status='running', progress=? WHERE job_id=?", ("running", jid))
+    c.commit(); c.close()
+    expanded = [q]
+    lang = _lang(q)
+    agent_n = 0
+    report = {}
+
+    def _search(sq, tag, w, forms=None, cursor=0):
+        """q2s list + lens around it (neighbours). Returns observation text."""
+        nonlocal known_ids
+        ql = _q2s_list(uid, sq, forms) if _cfg_bool(cfg, "recall_later_q2s_seed") else []
+        pool.add([e for e, _ in ql[:20]], w, tag + ":q2s")
+        try:
+            raw = [{"event_id": e} for e, _ in ql] if ql else None
+            res = lens_mod.lens(uid, sq, raw_results=raw, budget=int(config().get("budgets", {}).get("lens", 1500) or 1500),
+                                radius=2, offset=int(cursor or 0))
+        except Exception as e:
+            res = {"error": str(e)[:100]}
+        pool.add(_lens_ids(res), w * 0.8, tag + ":lens")
+        obs = f"search({sq!r}):\n" + "\n".join(_preview_rows(uid, [e for e, _ in ql[:6]])) + "\n" + _fmt_lens(res)
+        known_ids |= _collect_ids(obs) | {e for e, _ in ql[:20]}
+        return obs
+
+    from app import memory_v2_lens as lens_mod
+    with inflight.track("recall_later"):
+        try:
+            # seeds (do not count against agent steps)
+            plan = {}
+            if _cfg_bool(cfg, "recall_later_plan"):
+                plan, k = _plan(q)
+                cost += k
+                steps_log.append({"action": "plan", "seed": True, "ok": bool(plan)})
+            forms = (plan.get("forms") or []) + (plan.get("native") or [])
+            _set_progress(uid, jid, "seed search", steps_n=0)
+            observations.append(_search(q, "q", 1.0))
+            steps_log.append({"action": "search", "query": q, "seed": True})
+            if forms:
+                observations.append(_search(q, "forms", 1.0, forms=forms) .replace(f"search({q!r})", f"search(forms={forms[:2]!r})", 1))
+                steps_log.append({"action": "search_forms", "forms": forms, "seed": True})
+                expanded += forms
+            terms = " ".join(plan.get("terms") or [])
+            if terms:
+                observations.append(_search(terms, "terms", 0.7))
+                steps_log.append({"action": "search", "query": terms, "seed": True})
+                expanded.append(terms)
+            try:   # archive: old period or nothing at all
+                from app import archive_recall as _ar
+                if not pool.score or _ar.is_old(q):
+                    ah = _ar.search(uid, q, limit=6)
+                    if ah:
+                        pool.add([a["event_id"] for a in ah], 0.6, "archive")
+                        observations.append("archive:\n" + "\n".join("id=%s [%s] (archived) %s" % (a["event_id"], a["time_str"], a["snippet"]) for a in ah))
+                        known_ids |= {a["event_id"] for a in ah}
+            except Exception:
+                pass
+
+            # agent loop: only LLM actions count (steps_n = agent steps)
+            while agent_n < max_agent and cost < cap:
+                obs_block = "\n---\n".join(_clip_obs(observations))
+                user = (f"Question: {q}\nAgent step {agent_n+1}/{max_agent}.\n"
+                        f"Observations:\n{obs_block}\n\nNext action JSON.")
+                if agent_n < min_agent:
+                    user += " Do at least one more search/focus before done."
+                try:
+                    txt, k, _m = _llm([{"role": "system", "content": _SUB_SYSTEM}, {"role": "user", "content": user}], 900)
+                    cost += k
+                except Exception as e:
+                    err, model_ok = f"llm:{e}"[:200], False
+                    break
+                agent_n += 1
+                act = _json(txt)
+                action = (act.get("action") or "").lower().strip()
+                if action not in ("search", "focus", "more", "done") and "evidence" in act:
+                    action = "done"
+                if action == "search":
+                    sq = mask_text(str(act.get("query") or q))[:200] or q
+                    if sq not in expanded:
+                        expanded.append(sq)
+                    observations.append(_search(sq, "agent", 0.8))
+                    steps_log.append({"action": "search", "query": sq})
+                elif action == "more":
+                    sq = mask_text(str(act.get("query") or q))[:200] or q
+                    cur = int(act.get("cursor") or 0)
+                    observations.append(_search(sq, "agent", 0.5, cursor=cur))
+                    steps_log.append({"action": "more", "query": sq, "cursor": cur})
+                elif action == "focus":
+                    fe = str(act.get("event_id") or "").strip()
+                    if "::" not in fe:
+                        observations.append("focus ERROR: need an event id from observations")
+                        steps_log.append({"action": "focus", "error": "missing id"})
+                    else:
+                        try:
+                            res = _lens_search(uid, str(act.get("query") or q)[:200], focus_event_id=fe)
+                            obs = f"focus({fe}):\n{_fmt_lens(res)}"
+                            known_ids |= _collect_ids(obs)
+                            pool.add([fe], 0.5, "focus")
+                            steps_log.append({"action": "focus", "event_id": fe})
+                        except Exception as e:
+                            obs = f"focus ERROR: {e}"
+                            steps_log.append({"action": "focus", "event_id": fe, "error": str(e)[:100]})
+                        observations.append(obs)
+                elif action == "done":
+                    if agent_n <= min_agent and agent_n < max_agent:
+                        observations.append("SYSTEM: too early for done; search with another wording or focus first.")
+                        steps_log.append({"action": "done_rejected_early"})
+                        continue
+                    for p in (act.get("evidence") or [])[:15]:
+                        if isinstance(p, dict) and str(p.get("id") or "") in known_ids:
+                            picks.append({"id": str(p["id"]), "why": str(p.get("why") or "")})
+                    missing = str(act.get("missing") or "")
+                    steps_log.append({"action": "done", "picked": len(picks)})
+                    break
+                else:
+                    steps_log.append({"action": "parse_fail", "raw": mask_text(str(txt)[:200])})
+                    observations.append("PARSE_FAIL: reply with exactly one JSON action.")
+                _set_progress(uid, jid, f"{action or 'parse_fail'}:{agent_n}", steps_n=agent_n)
+            else:
+                # out of agent steps/budget without done: one short selection call
+                if model_ok and cost < cap and not picks:
+                    try:
+                        obs_block = "\n---\n".join(_clip_obs(observations, 2800))
+                        txt, k, _m = _llm([{"role": "system", "content": _SUB_SYSTEM}, {"role": "user", "content": (
+                            f"Question: {q}\nStep limit reached: reply action=done now.\nObservations:\n{obs_block}")}], 700)
+                        cost += k
+                        act = _json(txt)
+                        for p in (act.get("evidence") or [])[:15]:
+                            if isinstance(p, dict) and str(p.get("id") or "") in known_ids:
+                                picks.append({"id": str(p["id"]), "why": str(p.get("why") or "")})
+                        missing = str(act.get("missing") or "")
+                        steps_log.append({"action": "done_forced", "picked": len(picks)})
+                    except Exception as e:
+                        err, model_ok = (err or "") + f"|final:{e}"[:180], False
+            if not picks and not missing and not any(s.get("action") in ("done", "done_forced") for s in steps_log):
+                model_ok = False   # no agent selection at all -> search-ranked fallback, said so in 'missing'
+            report = _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg)
+            report["seed_steps"] = sum(1 for s in steps_log if s.get("seed"))
+            report["agent_steps"] = agent_n
+            report["cost_rub"] = round(cost, 4)
+            report["expanded"] = expanded
+        except Exception as e:
+            err = str(e)[:200]
+            print(f"[recall_later] {jid} failed: {e}", flush=True)
+            try:
+                report = _substrate(uid, q, picks, pool, missing, lang, False, expanded, cfg)
+            except Exception:
+                report = {"format": "substrate", "found": False, "evidence": [], "summary": _LANG_TXT.get(lang, _LANG_TXT["en"])[2],
+                          "missing": f"error: {err}", "sources": [], "lines": []}
+
+    c = _conn(uid)
+    c.execute(
+        "UPDATE recall_later SET status=?, ready_at=?, lines_json=?, expanded_json=?, cost_rub=?, "
+        "error=?, report_json=?, steps_json=?, progress=?, steps_n=? WHERE job_id=?",
+        ("done" if report.get("summary") else "error", time.time(), "[]", json.dumps(expanded, ensure_ascii=False),
+         round(cost, 4), err, json.dumps(report, ensure_ascii=False), json.dumps(steps_log, ensure_ascii=False),
+         "done" if not err else f"done (soft error: {err[:60]})", agent_n, jid))
+    c.commit()
+    c.close()
+
+
+def run(uid, jid):
+    fmt = str(config().get("recall_later_format", "substrate") or "substrate").lower()
+    if fmt == "answer":
+        return _run_answer(uid, jid)
+    return _run_substrate(uid, jid)
+
+
+def _substrate_block(q, rep, budget_left):
+    """Compact 'remembered' block for /memory delivery: evidence, not an answer."""
+    T = _LANG_TXT.get(_lang(q), _LANG_TXT["en"])
+    block = [f"Deferred search «{clip(q, 30)}» - evidence, not an answer:"]
+    for x in (rep.get("evidence") or [])[:4]:
+        block.append(f"- [ev:{x.get('ev')}] {x.get('date','')[:10]}: {clip(x.get('text') or '', 30)}")
+    if not rep.get("evidence"):
+        block.append("- " + T[2])
+    if rep.get("missing"):
+        block.append("missing: " + clip(rep["missing"], 30))
+    return block

@@ -289,7 +289,17 @@ def search(uid, query, top_k=20, search_as=None):
 
 
 def text_core(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
-    """search_text.text_search entry: Q2S when on and applicable, else the unchanged _text_search_core."""
+    """search_text.text_search entry: Q2S when on and applicable, else the unchanged _text_search_core; then passage rerank of the top."""
+    out = _text_core0(uid, query, top_k, since, until, exclude_imports, source)
+    try:
+        from app import passage_rr as _prr
+        return _prr.rerank(uid, query, out, cfg())
+    except Exception as e:
+        print("[q2s] passage_rr skipped: %s" % type(e).__name__, flush=True)
+        return out
+
+
+def _text_core0(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
     from app import search_text as _st, search_v2 as _v2
     if enabled() and _v2.enabled() and not (since or until or exclude_imports or (source and source.lower() != "events")):
         try:

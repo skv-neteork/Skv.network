@@ -778,6 +778,68 @@ def _preview_rows(uid, ids, cap=160):
     return lines
 
 
+
+# --- deferred v2 (2026-11-02): base-language seed, 15-20 evidence, verbatim scan ---------------
+# recall_later_base_lang (1): when the question language differs from the memory's base language,
+#   one cheap LLM call translates it and the translation is searched as an extra seed (step 0).
+# recall_later_verbatim (1): exact-token / quoted-phrase scan over the retrieved pool (top 80);
+#   best-matching events get an extra pool list (weight recall_later_verbatim_w, 1.0).
+# recall_later_evidence_k now defaults to 18 (max 20).
+_LNAME = {"ru": "Russian", "uk": "Ukrainian", "en": "English", "de": "German", "es": "Spanish", "fr": "French"}
+
+
+def _base_q(uid, q):
+    """(translation into the memory's base language, cost) or ('', 0) when same language / failed."""
+    try:
+        from app import passage_rr as P
+        bl, ql = P.base_lang(uid), P.lang(q)
+        if not bl or not ql or bl == ql or bl not in _LNAME:
+            return "", 0.0
+        txt, k, _m = _llm([{"role": "system", "content": (
+            "Translate the user's question into %s. Keep names, numbers, code, ids and quoted text verbatim. "
+            "Reply with the translation only." % _LNAME[bl])}, {"role": "user", "content": q[:400]}], 300)
+        t = mask_text(str(txt or "").strip().strip('"«»').splitlines()[0] if str(txt or "").strip() else "")[:300]
+        return (t if t and t != q else ""), k
+    except Exception as e:
+        print(f"[recall_later] base_lang skipped: {type(e).__name__}", flush=True)
+        return "", 0.0
+
+
+_QUOTE_RX = re.compile(r"[\"«“'‘]([^\"»”'’]{3,80})[\"»”'’]")
+
+
+def _verbatim_scan(uid, queries, pool, n=80, keep=20):
+    """Rank pool candidates by verbatim overlap with any query wording: share of query stems in the best
+    ~60-token window, +1 per quoted phrase / exact term found as-is. Returns ranked ids (score > 0.5)."""
+    from app import passage_rr as P
+    ids = pool.ranked()[:n]
+    if not ids:
+        return []
+    tx = P._texts(uid, ids)
+    qs = [(set(P.toks(x)), [m.group(1).lower() for m in _QUOTE_RX.finditer(x)]) for x in queries if x]
+    try:
+        from app.eq12 import exact_terms
+        ex = list(dict.fromkeys(t.lower() for x in queries if x for t in exact_terms(x)))
+    except Exception:
+        ex = []
+    sc = []
+    for r, e in enumerate(ids):
+        low = (tx.get(e) or "").lower()
+        w = P.toks(low)
+        best = 0.0
+        for qt, quotes in qs:
+            if not qt:
+                continue
+            share = 0.0
+            for i in range(0, max(1, len(w) - 40 + 1), 20):
+                share = max(share, len(qt & set(w[i:i + 60])) / len(qt))
+            best = max(best, share + sum(1.0 for ph in quotes if ph in low))
+        best += 0.25 * sum(1 for t in ex if len(t) > 2 and t in low)
+        if best > 0.5:
+            sc.append((best, -r, e))
+    return [e for _b, _r, e in sorted(sc, reverse=True)][:keep]
+
+
 class _Pool:
     """Candidate events: weighted RRF over all search lists, provenance kept."""
 
@@ -814,7 +876,7 @@ def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
     """Assemble ranked evidence: agent picks first, then pool by score; verbatim text + neighbours from the DB."""
     import sqlite3
     from app.memory_v2 import db_path, strip_critical
-    K = max(1, min(15, int(cfg.get("recall_later_evidence_k", 8) or 8)))
+    K = max(1, min(20, int(cfg.get("recall_later_evidence_k", 18) or 18)))
     rad = max(0, min(3, int(cfg.get("recall_later_context_radius", 1) or 0)))
     order, why = [], {}
     for p in picks:
@@ -925,6 +987,13 @@ def _run_substrate(uid, jid):
             _set_progress(uid, jid, "seed search", steps_n=0)
             observations.append(_search(q, "q", 1.0))
             steps_log.append({"action": "search", "query": q, "seed": True})
+            if _cfg_bool(cfg, "recall_later_base_lang"):
+                qb, k = _base_q(uid, q)
+                cost += k
+                if qb:
+                    observations.append(_search(qb, "base", 1.0))
+                    steps_log.append({"action": "search", "query": qb, "seed": True, "base_lang": True})
+                    expanded.append(qb)
             if forms:
                 observations.append(_search(q, "forms", 1.0, forms=forms) .replace(f"search({q!r})", f"search(forms={forms[:2]!r})", 1))
                 steps_log.append({"action": "search_forms", "forms": forms, "seed": True})
@@ -1023,6 +1092,13 @@ def _run_substrate(uid, jid):
                         err, model_ok = (err or "") + f"|final:{e}"[:180], False
             if not picks and not missing and not any(s.get("action") in ("done", "done_forced") for s in steps_log):
                 model_ok = False   # no agent selection at all -> search-ranked fallback, said so in 'missing'
+            if _cfg_bool(cfg, "recall_later_verbatim"):
+                try:
+                    vb = _verbatim_scan(uid, expanded, pool)
+                    pool.add(vb, float(cfg.get("recall_later_verbatim_w", 1.0) or 1.0), "verbatim")
+                    steps_log.append({"action": "verbatim_scan", "seed": True, "hits": len(vb)})
+                except Exception as e:
+                    print(f"[recall_later] verbatim scan skipped: {type(e).__name__}", flush=True)
             report = _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg)
             report["seed_steps"] = sum(1 for s in steps_log if s.get("seed"))
             report["agent_steps"] = agent_n

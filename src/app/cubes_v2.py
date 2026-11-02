@@ -207,7 +207,37 @@ def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, du
         conn.execute("UPDATE cube_duty_state SET turns=0 WHERE user_id=?", (uid,))
     elif turn:
         conn.execute("UPDATE cube_duty_state SET turns=COALESCE(turns,0)+1 WHERE user_id=?", (uid,))
+        _n = cube_nudge_turns()
+        if _n and not s["pending_cube"] and not ended:   # long work chain with no task_done / topic change: soft nudge
+            _t = _turns(conn, uid)
+            if _t >= _n and _t % _n == 0:
+                notes.append(CUBE_NUDGE % _t)
     return notes
+
+
+# Long-chain cube nudge (2026-11-02): over MCP the per-task duty fires only on task_done=true (turn sends no topic),
+# so a long multi-step chain could run 190+ turns without any cube prompt. Every N turns since the last cube /
+# cube_nothing the turn gets one soft note. Reminder only: sets no duty, no duty_errors, seal unaffected.
+# Flag: env SKV_CUBE_NUDGE_TURNS or memory_config.json "cube_nudge_turns" (default 25; 0 = off).
+# Rollback: set it to 0, or cp src/app/cubes_v2.py.bak.20261102nudge + docker restart skv_api.
+CUBE_NUDGE = ("• CUBE NUDGE: %d turns since your last cube/cube_nothing. Reusable procedure, fix or user correction in this "
+              "chain? Write a cube per the cube-author meta cube (cube_search \"cube author\") + task_done=true; else "
+              "duty=cube_nothing + duty_reason. Reminder only.")
+
+
+def cube_nudge_turns():
+    import os
+    v = os.environ.get("SKV_CUBE_NUDGE_TURNS")
+    if v is None:
+        try:
+            with open("/data/skv/memory_config.json") as fh:
+                v = json.load(fh).get("cube_nudge_turns", 25)
+        except Exception:
+            v = 25
+    try:
+        return max(0, int(v))
+    except Exception:
+        return 0
 
 
 def _turns(conn, uid):

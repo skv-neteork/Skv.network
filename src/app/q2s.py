@@ -12,13 +12,18 @@ the statement form finds it. Bench /data/skv/q2s (eval5.json; hit@5 raw -> Q2S):
 Switch: /data/skv/search_config.json "q2s": true|false (read on every call, no restart);
 env SKV_Q2S=0 forces off. Off -> search_text._text_search_core exactly as before.
 Rollback: /root/skv-core/rollback_q2s.sh
+Q2S-PRON sub-flag "q2s_pron" (app/q2s_pron.py): names -> exact entity set, question -> short pronoun event forms
+searched by vector inside it; an event that >=2 forms agree on (top-5 in each) is lifted to rank 4
+(never above the top 3 of this RRF). Off -> exactly the Q2S above.
+Rollback: rollback_q2s.sh pron-off (instant) | rollback_q2s.sh pron (remove hook + module)
 """
 import os, re, json, time, contextvars, hashlib, sqlite3
 
 SEARCH_AS = contextvars.ContextVar("q2s_search_as", default=None)
 CFG = "/data/skv/search_config.json"
 DEF = {"q2s": False, "q2s_rules": True, "q2s_llm": False, "q2s_model": "google/gemini-2.5-flash-lite", "q2s_timeout_s": 1.5,
-       "q2s_w_raw": 1.0, "q2s_w_raw_agent": 0.3, "q2s_w_rules": 1.0, "q2s_w_agent": 1.0, "q2s_w_llm": 0.8, "q2s_fuse_agent": "max", "q2s_fuse_rules": "sum"}
+       "q2s_w_raw": 1.0, "q2s_w_raw_agent": 0.3, "q2s_w_rules": 1.0, "q2s_w_agent": 1.0, "q2s_w_llm": 0.8, "q2s_fuse_agent": "max", "q2s_fuse_rules": "sum",
+       "q2s_pron": False}
 CACHE = "/data/skv/metadata_store/q2s_cache.db"
 _cfg_cache = {"m": None, "v": dict(DEF)}
 STATS = {"agent": 0, "rules": 0, "llm": 0, "skip": 0, "err": 0}
@@ -238,7 +243,15 @@ def search(uid, query, top_k=20, search_as=None):
         except Exception as e:
             print("[q2s] form skipped: %s" % type(e).__name__, flush=True)
     STATS[kind] += 1
-    return _fuse(lists, top_k, mode=v.get("q2s_fuse_agent", "max") if kind == "agent" else v.get("q2s_fuse_rules", "sum"))
+    mode = v.get("q2s_fuse_agent", "max") if kind == "agent" else v.get("q2s_fuse_rules", "sum")
+    if v.get("q2s_pron") and is_question(query):   # 2026-11-02 Q2S-PRON: names exact + short pronoun form by meaning inside them
+        try:
+            from app import q2s_pron as _pr
+            res = _fuse(lists, top_k, mode=mode)
+            return _pr.insert(res, _pr.lists(uid, query, v), v)[:top_k]
+        except Exception as e:
+            print("[q2s] pron skipped: %s" % type(e).__name__, flush=True)
+    return _fuse(lists, top_k, mode=mode)
 
 
 def text_core(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):

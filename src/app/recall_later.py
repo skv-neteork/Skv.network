@@ -795,6 +795,21 @@ class _Pool:
         return [e for e, _ in sorted(self.score.items(), key=lambda x: -x[1])]
 
 
+_INFER_RX = re.compile(r"(?:,|;|\.|^)\s*(?:so|therefore|thus|hence|which means|meaning|this means|implying|indicating|=>)\b[^.;]*", re.I)
+
+
+def _no_infer(s: str) -> str:
+    """Drop conclusion clauses ("..., so the event was on X") from agent notes. Flag recall_later_strip_inference (default on)."""
+    s = s or ""
+    try:
+        if not config().get("recall_later_strip_inference", True):
+            return s
+    except Exception:
+        pass
+    out = _INFER_RX.sub("", s).strip(" ,;")
+    return out if out else s
+
+
 def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
     """Assemble ranked evidence: agent picks first, then pool by score; verbatim text + neighbours from the DB."""
     import sqlite3
@@ -839,13 +854,13 @@ def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
                 "rank": len(ev) + 1, "ev": e, "date": norm_date(r[1] or "")[:16],
                 "text": mask_text(clip(strip_critical(raw) or raw, 180, headtail=True)),
                 "context": ctx,
-                "why": mask_text(why.get(e) or "")[:160] if picked else "search rank (%s), not checked by the agent" % "+".join(pool.src.get(e, ["search"])[:3]),
+                "why": mask_text(_no_infer(why.get(e) or ""))[:160] if picked else "search rank (%s), not checked by the agent" % "+".join(pool.src.get(e, ["search"])[:3]),
                 "selected": picked,
             })
     finally:
         conn.close()
     T = _LANG_TXT.get(lang, _LANG_TXT["en"])
-    miss = mask_text(str(missing or ""))[:300]
+    miss = mask_text(_no_infer(str(missing or "")))[:300]
     if not model_ok:
         miss = (T[1] + (" " + miss if miss else "")).strip()
     if not ev:

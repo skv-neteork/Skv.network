@@ -200,10 +200,26 @@ def run_db(path, cutoff_days=CUTOFF_DAYS, name=None, only_ids=None, force_vacuum
         conn.close()
 
 
+BENCH_SKIP = ("locomo_testskv.db",)   # 2026-11-02: benchmark DB carries original 2023 LoCoMo dates; never cold-archive it
+
+
+def _skip_set():
+    """SKIP + benchmark DBs; memory_config.json "archive_skip_dbs" (list) overrides BENCH_SKIP ([] = rollback)."""
+    extra = BENCH_SKIP
+    try:
+        cfg = json.load(open("/data/skv/memory_config.json"))
+        if isinstance(cfg.get("archive_skip_dbs"), list):
+            extra = tuple(cfg["archive_skip_dbs"])
+    except Exception:
+        pass
+    return SKIP | set(extra)
+
+
 def run_all(cutoff_days=CUTOFF_DAYS):
     res = {}
+    skip = _skip_set()
     for f in sorted(os.listdir(BASE)):
-        if not f.endswith(".db") or f in SKIP:
+        if not f.endswith(".db") or f in skip:
             continue
         try:
             r = run_db(os.path.join(BASE, f), cutoff_days)

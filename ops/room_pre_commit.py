@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
-from app.room.diffcheck import review_diff
+from app.room.diffcheck import _hunks, review_diff
 
 
 def _diff():
@@ -33,8 +33,22 @@ def _claimed():
     return [ln.strip() for ln in raw.splitlines() if ln.strip()]
 
 
+def _head_sizes(diff_text):
+    """Line counts at HEAD. The 30% and 80% checks are about the file, not the diff window."""
+    sizes = {}
+    for item in _hunks(diff_text):
+        path = item["path"]
+        try:
+            text = subprocess.check_output(["git", "show", "HEAD:%s" % path], stderr=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            continue
+        sizes[path] = len(text.splitlines()) or 1
+    return sizes
+
+
 def main():
-    report = review_diff(_diff(), _message(), _claimed())
+    diff = _diff()
+    report = review_diff(diff, _message(), _claimed(), _head_sizes(diff))
     if report["ok"]:
         return 0
     sys.stderr.write("\n".join(report["errors"]) + "\n")

@@ -2139,6 +2139,40 @@ def _sz_auto_attach(res: str, due: Optional[bool] = None) -> str:
     return s
 
 
+def _rate_seal_suffix(duty: str = "", duty_reason: str = "") -> str:
+    """Unanswered RATE (already nudged, no vote_nothing with a reason) marks the seal."""
+    try:
+        _room_src()
+        import sqlite3
+        from app import cubes_v2 as _cv2
+        uid = _caller_id()
+        if not uid:
+            return ""
+        c = sqlite3.connect("/data/skv/metadata_store/shared_master.db", timeout=5)
+        try:
+            _cv2.ensure(c)
+            fail = _cv2.rate_seal_failed(c, uid, duty, duty_reason)
+        finally:
+            c.close()
+        return " [DUTY ✗]" if fail else ""
+    except Exception:
+        return ""
+
+
+def _trigger_cubes(message: str) -> list:
+    try:
+        _room_src()
+        from app import cube_suggest as _cs
+        out = []
+        for hit in _cs.trigger_cubes(message or "")[:3]:
+            cid = hit.get("id") or hit.get("cube_id")
+            if cid:
+                out.append({"cube_id": cid, "essence": str(hit.get("essence") or "")[:180], "trigger": hit.get("trigger") or ""})
+        return out
+    except Exception:
+        return []
+
+
 def _room_src():
     src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
     if src not in sys.path:
@@ -2309,6 +2343,11 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
                     cid = c.get("cube_id") or c.get("id")
                     if cid:
                         cubes.append({"cube_id": cid, "essence": _trim_words(str(c.get("essence") or c.get("title") or c.get("topic") or ""), 25), **({"own": True} if c.get("own") else {})})
+            _have = {c["cube_id"] for c in cubes}
+            for hit in _trigger_cubes(user_message or ""):
+                if hit.get("cube_id") and hit["cube_id"] not in _have:
+                    cubes.append(hit)
+                    _have.add(hit["cube_id"])
     except Exception:
         cubes = []
     checklist = ["Facts missing or user asks to recall: dig deeper (memory_search by meaning + keywords, lines=all, offset; memory_event full text; still nothing -> memory_recall_later(query) deep search, poll memory_recall_status) before saying you do not remember.", "Every fact about the user or the past in the draft rests on an [ev:id] from facts/step_zero, or is said to be unknown.",
@@ -2367,7 +2406,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         seal_n = t["seal"]
     else:
         seal_n = _seal_next(same)
-    seal = SEAL_CODE_FMT.format(n=seal_n, c=_seal_code(_caller_id(), seal_n, clean)) + ((" " + pc["seal_mark"]) if pc.get("seal_mark") else "")
+    seal = SEAL_CODE_FMT.format(n=seal_n, c=_seal_code(_caller_id(), seal_n, clean)) + ((" " + pc["seal_mark"]) if pc.get("seal_mark") else "") + _rate_seal_suffix(duty, duty_reason)
     final = clean + "\n" + seal
     drawn = [m.group(0) for m in re.finditer(r"🔐\s*SKV[^\n]*", draft or "")]
     gap = (not same) and t.get("seal") is not None and t.get("saved_t") and _time.time() - t["saved_t"] > 0 and bool(drawn)
@@ -2436,6 +2475,8 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
     _sd = saved.get("summary_due") if isinstance(saved, dict) else None
     if isinstance(_sd, dict) and _sd.get("l1_pending", 0) >= 20:   # overdue L1: lift it to the top of duties with ready ids
         duties.insert(0, {"id": "l1_overdue", "kind": "summary", "do": _sd.get("l1"), "source_event_ids": _sd.get("l1_source_event_ids")})
+    if isinstance(saved, dict) and saved.get("rate_missed"):
+        duties.insert(0, saved["rate_missed"])
     if mt:
         duties.insert(0, mt)
     prof = {}
@@ -3248,6 +3289,26 @@ def cube_create(
     if supersedes:
         body["supersedes"] = supersedes.strip()
     return _dumps(_req("POST", "/experience/create", body))
+
+
+@mcp.tool()
+def cube_confirm(cube_id: str, outcome: str, evidence: str, env: str = "", version: str = "", agent_id: str = "") -> str:
+    """One confirmation per account per cube version. outcome=ok|partial|fail. evidence is required (max 500).
+    The author does not count. A second call from the same account keeps the first vote."""
+    body = _uid_body({
+        "cube_id": cube_id,
+        "outcome": outcome,
+        "evidence": evidence or "",
+        "version": version or "",
+        "agent_id": agent_id or "",
+        "user_id": USER or "from_key",
+    })
+    if (env or "").strip():
+        try:
+            body["env"] = json.loads(env)
+        except Exception:
+            body["env"] = {"note": env[:300]}
+    return _dumps(_req("POST", "/cube/confirm", body))
 
 
 @mcp.tool()
@@ -4361,7 +4422,7 @@ def vault_inject(name: str, purpose: str, url: str, method: str = "POST", body: 
 
 
 VISIBLE = {"constitution_get", "turn", "step_zero", "constitution_status", "constitution_install", "memory_start", "memory_search", "memory_event",
-           "cube_search", "cube_get", "cube_install", "cube_vote", "cube_create", "feedback_submit", "board_list", "board_act", "sandbox_run",
+           "cube_search", "cube_get", "cube_install", "cube_vote", "cube_create", "cube_confirm", "feedback_submit", "board_list", "board_act", "sandbox_run",
            "cube_consent", "court_case", "court_removal_request", "cube_link", "consult", "consult_accept", "vault_inject", "joint_project", "joint_search", "turn_stats", "memory_recall_later", "memory_recall_status",
            "identify", "file_claim", "file_release"}
 

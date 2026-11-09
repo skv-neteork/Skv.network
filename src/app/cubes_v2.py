@@ -54,6 +54,14 @@ def ensure(conn):
     conn.execute("CREATE TABLE IF NOT EXISTS cube_duty_state (user_id TEXT PRIMARY KEY, last_topic TEXT, pending_cube INTEGER DEFAULT 0, pending_step INTEGER, pending_reason TEXT, rate_pending TEXT DEFAULT '[]', rate_step INTEGER)")
     if "turns" not in _cols(conn, "cube_duty_state"):
         conn.execute("ALTER TABLE cube_duty_state ADD COLUMN turns INTEGER DEFAULT 0")
+    for _col in ("rate_nudged", "rate_ignored"):
+        if _col not in _cols(conn, "cube_duty_state"):
+            conn.execute(f"ALTER TABLE cube_duty_state ADD COLUMN {_col} TEXT DEFAULT '[]'")
+    try:
+        from app import cube_dedup as _dedup
+        _dedup.ensure(conn)
+    except Exception as _e:
+        print(f"[cubes_v2] dedup schema skipped: {_e}", flush=True)
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS cube_links (src TEXT, dst TEXT, kind TEXT, created_by TEXT, created_at TEXT, PRIMARY KEY (src, dst, kind));
     CREATE TABLE IF NOT EXISTS cube_tasks (task_id TEXT PRIMARY KEY, topic TEXT, question TEXT, tried TEXT, accept TEXT, status TEXT, created_by TEXT, created_at TEXT);
@@ -153,23 +161,30 @@ def norm_carrier(carrier, skill_md="", hooks_raw=""):
 
 
 # ---------------- duty ----------------
+def _json_list(raw):
+    try:
+        data = json.loads(raw or "[]")
+    except Exception:
+        data = []
+    return data if isinstance(data, list) else []
+
+
 def _state(conn, uid):
-    r = conn.execute("SELECT last_topic, pending_cube, pending_step, pending_reason, rate_pending, rate_step FROM cube_duty_state WHERE user_id=?", (uid,)).fetchone()
+    r = conn.execute("SELECT last_topic, pending_cube, pending_step, pending_reason, rate_pending, rate_step, coalesce(rate_nudged,'[]'), coalesce(rate_ignored,'[]') FROM cube_duty_state WHERE user_id=?", (uid,)).fetchone()
     if not r:
         conn.execute("INSERT OR IGNORE INTO cube_duty_state (user_id) VALUES (?)", (uid,))
-        return {"last_topic": "", "pending_cube": 0, "pending_step": None, "pending_reason": "", "rate_pending": [], "rate_step": None}
-    try:
-        rp = json.loads(r[4] or "[]")
-    except Exception:
-        rp = []
-    return {"last_topic": r[0] or "", "pending_cube": r[1] or 0, "pending_step": r[2], "pending_reason": r[3] or "", "rate_pending": rp, "rate_step": r[5]}
+        return {"last_topic": "", "pending_cube": 0, "pending_step": None, "pending_reason": "", "rate_pending": [], "rate_step": None, "rate_nudged": [], "rate_ignored": []}
+    return {"last_topic": r[0] or "", "pending_cube": r[1] or 0, "pending_step": r[2], "pending_reason": r[3] or "",
+            "rate_pending": _json_list(r[4]), "rate_step": r[5], "rate_nudged": _json_list(r[6]), "rate_ignored": _json_list(r[7])}
 
 
 def _save_state(conn, uid, s):
-    conn.execute("""INSERT INTO cube_duty_state (user_id, last_topic, pending_cube, pending_step, pending_reason, rate_pending, rate_step)
-                    VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET last_topic=excluded.last_topic, pending_cube=excluded.pending_cube,
-                    pending_step=excluded.pending_step, pending_reason=excluded.pending_reason, rate_pending=excluded.rate_pending, rate_step=excluded.rate_step""",
-                 (uid, s["last_topic"], s["pending_cube"], s["pending_step"], s["pending_reason"], json.dumps(s["rate_pending"][-10:]), s["rate_step"]))
+    conn.execute("""INSERT INTO cube_duty_state (user_id, last_topic, pending_cube, pending_step, pending_reason, rate_pending, rate_step, rate_nudged, rate_ignored)
+                    VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET last_topic=excluded.last_topic, pending_cube=excluded.pending_cube,
+                    pending_step=excluded.pending_step, pending_reason=excluded.pending_reason, rate_pending=excluded.rate_pending, rate_step=excluded.rate_step,
+                    rate_nudged=excluded.rate_nudged, rate_ignored=excluded.rate_ignored""",
+                 (uid, s["last_topic"], s["pending_cube"], s["pending_step"], s["pending_reason"], json.dumps(s["rate_pending"][-10:]), s["rate_step"],
+                  json.dumps((s.get("rate_nudged") or [])[-20:]), json.dumps((s.get("rate_ignored") or [])[-20:])))
 
 
 def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, duty="", duty_reason="", turn=False):
@@ -177,6 +192,13 @@ def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, du
     notes = []
     s = _state(conn, uid)
     duty = (duty or "").strip()
+    answered_rate = duty == "vote_nothing" and bool((duty_reason or "").strip())
+    if turn and not answered_rate:
+        for cid in s.get("rate_nudged") or []:
+            if cid in s["rate_pending"] and cid not in (s.get("rate_ignored") or []):
+                s.setdefault("rate_ignored", []).append(cid)
+        if len(s.get("rate_ignored") or []) >= 3:
+            notes.append("missed_turns: %d RATE reminders ignored" % len(s["rate_ignored"]))
     closed = wrote_cube
     if duty == "cube_nothing":
         if (duty_reason or "").strip():
@@ -270,13 +292,53 @@ def duty_errors(conn, uid, step):
     return out
 
 
+def _author_of(conn, cube_ids, uid):
+    ids = [c for c in cube_ids if c]
+    if not ids or not uid:
+        return set()
+    q = ",".join("?" * len(ids))
+    try:
+        rows = conn.execute(
+            "SELECT cube_id FROM cubes_new WHERE cube_id IN (%s) AND lower(coalesce(created_by,''))=?" % q,
+            ids + [uid.strip().lower()]).fetchall()
+    except Exception:
+        return set()
+    return {r[0] for r in rows}
+
+
+def rate_seal_failed(conn, uid, duty="", duty_reason=""):
+    """True when a cube was already nudged and this turn does not answer it."""
+    if (duty or "").strip() == "vote_nothing" and (duty_reason or "").strip():
+        return False
+    s = _state(conn, uid)
+    own = _author_of(conn, s["rate_pending"], uid)
+    nudged = set(s.get("rate_nudged") or [])
+    return any(c in nudged and c not in own for c in s["rate_pending"])
+
+
+def rate_missed_duty(conn, uid):
+    s = _state(conn, uid)
+    n = len(s.get("rate_ignored") or [])
+    if n < 3:
+        return None
+    return {"id": "missed_turns", "kind": "missed_turns", "n": n, "source": "rate",
+            "do": "%d RATE reminders were ignored. Vote or send duty=vote_nothing with a reason." % n}
+
+
 def duty_hints(conn, uid):
     s = _state(conn, uid)
     h = []
     if s["pending_cube"]:
         h.append("• CUBE DUTY: the task ended. Write a cube only if it changes the answer (code, lifehack, warning, fact); otherwise remember duty=cube_nothing with a reason. Silence is the only error.")
-    if s["rate_pending"]:
-        h.append("• RATE: new cubes " + ", ".join(s["rate_pending"][:2]) + " were opened/used by you. Vote +1/-1 or duty=vote_nothing with a reason.")
+    own = _author_of(conn, s["rate_pending"], uid)
+    if own:
+        s["rate_pending"] = [c for c in s["rate_pending"] if c not in own]
+    fresh = [c for c in s["rate_pending"] if c not in (s.get("rate_nudged") or [])]
+    if fresh:
+        s["rate_nudged"] = list(s.get("rate_nudged") or []) + fresh
+        h.append("• RATE: new cubes " + ", ".join(fresh[:2]) + " were opened/used by you. Vote +1/-1 or duty=vote_nothing with a reason.")
+    if own or fresh:
+        _save_state(conn, uid, s)
     return h
 
 

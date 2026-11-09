@@ -1627,6 +1627,7 @@ async def remember(req: RememberRequest):
         conn.commit(); conn.close()
         saved.append(req.duty)
     _duty_notes = []
+    _rate_missed = None
     try:
         from app import cubes_v2 as _cv2
         _dc = sqlite3.connect(SHARED_DB, timeout=30)
@@ -1637,6 +1638,7 @@ async def remember(req: RememberRequest):
         _duty_notes = _cv2.on_remember(_dc, req.user_id, _duty_step(req.user_id), topic=req.topic or req.cube_topic if not _wrote else req.topic,
                                        task_done=req.task_done, wrote_cube=_wrote, duty=req.duty, duty_reason=req.duty_reason, turn=bool(req.query or req.response))
         _duty_notes += [h for h in _cv2.duty_hints(_dc, req.user_id) if h.startswith("• RATE")]
+        _rate_missed = _cv2.rate_missed_duty(_dc, req.user_id)
         _dc.commit(); _dc.close()
     except Exception as _e:
         print(f"[cubes_v2] remember duty skipped: {_e}", flush=True)
@@ -1653,6 +1655,8 @@ async def remember(req: RememberRequest):
             _out["profile_errors"] = ["profile apply failed on the server: %s" % type(_e).__name__]
     if _duty_notes:
         _out["cube_duty"] = _duty_notes
+    if _rate_missed:
+        _out["rate_missed"] = _rate_missed
     try:   # periodic cube harvest: reminder only (app/cube_harvest.py)
         from app import cube_harvest as _ch
         if (req.duty or "").strip() == "cube_harvest":

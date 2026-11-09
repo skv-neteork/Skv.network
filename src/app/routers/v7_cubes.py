@@ -134,6 +134,26 @@ async def create_experience_cube(req: ExperienceCreateRequest):
     if _cons.get("status") not in ("allowed", "notice_required") and req.cube_publish is not False:
         raise HTTPException(status_code=403, detail={"error": "publish permission unknown; failing closed", "consent": "unknown",
                             "hint": "retry later; do not publish while permission is unknown"})
+    _skill_quarantine = False
+    if req.cube_publish is not False and (_carrier == "skill" or _skill_md or _hooks_json):
+        from app import cube_dedup as _dd
+        _scrub = _dd.scrub_skill({"topic": req.topic, "essence": req.essence, "rules": req.rules_markdown,
+                                  "skill_md": _skill_md, "hooks": _hooks_json or ""})
+        if not _scrub["ok"]:
+            raise HTTPException(status_code=422, detail={"error": "secret in skill", "reasons": _scrub["reasons"],
+                                "hint": "remove secrets from skill_md and hooks, then publish again"})
+        if _scrub["changed"] and not bool(getattr(req, "publish_confirm", False)):
+            return {"result": "scrubbed", "publish_confirm": False, "fields": _scrub["fields"],
+                    "placeholders": _scrub["placeholders"], "doubtful": _scrub["doubtful"],
+                    "applied": {"where": getattr(req, "applied_where", "") or "", "times": int(getattr(req, "applied_times", 0) or 0)},
+                    "next": "read the scrubbed text and call again with publish_confirm=true"}
+        if _scrub["changed"]:
+            req.topic = _scrub["fields"].get("topic") or req.topic
+            req.essence = _scrub["fields"].get("essence") or req.essence
+            req.rules_markdown = _scrub["fields"].get("rules") or req.rules_markdown
+            _skill_md = _scrub["fields"].get("skill_md") or ""
+            _hooks_json = _scrub["fields"].get("hooks") or ""
+        _skill_quarantine = bool(_scrub["doubtful"])
     if req.cube_publish is not False:
         from app import cube_guard as _cgs
         _rep = _cgs.field_report(topic=req.topic, essence=req.essence, rules=req.rules_markdown, evidence=req.evidence, skill_md=req.skill_md or "", hooks=_hooks_json or "")
@@ -215,6 +235,33 @@ async def create_experience_cube(req: ExperienceCreateRequest):
                 if _rl:
                     conn.close()
                     raise HTTPException(status_code=429, detail={"error": _rl, "hint": "a version of someone else's cube opens a court case"})
+        _status = "quarantine" if _skill_quarantine else "community"
+        _dedup_plan = None
+        if not sup:
+            from app import cube_dedup as _dd
+            _dd.ensure(conn)
+            _parts = _dd.parts_from(topic=req.topic, problem=req.essence, hooks=_hooks_json, skill_md=_skill_md,
+                                    rules=req.rules_markdown, requirements=getattr(req, "requirements", None) or [])
+            _draft = {"kind": _kind, "parts": _parts, "steps_sha": _dd.steps_sha(_parts), "norm_text": _dd.norm_text(_parts)}
+            _dedup_plan = _dd.classify(_draft, _dd.load_candidates(conn, _kind))
+            if _dedup_plan.get("result") == "duplicate":
+                conn.commit(); conn.close()
+                return _dedup_plan
+            if _dedup_plan.get("result") in ("near_duplicate", "conflict"):
+                _fields = {"topic": req.topic, "essence": req.essence, "rules": req.rules_markdown,
+                           "skill_md": _skill_md, "hooks": _hooks_json or "", "kind": _kind, "carrier": _carrier,
+                           "diff": _dedup_plan.get("diff") or {}, "requirements": getattr(req, "requirements", None) or []}
+                _why = "conflict: opposite hook" if _dedup_plan["result"] == "conflict" else "near_duplicate: added steps or hooks"
+                _prop = _dd.propose_version(conn, _dedup_plan["canonical_cube_id"], _fields, _why, uid)
+                if _dedup_plan["result"] == "conflict" and _prop.get("cube_id"):
+                    cur.execute("UPDATE cubes_new SET status='disputed' WHERE cube_id=?", (_prop["cube_id"],))
+                conn.commit(); conn.close()
+                _prop["result"] = _dedup_plan["result"]
+                _prop["similarity"] = _dedup_plan.get("similarity")
+                _prop["diff"] = _dedup_plan.get("diff")
+                _prop["published"] = False
+                _prop["next"] = "cube_confirm(...) | cube_propose_version(...)"
+                return _prop
         for cid, ess, rules in cur.execute("select cube_id, essence, rules_markdown from cubes_new where subject_action_object=? and coalesce(status,'') not in ('superseded','rejected','pending_version')", (req.topic,)).fetchall():
             old_w = _words(req.topic) | _words(ess) | _words(rules)
             if not new_w or not old_w or cid == sup:
@@ -227,8 +274,18 @@ async def create_experience_cube(req: ExperienceCreateRequest):
         _cv2.ensure(conn)
         cur.execute("""INSERT INTO cubes_new
             (cube_id, essence, subject_action_object, rules_markdown, evidence, source_session, status, created_by, kind, skill_md, hooks, carrier)
-            VALUES (?, ?, ?, ?, ?, ?, 'community', ?, ?, ?, ?, ?)""",
-            (cube_id, req.essence, req.topic, req.rules_markdown, req.evidence, req.session_id, uid, _kind, _skill_md or None, _hooks_json or None, _carrier))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (cube_id, req.essence, req.topic, req.rules_markdown, req.evidence, req.session_id, _status, uid, _kind, _skill_md or None, _hooks_json or None, _carrier))
+        try:
+            from app import cube_dedup as _dd
+            _parts = _dd.parts_from(topic=req.topic, problem=req.essence, hooks=_hooks_json, skill_md=_skill_md,
+                                    rules=req.rules_markdown, requirements=getattr(req, "requirements", None) or [])
+            _dd.stamp(conn, cube_id, _parts, requirements=getattr(req, "requirements", None) or [],
+                      applied={"where": getattr(req, "applied_where", "") or "", "times": int(getattr(req, "applied_times", 0) or 0)})
+            if _dedup_plan and _dedup_plan.get("result") == "related" and _dedup_plan.get("canonical_cube_id"):
+                _dd.link_related(conn, cube_id, _dedup_plan["canonical_cube_id"], uid)
+        except Exception as _e:
+            print(f"[cube_dedup] stamp skipped: {_e}", flush=True)
         if sup:
             _old = cur.execute("select links_json from cubes_new where cube_id=?", (sup,)).fetchone()
             try:
@@ -567,7 +624,7 @@ async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
     uid = ((_request_user(request) if request is not None else "") or "").strip() or (user_id or "").strip()
     conn = sqlite3.connect(SHARED_DB)
     _cv2.ensure(conn)
-    row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier from cubes_new where cube_id=?", (cube_id,)).fetchone()
+    row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier, coalesce(created_by,'') from cubes_new where cube_id=?", (cube_id,)).fetchone()
     if row and uid and not cube_id.startswith("cube_const_"):
         try:
             _cv2.record_impression(conn, uid, cube_id, "read"); conn.commit()
@@ -576,7 +633,7 @@ async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
     if not row and cube_id.startswith("cube_const_") and cube_id.count("_") >= 3:
         # old version link -> current version of the same constitution cube
         prefix = "_".join(cube_id.split("_")[:3]) + "_v%"
-        row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier from cubes_new where cube_id like ? order by (coalesce(status,'') in ('archived','rejected','removed','deleted')) asc, cast(substr(cube_id, ?) as integer) desc limit 1", (prefix, len(prefix))).fetchone()
+        row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier, coalesce(created_by,'') from cubes_new where cube_id like ? order by (coalesce(status,'') in ('archived','rejected','removed','deleted')) asc, cast(substr(cube_id, ?) as integer) desc limit 1", (prefix, len(prefix))).fetchone()
     conn.close()
     shared = True
     if not row and uid:
@@ -615,8 +672,56 @@ async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
         out["hooks"] = hooks
     if carrier == "skill" or skill_md or hooks:
         out["has_skill"] = True
+    from app.cube_dedup import public_author
+    _agent = ""
+    _who = row[8] if len(row) > 8 else ""
+    if not _who and not shared:
+        _who = uid
+    if shared and _who:
+        try:
+            _ac = sqlite3.connect(SHARED_DB)
+            _ag = _ac.execute("SELECT agent_id FROM cube_contributions WHERE cube_id=? AND agent_id!='' ORDER BY id DESC LIMIT 1", (out["cube_id"],)).fetchone()
+            _ac.close()
+            _agent = (_ag[0] if _ag else "") or ""
+        except Exception:
+            _agent = ""
+    _author = public_author(_who, _agent)
+    if _author:
+        out["author"] = _author
     return out
 
+
+
+class CubeConfirmRequest(BaseModel):
+    cube_id: str
+    outcome: str
+    evidence: str = ""
+    env: Optional[dict] = None
+    version: Optional[str] = ""
+    agent_id: Optional[str] = ""
+    user_id: Optional[str] = ""
+
+
+@router.post("/cube/confirm")
+async def cube_confirm(req: CubeConfirmRequest, request: Request = None):
+    """One account, one confirmation per cube version. The author does not count."""
+    import sqlite3
+    from app import cube_dedup as _dd
+    uid = ((_request_user(request) if request is not None else "") or "").strip() or (req.user_id or "").strip()
+    if not uid:
+        raise HTTPException(status_code=401, detail="API key required")
+    conn = sqlite3.connect(SHARED_DB, timeout=30)
+    try:
+        out = _dd.confirm(conn, req.cube_id, uid, req.outcome, req.evidence, agent_id=req.agent_id or "",
+                          env=req.env or {}, version=req.version or "")
+        conn.commit()
+    finally:
+        conn.close()
+    if out.get("error") == "cube not found":
+        raise HTTPException(status_code=404, detail=out["error"])
+    if out.get("ok") is False:
+        raise HTTPException(status_code=422, detail=out)
+    return out
 
 
 class CubeInstallRequest(BaseModel):

@@ -6,7 +6,7 @@ old version into cube_versions (rollback possible)."""
 import re, json, time, sqlite3, threading
 
 DB = "/data/skv/metadata_store/shared_master.db"
-HIDE = ("quarantine", "archived", "removed", "deprecated", "disputed")
+HIDE = ("quarantine", "archived", "removed", "deprecated", "disputed", "pending_version")
 STOP = set("the and for with that this from what when how your you are was were can will into about have has not but all any use using get make why who which our out its over also just like then than them they more most some such only".split())
 THRESH = 0.6          # share of query tokens found in the cube (+ head bonus)
 MIN_HITS = 2          # at least 2 shared tokens (1 if the query has a single long token)
@@ -19,6 +19,52 @@ def toks(t):
     return {w for w in re.findall(r"[a-z0-9]{3,}", (t or "").lower()) if w not in STOP}
 
 
+def _whens(raw):
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        data = [ln.strip() for ln in str(raw).splitlines() if ln.strip()]
+    out = []
+    if isinstance(data, dict):
+        data = [data]
+    for h in data or []:
+        if isinstance(h, str) and h.strip():
+            out.append({"when": h.strip(), "do": ""})
+        elif isinstance(h, dict) and (h.get("when") or h.get("if")):
+            out.append({"when": str(h.get("when") or h.get("if")).strip(), "do": str(h.get("do") or h.get("then") or "").strip()})
+    return out
+
+
+def trigger_match(rows, message):
+    """Cubes whose hook phrase is in the user message. Short markers such as on_install do not match."""
+    msg = (message or "").lower()
+    if not msg.strip():
+        return []
+    hits = []
+    for row in rows or []:
+        for hook in row.get("whens") or []:
+            when = (hook.get("when") or "").strip()
+            if len(when) >= 12 and when.lower() in msg:
+                hits.append({**row, "when": when, "do": hook.get("do") or ""})
+                break
+    return hits
+
+
+def trigger_cubes(query, limit=3):
+    try:
+        hits = trigger_match(_load(), query)[:limit]
+    except Exception:
+        return []
+    out = []
+    for row in hits:
+        item = _item(row)
+        item["trigger"] = row.get("when") or ""
+        out.append(item)
+    return out
+
+
 def _load():
     with _lock:
         if time.time() - _cache["ts"] < _TTL and _cache["rows"]:
@@ -28,7 +74,7 @@ def _load():
             q = ",".join("?" * len(HIDE))
             rows = c.execute(f"""SELECT cube_id, COALESCE(subject_action_object,''), COALESCE(essence,''), COALESCE(rules_markdown,''),
                 COALESCE(kind,'moment'), COALESCE(carrier,'answer'), COALESCE(status,'community'), COALESCE(rating,0),
-                COALESCE(upvotes,0)+COALESCE(downvotes,0), COALESCE(skill_md,''), COALESCE(created_at,'')
+                COALESCE(upvotes,0)+COALESCE(downvotes,0), COALESCE(skill_md,''), COALESCE(created_at,''), COALESCE(hooks,'')
                 FROM cubes_new WHERE COALESCE(status,'community') NOT IN ({q}) AND COALESCE(is_constitutional,0)=0
                 AND COALESCE(kind,'') NOT IN ('help_request')""", HIDE).fetchall()
         finally:
@@ -37,7 +83,8 @@ def _load():
         for r in rows:
             out.append({"id": r[0], "topic": r[1], "essence": r[2], "kind": r[4], "carrier": r[5], "status": r[6],
                         "rating": r[7], "votes": r[8], "has_skill": bool(r[9].strip()) or r[5] == "skill",
-                        "created": str(r[10]), "tok": toks(r[1] + " " + r[2]) | toks(r[3][:300]), "tok_head": toks(r[1] + " " + r[2])})
+                        "created": str(r[10]), "tok": toks(r[1] + " " + r[2]) | toks(r[3][:300]), "tok_head": toks(r[1] + " " + r[2]),
+                        "whens": _whens(r[11])})
         _cache.update(ts=time.time(), rows=out)
         return out
 
@@ -81,17 +128,20 @@ def suggest(query, uid="", session_id="", top=3):
     empty = {"items": [], "note": "no strong topic match"}
     try:
         from app.cube_query import english_query
-        query = english_query(query) or (query or "")
+        raw_query = query or ""
+        query = english_query(query) or raw_query
         qt = toks(query)
-        if not qt:
+        triggered = trigger_match(_load(), raw_query + "\n" + (query or ""))
+        if not qt and not triggered:
             return empty
         need = 1 if (len(qt) == 1 and len(next(iter(qt))) >= 5) else MIN_HITS
         scored = []
-        for r in _load():
-            s, h = _score(qt, r)
-            if h >= need and s >= THRESH and (qt & r["tok_head"]):
-                scored.append((s, r))
-        if not scored:
+        if qt:
+            for r in _load():
+                s, h = _score(qt, r)
+                if h >= need and s >= THRESH and (qt & r["tok_head"]):
+                    scored.append((s, r))
+        if not scored and not triggered:
             return empty
         uid = (uid or "").strip().lower()
         sess = (session_id or "default")[:80]
@@ -107,6 +157,14 @@ def suggest(query, uid="", session_id="", top=3):
             fresh = sorted([x for x in scored if x[1]["votes"] == 0 and x[1]["status"] == "community"
                             and x[1]["id"] not in {p[1]["id"] for p in proven}], key=lambda x: (-x[0], x[1]["created"]))[:1]
             items = [_item(r) for _, r in proven] + [_item(r, True) for _, r in fresh]
+            seen_ids = {it["id"] for it in items}
+            for row in trigger_match(_load(), raw_query + "\n" + (query or "")):
+                if row["id"] in seen_ids or row["id"] in skip:
+                    continue
+                hit = _item(row)
+                hit["trigger"] = row.get("when") or ""
+                items.append(hit)
+                seen_ids.add(row["id"])
             if uid and items:
                 for it in items:
                     c.execute("INSERT OR IGNORE INTO cube_suggest_seen VALUES (?,?,?,datetime('now'))", (uid, sess, it["id"]))

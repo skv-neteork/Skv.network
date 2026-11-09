@@ -186,6 +186,10 @@ class ExperienceCreateRequest(BaseModel):
     hooks: Optional[object] = None          # when-to-fire: list[str]|list[{when,do}]|JSON string
     carrier: Optional[str] = ""             # answer|skill|robotics; default answer; auto skill if skill_md/hooks set
     supersedes: Optional[str] = None        # old cube_id this new version replaces (cubes are never edited in place)
+    publish_confirm: Optional[bool] = False  # author accepts the scrubbed skill text
+    requirements: Optional[list] = None      # [{kind,name,constraint_text,optional}]
+    applied_where: Optional[str] = ""        # where a skill was actually used
+    applied_times: Optional[int] = 0         # how many times it was actually used
 
 class EventWriteRequest(BaseModel):
     event_id: str

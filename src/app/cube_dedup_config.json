@@ -1,0 +1,13 @@
+{
+  "candidate_cos": 0.78,
+  "duplicate_cos": 0.93,
+  "hook_jaccard": 0.6,
+  "near_cos": 0.84,
+  "related_cos": 0.75,
+  "norm_jaccard_exact": 0.85,
+  "young_account_days": 7,
+  "young_weight": 0.5,
+  "half_life_days": 90,
+  "embed_on_create": false,
+  "note": "Starting thresholds. calibrate() changes them only when given about 100 labeled pairs."
+}

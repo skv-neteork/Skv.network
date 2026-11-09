@@ -69,6 +69,7 @@ def _sz_memory(n_tail: int = 4, an: int = 700) -> tuple:
     if rows:
         r = rows[0]; txt = qa(r[2], 600, 1500)
         parts.append("=== HOW THE LAST SESSION ENDED ===\n[ev:%s] %s %s" % (_sid(r[1]), _ev_time(r[1]), txt)); items.append((r[1], txt))
+        parts.append("=== AGENT NOTE (first reply only) ===\nTell the user in one line: memory line loaded, the last thing you remember, ready to continue. Do not repeat this every turn.")
         tl = []
         for r in rows[1:]:
             txt = qa(r[2], 260, an); tl.append("[ev:%s] %s %s" % (_sid(r[1]), _ev_time(r[1]), txt)); items.append((r[1], txt))

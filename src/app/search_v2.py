@@ -182,6 +182,38 @@ def fts_ranked(uid, query, limit=30):
     return out, rare
 
 
+
+
+QUESTION_STARTS = ["when did", "what did", "what is", "what are", "where did", "how long", "what types of", "what do", "what kind of", "who did", "who is", "who are"]
+
+def reformulate(query):
+    q = query.strip().rstrip("?").strip()
+    ql = q.lower()
+    # extract capitalized names
+    names = []
+    for tok in q.split():
+        if tok[:1].isupper() and len(tok) > 2 and tok.lower() not in ("what", "when", "where", "who", "how", "the", "did", "does", "is", "are"):
+            names.append(tok)
+    name = names[0] if names else None
+    # strip question words
+    narrative = q
+    for w in QUESTION_STARTS:
+        if ql.startswith(w):
+            narrative = q[len(w):].strip()
+            break
+    # remove name from narrative (name is exact, rest is vector)
+    if name:
+        narrative = narrative.replace(name, "").replace(name.lower(), "").strip()
+    return name, narrative
+
+def anchors(query):
+    """Capitalized names in the query (Melanie, Caroline)."""
+    out=[]
+    for t in tokens(query):
+        if t[:1].isupper() and len(t)>2 and t.lower() not in STOP:
+            out.append(t.lower())
+    return out
+
 def wrrf(vec, words, w_vec, w_words, k=60):
     fused = {}
     for w, lst in ((w_vec, vec), (w_words, words)):
@@ -189,6 +221,84 @@ def wrrf(vec, words, w_vec, w_words, k=60):
             fused[eid] = fused.get(eid, 0.0) + w / (k + r + 1)
     return sorted(fused.items(), key=lambda x: -x[1])
 
+
+
+def name_filter(uid, sem, query, factor=5.0):
+    """Turns naming the person rise. Among them, turns with the content words rise more."""
+    names=anchors(query)
+    if not names or not sem:
+        return sem
+    content=[t.lower() for t in tokens(query) if len(t)>3 and t.lower() not in names and t.lower() not in STOP]
+    try:
+        conn=sqlite3.connect(_db(uid), timeout=10)
+        ids=[e for e,_ in sem]
+        qmarks=",".join("?"*len(ids))
+        rows=conn.execute("SELECT event_id, raw_dialogue FROM event_metadata WHERE event_id IN (%s)"%qmarks, ids).fetchall()
+        conn.close()
+    except Exception:
+        return sem
+    text={e:(r or "").lower() for e,r in rows}
+    out=[]
+    for e,s in sem:
+        body=text.get(e,"")
+        if any(n in body for n in names):
+            s=s*factor
+            if content and any(w in body for w in content):
+                s=s*1.5
+        out.append((e,s))
+    out.sort(key=lambda x:-x[1])
+    return out
+
+
+def words_then_meaning(uid, query, top_k=20):
+    """Keyword pool first, then re-rank by meaning inside it."""
+    from app import semantic as _sem
+    words, _ = fts_ranked(uid, query, limit=50)
+    if not words:
+        return [], False
+    try:
+        vec=_sem.embed([query])
+        hits=_sem.semantic_events(uid, query, k=100)
+        vscore={e:s for e,s in hits[0]}
+    except Exception:
+        return words[:top_k], True
+    pool=[(e, vscore.get(e, 0.0)) for e,_ in words]
+    pool.sort(key=lambda x:-x[1])
+    return pool[:top_k], True
+
+
+
+def name_and_meaning(uid, query, top_k=20):
+    """Name by exact search. Concept by vector search. Turns with both rise."""
+    from app import semantic as _sem
+    name, narrative = reformulate(query)
+    names=[name.lower()] if name else anchors(query)
+    if not names:
+        return hybrid(uid, query, top_k)
+    try:
+        conn=sqlite3.connect(_db(uid), timeout=10)
+        name_hits=set()
+        for n in names:
+            rows=conn.execute("SELECT event_id FROM events_fts_stem WHERE events_fts_stem MATCH ?", (chr(34)+stem(n)+chr(34),)).fetchall()
+            name_hits.update(r[0] for r in rows)
+        conn.close()
+    except Exception:
+        return hybrid(uid, query, top_k)
+    if not name_hits:
+        return hybrid(uid, query, top_k)
+    try:
+        sem,_=_sem.semantic_events(uid, narrative if name else query, k=100)
+        # also keyword search within name hits
+        kw, _ = fts_ranked(uid, narrative if name else query, limit=50)
+        kw = [(e,s) for e,s in kw if e in name_hits]
+        # merge: keyword hits get boost
+        kw_ids = {e for e,_ in kw}
+        sem = [(e, s+1.0 if e in kw_ids else s) for e,s in sem]
+        sem=[(e,s) for e,s in sem if e in name_hits]
+    except Exception:
+        return hybrid(uid, query, top_k)
+    sem.sort(key=lambda x:-x[1])
+    return sem[:top_k], True
 
 def hybrid(uid, query, top_k=20, vec_k=None, with_cos=False):
     """Weighted RRF of vector (mml12) and stemmed keyword search. Returns [(eid, score)]."""
@@ -199,10 +309,11 @@ def hybrid(uid, query, top_k=20, vec_k=None, with_cos=False):
         if c.get("chunks"):
             sem, _v = chunk_events(uid, query, k=vec_k or max(c["vec_k"], top_k))
         else:
-            sem, _v = _sem.semantic_events(uid, query, k=vec_k or max(c["vec_k"], top_k))
+            sem, _v = _sem.semantic_events(uid, query, k=100)
             sem = [(e, s) for e, s in sem if e.startswith(uid + "::")]
     except Exception as e:
         print(f"[search_v2] semantic skipped: {e}", flush=True)
+    sem = name_filter(uid, sem, query)
     words, rare = fts_ranked(uid, query, limit=c["fts_limit"])
     fused = wrrf(sem, words, c["w_vec"], word_weight(c, rare))
     if not c.get("chunks"):

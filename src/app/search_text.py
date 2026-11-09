@@ -6,7 +6,11 @@ def _text_search_core(uid, query, top_k=20, since=None, until=None, exclude_impo
     from app import semantic as _sem
     from app import search_v2 as _v2
     if _v2.enabled():
-        fused, _rare = _v2.hybrid(uid, query, top_k=top_k)
+        # question -> reformulate: name exact, narrative vector
+        if any(query.lower().startswith(w) for w in ("when ","what ","where ","who ","how ")):
+            fused, _rare = _v2.name_and_meaning(uid, query, top_k=top_k)
+        else:
+            fused, _rare = _v2.hybrid(uid, query, top_k=top_k)
         out = _arch(uid, query, _out(uid, fused))
         if len(out) < 3 and len(_v2.query_terms(query)) > 1:   # any-term + morphology fallback for multi-word queries
             have = {o["event_id"] for o in out}

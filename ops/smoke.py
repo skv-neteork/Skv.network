@@ -485,9 +485,9 @@ def main():
         rec("fresh acct: session_bootstrap ok (no event_metadata error)", bs == 200 and "no such table" not in bb, "%s %s" % (bs, bb[:80] if bs != 200 or "no such table" in bb else ""))
     except Exception as e:
         rec("fresh acct: no save/seal before install", False, e)
-    # 8 step_zero pages reach done=true
+    # 8 step_zero pages reach done=true. The pack grows; 40 pages is no longer enough.
     done, pg, err = False, 1, ""
-    while pg <= 40:
+    while pg <= 80:
         z = m.call("step_zero", {"page": pg})
         if z.get("_text") is not None and not z.get("pages"): err = z["_text"][:80]
         if z.get("done") is True: done = True; break

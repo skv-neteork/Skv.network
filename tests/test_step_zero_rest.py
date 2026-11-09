@@ -1,0 +1,125 @@
+"""REST step_zero pages. Temporary databases only. No live identify."""
+import os
+import sqlite3
+import tempfile
+import unittest
+
+from app.step_zero_rest import build_pages
+
+
+def _user(path):
+    c = sqlite3.connect(path)
+    c.executescript("""
+    CREATE TABLE event_metadata (event_id TEXT, time_str TEXT, raw_dialogue TEXT);
+    CREATE TABLE summary_l1 (session_id TEXT, topic TEXT, summary_text TEXT, created_at TEXT, from_rowid INT, to_rowid INT);
+    CREATE TABLE summary_l2 (user_id TEXT, map_json TEXT);
+    CREATE TABLE summary_l2_blocks (id INT, source TEXT, period_from TEXT, period_to TEXT, from_rowid INT, to_rowid INT, text TEXT);
+    CREATE TABLE critical_auto (key TEXT, kind TEXT, value TEXT, context TEXT, event_id TEXT, time_str TEXT, hits INT);
+    CREATE TABLE board_items (item_id TEXT, kind TEXT, title TEXT, body TEXT, status TEXT, updated_at TEXT, removed INT,
+                              priority INT, parent_id TEXT, waiting_for TEXT, result TEXT, created_at TEXT);
+    CREATE TABLE profile_rows (id TEXT, kind TEXT, text TEXT, scope TEXT, status TEXT, created_at TEXT);
+    """)
+    c.execute("INSERT INTO event_metadata VALUES ('e1','2026-11-09','hello pack')")
+    c.commit()
+    c.close()
+
+
+def _shared(path):
+    c = sqlite3.connect(path)
+    c.executescript("""
+    CREATE TABLE cubes_new (cube_id TEXT, essence TEXT, rules_markdown TEXT, created_by TEXT, status TEXT);
+    CREATE TABLE user_api_keys (user_id TEXT, api_key TEXT, is_active INT, created_at TEXT, key_prefix TEXT, label TEXT);
+    """)
+    c.execute("INSERT INTO cubes_new VALUES ('cube_const_00_v1','essence','FULL CONST 00','system','verified')")
+    c.commit()
+    c.close()
+
+
+class StepZeroRestTests(unittest.TestCase):
+    def test_pages_include_pack_and_constitution(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        udb = os.path.join(tmp.name, "u.db")
+        sdb = os.path.join(tmp.name, "s.db")
+        _user(udb)
+        _shared(sdb)
+        out = build_pages("packb7@example.invalid", udb, sdb)
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["error"])
+        text = "\n".join(out["pages"])
+        self.assertIn("PACK888", text)
+        self.assertIn("FULL CONST 00", text)
+        self.assertIn("CUBE 00", text)
+        self.assertTrue(all(isinstance(p, str) and p.strip() for p in out["pages"]))
+
+    def test_missing_database_is_an_explicit_error(self):
+        out = build_pages("missing-b7@example.invalid", "/tmp/skv-b7-no-such-user.db", "/tmp/skv-b7-no-such-shared.db")
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["pages"], [])
+        self.assertTrue(out["error"])
+        self.assertNotIn("\n", out["error"][:1])
+
+    def test_http_attaches_pages_and_room_events(self):
+        try:
+            from fastapi import FastAPI
+            from fastapi.testclient import TestClient
+            from app.routers import room_http
+            import app.step_zero_rest as step_zero_rest
+            import app.room.bridge as bridge
+            from app.room.events import record_event
+            from app.room.schema import ensure
+        except Exception:
+            self.skipTest("fastapi is not installed here")
+        raw = sqlite3.connect(":memory:", check_same_thread=False)
+        ensure(raw)
+        record_event(raw, "ch-b7", "k-b7", "mcp-a", "s-a", kind="brief", text="ship the pack", event_id="evA-room")
+        info = {"key_id": "k-b7", "user_id": "b7@example.invalid", "chain_id": "ch-b7", "key_name": "line"}
+
+        class Hold:
+            def close(self):
+                return None
+
+            def __getattr__(self, item):
+                return getattr(raw, item)
+
+        old_lookup, old_open, old_build = bridge.lookup_key, bridge.open_account, step_zero_rest.build_pages
+        seen = {}
+
+        def fake_build(user_id, user_db="", shared_db=""):
+            seen["user"] = user_id
+            return {"ok": True, "pages": ["=== PACK888 001/001 ===\nhello pack\n", "=== CUBE 00 ===\nFULL CONST 00\n"], "error": ""}
+
+        bridge.lookup_key = lambda token: info if token == "test-room-key" else None
+        bridge.open_account = lambda _info: Hold()
+        step_zero_rest.build_pages = fake_build
+        try:
+            app = FastAPI()
+            app.include_router(room_http.router)
+            client = TestClient(app)
+            headers = {"Authorization": "Bearer test-room-key"}
+            got = client.post("/api/v7/agent/step_zero", json={"session_id": "s-rest"}, headers=headers)
+            self.assertEqual(got.status_code, 200)
+            body = got.json()
+            self.assertEqual(seen.get("user"), "b7@example.invalid")
+            joined = "\n".join(body.get("pages") or [])
+            self.assertIn("PACK888", joined)
+            self.assertIn("FULL CONST 00", joined)
+            self.assertNotIn("pack_error", body)
+            step_zero_rest.build_pages = lambda *a, **k: {"ok": False, "pages": [], "error": "user database not found"}
+            bad = client.post("/api/v7/agent/step_zero", json={}, headers=headers)
+            self.assertEqual(bad.status_code, 200)
+            self.assertEqual(bad.json().get("pages"), [])
+            self.assertIn("not found", bad.json().get("pack_error") or "")
+            events = client.post("/api/v7/agent/room_events", json={}, headers=headers)
+            self.assertEqual(events.status_code, 200)
+            self.assertEqual(events.json()["room_events"][0]["ev"], "evA-room")
+            self.assertEqual(client.post("/api/v7/agent/step_zero", json={}, headers={"Authorization": "Bearer no-such"}).status_code, 401)
+        finally:
+            bridge.lookup_key = old_lookup
+            bridge.open_account = old_open
+            step_zero_rest.build_pages = old_build
+            raw.close()
+
+
+if __name__ == "__main__":
+    unittest.main()

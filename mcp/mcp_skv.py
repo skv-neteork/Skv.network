@@ -1333,9 +1333,10 @@ def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", o
     Filters: since/until ("3d", "12h", "2026-10-23" or "2026-10-23 18:00", account time); exclude_imports=true drops imported chats,
     archived and test events; source="board" searches board notes (e.g. "cube candidate:"), "all" = events + board.
     If no reliable matches: say so plainly; offer memory_recall_later for deep multi-step recall."""
-    _room_stopped = _room_block(agent_token, session_id)
-    if _room_stopped:
-        return _room_stopped
+    if _room_local():
+        _room_stopped = _room_block(agent_token, session_id)
+        if _room_stopped:
+            return _room_stopped
     top_k = max(1, min(int(top_k), 10))
     offset = max(0, int(offset or 0))
     body: dict[str, Any] = _uid_body({"query_text": query, "top_k": min(40, top_k + offset)})
@@ -1421,7 +1422,18 @@ def memory_search(query: str, top_k: int = 8, mode: str = "", lines: str = "", o
         out["reliable_matches"] = True
     if not out.get("reliable_matches"):
         out.update(_recall_hint(query))
-    if (agents or "").lower() == "all":
+    if (agents or "").lower() == "all" and not _room_local():
+        try:
+            pack = _req("POST", "/agent/room_events", {
+                "agent_token": agent_token or "", "session_id": session_id or "",
+            })
+        except Exception as exc:
+            pack = {"ok": False, "error": type(exc).__name__}
+        if isinstance(pack, dict) and pack.get("ok") is not False:
+            out["room_events"] = pack.get("room_events") or []
+        else:
+            out["room_events_error"] = (pack.get("error") if isinstance(pack, dict) else "") or "room events unavailable"
+    elif (agents or "").lower() == "all":
         try:
             _room_src()
             from app.room.bridge import open_account
@@ -2109,6 +2121,58 @@ def _bl_add(res: str) -> str:
     return json.dumps(o, ensure_ascii=False, separators=(",", ":"))
 
 
+def _pages_usable(pages) -> bool:
+    return isinstance(pages, list) and any(isinstance(p, str) and p.strip() for p in pages)
+
+
+def _remote_step_payload(agent_token: str = "", session_id: str = "", force: bool = False, context_state: str = "normal") -> dict:
+    """POST the step_zero route. Empty or failed pages stay an error, never a blank success."""
+    try:
+        pack = _req("POST", "/agent/step_zero", {
+            "agent_token": agent_token or "",
+            "session_id": session_id or "mcp",
+            "force": bool(force),
+            "context_state": context_state or "normal",
+        })
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__, "pages": []}
+    if not isinstance(pack, dict):
+        return {"ok": False, "error": "step_zero response was not an object", "pages": []}
+    pages = pack.get("pages") or []
+    if not _pages_usable(pages):
+        out = dict(pack)
+        out["ok"] = False
+        out["pages"] = []
+        out["error"] = pack.get("pack_error") or pack.get("error") or "memory pack was not returned"
+        return out
+    return pack
+
+
+def _remote_next(page: int, pages: list) -> str:
+    n = len(pages)
+    if page >= n:
+        return "step zero complete: answer the user using turn(user_message, draft)"
+    rest = pages[page:]
+    if any(isinstance(p, str) and "PACK888" in p for p in rest):
+        return ("call step_zero(page=%d) now. Remaining pages include the memory pack 8/8/8. "
+                "Read every page until done=true.") % (page + 1)
+    return ("call step_zero(page=%d) now. Remaining pages are the constitution. "
+            "Read every page until done=true.") % (page + 1)
+
+
+def _step_zero_unavailable(payload: dict) -> str:
+    warning = (payload or {}).get("error") or (payload or {}).get("pack_error") or "empty pages"
+    return _dumps({
+        "ok": False,
+        "error": "step_zero pack unavailable",
+        "warning": warning,
+        "page": 1,
+        "pages": 0,
+        "done": False,
+        "text": "",
+    })
+
+
 def _sz_auto_attach(res: str, due: Optional[bool] = None) -> str:
     """Wrap a turn() result: on the first turn of this key add step_zero page 1; always mark the key seen."""
     try:
@@ -2123,7 +2187,14 @@ def _sz_auto_attach(res: str, due: Optional[bool] = None) -> str:
         _sz_seen_mark()
         return res
     try:
-        pages = _step_zero_pages(); _tr()["sz_pages"] = (_time.time(), pages)
+        if _room_local():
+            pages = _step_zero_pages()
+        else:
+            payload = _remote_step_payload("", "mcp", False, "normal")
+            pages = payload.get("pages") or []
+            if not _pages_usable(pages):
+                raise RuntimeError(payload.get("error") or payload.get("pack_error") or "empty pages")
+        _tr()["sz_pages"] = (_time.time(), pages)
         sz = {"note": SZ_AUTO_NOTE, "page": 1, "pages": len(pages), "next_page": 2 if len(pages) > 1 else None, "text": pages[0]}
     except Exception as e:
         _sz_seen_mark()
@@ -2991,6 +3062,56 @@ def _not_installed_reply(tool):
                    "next_action": "read memory_start(page=1..N) (full constitution + consent question), ask the user; on yes constitution_install(user_confirmed=true); on no answer without SKV"})
 
 
+def _step_zero_remote(page: int, force: bool, agent_token: str, session_id: str, context_state: str) -> str:
+    """Client without a local database: one REST call returns the pack, the constitution and the room block."""
+    _g = _not_installed_reply("step_zero")
+    if _g:
+        return _g
+    page = int(page or 1)
+    if page == 1:
+        _DIET.session_reset(COMPACT_DB, _caller_id() or "env")
+        _sz_seen_mark()
+    t = _tr()
+    c = t.get("sz_pages")
+    payload = {}
+    if page > 1 and c and _time.time() - c[0] < 900 and _pages_usable(c[1]):
+        pages = c[1]
+    else:
+        payload = _remote_step_payload(agent_token, session_id, force, context_state)
+        pages = payload.get("pages") or []
+        if not _pages_usable(pages):
+            return _step_zero_unavailable(payload)
+        t["sz_pages"] = (_time.time(), pages)
+    n = len(pages)
+    page = max(1, min(page, n))
+    _ch = {}
+    if page == 1:
+        try:
+            params = {"where": "step_zero"}
+            if USER:
+                params["user_id"] = USER
+            d = _req("GET", "/cube_harvest/due", params=params)
+            _ch = {"cube_harvest": d["cube_harvest"]} if isinstance(d, dict) and d.get("cube_harvest") else {}
+        except Exception:
+            _ch = {}
+    _blg = _base_lang() if page == 1 else None
+    if _blg:
+        _ch = {**_ch, "base_language": _blg, "search_language_rule": _bl_note(_blg)}
+    out = {**_ch, "page": page, "pages": n, "done": page == n,
+           "next_page": (page + 1) if page < n else None, "next": _remote_next(page, pages),
+           "text": pages[page - 1]}
+    if page == 1 and isinstance(payload, dict):
+        if payload.get("text"):
+            out["text"] = str(payload.get("text")) + "\n\n" + (out.get("text") or "")
+            out["room_step_zero"] = payload.get("kind")
+            out["while_away"] = payload.get("while_away")
+        if payload.get("identify_hint"):
+            out["identify_hint"] = payload["identify_hint"]
+        if payload.get("others_block"):
+            out["others_block"] = payload["others_block"]
+    return _dumps(out)
+
+
 @mcp.tool()
 def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session_id: str = "", context_state: str = "normal") -> str:
     """STEP ZERO, once, when this agent first receives a key or right after constitution_install: HOW TO WORK, then this user's memory pack 8/8/8
@@ -2998,6 +3119,8 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
     Concatenate the text under each PACK888 line in order. Read pages until done=true.
     The same chat then continues with turn only. Do not call this again on later messages or only because a new terminal session kept the same key. A rotated key does step_zero once.
     Several agents on one key: identify first, then pass agent_token. Lost context: force=true or turn(context_state=lost). force at most once per 10 minutes."""
+    if not _room_local():
+        return _step_zero_remote(page, force, agent_token, session_id, context_state)
     if _room_local():
         _stopped = _room_block(agent_token, session_id)
         if _stopped:
@@ -3017,7 +3140,7 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
         except Exception:
             if _room_local():
                 raise
-            pages = [""]
+            raise RuntimeError("step_zero pack unavailable")
         t["sz_pages"] = (_time.time(), pages)
     n = len(pages); page = max(1, min(page, n))
     _ch = {}
@@ -3043,26 +3166,6 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
                    "next": nxt,
                    "text": pages[page - 1]})
     if page != 1:
-        return res
-    if not _room_local():
-        try:
-            pack = _req("POST", "/agent/step_zero", {
-                "agent_token": agent_token or "",
-                "session_id": session_id or "mcp",
-                "force": bool(force),
-                "context_state": context_state or "normal",
-            })
-            if isinstance(pack, dict):
-                o = json.loads(res)
-                if pack.get("text"):
-                    o["text"] = pack["text"] + "\n\n" + (o.get("text") or "")
-                    o["room_step_zero"] = pack.get("kind")
-                    o["while_away"] = pack.get("while_away")
-                if pack.get("identify_hint"):
-                    o["identify_hint"] = pack["identify_hint"]
-                res = _dumps(o)
-        except Exception as exc:
-            print("[room] step_zero rest skipped: %s" % type(exc).__name__, flush=True)
         return res
     who, info = _tr().get("room_who"), _tr().get("room_info")
     if not isinstance(who, dict) or who.get("implicit") or not who.get("ok") or not info:
@@ -3111,6 +3214,22 @@ def constitution_install(user_confirmed: bool = False) -> str:
     the user says yes. If no, work as a plain memory tool without the seal. Never silent."""
     r = _req("POST", "/constitution/install", _uid_body({"user_confirmed": bool(user_confirmed)}))
     if isinstance(r, dict) and r.get("ok") is not False and user_confirmed:
+        if not _room_local():
+            payload = _remote_step_payload("", "mcp", False, "normal")
+            pages = payload.get("pages") or []
+            if not _pages_usable(pages):
+                r["step_zero"] = {
+                    "ok": False,
+                    "error": "step_zero pack unavailable",
+                    "warning": payload.get("error") or payload.get("pack_error") or "empty pages",
+                }
+                return _dumps(r)
+            try:
+                version = _const_version()
+            except Exception:
+                version = "?"
+            return _dumps({"install": {"ok": True, "installed": True, "constitution_version": version}, "step_zero": {"page": 1, "pages": len(pages), "text": pages[0],
+                           "next_page": 2 if len(pages) > 1 else None, "next": _remote_next(1, pages) if len(pages) > 1 else "done"}})
         try:
             pages = _step_zero_pages()
             from app.memory_pack888 import step_zero_next
@@ -3696,6 +3815,35 @@ def file_release(path: str, new_hash: str = "", old_hash: str = "", minus: int =
             conn.close()
     except Exception as exc:
         print("[room] file_release skipped: %s" % type(exc).__name__, flush=True)
+        return _dumps({"ok": False, "error": type(exc).__name__})
+
+
+@mcp.tool()
+def file_check(path: str, current_hash: str = "", base_hash: str = "", agent_token: str = "", session_id: str = "") -> str:
+    """Check a claimed file still matches the base hash before writing. Pair with skv-edit check."""
+    if not _room_local():
+        return _dumps(_req("POST", "/file_check", {
+            "path": path, "current_hash": current_hash or base_hash or "", "base_hash": base_hash or "",
+            "agent_token": agent_token or "", "session_id": session_id or "",
+        }))
+    _stopped = _room_block(agent_token, session_id)
+    if _stopped:
+        return _stopped
+    try:
+        _room_src()
+        from app.room.bridge import open_account
+        from app.room.files import file_check as _fk
+        info = _tr().get("room_info")
+        who = _tr().get("room_who") or {}
+        if not info or not who.get("ok"):
+            return _dumps({"ok": False, "error": "API key required"})
+        conn = open_account(info)
+        try:
+            return _dumps(_fk(conn, info.get("chain_id") or "", path, current_hash or base_hash or ""))
+        finally:
+            conn.close()
+    except Exception as exc:
+        print("[room] file_check skipped: %s" % type(exc).__name__, flush=True)
         return _dumps({"ok": False, "error": type(exc).__name__})
 
 
@@ -4435,6 +4583,7 @@ SHORT_DESC = {
  "step_zero": "STEP ZERO, once per new API key and right after install: full constitution + memory + last session. page=1..N until done=true. Same key after that: turn only, do not call again. A rotated key does this once. Several agents on one key: identify first; pass agent_token. Lost context: step_zero(force=true), at most once per 10 minutes.",
  "identify": "Name yourself on a shared key: identify(name, role?). Returns agent_token once. Pass agent_token on every later call. NAME_IN_USE: take the suggested -2 name. An idle name keeps the same agent_id.",
  "file_claim": "Claim a relative path before editing. 409 if another agent holds it. Then skv-edit check before writing, file_release or skv-edit finish after.",
+ "file_check": "Check a claimed file still matches base_hash before writing. Pair with skv-edit check.",
  "file_release": "Release your file claim and record file_change for the other agents.",
  "constitution_get": "Full constitution, paged.",
  "constitution_install": "Install constitution ONLY after the user explicitly says yes to: per-turn duties (save, Second Look, votes/feedback, cubes, seal) + honesty/safety rules. Pass user_confirmed=true. Never silent; if no, plain memory tool. Returns step_zero page 1; then call step_zero(page=2..N).",
@@ -4562,7 +4711,7 @@ def vault_inject(name: str, purpose: str, url: str, method: str = "POST", body: 
 VISIBLE = {"constitution_get", "turn", "step_zero", "constitution_status", "constitution_install", "memory_start", "memory_search", "memory_event",
            "cube_search", "cube_get", "cube_install", "cube_vote", "cube_create", "cube_confirm", "feedback_submit", "board_list", "board_act", "sandbox_run",
            "cube_consent", "court_case", "court_removal_request", "cube_link", "consult", "consult_accept", "vault_inject", "joint_project", "joint_search", "turn_stats", "memory_recall_later", "memory_recall_status",
-           "identify", "file_claim", "file_release",
+           "identify", "file_claim", "file_check", "file_release",
            "drive_connect", "drive_sync", "drive_read", "drive_put", "drive_list"}
 
 

@@ -43,6 +43,11 @@ class StepZeroRoomBody(BaseModel):
     context_state: str = "normal"
 
 
+class RoomEventsBody(BaseModel):
+    agent_token: str = ""
+    session_id: str = ""
+
+
 def _bearer(authorization: str):
     if authorization and authorization.lower().startswith("bearer "):
         return authorization[7:].strip()
@@ -120,14 +125,44 @@ def http_room_attach(req: RoomTurnBody, authorization: str = Header(None)):
 
 @router.post("/agent/step_zero")
 def http_step_zero_room(req: StepZeroRoomBody, authorization: str = Header(None)):
-    """Room part of step_zero: the block about what other agents on this line did."""
+    """Room block plus the memory-pack and constitution pages for a client with no local database."""
     from app.room.bridge import open_account, rest_step_zero
+    from app.step_zero_rest import build_pages
     info = _info(authorization)
     conn = open_account(info)
     try:
-        return rest_step_zero(
+        done = rest_step_zero(
             info, conn, req.agent_token or "", req.session_id or "rest", bool(req.force), req.context_state or "normal",
         )
+        built = build_pages(info.get("user_id") or "")
+        if not isinstance(done, dict):
+            done = {"ok": True}
+        done["pages"] = built.get("pages") or []
+        if not built.get("ok"):
+            done["pack_error"] = built.get("error") or "memory pack unavailable"
+        return done
+    finally:
+        conn.close()
+
+
+@router.post("/agent/room_events")
+def http_room_events(req: RoomEventsBody, authorization: str = Header(None)):
+    """Recent room events on this memory line. A missing token does not hide the search."""
+    from app.room.bridge import open_account
+    info = _info(authorization)
+    conn = open_account(info)
+    try:
+        try:
+            rows = conn.execute(
+                "SELECT event_id, actor_agent_id, ev_kind, gist FROM room_events WHERE chain_id=? ORDER BY id DESC LIMIT 40",
+                (info.get("chain_id") or "",),
+            ).fetchall()
+        except Exception:
+            return {"ok": False, "error": "room events unavailable", "room_events": []}
+        return {
+            "ok": True,
+            "room_events": [{"ev": r[0], "actor": r[1], "kind": r[2], "gist": r[3]} for r in rows],
+        }
     finally:
         conn.close()
 

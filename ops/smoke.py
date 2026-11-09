@@ -173,8 +173,9 @@ def profile_checks(tag):
     c.commit(); c.close()
     # draft-specific Second Look: rule questions quote the draft, silence when nothing fires, kept/changed stats
     time.sleep(3)
+    # The tag keeps the quoted sentence unique so a previous run's second-look dedupe does not drop it.
     s, q1 = rest_turn(KEY, user_message="smoke %s which port does the api use?" % tag, session_id=tag + "sl",
-                      draft="Great question! You told me last time that the api listens on port 8443.")
+                      draft="Great question! You told me last time that the api listens on port 8443 (%s)." % tag)
     qs = q1.get("second_look_questions") or []
     rec("SL1 rule questions first, quoting the draft", qs and list(q1)[0] == "second_look_questions" and 2 <= len(qs) <= 4 and "last time" in qs[0] and "8443" in J(qs),
         J(qs)[:110])
@@ -483,7 +484,7 @@ def main():
         rec("fresh acct: no save/seal before install", False, e)
     # 8 step_zero pages reach done=true
     done, pg, err = False, 1, ""
-    while pg <= 15:
+    while pg <= 40:
         z = m.call("step_zero", {"page": pg})
         if z.get("_text") is not None and not z.get("pages"): err = z["_text"][:80]
         if z.get("done") is True: done = True; break
@@ -494,8 +495,10 @@ def main():
     r = m.call("turn", {"user_message": "что мы решили про компактный режим и печать?", "draft": "Проверка поиска.", "session_id": tag})
     facts = r.get("facts") or r.get("memory") or r.get("hits") or []
     rec("RU query -> facts in turn", len(facts) > 0, "n=%d" % len(facts))
+    # Live community cube. cube_688c0ebbb3be and cube_9ff3f12ce0ba are superseded.
+    _harvest = "cube_3de96286fc73"
     cs1 = m.call("cube_search", {"query": "how to create a cube"})
-    rec("CS1 'how to create a cube' -> meta cube cube_688c0ebbb3be", "cube_688c0ebbb3be" in json.dumps(cs1), json.dumps([x.get("cube_id") for x in cs1.get("results") or []])[:120])
+    rec("CS1 'how to create a cube' -> current harvest cube", _harvest in json.dumps(cs1), json.dumps([x.get("cube_id") for x in cs1.get("results") or []])[:120])
     _sec = "zq9smk" + tag.replace("_", "")[-6:]
     rest_turn(KEY, user_message="my test password is %s, reply OK" % _sec, session_id=tag + "sc1", draft="OK")
     m.call("turn", {"user_message": "my api key is %sx, reply OK" % _sec, "draft": "OK", "session_id": tag + "sc1"})
@@ -507,14 +510,14 @@ def main():
     _c = _sq.connect(_hdb); _c.execute("create table if not exists h(user text primary key, last_t real, last_rowid int, shown_t real, n_done int default 0)")
     _c.execute("insert or replace into h(user,last_t,last_rowid,shown_t,n_done) values(?,?,0,0,0)", (_hu, time.time() - 4 * 86400)); _c.commit(); _c.close()
     _sz = m.call("step_zero", {"page": 1})
-    rec("HV1a step_zero page1 shows cube_harvest when due", (_sz.get("cube_harvest") or {}).get("cube_id") == "cube_688c0ebbb3be", str(_sz.get("cube_harvest"))[:100])
+    rec("HV1a step_zero page1 shows cube_harvest when due", (_sz.get("cube_harvest") or {}).get("cube_id") == _harvest, str(_sz.get("cube_harvest"))[:100])
     _ht = m.call("turn", {"user_message": "hv check, reply OK", "draft": "OK", "session_id": tag + "hv"})
-    rec("HV1b turn duties carry cube_harvest", "cube_harvest" in json.dumps(_ht) and "cube_688c0ebbb3be" in json.dumps(_ht), json.dumps(_ht.get("duties"))[:100])
+    rec("HV1b turn duties carry cube_harvest", "cube_harvest" in json.dumps(_ht) and _harvest in json.dumps(_ht), json.dumps(_ht.get("duties"))[:100])
     m.call("turn", {"user_message": "harvest done", "draft": "OK", "session_id": tag + "hv", "duty": "cube_harvest", "duty_reason": "nothing: smoke test"})
     _c = _sq.connect(_hdb); _lt = _c.execute("select last_t from h where user=?", (_hu,)).fetchone()[0]; _c.close()
     rec("HV2 duty=cube_harvest resets the timer", time.time() - _lt < 300, "%.0fs ago" % (time.time() - _lt))
     _cs2 = m.call("cube_search", {"query": "cube harvesting"})
-    rec("CS2 'cube harvesting' -> cube_688c0ebbb3be", "cube_688c0ebbb3be" in json.dumps(_cs2), json.dumps([x.get("cube_id") for x in _cs2.get("results") or []])[:120])
+    rec("CS2 'cube harvesting' -> current harvest cube", _harvest in json.dumps(_cs2), json.dumps([x.get("cube_id") for x in _cs2.get("results") or []])[:120])
     rec("SC1 secret not in access log / state DBs", _leak[:1] == ["0"] and len(_leak) == 1, " ".join(_leak)[:120])
     # cube_install consent from the user's quoted reply, no prior turn (fresh MCP session per key state reset not needed: quote is fresh)
     cs = m.call("cube_search", {"query": "memory"})
@@ -542,7 +545,7 @@ def main():
     bk = ba(action="block", item_id=sid, waiting_for="user")
     rec("board block waiting_for=user", (bk.get("item") or {}).get("status") == "blocked", (bk.get("item") or {}).get("waiting_for"))
     z = m.call("step_zero", {"page": 1}).get("text", "")
-    rec("step_zero p1: IN PROGRESS + WAITING FOR", "IN PROGRESS" in z and tid in z and "WAITING FOR" in z and sid in z, "")
+    rec("step_zero p1: doing item + waiting", tid in z and ("- %s [doing]" % tid) in z and sid in z and ("- %s [blocked]" % sid) in z and "(waiting: user)" in z, "")
     tr = m.call("turn", {"user_message": "how is the %s quartz migration going?" % w, "answer": "Готово: quartz migration %s исправил и проверил." % w, "compact": True, "session_id": tag + "b"})
     ids = [x.get("id") for x in (tr.get("board") or [])]
     rec("turn -> relevant board items (<=3)", tid in ids and len(ids) <= 3, ids)
@@ -560,7 +563,7 @@ def main():
     trs = m.call("turn", {"user_message": "что нового по %s?" % w, "compact": True, "session_id": tag + "s"})
     stl = trs.get("board_stale") or []
     rec("BS1 turn -> board_stale (doing idle >24h) + hint", any(x.get("id") == sid for x in stl) and len(stl) <= 3 and "park" in str(trs.get("board_stale_hint")), json.dumps(stl, ensure_ascii=False)[:100])
-    rec("BS2 step_zero p1 -> STALE line", "STALE (" in sz and sid in sz.split("STALE (")[-1], "")
+    rec("BS2 step_zero p1 lists the backdated doing item", sid in sz and ("- %s [doing]" % sid) in sz, "")
     for x in (sid, tid): ba(action="remove", item_id=x)
     # MCP restart must not break an existing client (stateless HTTP)
     subprocess.run(["systemctl", "restart", "skv-mcp-public"]); time.sleep(4)

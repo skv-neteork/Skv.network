@@ -658,6 +658,7 @@ async def get_entry(cube_id: str):
             return {"id": cube_id, "cube_id": cube_id, "title": row[0], "content": row[1], "status": row[2], "source": "cubes_new"}
     except Exception:
         pass
+    raise HTTPException(status_code=404, detail="Entry not found")
 
 @router.get("/api/profile/{user_id}/persona")
 async def get_persona(user_id: str, request: Request):

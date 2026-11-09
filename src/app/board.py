@@ -17,15 +17,17 @@ PIN_TURN_BODY = 'SKV constitution pin (never closed). PIN once at install: "Call
 STATUSES = ("todo", "doing", "blocked", "done", "parked")
 OPEN = ("todo", "doing", "blocked")
 _OLD_STATUS = {"open": "todo", "in_progress": "doing", "closed": "done", "": "todo"}
-ACTIONS = ("add", "add_subtask", "update", "start", "block", "done", "park", "reopen", "remove", "important", "unimportant")
+ACTIONS = ("add", "add_subtask", "update", "start", "block", "done", "park", "reopen", "remove", "important", "unimportant", "claim", "release")
 ALIASES = {"edit": "update", "progress": "start", "undo": "reopen", "subtask": "add_subtask", "close": "done"}
 HINT = ('Board: board_act(action=add|add_subtask|update|start|block|done|park|reopen|remove, item_id, title, text, '
         'priority=1..3, parent_id, waiting_for, result). done needs result=<what was achieved>. Secrets only as [vault:name]. '
         'Recovery tasks cite access:<id>. Closing or removing a task does not remove the access registry.')
 _COLS = {"priority": "INTEGER DEFAULT 2", "parent_id": "TEXT DEFAULT ''", "waiting_for": "TEXT DEFAULT ''",
-         "result": "TEXT DEFAULT ''", "result_event": "TEXT DEFAULT ''", "created_at": "TEXT DEFAULT ''"}
+         "result": "TEXT DEFAULT ''", "result_event": "TEXT DEFAULT ''", "created_at": "TEXT DEFAULT ''",
+         "created_by": "TEXT DEFAULT ''", "claimed_by": "TEXT DEFAULT ''", "lease_until": "TEXT DEFAULT ''",
+         "rev": "INTEGER DEFAULT 0"}
 FIELDS = ("item_id", "kind", "title", "body", "status", "updated_at", "important", "priority", "parent_id",
-          "waiting_for", "result", "result_event")
+          "waiting_for", "result", "result_event", "created_by", "claimed_by", "lease_until", "rev")
 
 
 def _conn(uid):
@@ -93,7 +95,7 @@ def _latest_event(c):
 
 
 def act(uid, item_id="", action="add", text="", kind="", title="", priority=None, parent_id="", waiting_for="",
-        result="", event_id="", status="", key=""):
+        result="", event_id="", status="", key="", actor_id="", expected_rev=None, author_kind="agent", chain_id="", key_id=""):
     action = (action or "add").lower().strip()
     key = re.sub(r"[^A-Za-z0-9_.:-]", "", key or "")[:120]
     action = ALIASES.get(action, action)
@@ -112,9 +114,18 @@ def act(uid, item_id="", action="add", text="", kind="", title="", priority=None
         priority = None
     if action in ("add", "add_subtask") and not title and ":" in text[:120]:
         title, text = [x.strip() for x in text.split(":", 1)]
+    actor_id = (actor_id or "").strip()[:80]
+    author_kind = "human" if (author_kind or "") == "human" else "agent"
+    if expected_rev in (None, "", -1):
+        expected_rev = None
     c = _conn(uid)
     out = {}
     try:
+        try:
+            from app.room.claims import expire_tasks
+            expire_tasks(c)
+        except Exception as _lex:
+            print(f"[room] lease expire skipped: {type(_lex).__name__}", flush=True)
         row = c.execute("SELECT kind, title, body, status FROM board_items WHERE item_id=? AND removed=0", (item_id,)).fetchone() if item_id else None
         if action == "update" and not row:
             action = "add"
@@ -148,15 +159,33 @@ def act(uid, item_id="", action="add", text="", kind="", title="", priority=None
                       (item_id, kind, title or text[:80], text if title else "", st, 1 if priority == 1 else 0, priority or 2, parent_id, waiting_for))
             if key:
                 c.execute("UPDATE board_items SET idem_key=? WHERE item_id=?", (key, item_id))
+            if actor_id:
+                c.execute("UPDATE board_items SET created_by=? WHERE item_id=? AND coalesce(created_by,'')=''", (actor_id, item_id))
             ev = event_id or _latest_event(c)
             try:
                 from app import source_links as _sl0
                 _sl0.link_board_event(c, item_id, ev)
             except Exception as _e0:
                 print(f"[source_links] board add: {_e0}", flush=True)
+        elif action in ("claim", "release"):
+            from app.room import claims as _room_claims
+            if not actor_id:
+                raise ValueError("claim needs an agent")
+            if not row:
+                raise KeyError(item_id or "item_id required")
+            if action == "claim":
+                out = _room_claims.claim_task(c, item_id, actor_id, expected_rev, chain_id=chain_id or "", key_id=key_id or "", now=None)
+            else:
+                out = _room_claims.release_task(c, item_id, actor_id)
         else:
             if not row:
                 raise KeyError(item_id or "item_id required")
+            if actor_id and action == "start":
+                from app.room.claims import assert_doing
+                assert_doing(c, item_id, actor_id)
+            if actor_id and action == "done":
+                from app.room.claims import assert_done
+                assert_done(c, item_id, actor_id, author_kind)
             if action == "update":
                 sets, vals = ["updated_at=datetime('now')"], []
                 if title: sets.append("title=?"); vals.append(title)

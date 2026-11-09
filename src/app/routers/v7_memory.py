@@ -2013,18 +2013,59 @@ class BoardRequest(BaseModel):
     event_id: str = ""
     status: str = ""
     key: str = ""   # idempotency key (e.g. source ev id): a second add with the same key is a no-op
+    agent_token: str = ""
+    session_id: str = ""
+    expected_rev: Optional[int] = None
+    author_kind: str = ""
+
+
+def _room_actor(request, user_id, agent_token, session_id):
+    """Server actor from agent_token. Empty when this key has never called identify."""
+    if not agent_token:
+        return "", "agent", "", ""
+    try:
+        from app.room.bridge import gate, lookup_key, open_account
+        auth = request.headers.get("authorization") or ""
+        token = auth[7:].strip() if auth.lower().startswith("bearer ") else (request.headers.get("x-api-key") or "")
+        info = lookup_key(token) if token else None
+        if not info:
+            return "", "agent", "", ""
+        if user_id and info["user_id"] and user_id.lower() != info["user_id"].lower():
+            return "", "agent", "", ""
+        conn = open_account(info)
+        try:
+            who = gate(info, conn, agent_token, session_id or "mcp")
+        finally:
+            conn.close()
+        if isinstance(who, dict) and who.get("error") == "IDENTIFY_REQUIRED":
+            raise HTTPException(428, "IDENTIFY_REQUIRED")
+        if isinstance(who, dict) and who.get("ok"):
+            return who.get("actor_id") or "", ("human" if who.get("role") == "human" else "agent"), info.get("chain_id") or "", info.get("key_id") or ""
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print("[room] board actor skipped: %s" % type(exc).__name__, flush=True)
+    return "", "agent", "", ""
 
 
 @router.post("/board")
-def board_edit(req: BoardRequest):
-    """Pinned board: add|add_subtask|update|start|block|done|park|reopen|remove (+ old edit|progress|undo|important|unimportant).
-    Fields: title, text, priority 1..3, parent_id, waiting_for, result (required for done), event_id (default: latest turn)."""
+def board_edit(req: BoardRequest, request: Request):
+    """Pinned board: add|add_subtask|update|start|block|done|park|reopen|remove|claim|release (+ old edit|progress|undo|important|unimportant).
+    Fields: title, text, priority 1..3, parent_id, waiting_for, result (required for done), event_id (default: latest turn).
+    claim needs agent_token when the key has more than one agent."""
     from app import board as _board
+    from app.room.claims import ClaimConflict
     if not req.user_id:
         raise HTTPException(401, "API key required")
+    actor_id, author_kind, chain_id, key_id = _room_actor(request, req.user_id, req.agent_token, req.session_id)
+    if req.author_kind == "human":
+        author_kind = "human"
     try:
         return {"status": "ok", **_board.act(req.user_id, req.id or req.item_id, req.action, req.text, req.kind, req.title,
-                                              req.priority, req.parent_id, req.waiting_for, req.result, req.event_id, req.status, req.key)}
+                                              req.priority, req.parent_id, req.waiting_for, req.result, req.event_id, req.status, req.key,
+                                              actor_id, None if req.expected_rev is None else req.expected_rev, author_kind, chain_id, key_id)}
+    except ClaimConflict as e:
+        raise HTTPException(409, "409 claimed_by=%s" % e.owner)
     except KeyError as e:
         raise HTTPException(404, f"board item not found: {e}")
     except ValueError as e:

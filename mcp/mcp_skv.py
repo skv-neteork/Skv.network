@@ -2793,9 +2793,9 @@ def _pack(pieces: list, limit: int = 8800) -> list:
     return out
 
 
-def _const_pages(consent: bool) -> list:
+def _const_pages(consent: bool, limit: int = 8800) -> list:
     head = USE_TURN + ("\n\n" + CONSENT_Q if consent else "") + "\n\n=== SKV CONSTITUTION: CUBE 00-04 + CUBE 05-MCP (all apply in full) ==="
-    return _pack([head] + ["\n\n" + x for x in _const_mcp()])
+    return _pack([head] + ["\n\n" + x for x in _const_mcp()], limit=limit)
 
 
 def _udb():
@@ -3006,7 +3006,7 @@ def _step_zero_pages() -> list:
     src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
     if src not in sys.path:
         sys.path.insert(0, src)
-    from app.memory_pack888 import assemble_step_zero
+    from app.memory_pack888 import STEP_ZERO_PAGE_TEXT, assemble_step_zero
     last = _last_seal_fresh()
     pblock = ""
     try:
@@ -3014,9 +3014,9 @@ def _step_zero_pages() -> list:
         pblock = (d.get("block") or "") if isinstance(d, dict) else ""
     except Exception:
         pblock = ""
-    # page 1 must stay whole inside one tool response (RESP_LIMIT 9000 incl. JSON escaping + cube_harvest
-    # envelope), otherwise _dumps shrinks the text to 3000 chars and memory + board get cut.
-    # The 8/8/8 pack is the following pages, each checked against that same limit. It is not clipped into page 1.
+    # Page 1 is the how-to-work note and the board. The budget keeps the doing and
+    # blocked lines. Pack pages are about 14 KB of text and are not clipped into page 1.
+    # The tool returns them whole via _dumps_step_zero, so RESP_LIMIT does not cut the text.
     BUDGET = 7300
     links = _links_index()
     bpart = _board_part()
@@ -3049,10 +3049,10 @@ def _step_zero_pages() -> list:
           "\n\n" + links +
           "\n\nLast seal: #%03d -> turn will issue %s" % (last, SEAL_FMT.format(n=last + 1)))
     try:
-        cp = _const_pages(False)
+        cp = _const_pages(False, limit=STEP_ZERO_PAGE_TEXT)
     except Exception:
         cp = []
-    return assemble_step_zero(_pack([p1], limit=5000), pack_pages, cp)
+    return assemble_step_zero(_pack([p1], limit=STEP_ZERO_PAGE_TEXT), pack_pages, cp)
 
 
 def _last_seal_fresh() -> int:
@@ -3118,7 +3118,7 @@ def _not_installed_reply(tool):
 
 
 def _step_zero_remote(page: int, force: bool, agent_token: str, session_id: str, context_state: str) -> str:
-    """Client without a local database: each call fetches one small REST page."""
+    """Client without a local database: one REST page per call, returned whole."""
     _g = _not_installed_reply("step_zero")
     if _g:
         return _g
@@ -3220,7 +3220,7 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
         if _room_local():
             raise
         nxt = "done" if page >= n else ("step_zero(page=%d)" % (page + 1))
-    res = _dumps({**_ch, "page": page, "pages": n, "done": page == n, "next_page": (page + 1) if page < n else None,
+    res = _dumps_step_zero({**_ch, "page": page, "pages": n, "done": page == n, "next_page": (page + 1) if page < n else None,
                    "next": nxt,
                    "text": pages[page - 1]})
     if page != 1:
@@ -3248,7 +3248,7 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
             o["text"] = pack["text"] + "\n\n" + (o.get("text") or "")
             o["room_step_zero"] = pack.get("kind")
             o["while_away"] = pack.get("while_away")
-            res = _dumps(o)
+            res = _dumps_step_zero(o)
     except Exception as exc:
         print("[room] step_zero skipped: %s" % type(exc).__name__, flush=True)
     return res
@@ -3293,7 +3293,7 @@ def constitution_install(user_confirmed: bool = False) -> str:
         try:
             pages = _step_zero_pages()
             from app.memory_pack888 import step_zero_next
-            return _dumps({"install": {"ok": True, "installed": True, "constitution_version": _const_version()}, "step_zero": {"page": 1, "pages": len(pages), "text": pages[0],
+            return _dumps_step_zero({"install": {"ok": True, "installed": True, "constitution_version": _const_version()}, "step_zero": {"page": 1, "pages": len(pages), "text": pages[0],
                            "next_page": 2 if len(pages) > 1 else None, "next": step_zero_next(1, pages) if len(pages) > 1 else "done"}})
         except Exception as e:
             r["step_zero"] = f"call step_zero(page=1): {e}"

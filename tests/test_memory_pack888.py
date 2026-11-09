@@ -8,7 +8,7 @@ import unittest
 from app.memory_pack888 import (
     BUDGET, assemble_step_zero, build_pack, join_pack_pages, leak_names, load_document,
     pack_span, parse_records, render_document, split_bytes, split_document, step_zero_envelope_len,
-    step_zero_next, write_snapshot, verify_snapshot, STEP_ZERO_MAX_JSON,
+    step_zero_next, write_snapshot, verify_snapshot, STEP_ZERO_MAX_JSON, STEP_ZERO_PAGE_TEXT,
 )
 
 
@@ -234,7 +234,20 @@ class StepZeroPagesTest(unittest.TestCase):
         pages = split_document(doc)
         self.assertEqual(join_pack_pages(pages), doc)
         for p in pages:
+            self.assertLessEqual(len(p), STEP_ZERO_PAGE_TEXT)
             self.assertLessEqual(step_zero_envelope_len(p), STEP_ZERO_MAX_JSON)
+
+    def test_full_page_text_is_about_14kb(self):
+        line = "строка памяти.\n"
+        doc = line * 5000
+        pages = split_document(doc)
+        self.assertGreaterEqual(len(pages), 5)
+        self.assertEqual(join_pack_pages(pages), doc)
+        for p in pages[:-1]:
+            self.assertGreaterEqual(len(p), 12000)
+            self.assertLessEqual(len(p), STEP_ZERO_PAGE_TEXT)
+            self.assertLessEqual(step_zero_envelope_len(p), STEP_ZERO_MAX_JSON)
+        self.assertLessEqual(len(pages[-1]), STEP_ZERO_PAGE_TEXT)
 
     def test_step_zero_order_and_next_hint(self):
         doc = "ALPHA\n<<<END>>>\nBETA\n"

@@ -423,7 +423,9 @@ def render_document(pack: dict) -> str:
     """One document, stable prefix first.
 
     constitution, profile, L2, L1, raw, then the fresh tail.
-    Clocks, token totals and overlap notes stay in pack_status at the end.
+    critical stays in that tail: new critical rows keep arriving, so it is
+    not part of the stable prefix. Clocks, token totals and overlap notes
+    stay in pack_status at the end.
     """
     parts = [
         "SKV memory pack 8/8/8\n",
@@ -456,6 +458,7 @@ def render_document(pack: dict) -> str:
         section(name)
         for rec in _oldest(pack["layers"][name]["included"], key):
             parts.append(_frame(rec))
+    # critical changes often, so it stays after raw, not in the prefix after L1.
     section("critical")
     for rec in _by_id(pack.get("critical") or []):
         parts.append(_frame(rec))
@@ -711,9 +714,12 @@ def load_document(user_id: str, user_db: str = "", shared_db: str = "") -> str:
     return document
 
 
-# step_zero wraps each page in JSON and trims anything over RESP_LIMIT (9000).
-# The probe below matches that envelope. 8600 leaves room for the real next-line.
-STEP_ZERO_MAX_JSON = 8600
+# A public MCP page is about 14 KB of text, returned whole (_dumps_step_zero).
+# The JSON cap is that text plus the small service envelope. Quote-heavy text
+# stops at the JSON cap so one uncompressed page does not grow past it.
+# REST joins these slices and cuts again on its own limits.
+STEP_ZERO_PAGE_TEXT = 14000
+STEP_ZERO_MAX_JSON = 16000
 _PACK_MARK = "=== PACK888 %03d/%03d concatenate the text after this line, in order ===\n"
 _PACK_MARK_RE = re.compile(r"^=== PACK888 (\d{3})/(\d{3}) concatenate the text after this line, in order ===\n")
 
@@ -738,13 +744,19 @@ def step_zero_envelope_len(text: str) -> int:
     return len(json.dumps(obj, ensure_ascii=False, separators=(",", ":")))
 
 
-def split_document(text: str, max_json: int = STEP_ZERO_MAX_JSON) -> List[str]:
+def _page_fits(body: str, max_json: int, max_text: int) -> bool:
+    page = _page_mark(0, 0, body)
+    return len(page) <= max_text and step_zero_envelope_len(page) <= max_json
+
+
+def split_document(text: str, max_json: int = STEP_ZERO_MAX_JSON, max_text: int = STEP_ZERO_PAGE_TEXT) -> List[str]:
     """Split one document into step_zero pages that join back to the same text.
 
-    A page ends on a record boundary when that still fits. A record longer than
-    one response is split, and the next page continues it. Nothing is dropped.
+    A full page is about 14 KB of text. A page ends on a record boundary when
+    that still fits. A record longer than one response is split, and the next
+    page continues it. Nothing is dropped.
     """
-    if step_zero_envelope_len(_page_mark(0, 0, "x")) > max_json:
+    if not _page_fits("x", max_json, max_text):
         raise RuntimeError("step_zero page limit is smaller than the page marker")
     bodies: List[str] = []
     i, n = 0, len(text)
@@ -755,7 +767,7 @@ def split_document(text: str, max_json: int = STEP_ZERO_MAX_JSON) -> List[str]:
         lo, hi, best = 1, n - i, 0
         while lo <= hi:
             mid = (lo + hi) // 2
-            if step_zero_envelope_len(_page_mark(0, 0, text[i:i + mid])) <= max_json:
+            if _page_fits(text[i:i + mid], max_json, max_text):
                 best = mid
                 lo = mid + 1
             else:
@@ -773,7 +785,7 @@ def split_document(text: str, max_json: int = STEP_ZERO_MAX_JSON) -> List[str]:
         raise RuntimeError("pack needs more than 999 step_zero pages")
     pages = [_page_mark(k, total, b) for k, b in enumerate(bodies, 1)]
     for p in pages:
-        if step_zero_envelope_len(p) > max_json:
+        if len(p) > max_text or step_zero_envelope_len(p) > max_json:
             raise RuntimeError("pack page exceeds step_zero response limit")
     if join_pack_pages(pages) != text:
         raise RuntimeError("pack pages do not rebuild the document")

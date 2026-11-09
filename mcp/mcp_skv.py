@@ -2179,6 +2179,51 @@ def _room_src():
         sys.path.insert(0, src)
 
 
+_ROOM_LOCAL = None
+
+
+def _room_local() -> bool:
+    """Server process with the account DB uses the in-process room. A copied client uses REST."""
+    global _ROOM_LOCAL
+    if _ROOM_LOCAL is not None:
+        return _ROOM_LOCAL
+    ok = False
+    try:
+        _room_src()
+        import app.room.bridge  # noqa: F401
+        ok = os.path.isdir("/data/skv/metadata_store")
+    except Exception:
+        ok = False
+    _ROOM_LOCAL = ok
+    return ok
+
+
+def _room_rest_finish(res: str, agent_token: str, session_id: str, context_state: str, kind: str) -> str:
+    """Client without a local DB: the server stamps the saved turn and returns while_away."""
+    try:
+        o = json.loads(res)
+    except Exception:
+        return res
+    if not isinstance(o, dict) or o.get("saved") is False or not (o.get("saved") or o.get("event_id")):
+        return res
+    pack = _req("POST", "/agent/room", {
+        "agent_token": agent_token or "",
+        "session_id": session_id or "mcp",
+        "context_state": context_state or "normal",
+        "kind": kind or "turn",
+        "event_id": o.get("event_id") or "",
+        "saved": True,
+        "verdict": o.get("verdict") or "",
+        "note": o.get("note") or "",
+    })
+    if isinstance(pack, dict) and pack.get("ok") is not False and "status" not in pack:
+        for key in ("while_away", "actor", "identify_hint", "room_warning", "room_step_zero"):
+            if pack.get(key):
+                o[key] = pack[key]
+        return json.dumps(o, ensure_ascii=False, separators=(",", ":"))
+    return res
+
+
 def _room_block(agent_token: str = "", session_id: str = "", client_hint: str = "") -> str:
     """IDENTIFY_REQUIRED writes nothing. A key that never called identify is unchanged."""
     try:
@@ -2291,10 +2336,14 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     The first turn of a session returns everything. Later turns return only what changed or matters now: empty
     fields, the static self_check and repeated board/profile items are left out (profile_digest + the 1-2 matching
     rows stay). verbose=true returns the full response any time. turn_stats() shows sizes and second_look stats."""
-    _room_stopped = _room_block(agent_token, session_id)
-    if _room_stopped:
-        return _room_stopped
-    return _room_finish_turn(_bl_add(_sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose, search_as=search_as, agent_token=agent_token, context_state=context_state, kind=kind))), agent_token, session_id, context_state, kind)
+    if _room_local():
+        _room_stopped = _room_block(agent_token, session_id)
+        if _room_stopped:
+            return _room_stopped
+    res = _bl_add(_sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose, search_as=search_as, agent_token=agent_token, context_state=context_state, kind=kind)))
+    if _room_local():
+        return _room_finish_turn(res, agent_token, session_id, context_state, kind)
+    return _room_rest_finish(res, agent_token, session_id, context_state, kind)
 
 
 def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: str = "mcp", event_id: str = "",
@@ -2949,8 +2998,10 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
     Concatenate the text under each PACK888 line in order. Read pages until done=true.
     The same chat then continues with turn only. Do not call this again on later messages or only because a new terminal session kept the same key. A rotated key does step_zero once.
     Several agents on one key: identify first, then pass agent_token. Lost context: force=true or turn(context_state=lost). force at most once per 10 minutes."""
-    _stopped = _room_block(agent_token, session_id)
-    if _stopped: return _stopped
+    if _room_local():
+        _stopped = _room_block(agent_token, session_id)
+        if _stopped:
+            return _stopped
     _g = _not_installed_reply("step_zero")
     if _g: return _g
     page = int(page or 1)
@@ -2961,7 +3012,13 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
     if page > 1 and c and _time.time() - c[0] < 900:
         pages = c[1]   # same page set as page 1: no renumbering between calls
     else:
-        pages = _step_zero_pages(); t["sz_pages"] = (_time.time(), pages)
+        try:
+            pages = _step_zero_pages()
+        except Exception:
+            if _room_local():
+                raise
+            pages = [""]
+        t["sz_pages"] = (_time.time(), pages)
     n = len(pages); page = max(1, min(page, n))
     _ch = {}
     if page == 1:
@@ -2975,11 +3032,37 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
     _blg = _base_lang() if page == 1 else None
     if _blg:
         _ch = {**_ch, "base_language": _blg, "search_language_rule": _bl_note(_blg)}
-    from app.memory_pack888 import step_zero_next
+    try:
+        from app.memory_pack888 import step_zero_next
+        nxt = step_zero_next(page, pages)
+    except Exception:
+        if _room_local():
+            raise
+        nxt = "done" if page >= n else ("step_zero(page=%d)" % (page + 1))
     res = _dumps({**_ch, "page": page, "pages": n, "done": page == n, "next_page": (page + 1) if page < n else None,
-                   "next": step_zero_next(page, pages),
+                   "next": nxt,
                    "text": pages[page - 1]})
     if page != 1:
+        return res
+    if not _room_local():
+        try:
+            pack = _req("POST", "/agent/step_zero", {
+                "agent_token": agent_token or "",
+                "session_id": session_id or "mcp",
+                "force": bool(force),
+                "context_state": context_state or "normal",
+            })
+            if isinstance(pack, dict):
+                o = json.loads(res)
+                if pack.get("text"):
+                    o["text"] = pack["text"] + "\n\n" + (o.get("text") or "")
+                    o["room_step_zero"] = pack.get("kind")
+                    o["while_away"] = pack.get("while_away")
+                if pack.get("identify_hint"):
+                    o["identify_hint"] = pack["identify_hint"]
+                res = _dumps(o)
+        except Exception as exc:
+            print("[room] step_zero rest skipped: %s" % type(exc).__name__, flush=True)
         return res
     who, info = _tr().get("room_who"), _tr().get("room_info")
     if not isinstance(who, dict) or who.get("implicit") or not who.get("ok") or not info:
@@ -3533,6 +3616,10 @@ def board_act(
 def identify(name: str, role: str = "", client_hint: str = "", session_id: str = "") -> str:
     """Name this agent on a shared key. Returns agent_id, agent_token (shown once), session_id, step_zero when due, and handoff_digest.
     Pass agent_token on later calls. The token is never written into memory. NAME_IN_USE: use the suggested name."""
+    if not _room_local():
+        return _dumps(_req("POST", "/agent/identify", {
+            "name": name, "role": role or "assistant", "client_hint": client_hint or "", "session_id": session_id or "",
+        }))
     try:
         _room_src()
         from app.room.bridge import do_identify, lookup_key, open_account
@@ -3552,6 +3639,11 @@ def identify(name: str, role: str = "", client_hint: str = "", session_id: str =
 @mcp.tool()
 def file_claim(path: str, base_hash: str = "", task_id: str = "", agent_token: str = "", session_id: str = "") -> str:
     """Claim a relative path before editing it. 409 if another agent holds it. Pair with skv-edit start."""
+    if not _room_local():
+        return _dumps(_req("POST", "/file_claim", {
+            "path": path, "base_hash": base_hash or "", "task_id": task_id or "",
+            "agent_token": agent_token or "", "session_id": session_id or "",
+        }))
     _stopped = _room_block(agent_token, session_id)
     if _stopped:
         return _stopped
@@ -3578,6 +3670,12 @@ def file_claim(path: str, base_hash: str = "", task_id: str = "", agent_token: s
 @mcp.tool()
 def file_release(path: str, new_hash: str = "", old_hash: str = "", minus: int = 0, plus: int = 0, agent_token: str = "", session_id: str = "") -> str:
     """Release a file claim and record a file_change other agents can see. Pair with skv-edit finish."""
+    if not _room_local():
+        return _dumps(_req("POST", "/file_release", {
+            "path": path, "new_hash": new_hash or "", "old_hash": old_hash or "",
+            "minus": int(minus or 0), "plus": int(plus or 0),
+            "agent_token": agent_token or "", "session_id": session_id or "",
+        }))
     _stopped = _room_block(agent_token, session_id)
     if _stopped:
         return _stopped

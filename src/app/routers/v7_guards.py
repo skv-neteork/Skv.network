@@ -119,6 +119,9 @@ class TurnRequest(BaseModel):
     source: str = ""                       # e.g. guard2_ext:chatgpt -> no L1/L2 duties, server summarises
     second_look: str = ""                  # answers to last turn's second_look_questions: "kept|changed: <what>"
     search_as: Optional[List[str]] = None  # Q2S: up to 3 statements of how the answer was written in memory
+    agent_token: str = ""
+    context_state: str = "normal"
+    kind: str = "turn"
 
 
 def _turn_key(request, k=""):
@@ -143,14 +146,14 @@ def _with_pin(r):
 def agent_turn_post(req: TurnRequest, request: Request):
     """REST twin of the MCP tool turn: self-check context, [ev:] id check, save, server seal #NNN·code."""
     from app.rest_turn import turn as _t
-    return _with_pin(_t(_turn_key(request), req.user_message, req.draft, req.query, req.session_id, req.duty, req.duty_reason, req.task_done, req.critical, req.l1_summary, req.l2_summary, req.source_event_ids, req.sensitive, req.compact, req.answer, req.draft_summary, req.profile, req.profile_review, source=req.source, second_look=req.second_look, search_as=req.search_as))
+    return _with_pin(_t(_turn_key(request), req.user_message, req.draft, req.query, req.session_id, req.duty, req.duty_reason, req.task_done, req.critical, req.l1_summary, req.l2_summary, req.source_event_ids, req.sensitive, req.compact, req.answer, req.draft_summary, req.profile, req.profile_review, source=req.source, second_look=req.second_look, search_as=req.search_as, agent_token=req.agent_token, context_state=req.context_state, kind=req.kind))
 
 
 @router.get("/agent/turn")
-def agent_turn_get(request: Request, q: str = "", draft: str = "", k: str = "", duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "", compact: bool = False, answer: str = "", draft_summary: str = "", profile: str = "", profile_review: str = "", second_look: str = ""):
+def agent_turn_get(request: Request, q: str = "", draft: str = "", k: str = "", duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "", compact: bool = False, answer: str = "", draft_summary: str = "", profile: str = "", profile_review: str = "", second_look: str = "", agent_token: str = "", context_state: str = "normal", kind: str = "turn"):
     """Same as POST /agent/turn for chats that can only open URLs: ?k=KEY&q=USER_MESSAGE&draft=DRAFT."""
     from app.rest_turn import turn as _t
-    return _with_pin(_t(_turn_key(request, k), q, draft, "", "rest-get", duty, duty_reason, task_done, critical, l1_summary, l2_summary, [x.strip() for x in source_event_ids.split(",") if x.strip()], [x.strip() for x in sensitive.split("|") if x.strip()], compact, answer, draft_summary, profile or None, profile_review or None, second_look=second_look))
+    return _with_pin(_t(_turn_key(request, k), q, draft, "", "rest-get", duty, duty_reason, task_done, critical, l1_summary, l2_summary, [x.strip() for x in source_event_ids.split(",") if x.strip()], [x.strip() for x in sensitive.split("|") if x.strip()], compact, answer, draft_summary, profile or None, profile_review or None, second_look=second_look, agent_token=agent_token, context_state=context_state, kind=kind))
 
 
 from pydantic import BaseModel as _BM

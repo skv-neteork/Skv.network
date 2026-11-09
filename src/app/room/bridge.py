@@ -9,10 +9,18 @@ import sqlite3
 from app.room.claims import expire_tasks, renew_leases
 from app.room.digest import build_while_away, commit_cursor
 from app.room.events import record_event
+from app.room.identity import explicit_count
 from app.room.identity import identify as identify_agent
 from app.room.identity import resolve_call
 from app.room.schema import ensure
 from app.room.step_zero import step_zero_package
+
+# MCP gate refuses the first call without a token (IDENTIFY_REQUIRED, nothing written).
+# REST keeps the save and only adds this hint.
+REST_IDENTIFY_HINT = (
+    "На этом ключе уже есть агенты. Вызови identify(name) и передавай agent_token. Этот ход сохранён."
+)
+REST_BAD_TOKEN_HINT = "agent_token не подошёл. Вызови identify ещё раз. Этот ход сохранён."
 
 
 def lookup_key(token):
@@ -152,4 +160,88 @@ def do_identify(info, conn, name, role="", client_hint="", session_id=""):
         "step_zero": bool(pack.get("step_zero")),
         "handoff_digest": pack.get("while_away"),
         "room_text": pack.get("text") or "",
+    }
+
+
+def explicit_count_ro(user_id, key_id):
+    """Read-only. Does not create the account database or the room tables."""
+    import os
+    import sqlite3 as _sq
+    try:
+        from app import shelves
+        path = os.path.join(shelves.BASE_DIR, shelves._name(user_id) + ".db")
+    except Exception:
+        return 0
+    if not path or not os.path.isfile(path):
+        return 0
+    conn = _sq.connect("file:%s?mode=ro" % path, uri=True, timeout=5)
+    try:
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agents'").fetchone():
+            return 0
+        return conn.execute("SELECT COUNT(*) FROM agents WHERE key_id=?", (key_id,)).fetchone()[0]
+    except _sq.Error:
+        return 0
+    finally:
+        conn.close()
+
+
+def _hinted(result, hint):
+    out = dict(result)
+    out["identify_hint"] = hint
+    if out.get("error") == "IDENTIFY_REQUIRED":
+        out.pop("error", None)
+    return out
+
+
+def rest_attach(info, conn, result, agent_token="", session_id="rest", kind="turn", context_state="normal"):
+    """Stamp a REST turn and attach while_away.
+
+    A missing token never refuses the save. MCP still returns IDENTIFY_REQUIRED
+    and writes nothing on the first miss; this path only adds identify_hint.
+    """
+    if not isinstance(result, dict) or not isinstance(info, dict):
+        return result
+    if result.get("mode") in ("context", "recap"):
+        return result
+    if result.get("saved") is False and not result.get("event_id"):
+        return result
+    if "not saved again" in str(result.get("note") or ""):
+        if not agent_token and explicit_count(conn, info.get("key_id") or "") > 0:
+            return _hinted(result, REST_IDENTIFY_HINT)
+        return result
+    if not agent_token:
+        if explicit_count(conn, info.get("key_id") or "") == 0:
+            return result
+        return _hinted(result, REST_IDENTIFY_HINT)
+    who = gate(info, conn, agent_token, session_id or "rest")
+    if not isinstance(who, dict) or not who.get("ok"):
+        hint = REST_IDENTIFY_HINT if (who or {}).get("error") == "IDENTIFY_REQUIRED" else REST_BAD_TOKEN_HINT
+        return _hinted(result, hint)
+    return finish_turn(conn, info, who, result, kind=kind or "turn", context_state=context_state or "normal")
+
+
+def rest_step_zero(info, conn, agent_token="", session_id="rest", force=False, context_state="normal"):
+    """Room block for REST step_zero: what the other agents on this line did."""
+    if not agent_token:
+        if explicit_count(conn, info.get("key_id") or "") == 0:
+            return {"ok": True, "step_zero": False, "text": "", "while_away": None}
+        return {"ok": True, "step_zero": False, "text": "", "while_away": None, "identify_hint": REST_IDENTIFY_HINT}
+    who = gate(info, conn, agent_token, session_id or "rest")
+    if not isinstance(who, dict) or not who.get("ok"):
+        hint = REST_IDENTIFY_HINT if (who or {}).get("error") == "IDENTIFY_REQUIRED" else REST_BAD_TOKEN_HINT
+        return {"ok": True, "step_zero": False, "text": "", "while_away": None, "identify_hint": hint}
+    pack = step_zero_package(
+        conn, who["actor_id"], info.get("key_id") or "", info.get("chain_id") or "",
+        who.get("role") or "assistant", session_id or "rest", context_state or "normal", bool(force),
+        display_name=who.get("name") or "",
+    )
+    if pack.get("while_away"):
+        commit_cursor(conn, who["actor_id"], info.get("chain_id") or "", pack.get("proposed_upto"))
+    return {
+        "ok": True,
+        "step_zero": bool(pack.get("step_zero")),
+        "kind": pack.get("kind"),
+        "text": pack.get("text") or "",
+        "while_away": pack.get("while_away"),
+        "others_block": pack.get("others_block") or "",
     }

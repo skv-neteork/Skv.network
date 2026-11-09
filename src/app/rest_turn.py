@@ -166,7 +166,30 @@ def _prof_rel(user, msg, answer, session_id, compact):
         return {}
 
 
-def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None):
+def _with_room(key, result, agent_token="", session_id="rest", context_state="normal", kind="turn"):
+    """Attach the room digest when this key has agents. A missing token does not undo the save."""
+    if not isinstance(result, dict) or result.get("mode") in ("context", "recap") or result.get("saved") is False:
+        return result
+    if not (result.get("saved") or result.get("event_id")):
+        return result
+    try:
+        from app.room.bridge import explicit_count_ro, lookup_key, open_account, rest_attach
+        info = lookup_key(key)
+        if not info:
+            return result
+        if not agent_token and not explicit_count_ro(info.get("user_id") or "", info.get("key_id") or ""):
+            return result
+        conn = open_account(info)
+        try:
+            return rest_attach(info, conn, result, agent_token or "", session_id or "rest", kind or "turn", context_state or "normal")
+        finally:
+            conn.close()
+    except Exception as exc:
+        print("[room] rest attach skipped: %s" % type(exc).__name__, flush=True)
+        return result
+
+
+def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn"):
     if answer and not draft:
         draft = answer
     if not key:
@@ -311,13 +334,13 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
         elif no_read: r["seal_warning"] = "SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)
         if not ok: r["error"] = saved
         r.update(_board_rel(user, user_message, clean)); r.update(prof)
-        return r
-    return {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "event_id": eid or None, "seal": seal if ok else None,
+        return _with_room(key, r, agent_token, session_id, context_state, kind)
+    return _with_room(key, {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "event_id": eid or None, "seal": seal if ok else None,
             "cited_ok": cited, "facts": facts, "cubes": cubes, "self_check": checklist, "duties": [str(d)[:300] for d in duties], **_board_rel(user, user_message, clean), **prof,
             "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else
                             (("SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)) if no_read else None),
             "summary_due": saved.get("summary_due") if isinstance(saved, dict) else None, "saved_parts": saved.get("saved") if isinstance(saved, dict) else None,
-            "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}
+            "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})})
 
 
 def seal_next(key, same=False):

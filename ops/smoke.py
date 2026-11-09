@@ -287,7 +287,10 @@ def search_checks(m, tag):
         rec("MS1 multi-word RU question -> found (any-term + stems)", tok in json.dumps(a, ensure_ascii=False), json.dumps(a, ensure_ascii=False)[:160])
         b = m2.call("memory_search", {"query": "деплой исправил %s" % tok, "lines": "all", "since": "1d"})
         c = m2.call("memory_search", {"query": "деплой исправил %s" % tok, "lines": "all", "until": "2001-01-01"})
-        rec("MS2 since=1d finds it, until=2001 excludes it", tok in json.dumps(b, ensure_ascii=False) and tok not in json.dumps(c, ensure_ascii=False), json.dumps(c, ensure_ascii=False)[:120])
+        # The empty MCP payload repeats the query in its message, so judge the hit list only.
+        b_hits = json.dumps(b.get("results") if isinstance(b, dict) else b, ensure_ascii=False)
+        c_hits = json.dumps(c.get("results") if isinstance(c, dict) else c, ensure_ascii=False)
+        rec("MS2 since=1d finds it, until=2001 excludes it", tok in b_hits and tok not in c_hits, "since=%s until=%s" % (tok in b_hits, tok in c_hits))
         n = m2.call("board_act", {"action": "add", "kind": "note", "title": "cube candidate: %s warm cache" % tok, "text": "smoke note"})
         iid = (n.get("item") or {}).get("id") or n.get("id") or n.get("item_id") or ""
         d = m2.call("memory_search", {"query": "cube candidate:", "source": "board", "lines": "all"})

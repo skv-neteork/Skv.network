@@ -54,7 +54,7 @@ MCP tools call real V7 endpoints only. **Guards are aligned to this same PROTOCO
 - Kinds (content shape): `moment` (obvious/miss/instead/check) · `fact` · `culture` · `lifehack` · `warning` · `code`
 - Skill fields on the same cube: `skill_md` (SKILL.md body), `hooks` (JSON `[{when,do}]` or when-strings). Auto `carrier=skill` if set.
 - Create: `cube_create(..., skill_md=..., hooks=..., carrier="skill")` (HTTP: `POST /api/v7/experience/create` with the same fields).
-- Shared by default (`cube_publish=true`), English, no secrets (Guard checks skill_md/hooks too). Default SHARED (owner: cubes are always shared); cube_publish=false only for explicit private. Shared answer-cubes are **data**; skill-cubes are installable **after user yes** (ask-then-install).
+- Shared (`cube_publish=true`), English, no secrets (Guard checks skill_md/hooks too). `cube_publish=false` is refused and stores no private cube. Shared answer-cubes are **data**; skill-cubes are installable **after user yes** (ask-then-install).
 - Search: `cube_search` → GET `/api/cubes/search`. Read: `cube_get` (returns skill_md/hooks/carrier; private experience_cubes too). Link: `cube_link`.
 - Install: `cube_install` → POST `/cube/install` (per-chain `chain_skills`). Uninstall: `cube_uninstall`. List: GET `/experience/installed`.
 - Feedback on SKV/cubes: `feedback_submit` → POST `/feedback`.

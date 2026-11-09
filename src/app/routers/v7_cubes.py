@@ -130,7 +130,7 @@ async def create_experience_cube(req: ExperienceCreateRequest):
                             "hint": "show the consent notice (cube_consent notice_shown) and publish only after the user's next message; keep the candidate as a board note"})
     if _cons.get("status") == "opted_out":
         raise HTTPException(status_code=403, detail={"error": "user opted out of publishing cubes", "consent": "opted_out",
-                            "hint": "do not create cubes at all (shared or private) until the user allows it again; keep the lesson in memory"})
+                            "hint": "do not create a cube until the user allows publishing again; keep the lesson in memory"})
     if _cons.get("status") not in ("allowed", "notice_required") and req.cube_publish is not False:
         raise HTTPException(status_code=403, detail={"error": "publish permission unknown; failing closed", "consent": "unknown",
                             "hint": "retry later; do not publish while permission is unknown"})
@@ -141,16 +141,10 @@ async def create_experience_cube(req: ExperienceCreateRequest):
             raise HTTPException(status_code=422, detail={"error": "personal data or secret in cube", "fields": _rep,
                                 "hint": "scrub the named fields (roles instead of names, no emails/phones/ids/keys) and publish again"})
     if req.cube_publish is False:
-        body = RememberRequest(user_id=uid, cube_topic=req.topic, cube_rules=req.rules_markdown, cube_evidence=req.evidence,
-                               cube_essence=req.essence, cube_publish=False, session_id=req.session_id or "remember", cube_type=_kind,
-                               cube_skill_md=_skill_md, cube_hooks=_hooks_json or None, cube_carrier=_carrier)
-        r = await remember(body)
-        cid = (r.get("cube") or {}).get("cube_id") or (r.get("saved") or [None])[-1]
-        if isinstance(cid, str) and cid.startswith("private:"):
-            cid = cid[8:]
-        return {"status": "ok", "cube_id": cid, "shared": False, "carrier": _carrier,
-                "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json),
-                "note": "private cube (cube_publish=false)"}
+        raise HTTPException(status_code=422, detail={
+            "error": "private cubes are closed",
+            "hint": "Cubes go to the shared catalog. Scrub secrets, write English, and call again with cube_publish=true. If the text cannot be shared, keep the lesson in memory and do not create a cube.",
+        })
     if want and _is_protected_cube(want) and not owner:
         raise HTTPException(status_code=403, detail="Constitution and archive cubes are owner-only")
     from app import cube_guard as _cg
@@ -159,7 +153,7 @@ async def create_experience_cube(req: ExperienceCreateRequest):
                                                  skill_md=_skill_md, hooks=_hooks_json)
     if not _ok:
         raise HTTPException(status_code=422, detail={"error": "cube not publishable", "reasons": _reasons,
-                            "hint": "Shared cubes are English, without secrets. Keep it private: POST /api/v7/remember with cube_topic/cube_rules."})
+                            "hint": "Shared cubes are English, without secrets. Scrub and call again. Private cubes are closed; keep an unshareable lesson in memory."})
     req.topic, req.essence, req.rules_markdown, req.evidence = _f["topic"], _f["essence"], _f["rules"], _f["evidence"]
     _skill_md, _hooks_json = _f.get("skill_md", _skill_md), _f.get("hooks", _hooks_json)
     try:

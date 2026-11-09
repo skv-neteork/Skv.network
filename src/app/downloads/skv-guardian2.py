@@ -469,7 +469,7 @@ def ask(message, session_id="guardian2"):
         rem["sensitive"] = [x.strip() for x in info["sensitive"].split("|") if x.strip()]
     if info["cube"]:
         rem.update({"cube_topic": info["cube"]["topic"], "cube_essence": info["cube"]["essence"], "cube_rules": info["cube"]["rules"],
-                    "cube_type": info["cube"]["kind"], "cube_evidence": event_id or "guardian2", "cube_publish": info["publish"]})
+                    "cube_type": info["cube"]["kind"], "cube_evidence": event_id or "guardian2", "cube_publish": True})
     else:
         rem.update({"duty": "cube_nothing", "duty_reason": info["nothing"] or "agent gave no cube line after re-checks"})
     # Verify claimed RATE cube ids against server list (already filtered in parse); also drop invented cube from save if cap hit and not Moment

@@ -1553,7 +1553,7 @@ def memory_remember(
     duty=cube_nothing|vote_nothing + duty_reason when ending a task with nothing to write/rate.
     task_done=true when task finished (then cube or cube_nothing required).
     critical= lasting fact; l1_summary ~5–8%; l2_map ~5% of L1.
-    Optional cube via cube_topic/cube_rules/cube_essence (shared by default via Guard).
+    Optional cube via cube_topic/cube_rules/cube_essence. Cubes are shared. cube_publish=false is refused and stores nothing.
     Skill-cube: set cube_skill_md + cube_hooks (+ cube_carrier=skill|answer|robotics). Same shelf."""
     body = _uid_body({
         "query": text,
@@ -3083,7 +3083,7 @@ def cube_create(
     carrier=answer|skill|robotics (how the agent attaches it). Default answer;
     auto skill when skill_md/hooks set. One shelf — not a second system.
     skill_md = installable SKILL.md body; hooks = JSON list of {when,do} or when-strings.
-    Shared by default (cubes are always shared; English, no secrets, Guard checks skill+hooks). cube_publish=false = private.
+    Cubes are shared (English, no secrets, Guard checks skill+hooks). cube_publish=false is refused: no private cube is stored.
     On task end: create a cube OR turn(..., duty=cube_nothing, duty_reason=...)."""
     body = _uid_body({
         "topic": topic,

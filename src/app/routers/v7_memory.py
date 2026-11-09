@@ -1550,15 +1550,21 @@ async def remember(req: RememberRequest):
         _carrier = _cv2.norm_carrier(getattr(req, "cube_carrier", ""), _skill_md, _hooks_json)
         _ok, _fields, _reasons, _pii = _cg.prepare_shared(req.cube_topic, _ess, req.cube_rules, req.cube_evidence,
                                                           skill_md=_skill_md, hooks=_hooks_json)
-        _shared = bool(req.cube_publish) and _ok
-        if _shared:
-            _skill_md = _fields.get("skill_md", _skill_md)
-            _hooks_json = _fields.get("hooks", _hooks_json)
-        cube_id = "cube_" + uuid.uuid4().hex[:12]
         _ctype = _cv2.norm_kind(req.cube_type, "moment")
         if _ctype not in _cv2.EXPERIENCE_KINDS:
             _ctype = "moment"
-        if _shared:
+        if req.cube_publish is False or not _ok:
+            # Private shelf is closed (2026-11-09). A failed shared check is not stored as a private cube.
+            _cube_info = {"cube_id": None, "shared": False, "carrier": _carrier,
+                          "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json),
+                          "error": "private cubes are closed" if req.cube_publish is False else "cube not publishable",
+                          "why_private": (["private cubes are closed"] if req.cube_publish is False else []) + list(_reasons),
+                          "hint": "Scrub and publish to the shared catalog, or keep the lesson in memory. No private cube is stored.",
+                          "pii_masked": []}
+        else:
+            _skill_md = _fields.get("skill_md", _skill_md)
+            _hooks_json = _fields.get("hooks", _hooks_json)
+            cube_id = "cube_" + uuid.uuid4().hex[:12]
             conn = sqlite3.connect(SHARED_DB)
             _cv2.ensure(conn)
             cur = conn.cursor()
@@ -1567,25 +1573,18 @@ async def remember(req: RememberRequest):
                 (cube_id, _fields["essence"], _fields["topic"], _fields["rules"], _fields["evidence"], req.session_id, "community", req.user_id, _ctype, _skill_md or None, _hooks_json or None, _carrier),
             )
             conn.commit(); conn.close()
-        else:
-            # private cube: stays in the user's own database, never in the shared pool
-            _pc = sqlite3.connect(os.path.join(USER_DB_DIR, name + ".db"), timeout=30)
-            _cv2.migrate_private_schema(_pc)   # older user dbs have another experience_cubes schema
-            _pc.execute("INSERT INTO experience_cubes (cube_id, topic, essence, rules_markdown, evidence, session_id, kind, skill_md, hooks, carrier) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                        (cube_id, req.cube_topic, _ess, req.cube_rules, req.cube_evidence, req.session_id, _ctype, _skill_md or None, _hooks_json or None, _carrier))
-            _pc.commit(); _pc.close()
-        _cube_info = {"cube_id": cube_id, "shared": _shared, "carrier": _carrier,
-                      "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json),
-                      "why_private": ([] if _shared else (["not published: send cube_publish=true"] if not req.cube_publish else []) + _reasons),
-                      "pii_masked": _pii if _shared else []}
-        if saved:
-            import sqlite3 as _link
-            _db = "/data/skv/metadata_store/" + "".join(c for c in req.user_id if c.isalnum() or c in "_-") + ".db"
-            _c = _link.connect(_db)
-            _c.execute("CREATE TABLE IF NOT EXISTS event_links (src TEXT, dst TEXT, kind TEXT, created_at TEXT, PRIMARY KEY (src, dst, kind))")
-            _c.execute("INSERT OR REPLACE INTO event_links (src, dst, kind, created_at) VALUES (?,?,?,datetime('now'))", (saved[0], cube_id, "cube"))
-            _c.commit(); _c.close()
-        if _shared and req.close_task and req.cube_rules:
+            _cube_info = {"cube_id": cube_id, "shared": True, "carrier": _carrier,
+                          "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json),
+                          "why_private": [], "pii_masked": _pii}
+            if saved:
+                import sqlite3 as _link
+                _db = "/data/skv/metadata_store/" + "".join(c for c in req.user_id if c.isalnum() or c in "_-") + ".db"
+                _c = _link.connect(_db)
+                _c.execute("CREATE TABLE IF NOT EXISTS event_links (src TEXT, dst TEXT, kind TEXT, created_at TEXT, PRIMARY KEY (src, dst, kind))")
+                _c.execute("INSERT OR REPLACE INTO event_links (src, dst, kind, created_at) VALUES (?,?,?,datetime('now'))", (saved[0], cube_id, "cube"))
+                _c.commit(); _c.close()
+            saved.append(cube_id)
+        if _cube_info.get("cube_id") and req.close_task and req.cube_rules:
             tconn = sqlite3.connect(SHARED_DB)
             tconn.execute("CREATE TABLE IF NOT EXISTS cube_links (src TEXT, dst TEXT, kind TEXT, created_by TEXT, created_at TEXT, PRIMARY KEY (src, dst, kind))")
             kind = "answer" if req.cube_kind == "answer" else "hypothesis"
@@ -1598,13 +1597,12 @@ async def remember(req: RememberRequest):
                     tconn.execute("UPDATE cube_tasks SET status='closed' WHERE task_id=?", (req.close_task,))
                     tconn.execute("INSERT OR IGNORE INTO cube_links (src, dst, kind, created_by, created_at) VALUES (?,?,?,?,datetime('now'))", (req.close_task, saved[-1] if saved else "", "sequence", req.user_id))
             tconn.commit(); tconn.close()
-        if _shared and req.cube_from:
+        if _cube_info.get("cube_id") and req.cube_from:
             conn2 = sqlite3.connect(SHARED_DB)
             conn2.execute("CREATE TABLE IF NOT EXISTS cube_links (src TEXT, dst TEXT, kind TEXT, created_by TEXT, created_at TEXT, PRIMARY KEY (src, dst, kind))")
             kind = req.cube_kind if req.cube_kind in ("progress", "synthesis") else "progress"
             conn2.execute("INSERT OR IGNORE INTO cube_links (src, dst, kind, created_by, created_at) VALUES (?,?,?,?,datetime('now'))", (req.cube_from, cube_id, kind, req.user_id))
             conn2.commit(); conn2.close()
-        saved.append(cube_id if _shared else "private:" + cube_id)
     if req.task_question:
         import uuid as _uuid
         task_id = "task_" + _uuid.uuid4().hex[:12]
@@ -1627,7 +1625,7 @@ async def remember(req: RememberRequest):
         from app import cubes_v2 as _cv2
         _dc = sqlite3.connect(SHARED_DB, timeout=30)
         _cv2.ensure(_dc)
-        _wrote = bool(_cube_info)
+        _wrote = bool(_cube_info and _cube_info.get("cube_id"))
         if _wrote:
             _dc.execute("INSERT INTO agent_duty (user_id, step, duty, reason, created_at) VALUES (?,?,?,?,datetime('now'))", (req.user_id, _duty_step(req.user_id), "cube", _cube_info["cube_id"]))
         _duty_notes = _cv2.on_remember(_dc, req.user_id, _duty_step(req.user_id), topic=req.topic or req.cube_topic if not _wrote else req.topic,

@@ -181,7 +181,7 @@ class ExperienceCreateRequest(BaseModel):
     cube_id: Optional[str] = None
     user_id: Optional[str] = ""   # set by V7AuthMiddleware from the API key
     kind: Optional[str] = "moment"          # moment|fact|culture|lifehack|warning|code
-    cube_publish: Optional[bool] = None     # None (old clients) = shared as before; False = keep private
+    cube_publish: Optional[bool] = None     # None or true = shared. False is refused: private cubes are closed.
     skill_md: Optional[str] = ""            # optional SKILL.md-style body; same cube, not a second system
     hooks: Optional[object] = None          # when-to-fire: list[str]|list[{when,do}]|JSON string
     carrier: Optional[str] = ""             # answer|skill|robotics; default answer; auto skill if skill_md/hooks set
@@ -756,7 +756,7 @@ class RememberRequest(BaseModel):
     cube_rules: str = ""
     cube_evidence: str = ""
     cube_essence: str = ""      # agent-written one-line English essence of the cube (never the user's question)
-    cube_publish: bool = True  # owner 2026-10-24: cubes are ALWAYS shared (Guard); pass false only for explicit private
+    cube_publish: bool = True  # cubes are shared. False does not create a private cube.
     cube_skill_md: str = ""     # optional skill body on the same private/shared cube
     cube_hooks: Optional[object] = None  # when-to-fire hooks (list or JSON)
     cube_carrier: str = ""      # answer|skill|robotics

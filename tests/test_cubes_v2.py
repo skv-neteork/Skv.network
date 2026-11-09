@@ -125,7 +125,7 @@ code, r = run(v.create_experience_cube(v.ExperienceCreateRequest(topic="cv2 lega
 check("experience/create rejects non-experience kind", code == 422)
 code, r = run(v.create_experience_cube(v.ExperienceCreateRequest(topic="cv2 private", essence="Private lifehack stays private", rules_markdown="use flag -x not -y", evidence="t", user_id=B, kind="lifehack", cube_publish=False)))
 c = db()
-check("experience/create cube_publish=false is private", code == 200 and r.get("shared") is False and not c.execute("select 1 from cubes_new where cube_id=?", (r.get("cube_id"),)).fetchone())
+check("experience/create cube_publish=false is refused", code == 422 and "private cubes are closed" in str(r).lower() and not c.execute("select 1 from cubes_new where essence=?", ("Private lifehack stays private",)).fetchone())
 c.close()
 
 # help flow

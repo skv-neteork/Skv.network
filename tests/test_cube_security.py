@@ -108,14 +108,31 @@ before = db().execute("select count(*) from cubes_new").fetchone()[0]
 c, r = run(v.remember(v.RememberRequest(user_id=C, query="RAW USER QUESTION about my secret project", cube_topic="burn", cube_rules="1. Obvious ice 2. Miss 3. Instead water 4. Check")))
 after = db().execute("select count(*) from cubes_new").fetchone()[0]
 pdb = os.path.join(UD, account_db_name(C) + ".db")
-prow = sqlite3.connect(pdb).execute("select essence from experience_cubes").fetchall() if os.path.exists(pdb) else []
-check("remember cube without publish -> private (user db), not shared", c == 200 and after == before and r["cube"]["shared"] is False and len(prow) == 1)
-check("private cube essence is not the user's question", prow and "RAW USER QUESTION" not in prow[0][0])
+def _priv_rows(path):
+    if not os.path.exists(path):
+        return []
+    con = sqlite3.connect(path)
+    try:
+        if not con.execute("SELECT 1 FROM sqlite_master WHERE name='experience_cubes'").fetchone():
+            return []
+        return con.execute("SELECT essence FROM experience_cubes").fetchall()
+    finally:
+        con.close()
+prow = _priv_rows(pdb)
+row = db().execute("select essence from cubes_new where cube_id=?", (r.get("cube", {}).get("cube_id"),)).fetchone()
+check("remember cube without publish flag is shared", c == 200 and after == before + 1 and r["cube"]["shared"] is True and not prow)
+check("shared cube essence is not the user's question", row and "RAW USER QUESTION" not in row[0])
 c, r = run(v.remember(v.RememberRequest(user_id=C, query="RAW USER QUESTION 2", cube_topic="burn2", cube_essence="Moment: cool a burn with water", cube_rules="1. Obvious ice 2. Miss deeper damage 3. Instead running water 4. Check", cube_publish=True)))
 row = db().execute("select essence, created_by from cubes_new where cube_id=?", (r.get("cube", {}).get("cube_id"),)).fetchone()
 check("remember publish=true + English -> shared with agent essence", c == 200 and r["cube"]["shared"] and row and row[0] == "Moment: cool a burn with water" and row[1] == C)
+before_ru = db().execute("select count(*) from cubes_new").fetchone()[0]
 c, r = run(v.remember(v.RememberRequest(user_id=C, cube_topic="ожог", cube_essence="Не лёд", cube_rules="Охлаждать водой", cube_publish=True)))
-check("remember publish=true but Russian -> kept private", c == 200 and r["cube"]["shared"] is False and "not_english" in r["cube"]["why_private"])
+after_ru = db().execute("select count(*) from cubes_new").fetchone()[0]
+prow_ru = len(_priv_rows(pdb))
+check("remember publish=true but Russian is not stored as a private cube", c == 200 and r["cube"]["shared"] is False and r["cube"]["cube_id"] is None and "not_english" in r["cube"]["why_private"] and after_ru == before_ru and prow_ru == 0)
+c, r = run(v.remember(v.RememberRequest(user_id=C, cube_topic="burn private", cube_essence="Moment: keep this off the shelf", cube_rules="1. Do not store a private cube", cube_publish=False)))
+prow_false = len(_priv_rows(pdb))
+check("remember cube_publish=false stores no private cube", c == 200 and r["cube"]["cube_id"] is None and "private cubes are closed" in r["cube"]["why_private"] and prow_false == 0)
 c, r = run(v.create_experience_cube(E(topic="ожог", essence="Не лёд", rules_markdown="Охлаждать водой", evidence="x", user_id=A)))
 check("/experience/create rejects non-English (422)", c == 422)
 c, r = run(v.create_experience_cube(E(topic="mail", essence="Moment: contact", rules_markdown="1. Mail bob@example.com", evidence="x", user_id=A)))

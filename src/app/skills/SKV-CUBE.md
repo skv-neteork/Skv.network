@@ -18,7 +18,7 @@ Create:
 - HTTP `POST /api/v7/experience/create` with the same fields
 - or `turn(..., task_done=true)` and answer the cube duty it returns (`cube_create` or `duty=cube_nothing`)
 
-Shared by default (`cube_publish=true`): English, no secrets (Guard checks skill_md + hooks too). Default SHARED (owner: cubes are always shared); cube_publish=false only for explicit private.
+Shared (`cube_publish=true`): English, no secrets (Guard checks skill_md + hooks too). `cube_publish=false` is refused. No private cube is stored. An unshareable lesson stays in memory.
 Give `essence` yourself, never the user's question.
 
 ## Install (skill carrier)

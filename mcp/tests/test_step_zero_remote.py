@@ -40,7 +40,7 @@ class RemoteClientTests(unittest.TestCase):
             if path == "/constitution/status":
                 return {"installed": True, "installed_by": "remote-test@example.invalid"}
             if path == "/agent/step_zero":
-                return json.loads(json.dumps(self.payload))
+                return self._one_page(body)
             if path == "/constitution":
                 return {"version": "v-test", "cubes": []}
             if path == "/constitution/install":
@@ -58,6 +58,35 @@ class RemoteClientTests(unittest.TestCase):
     def _local_pack_must_not_run(self):
         raise AssertionError("local pack was used")
 
+    def _one_page(self, body):
+        payload = self.payload or {}
+        if payload.get("ok") is False or payload.get("pack_error") or (
+            not payload.get("pages") and payload.get("error")
+        ):
+            return json.loads(json.dumps(payload))
+        pages = payload.get("pages") or []
+        try:
+            page = int((body or {}).get("page") or 1)
+        except (TypeError, ValueError):
+            page = 1
+        if page < 1 or page > len(pages) or not str(pages[page - 1]).strip():
+            return {
+                "ok": False,
+                "pages": [],
+                "text": "",
+                "page": page,
+                "total_pages": len(pages),
+                "pack_error": payload.get("pack_error") or payload.get("error") or "empty pages",
+            }
+        out = {"ok": True, "page": page, "total_pages": len(pages), "text": pages[page - 1], "error": ""}
+        if page == 1:
+            if payload.get("text"):
+                out["room_text"] = payload["text"]
+            for key in ("while_away", "others_block", "identify_hint", "kind"):
+                if payload.get(key):
+                    out[key] = payload[key]
+        return out
+
     def test_step_zero_pages_and_room_block(self):
         out = json.loads(m.step_zero(page=1, agent_token="tok-b", session_id="s-b"))
         self.assertTrue(out.get("text"))
@@ -71,8 +100,10 @@ class RemoteClientTests(unittest.TestCase):
         self.assertTrue(nxt["done"])
         self.assertNotIn("OTHER AGENTS", nxt["text"])
         posted = [c for c in self.calls if c[1] == "/agent/step_zero"]
-        self.assertTrue(posted)
+        self.assertEqual([c[2]["page"] for c in posted], [1, 2])
         self.assertEqual(posted[0][2]["agent_token"], "tok-b")
+        self.assertEqual(posted[1][2]["agent_token"], "tok-b")
+        self.assertNotIn("pages", posted[0][2])
 
     def test_step_zero_without_token_still_returns_pages(self):
         self.payload = {"ok": True, "pages": list(PAGES), "text": "", "identify_hint": "call identify"}

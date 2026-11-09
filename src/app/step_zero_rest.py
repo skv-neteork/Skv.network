@@ -2,10 +2,21 @@
 
 The pages are the memory pack 8/8/8 plus the constitution texts.
 A failure returns ok=false, pages=[] and a non-empty error. Never a silent blank page.
+
+REST serves one page per call. The text is grouped from the MCP step_zero slices
+up to about 14 KB, and the JSON body stays within 16 KB. The room block is not
+part of that text; the route adds it only on page 1.
 """
+import json
 import os
 import re
 import sqlite3
+
+# One page of pack text, measured as the JSON body without the room block.
+REST_PAGE_JSON = 14000
+# Room fields on page 1. Kept apart so page boundaries do not depend on the room.
+REST_ROOM_JSON = 2000
+REST_RESPONSE_JSON = 16000
 
 
 def _chunks(text, limit=7000):
@@ -94,3 +105,162 @@ def build_pages(user_id, user_db="", shared_db=""):
     except Exception as exc:
         line = (str(exc).splitlines() or [type(exc).__name__])[0][:180]
         return {"ok": False, "pages": [], "error": line or type(exc).__name__}
+
+
+def _json_bytes(obj) -> int:
+    return len(json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def _page_envelope(text: str) -> dict:
+    return {"ok": True, "page": 99, "total_pages": 99, "text": text, "error": ""}
+
+
+def _page_fits(text: str) -> bool:
+    return _json_bytes(_page_envelope(text)) <= REST_PAGE_JSON
+
+
+def _split_to_fit(text: str) -> list:
+    """Split one slice that is larger than a REST page. Nothing is dropped."""
+    parts = []
+    rest = text or ""
+    end_mark = "<<<END>>>\n"
+    while rest:
+        if _page_fits(rest):
+            parts.append(rest)
+            break
+        lo, hi, best = 1, len(rest), 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if _page_fits(rest[:mid]):
+                best = mid
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        snap = rest.rfind(end_mark, 0, best)
+        snap_len = 0 if snap < 0 else snap + len(end_mark)
+        if snap_len >= max(200, best // 5):
+            best = snap_len
+        if best < 1:
+            best = 1
+        parts.append(rest[:best])
+        rest = rest[best:]
+    return parts
+
+
+def group_pages(pages) -> list:
+    """Reuse the MCP slices. Join neighbors while the page stays near 14 KB."""
+    out = []
+    buf = ""
+    for raw in pages or []:
+        piece = raw or ""
+        if not piece:
+            continue
+        bits = [piece] if _page_fits(piece) else _split_to_fit(piece)
+        for bit in bits:
+            if not bit:
+                continue
+            if not buf:
+                buf = bit
+                continue
+            trial = buf + bit
+            if _page_fits(trial):
+                buf = trial
+            else:
+                out.append(buf)
+                buf = bit
+    if buf:
+        out.append(buf)
+    return [p for p in out if (p or "").strip()]
+
+
+def room_addon(room) -> dict:
+    """Room fields for page 1 only, trimmed so they stay inside REST_ROOM_JSON."""
+    if not isinstance(room, dict):
+        return {}
+    ordered = []
+    if room.get("identify_hint"):
+        ordered.append(("identify_hint", room.get("identify_hint")))
+    if room.get("while_away"):
+        ordered.append(("while_away", room.get("while_away")))
+    if room.get("kind"):
+        ordered.append(("kind", room.get("kind")))
+    ordered.append(("step_zero", bool(room.get("step_zero"))))
+    if room.get("text"):
+        ordered.append(("room_text", room.get("text")))
+    if room.get("others_block"):
+        ordered.append(("others_block", room.get("others_block")))
+    fields = {}
+    for key, value in ordered:
+        trial = dict(fields)
+        trial[key] = value
+        if _json_bytes(trial) <= REST_ROOM_JSON:
+            fields = trial
+            continue
+        if not isinstance(value, str) or not value:
+            break
+        lo, hi, best = 0, len(value), ""
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            trial[key] = value[:mid]
+            if _json_bytes(trial) <= REST_ROOM_JSON:
+                best = value[:mid]
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if best:
+            fields[key] = best
+        break
+    return fields
+
+
+def select_rest_page(built, page=None, room=None) -> dict:
+    """One page of the pack. Missing page means page 1, not the whole pack."""
+    try:
+        page_n = 1 if page in (None, "", 0) else int(page)
+    except (TypeError, ValueError):
+        page_n = 0
+    if not isinstance(built, dict) or not built.get("ok"):
+        err = ""
+        if isinstance(built, dict):
+            err = built.get("error") or ""
+        err = err or "memory pack unavailable"
+        out = {
+            "ok": False,
+            "error": err,
+            "pack_error": err,
+            "text": "",
+            "page": 1,
+            "total_pages": 0,
+            "pages": [],
+        }
+        hint = (room or {}).get("identify_hint") if isinstance(room, dict) else ""
+        if hint:
+            out["identify_hint"] = hint
+        return out
+    slices = group_pages(built.get("pages") or [])
+    if not slices:
+        err = "empty step_zero pages"
+        return {
+            "ok": False,
+            "error": err,
+            "pack_error": err,
+            "text": "",
+            "page": 1,
+            "total_pages": 0,
+            "pages": [],
+        }
+    total = len(slices)
+    if page_n < 1 or page_n > total:
+        return {
+            "ok": False,
+            "error": "page out of range",
+            "pack_error": "page out of range",
+            "text": "",
+            "page": page_n,
+            "total_pages": total,
+            "pages": [],
+        }
+    body = {"ok": True, "page": page_n, "total_pages": total, "text": slices[page_n - 1], "error": ""}
+    if page_n == 1:
+        body.update(room_addon(room))
+    return body

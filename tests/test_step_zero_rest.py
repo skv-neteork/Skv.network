@@ -4,7 +4,9 @@ import sqlite3
 import tempfile
 import unittest
 
-from app.step_zero_rest import build_pages
+import json
+
+from app.step_zero_rest import REST_RESPONSE_JSON, build_pages, select_rest_page
 
 
 def _user(path):
@@ -59,6 +61,36 @@ class StepZeroRestTests(unittest.TestCase):
         self.assertTrue(out["error"])
         self.assertNotIn("\n", out["error"][:1])
 
+    def test_rest_page_is_one_slice_under_the_cap(self):
+        page_a = "=== PACK888 001/002 ===\n" + ("q" * 30000)
+        page_b = "=== CUBE 00 ===\nFULL CONST 00\n" + ("w" * 20000)
+        built = {"ok": True, "pages": [page_a, page_b], "error": ""}
+        room = {"text": "=== OTHER AGENTS ===\nbrief", "while_away": "ходы других: +1", "others_block": "=== OTHER AGENTS ===", "step_zero": True, "kind": "full"}
+        first = select_rest_page(built, None, room)
+        self.assertTrue(first["ok"])
+        self.assertEqual(first["page"], 1)
+        self.assertGreater(first["total_pages"], 1)
+        self.assertNotIn("pages", first)
+        self.assertIn("OTHER AGENTS", first.get("room_text") or "")
+        self.assertIn("while_away", first)
+        self.assertLessEqual(len(json.dumps(first, ensure_ascii=False, separators=(",", ":")).encode("utf-8")), REST_RESPONSE_JSON)
+        joined = []
+        for n in range(1, first["total_pages"] + 1):
+            got = select_rest_page(built, n, room)
+            self.assertTrue(got["ok"])
+            self.assertLessEqual(len(json.dumps(got, ensure_ascii=False, separators=(",", ":")).encode("utf-8")), REST_RESPONSE_JSON)
+            if n != 1:
+                self.assertNotIn("room_text", got)
+                self.assertNotIn("while_away", got)
+            joined.append(got["text"])
+        self.assertEqual("".join(joined), page_a + page_b)
+        self.assertIn("FULL CONST 00", "".join(joined))
+        missing = select_rest_page({"ok": False, "pages": [], "error": "user database not found"}, 1, room)
+        self.assertFalse(missing["ok"])
+        self.assertEqual(missing["pages"], [])
+        self.assertEqual(missing["text"], "")
+        self.assertIn("not found", missing["pack_error"])
+
     def test_http_attaches_pages_and_room_events(self):
         try:
             from fastapi import FastAPI
@@ -72,8 +104,9 @@ class StepZeroRestTests(unittest.TestCase):
             self.skipTest("fastapi is not installed here")
         raw = sqlite3.connect(":memory:", check_same_thread=False)
         ensure(raw)
-        record_event(raw, "ch-b7", "k-b7", "mcp-a", "s-a", kind="brief", text="ship the pack", event_id="evA-room")
         info = {"key_id": "k-b7", "user_id": "b7@example.invalid", "chain_id": "ch-b7", "key_name": "line"}
+        identified = bridge.do_identify(info, raw, "restb", "assistant", "", "s-b8")
+        record_event(raw, "ch-b7", "k-b7", "mcp-a", "s-a", kind="brief", text="ship the pack", event_id="evA-room")
 
         class Hold:
             def close(self):
@@ -87,7 +120,10 @@ class StepZeroRestTests(unittest.TestCase):
 
         def fake_build(user_id, user_db="", shared_db=""):
             seen["user"] = user_id
-            return {"ok": True, "pages": ["=== PACK888 001/001 ===\nhello pack\n", "=== CUBE 00 ===\nFULL CONST 00\n"], "error": ""}
+            return {"ok": True, "pages": [
+                "=== PACK888 001/001 ===\n" + ("h" * 20000),
+                "=== CUBE 00 ===\nFULL CONST 00\n",
+            ], "error": ""}
 
         bridge.lookup_key = lambda token: info if token == "test-room-key" else None
         bridge.open_account = lambda _info: Hold()
@@ -97,18 +133,44 @@ class StepZeroRestTests(unittest.TestCase):
             app.include_router(room_http.router)
             client = TestClient(app)
             headers = {"Authorization": "Bearer test-room-key"}
-            got = client.post("/api/v7/agent/step_zero", json={"session_id": "s-rest"}, headers=headers)
+            got = client.post(
+                "/api/v7/agent/step_zero",
+                json={"session_id": "s-rest", "agent_token": identified["agent_token"]},
+                headers=headers,
+            )
             self.assertEqual(got.status_code, 200)
             body = got.json()
             self.assertEqual(seen.get("user"), "b7@example.invalid")
-            joined = "\n".join(body.get("pages") or [])
-            self.assertIn("PACK888", joined)
+            self.assertEqual(body["page"], 1)
+            self.assertGreater(body["total_pages"], 1)
+            self.assertNotIn("pages", body)
+            self.assertIn("PACK888", body["text"])
+            self.assertNotIn("FULL CONST 00", body["text"])
+            self.assertTrue(body.get("room_text") or body.get("while_away") or body.get("others_block"))
+            self.assertLessEqual(len(got.content), REST_RESPONSE_JSON)
+            parts = [body["text"]]
+            for n in range(2, body["total_pages"] + 1):
+                nxt = client.post(
+                    "/api/v7/agent/step_zero",
+                    json={"session_id": "s-rest", "agent_token": identified["agent_token"], "page": n},
+                    headers=headers,
+                )
+                self.assertEqual(nxt.status_code, 200)
+                self.assertLessEqual(len(nxt.content), REST_RESPONSE_JSON)
+                page_n = nxt.json()
+                self.assertNotIn("room_text", page_n)
+                self.assertNotIn("while_away", page_n)
+                parts.append(page_n["text"])
+            joined = "".join(parts)
             self.assertIn("FULL CONST 00", joined)
+            self.assertIn("PACK888", joined)
+            self.assertEqual(joined.count("h"), 20000)
             self.assertNotIn("pack_error", body)
             step_zero_rest.build_pages = lambda *a, **k: {"ok": False, "pages": [], "error": "user database not found"}
             bad = client.post("/api/v7/agent/step_zero", json={}, headers=headers)
             self.assertEqual(bad.status_code, 200)
             self.assertEqual(bad.json().get("pages"), [])
+            self.assertEqual(bad.json().get("text"), "")
             self.assertIn("not found", bad.json().get("pack_error") or "")
             events = client.post("/api/v7/agent/room_events", json={}, headers=headers)
             self.assertEqual(events.status_code, 200)

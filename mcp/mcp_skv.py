@@ -420,8 +420,16 @@ def _tg_apply(r, first: bool):
     sz = None
     if first:
         try:
-            pages = _step_zero_pages(); _tr()["sz_pages"] = (_time.time(), pages)
-            sz = {"note": SZ_AUTO_NOTE, "page": 1, "pages": len(pages), "next_page": 2 if len(pages) > 1 else None, "text": pages[0]}
+            if not _room_local():
+                payload = _remote_step_payload("", "mcp", False, "normal", page=1)
+                if not _remote_page_ok(payload):
+                    raise RuntimeError(payload.get("error") or payload.get("pack_error") or "empty pages")
+                total = int(payload.get("total_pages") or 1)
+                sz = {"note": SZ_AUTO_NOTE, "page": 1, "pages": total, "next_page": 2 if total > 1 else None,
+                      "text": _remote_page_text(payload, 1)}
+            else:
+                pages = _step_zero_pages(); _tr()["sz_pages"] = (_time.time(), pages)
+                sz = {"note": SZ_AUTO_NOTE, "page": 1, "pages": len(pages), "next_page": 2 if len(pages) > 1 else None, "text": pages[0]}
             _sz_seen_mark(auto=True)
         except Exception as e:
             sz = {"note": SZ_AUTO_NOTE, "error": "auto step_zero failed: %s; call step_zero(page=1)" % str(e)[:120]}
@@ -2125,27 +2133,51 @@ def _pages_usable(pages) -> bool:
     return isinstance(pages, list) and any(isinstance(p, str) and p.strip() for p in pages)
 
 
-def _remote_step_payload(agent_token: str = "", session_id: str = "", force: bool = False, context_state: str = "normal") -> dict:
-    """POST the step_zero route. Empty or failed pages stay an error, never a blank success."""
+def _remote_page_ok(pack) -> bool:
+    """One REST page is usable. A bulk pages list is not a success: that body is the timeout."""
+    if not isinstance(pack, dict) or pack.get("ok") is False or pack.get("pack_error"):
+        return False
+    text = pack.get("text")
+    try:
+        total = int(pack.get("total_pages") or 0)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(text, str) and bool(text.strip()) and total >= 1
+
+
+def _remote_step_payload(agent_token: str = "", session_id: str = "", force: bool = False, context_state: str = "normal", page: int = 1) -> dict:
+    """POST one step_zero page. Empty or failed pages stay an error, never a blank success."""
+    try:
+        page_n = int(page or 1)
+    except (TypeError, ValueError):
+        page_n = 1
     try:
         pack = _req("POST", "/agent/step_zero", {
             "agent_token": agent_token or "",
             "session_id": session_id or "mcp",
             "force": bool(force),
             "context_state": context_state or "normal",
+            "page": page_n,
         })
     except Exception as exc:
-        return {"ok": False, "error": type(exc).__name__, "pages": []}
+        return {"ok": False, "error": type(exc).__name__, "pages": [], "text": "", "total_pages": 0}
     if not isinstance(pack, dict):
-        return {"ok": False, "error": "step_zero response was not an object", "pages": []}
-    pages = pack.get("pages") or []
-    if not _pages_usable(pages):
+        return {"ok": False, "error": "step_zero response was not an object", "pages": [], "text": "", "total_pages": 0}
+    if not _remote_page_ok(pack):
         out = dict(pack)
         out["ok"] = False
         out["pages"] = []
+        out["text"] = ""
         out["error"] = pack.get("pack_error") or pack.get("error") or "memory pack was not returned"
         return out
     return pack
+
+
+def _remote_page_text(payload: dict, page: int) -> str:
+    text = str((payload or {}).get("text") or "")
+    if page == 1 and (payload or {}).get("room_text"):
+        text = str(payload.get("room_text")) + "\n\n" + text
+    return text
 
 
 def _remote_next(page: int, pages: list) -> str:
@@ -2189,13 +2221,15 @@ def _sz_auto_attach(res: str, due: Optional[bool] = None) -> str:
     try:
         if _room_local():
             pages = _step_zero_pages()
+            _tr()["sz_pages"] = (_time.time(), pages)
+            sz = {"note": SZ_AUTO_NOTE, "page": 1, "pages": len(pages), "next_page": 2 if len(pages) > 1 else None, "text": pages[0]}
         else:
-            payload = _remote_step_payload("", "mcp", False, "normal")
-            pages = payload.get("pages") or []
-            if not _pages_usable(pages):
+            payload = _remote_step_payload("", "mcp", False, "normal", page=1)
+            if not _remote_page_ok(payload):
                 raise RuntimeError(payload.get("error") or payload.get("pack_error") or "empty pages")
-        _tr()["sz_pages"] = (_time.time(), pages)
-        sz = {"note": SZ_AUTO_NOTE, "page": 1, "pages": len(pages), "next_page": 2 if len(pages) > 1 else None, "text": pages[0]}
+            total = int(payload.get("total_pages") or 1)
+            sz = {"note": SZ_AUTO_NOTE, "page": 1, "pages": total, "next_page": 2 if total > 1 else None,
+                  "text": _remote_page_text(payload, 1)}
     except Exception as e:
         _sz_seen_mark()
         o["step_zero"] = {"note": SZ_AUTO_NOTE, "error": "auto step_zero failed: %s; call step_zero(page=1)" % str(e)[:120]}
@@ -3063,7 +3097,7 @@ def _not_installed_reply(tool):
 
 
 def _step_zero_remote(page: int, force: bool, agent_token: str, session_id: str, context_state: str) -> str:
-    """Client without a local database: one REST call returns the pack, the constitution and the room block."""
+    """Client without a local database: each call fetches one small REST page."""
     _g = _not_installed_reply("step_zero")
     if _g:
         return _g
@@ -3071,19 +3105,12 @@ def _step_zero_remote(page: int, force: bool, agent_token: str, session_id: str,
     if page == 1:
         _DIET.session_reset(COMPACT_DB, _caller_id() or "env")
         _sz_seen_mark()
-    t = _tr()
-    c = t.get("sz_pages")
-    payload = {}
-    if page > 1 and c and _time.time() - c[0] < 900 and _pages_usable(c[1]):
-        pages = c[1]
-    else:
-        payload = _remote_step_payload(agent_token, session_id, force, context_state)
-        pages = payload.get("pages") or []
-        if not _pages_usable(pages):
-            return _step_zero_unavailable(payload)
-        t["sz_pages"] = (_time.time(), pages)
-    n = len(pages)
-    page = max(1, min(page, n))
+    payload = _remote_step_payload(agent_token, session_id, force, context_state, page=page)
+    if not _remote_page_ok(payload):
+        return _step_zero_unavailable(payload)
+    n = int(payload.get("total_pages") or 1)
+    if page < 1 or page > n:
+        return _step_zero_unavailable({"error": "page out of range", "pack_error": "page out of range"})
     _ch = {}
     if page == 1:
         try:
@@ -3098,18 +3125,28 @@ def _step_zero_remote(page: int, force: bool, agent_token: str, session_id: str,
     if _blg:
         _ch = {**_ch, "base_language": _blg, "search_language_rule": _bl_note(_blg)}
     out = {**_ch, "page": page, "pages": n, "done": page == n,
-           "next_page": (page + 1) if page < n else None, "next": _remote_next(page, pages),
-           "text": pages[page - 1]}
-    if page == 1 and isinstance(payload, dict):
-        if payload.get("text"):
-            out["text"] = str(payload.get("text")) + "\n\n" + (out.get("text") or "")
+           "next_page": (page + 1) if page < n else None, "next": _remote_next_n(page, n, payload.get("text") or ""),
+           "text": _remote_page_text(payload, page)}
+    if page == 1:
+        if payload.get("kind"):
             out["room_step_zero"] = payload.get("kind")
+        if payload.get("while_away"):
             out["while_away"] = payload.get("while_away")
         if payload.get("identify_hint"):
             out["identify_hint"] = payload["identify_hint"]
         if payload.get("others_block"):
             out["others_block"] = payload["others_block"]
     return _dumps(out)
+
+
+def _remote_next_n(page: int, total: int, text: str) -> str:
+    if page >= total:
+        return "step zero complete: answer the user using turn(user_message, draft)"
+    if "PACK888" in (text or "") or page == 1:
+        return ("call step_zero(page=%d) now. Remaining pages include the memory pack 8/8/8. "
+                "Read every page until done=true.") % (page + 1)
+    return ("call step_zero(page=%d) now. Remaining pages are the constitution. "
+            "Read every page until done=true.") % (page + 1)
 
 
 @mcp.tool()
@@ -3215,9 +3252,8 @@ def constitution_install(user_confirmed: bool = False) -> str:
     r = _req("POST", "/constitution/install", _uid_body({"user_confirmed": bool(user_confirmed)}))
     if isinstance(r, dict) and r.get("ok") is not False and user_confirmed:
         if not _room_local():
-            payload = _remote_step_payload("", "mcp", False, "normal")
-            pages = payload.get("pages") or []
-            if not _pages_usable(pages):
+            payload = _remote_step_payload("", "mcp", False, "normal", page=1)
+            if not _remote_page_ok(payload):
                 r["step_zero"] = {
                     "ok": False,
                     "error": "step_zero pack unavailable",
@@ -3228,8 +3264,11 @@ def constitution_install(user_confirmed: bool = False) -> str:
                 version = _const_version()
             except Exception:
                 version = "?"
-            return _dumps({"install": {"ok": True, "installed": True, "constitution_version": version}, "step_zero": {"page": 1, "pages": len(pages), "text": pages[0],
-                           "next_page": 2 if len(pages) > 1 else None, "next": _remote_next(1, pages) if len(pages) > 1 else "done"}})
+            total = int(payload.get("total_pages") or 1)
+            return _dumps({"install": {"ok": True, "installed": True, "constitution_version": version},
+                           "step_zero": {"page": 1, "pages": total, "text": _remote_page_text(payload, 1),
+                           "next_page": 2 if total > 1 else None,
+                           "next": _remote_next_n(1, total, payload.get("text") or "") if total > 1 else "done"}})
         try:
             pages = _step_zero_pages()
             from app.memory_pack888 import step_zero_next

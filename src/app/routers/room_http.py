@@ -41,6 +41,7 @@ class StepZeroRoomBody(BaseModel):
     session_id: str = "rest"
     force: bool = False
     context_state: str = "normal"
+    page: int = 0
 
 
 class RoomEventsBody(BaseModel):
@@ -125,22 +126,25 @@ def http_room_attach(req: RoomTurnBody, authorization: str = Header(None)):
 
 @router.post("/agent/step_zero")
 def http_step_zero_room(req: StepZeroRoomBody, authorization: str = Header(None)):
-    """Room block plus the memory-pack and constitution pages for a client with no local database."""
+    """One step_zero page for a client with no local database.
+
+    page is 1-based. A missing page returns page 1 and total_pages, not the whole pack.
+    The room block is attached only on page 1. A failed pack is an error, not a blank page.
+    """
     from app.room.bridge import open_account, rest_step_zero
-    from app.step_zero_rest import build_pages
+    from app.step_zero_rest import build_pages, select_rest_page
     info = _info(authorization)
     conn = open_account(info)
     try:
-        done = rest_step_zero(
-            info, conn, req.agent_token or "", req.session_id or "rest", bool(req.force), req.context_state or "normal",
-        )
+        page = req.page or 1
+        room = {"ok": True, "step_zero": False, "text": "", "while_away": None}
+        if page == 1:
+            room = rest_step_zero(
+                info, conn, req.agent_token or "", req.session_id or "rest",
+                bool(req.force), req.context_state or "normal",
+            )
         built = build_pages(info.get("user_id") or "")
-        if not isinstance(done, dict):
-            done = {"ok": True}
-        done["pages"] = built.get("pages") or []
-        if not built.get("ok"):
-            done["pack_error"] = built.get("error") or "memory pack unavailable"
-        return done
+        return select_rest_page(built, page, room if isinstance(room, dict) else None)
     finally:
         conn.close()
 

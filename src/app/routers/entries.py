@@ -641,65 +641,23 @@ async def get_entry(cube_id: str):
     try:
         conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
         row = conn.execute("select essence, rules_markdown, status from cubes_new where cube_id=?", (cube_id,)).fetchone()
+        if not row and cube_id.startswith("cube_const_") and cube_id.count("_") >= 3:
+            prefix = "_".join(cube_id.split("_")[:3]) + "_v%"
+            q = (
+                "select cube_id, essence, rules_markdown, status from cubes_new "
+                "where cube_id like ? "
+                "order by (coalesce(status,\"\") in (\"archived\",\"rejected\",\"removed\",\"deleted\")) asc, "
+                "cast(substr(cube_id, ?) as integer) desc limit 1"
+            )
+            cur = conn.execute(q, (prefix, len(prefix))).fetchone()
+            if cur:
+                cube_id = cur[0]
+                row = (cur[1], cur[2], cur[3])
         conn.close()
         if row:
             return {"id": cube_id, "cube_id": cube_id, "title": row[0], "content": row[1], "status": row[2], "source": "cubes_new"}
     except Exception:
         pass
-    from app.routers.v4_graph import get_graph
-    get_graph()
-    from app.routers.v4_graph import _v4_graph
-    
-    cube = _v4_graph.get(cube_id)
-    if cube:
-        return {
-            "id": cube_id,
-            "cube_id": cube_id,
-            "title": cube.metadata.get("title", ""),
-            "content": cube.metadata.get("content") or cube.metadata.get("text", ""),
-            "type": cube.metadata.get("type", "experience"),
-            "importance": cube.metadata.get("importance", 0.5),
-            "is_constitutional": cube.metadata.get("is_constitutional", False),
-            "connections": len(cube.connections),
-            "energy": cube.energy
-        }
-    if not cube:
-        # Попробуем найти в Qdrant по оригинальному ID (если это старый UUID)
-        try:
-            from qdrant_client import QdrantClient
-            client = QdrantClient(host="skv_qdrant", port=6333)
-            # Ищем точку, у которой в payload.cube_id совпадает с искомым
-            scroll_result = client.scroll(
-                collection_name="skv_rules_v2",
-                limit=10,
-                with_payload=True,
-                with_vectors=False
-            )
-            for point in scroll_result[0]:
-                if point.payload.get("cube_id") == cube_id:
-                    return {
-                        "id": str(point.id),
-                        "cube_id": cube_id,
-                        "title": point.payload.get("title", ""),
-                        "metadata": point.payload.get("metadata", {}),
-                        "note": "Found in Qdrant (not in active graph)"
-                    }
-        except:
-            pass
-        
-        raise HTTPException(status_code=404, detail="Entry not found")
-    
-    return {
-        "id": cube_id,
-        "cube_id": cube_id,
-        "title": cube.metadata.get("title", ""),
-        "content": cube.metadata.get("content") or cube.metadata.get("text", ""),
-        "type": cube.metadata.get("type", "experience"),
-        "importance": cube.metadata.get("importance", 0.5),
-        "is_constitutional": cube.metadata.get("is_constitutional", False),
-        "connections": len(cube.connections),
-        "energy": cube.energy
-    }
 
 @router.get("/api/profile/{user_id}/persona")
 async def get_persona(user_id: str, request: Request):

@@ -327,7 +327,7 @@
     "/api/v7/agent/turn": {
       "get": {
         "operationId": "agentTurnGet",
-        "summary": "MAIN PATH: one call per user message. Searches memory, saves the turn, checks [ev:id], returns verdict + seal. Seal = steps done + sources real, not proof of truth.",
+        "summary": "FALLBACK for weak agents that can only open URLs. Same effect as POST. Prefer POST.",
         "parameters": [
           {
             "name": "k",
@@ -357,6 +357,78 @@
             "description": "your draft answer"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "verdict, seal, event_id"
+          }
+        }
+      },
+      "post": {
+        "operationId": "agentTurnPost",
+        "summary": "MAIN PATH for proper clients. One call per user message. Searches memory, saves the turn, checks [ev:id], returns verdict + seal. Prefer this over GET.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "user_message"
+                ],
+                "properties": {
+                  "user_message": {
+                    "type": "string",
+                    "description": "the user message this turn"
+                  },
+                  "draft": {
+                    "type": "string",
+                    "description": "your draft answer (optional)"
+                  },
+                  "query": {
+                    "type": "string",
+                    "description": "optional rewritten search query"
+                  },
+                  "session_id": {
+                    "type": "string",
+                    "description": "stable session id, default rest"
+                  },
+                  "critical": {
+                    "type": "string",
+                    "description": "rare fact to keep forever"
+                  },
+                  "l1_summary": {
+                    "type": "string",
+                    "description": "L1 summary for the batch"
+                  },
+                  "l2_summary": {
+                    "type": "string",
+                    "description": "L2 map summary"
+                  },
+                  "source_event_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "event ids this answer used"
+                  },
+                  "second_look": {
+                    "type": "string",
+                    "description": "answers to last turn second_look_questions"
+                  }
+                }
+              },
+              "example": {
+                "user_message": "What did we decide about the server move?",
+                "draft": "We moved to FirstVDS on 2026-10-17."
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "verdict, seal, event_id"

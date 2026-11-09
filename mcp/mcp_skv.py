@@ -2195,7 +2195,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         if not _is_low(user_message):
             cd = _req("GET", "/api/cubes/search", params={"query": q[:200]}, base=SITE)
             if isinstance(cd, dict) and isinstance(cd.get("results"), list):
-                rk = _rank_cubes(q, cd)
+                rk = _rank_cubes(cd.get("cube_query") or q, cd)
                 lst = next((v for v in (rk.values() if isinstance(rk, dict) else []) if isinstance(v, list) and v and isinstance(v[0], dict)), [])
                 for c in lst[:3]:
                     cid = c.get("cube_id") or c.get("id")
@@ -2942,13 +2942,14 @@ def cube_search(query: str, exclude_own: bool = False, community_only: bool = Fa
     d = _req("GET", "/api/cubes/search", params={"query": q}, base=SITE)
     if not isinstance(d, dict) or not isinstance(d.get("results"), list):
         return _dumps(d)
-    ex = _expand_q(q)
-    if ex != q:  # synonyms (create/make/write/author...) so "how to create a cube" also finds "cube author"
+    rank_q = d.get("cube_query") or q
+    ex = _expand_q(rank_q)
+    if ex != rank_q:  # synonyms (create/make/write/author...) so "how to create a cube" also finds "cube author"
         d2 = _req("GET", "/api/cubes/search", params={"query": ex}, base=SITE)
         if isinstance(d2, dict) and isinstance(d2.get("results"), list):
             seen = {x.get("cube_id") for x in d["results"]}
             d["results"] += [x for x in d2["results"] if x.get("cube_id") not in seen]
-    r = _rank_cubes(q, d)
+    r = _rank_cubes(rank_q, d)
     if exclude_own or community_only:
         def _f(x):
             if isinstance(x, list):

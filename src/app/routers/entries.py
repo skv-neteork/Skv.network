@@ -701,91 +701,6 @@ async def get_entry(cube_id: str):
         "energy": cube.energy
     }
 
-async def _search_cubes_impl(query: str = "", response: Response = None):
-    cache_key = f"search:{hashlib.md5(query.encode()).hexdigest()[:12]}"
-    if cache:
-        cached = cache.get(cache_key)
-        if cached:
-            if response:
-                response.headers["X-Cache-Status"] = "HIT"
-            return cached
-    results = []
-    if query and len(query.strip()) > 0:
-        import sqlite3
-        try:
-            conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
-            import re as _re
-            _stop = {"the","a","an","and","or","for","to","of","in","on","with","how","what","is","my","me"}
-            toks = [t for t in _re.findall(r"\w+", query.lower()) if len(t) > 2 and t not in _stop][:8]
-            stems = list({(t[:-3] if t.endswith("ing") and len(t) > 5 else t[:-1] if t.endswith("s") and len(t) > 4 else t) for t in toks}) or [query.lower()]
-            _f = "lower(coalesce(essence,'')||' '||coalesce(subject_action_object,'')||' '||coalesce(rules_markdown,'')||' '||coalesce(skill_md,'')||' '||cube_id)"
-            where = " or ".join([_f + " like ?"] * len(stems))
-            scored = []
-            for cid, essence, rules, topic, kind, carrier, blob in conn.execute(
-                    "select cube_id, essence, rules_markdown, subject_action_object, kind, carrier, " + _f + " from cubes_new where coalesce(status,'') not in ('archived','rejected','deleted','superseded','pending_version') and (" + where + ") limit 300",
-                    ["%" + t + "%" for t in stems]):
-                head = ((topic or "") + " " + (essence or "")).lower()
-                sc = sum(2 if t in head else 1 for t in stems if t in blob)
-                scored.append((sc, cid, essence, rules, topic, kind, carrier))
-            scored.sort(key=lambda x: -x[0])
-            for sc, cid, essence, rules, topic, kind, carrier in scored[:20]:
-                results.append({"id": cid, "cube_id": cid, "title": essence, "topic": topic, "kind": kind, "carrier": carrier, "score": sc, "content": (rules or "")[:400]})
-            try:
-                import json as _jj
-                for _r in results:
-                    _lr = conn.execute("select links_json from cubes_new where cube_id=?", (_r["cube_id"],)).fetchone()
-                    _pv = (_jj.loads(_lr[0] or "{}") if _lr and (_lr[0] or "").startswith("{") else {}).get("proposed_versions") or []
-                    if _pv:
-                        _r["proposed_newer_version"] = _pv[-1]
-            except Exception:
-                pass
-            conn.close()
-        except Exception:
-            pass
-        if results:
-            return {"results": results, "count": len(results), "query": query}
-        # Гибридный поиск: keyword с score + Qdrant fallback
-        q_lower = query.lower()
-        kw_candidates = []
-        for cube_id, cube in cubes_library.items():
-            s = score_keyword_match(q_lower, cube)
-            if s >= 0.65:
-                kw_candidates.append((s, cube_id, cube))
-        
-        kw_candidates.sort(key=lambda x: -x[0])
-        
-        # Если keyword дал хороший результат
-        if kw_candidates and kw_candidates[0][0] >= 0.7:
-            for s, cube_id, cube in kw_candidates[:50]:
-                results.append({"id": cube["id"], "cube_id": cube_id, "title": cube.get("title", ""), "triggers": cube.get("triggers", [])})
-        
-        # Если keyword-поиск не нашёл ничего — пробуем Qdrant
-        if len(results) == 0:
-            try:
-                from qdrant_client import QdrantClient
-                from app.routers.v4_middleware import get_embedding
-                
-                qv = get_embedding(query)
-                client = QdrantClient(host="skv_qdrant", port=6333)
-                qdrant_results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=10)
-                
-                for r in qdrant_results.points:
-                    payload = r.payload
-                    results.append({
-                        "id": str(r.id),
-                        "cube_id": payload.get("metadata", {}).get("title", str(r.id)),
-                        "title": payload.get("metadata", {}).get("title", str(r.id)),
-                        "triggers": payload.get("triggers", payload.get("trigger_intent", []))
-                    })
-            except Exception as e:
-                print(f"[SEARCH] Qdrant error: {e}", flush=True)
-    result = {"results": results, "count": len(results), "query": query}
-    if cache:
-        cache.set(cache_key, result, ttl=300)
-    if response:
-        response.headers["X-Cache-Status"] = "MISS"
-    return result
-
 @router.get("/api/profile/{user_id}/persona")
 async def get_persona(user_id: str, request: Request):
     auth_header = request.headers.get("Authorization", "")
@@ -862,6 +777,104 @@ async def save_sdk_session(request: Request):
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     return {"status": "ok", "session_id": session_id, "skv_entry_id": entry_id}
+
+
+async def _search_cubes_impl(query: str = "", response: Response = None):
+    raw_query = query or ""
+    try:
+        from app.cube_query import english_query
+        en = english_query(raw_query)
+        if en:
+            query = en
+    except Exception as _cq_e:
+        print(f"[cube_query] search skipped: {type(_cq_e).__name__}", flush=True)
+
+    def _done(res):
+        if not isinstance(res, dict):
+            return res
+        out = dict(res)
+        out["query"] = raw_query
+        out["cube_query"] = query or raw_query
+        return out
+
+    cache_key = f"search:{hashlib.md5((query or '').encode()).hexdigest()[:12]}"
+    if cache:
+        cached = cache.get(cache_key)
+        if cached:
+            if response:
+                response.headers["X-Cache-Status"] = "HIT"
+            return _done(cached)
+    results = []
+    if query and len(query.strip()) > 0:
+        import sqlite3
+        try:
+            conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
+            import re as _re
+            _stop = {"the","a","an","and","or","for","to","of","in","on","with","how","what","is","my","me"}
+            toks = [t for t in _re.findall(r"\w+", query.lower()) if len(t) > 2 and t not in _stop][:8]
+            stems = list({(t[:-3] if t.endswith("ing") and len(t) > 5 else t[:-1] if t.endswith("s") and len(t) > 4 else t) for t in toks}) or [query.lower()]
+            _f = "lower(coalesce(essence,'')||' '||coalesce(subject_action_object,'')||' '||coalesce(rules_markdown,'')||' '||coalesce(skill_md,'')||' '||cube_id)"
+            where = " or ".join([_f + " like ?"] * len(stems))
+            scored = []
+            for cid, essence, rules, topic, kind, carrier, blob in conn.execute(
+                    "select cube_id, essence, rules_markdown, subject_action_object, kind, carrier, " + _f + " from cubes_new where coalesce(status,'') not in ('archived','rejected','deleted','superseded','pending_version') and (" + where + ") limit 300",
+                    ["%" + t + "%" for t in stems]):
+                head = ((topic or "") + " " + (essence or "")).lower()
+                sc = sum(2 if t in head else 1 for t in stems if t in blob)
+                scored.append((sc, cid, essence, rules, topic, kind, carrier))
+            scored.sort(key=lambda x: -x[0])
+            for sc, cid, essence, rules, topic, kind, carrier in scored[:20]:
+                results.append({"id": cid, "cube_id": cid, "title": essence, "topic": topic, "kind": kind, "carrier": carrier, "score": sc, "content": (rules or "")[:400]})
+            try:
+                import json as _jj
+                for _r in results:
+                    _lr = conn.execute("select links_json from cubes_new where cube_id=?", (_r["cube_id"],)).fetchone()
+                    _pv = (_jj.loads(_lr[0] or "{}") if _lr and (_lr[0] or "").startswith("{") else {}).get("proposed_versions") or []
+                    if _pv:
+                        _r["proposed_newer_version"] = _pv[-1]
+            except Exception:
+                pass
+            conn.close()
+        except Exception:
+            pass
+        if results:
+            found = {"results": results, "count": len(results), "query": query}
+            if cache:
+                cache.set(cache_key, found, ttl=300)
+            return _done(found)
+        q_lower = query.lower()
+        kw_candidates = []
+        for cube_id, cube in cubes_library.items():
+            s = score_keyword_match(q_lower, cube)
+            if s >= 0.65:
+                kw_candidates.append((s, cube_id, cube))
+        kw_candidates.sort(key=lambda x: -x[0])
+        if kw_candidates and kw_candidates[0][0] >= 0.7:
+            for s, cube_id, cube in kw_candidates[:50]:
+                results.append({"id": cube["id"], "cube_id": cube_id, "title": cube.get("title", ""), "triggers": cube.get("triggers", [])})
+        if len(results) == 0:
+            try:
+                from qdrant_client import QdrantClient
+                from app.routers.v4_middleware import get_embedding
+                qv = get_embedding(query)
+                client = QdrantClient(host="skv_qdrant", port=6333)
+                qdrant_results = client.query_points(collection_name="skv_rules_v2", query=qv, limit=10)
+                for r in qdrant_results.points:
+                    payload = r.payload
+                    results.append({
+                        "id": str(r.id),
+                        "cube_id": payload.get("metadata", {}).get("title", str(r.id)),
+                        "title": payload.get("metadata", {}).get("title", str(r.id)),
+                        "triggers": payload.get("triggers", payload.get("trigger_intent", []))
+                    })
+            except Exception as e:
+                print(f"[SEARCH] Qdrant error: {e}", flush=True)
+    result = {"results": results, "count": len(results), "query": query}
+    if cache:
+        cache.set(cache_key, result, ttl=300)
+    if response:
+        response.headers["X-Cache-Status"] = "MISS"
+    return _done(result)
 
 
 @router.get("/api/cubes/search")

@@ -140,6 +140,7 @@ First consult / bootstrap returns **memory_map** (topic windows overview). Use i
 
 ### Suggested cubes (in search)
 - `memory_consult`, `memory_search`, `cube_search` may return `suggested_cubes.items` (only on strong topic match; no repeats per session).
+- Memory search stays in the memory language. Cube search translates a non-English query into English on the server (`cube_query`) and searches the English catalog. Names and ids stay verbatim.
 - Plain cube → use it in the answer if it fits. Skill cube (`has_skill`) → offer install; `cube_install` only after user yes.
 - `rate_this` → after use, `cube_vote` +1/-1. Wrong or outdated → `cube_vote` with `reason` + `fix_rules`/`fix_essence`/`fix_skill_md`/`fix_hooks`: judges decide; old version is kept.
 

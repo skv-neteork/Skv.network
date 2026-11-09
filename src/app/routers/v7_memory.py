@@ -550,7 +550,13 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
     shared_cubes = []
     try:
         import sqlite3 as _sq
-        words = [w for w in (getattr(req, "query_text", "") or "").split() if len(w) >= 3][:4]
+        _q_cubes = getattr(req, "query_text", "") or ""
+        try:
+            from app.cube_query import english_query
+            _q_cubes = english_query(_q_cubes) or _q_cubes
+        except Exception:
+            pass
+        words = [w for w in _q_cubes.split() if len(w) >= 3][:4]
         if words:
             _c = _sq.connect(SHARED_DB)
             _cur = _c.cursor()

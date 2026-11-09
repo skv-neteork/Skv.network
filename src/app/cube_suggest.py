@@ -80,6 +80,8 @@ def _item(r, rate_this=False):
 def suggest(query, uid="", session_id="", top=3):
     empty = {"items": [], "note": "no strong topic match"}
     try:
+        from app.cube_query import english_query
+        query = english_query(query) or (query or "")
         qt = toks(query)
         if not qt:
             return empty

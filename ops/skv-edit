@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""skv-edit start|check|finish <files>
+
+Reads SKV_API_KEY and SKV_AGENT_TOKEN from the environment and never prints them.
+Local mode: SKV_ACCOUNT_DB + SKV_CHAIN_ID + SKV_KEY_ID (and the token).
+HTTP mode: SKV_API_BASE (default http://127.0.0.1:8000).
+"""
+import hashlib
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+
+def _die(msg, code=1):
+    sys.stderr.write(msg.rstrip() + "\n")
+    raise SystemExit(code)
+
+
+def _hash(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _env(name):
+    return (os.environ.get(name) or "").strip()
+
+
+def _local():
+    db = _env("SKV_ACCOUNT_DB")
+    if not db:
+        return None
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+    import sqlite3
+    from app.room import file_check, file_claim, file_release, resolve_call
+
+    conn = sqlite3.connect(db)
+    key_id = _env("SKV_KEY_ID") or "local"
+    chain = _env("SKV_CHAIN_ID") or "local"
+    who = resolve_call(conn, key_id, chain, _env("SKV_KEY_NAME") or "agent", _env("SKV_AGENT_TOKEN"), _env("SKV_SESSION_ID") or "skv-edit")
+    if not who.get("ok"):
+        _die(who.get("error") or "IDENTIFY_REQUIRED")
+    return conn, chain, key_id, who["actor_id"]
+
+
+def _http(method_path, payload):
+    base = (_env("SKV_API_BASE") or "http://127.0.0.1:8000").rstrip("/")
+    if base.endswith("/api/v7"):
+        url = base + method_path
+    else:
+        url = base + "/api/v7" + method_path
+    key = _env("SKV_API_KEY")
+    if not key:
+        _die("SKV_API_KEY is not set")
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("Authorization", "Bearer " + key)
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode() or "{}")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()[:500]
+        _die("HTTP %s %s" % (e.code, body), 2 if e.code == 409 else 1)
+
+
+def main(argv):
+    if len(argv) < 3 or argv[1] not in ("start", "check", "finish"):
+        _die("usage: skv-edit start|check|finish <files>")
+    cmd, files = argv[1], argv[2:]
+    loc = _local()
+    for path in files:
+        digest = _hash(path) if os.path.isfile(path) else ""
+        rel = path
+        if loc:
+            conn, chain, key_id, actor = loc
+            if cmd == "start":
+                try:
+                    out = file_claim(conn, chain, rel, actor, digest, key_id=key_id)
+                except Exception as e:
+                    _die("%s: %s" % (rel, e), 2)
+                print("%s %s" % (rel, out.get("base_hash") or digest))
+            elif cmd == "check":
+                out = file_check(conn, chain, rel, digest)
+                if not out.get("ok"):
+                    _die("%s: %s" % (rel, out.get("message")), 2)
+                print("%s ok" % rel)
+            else:
+                out = file_release(conn, chain, rel, actor, digest, key_id=key_id, old_hash="")
+                print("%s released %s" % (rel, out.get("event_id")))
+        else:
+            token = _env("SKV_AGENT_TOKEN")
+            sess = _env("SKV_SESSION_ID") or "skv-edit"
+            if cmd == "start":
+                out = _http("/file_claim", {"path": rel, "base_hash": digest, "agent_token": token, "session_id": sess})
+                print("%s %s" % (rel, (out.get("base_hash") or digest)))
+            elif cmd == "check":
+                out = _http("/file_check", {"path": rel, "current_hash": digest, "agent_token": token, "session_id": sess})
+                if not out.get("ok"):
+                    _die("%s: %s" % (rel, out.get("message") or out.get("detail")), 2)
+                print("%s ok" % rel)
+            else:
+                out = _http("/file_release", {"path": rel, "new_hash": digest, "agent_token": token, "session_id": sess})
+                print("%s released %s" % (rel, out.get("event_id") or ""))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv) or 0)
+    except BrokenPipeError:
+        sys.exit(0)

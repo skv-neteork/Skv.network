@@ -1,0 +1,4 @@
+#!/bin/sh
+# Source copy. Install with: cp ops/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+ROOT=$(git rev-parse --show-toplevel)
+exec python3 "$ROOT/ops/room_pre_commit.py"

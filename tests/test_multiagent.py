@@ -264,6 +264,59 @@ class RoomTests(unittest.TestCase):
         self.assertFalse(any(f["ev"] == "leg1" and f["is_self"] for f in view["facts"]))
         self.assertNotIn("leg1", " ".join(view["own_lines"]))
 
+    def test_11_full_pack_prints_each_event_once(self):
+        a = self._id("grok-build", "morning", T0)
+        record_event(self.c, "ch", "k", a["agent_id"], "morning", kind="brief", text="начал доску", event_id="am1", now=T0)
+        record_event(
+            self.c, "ch", "k", a["agent_id"], "morning", kind="file_change",
+            path="src/app/board.py", old_hash="aaa1111", new_hash="bbb2222",
+            minus=2, plus=5, event_id="am2", now=T0,
+        )
+        evening = T0 + timedelta(hours=10)
+        b = self._id("grok-bot", "evening", evening)
+        pack = step_zero_package(
+            self.c, b["agent_id"], "k", "ch", "assistant", "evening", now=evening, display_name="grok-bot",
+        )
+        text = pack["text"]
+        self.assertEqual(pack["kind"], "full")
+        self.assertEqual(text.count("[ev:am1@grok-build]"), 1)
+        self.assertEqual(text.count("[ev:am2@grok-build]"), 1)
+        self.assertEqual(text.count("FILE_CHANGE src/app/board.py"), 1)
+        self.assertNotIn("ещё с ev:", text)
+        cites = set()
+        for tok in text.split("[ev:")[1:]:
+            cites.add(tok.split("]", 1)[0].split("@", 1)[0])
+        for line in text.splitlines():
+            if "ещё с ev:" not in line:
+                continue
+            pointed = line.split("ещё с ev:", 1)[1].split(" ", 1)[0].strip("—").strip()
+            self.assertNotIn(pointed, cites)
+
+    def test_12_pack_overflow_skips_events_already_printed(self):
+        other = self._id("grok-build", "morning", T0)
+        record_event(self.c, "ch", "k", other["agent_id"], "morning", kind="brief", text="план", event_id="b1", now=T0)
+        record_event(self.c, "ch", "k", other["agent_id"], "morning", kind="turn", text="сырой ход", event_id="t1", now=T0)
+        for i in range(6):
+            record_event(
+                self.c, "ch", "k", other["agent_id"], "morning", kind="claim",
+                task_id="T%02d" % i, event_id="q%d" % i, now=T0,
+            )
+        evening = T0 + timedelta(hours=10)
+        me = self._id("grok-bot", "evening", evening)
+        pack = step_zero_package(
+            self.c, me["agent_id"], "k", "ch", "assistant", "evening", now=evening, display_name="grok-bot",
+        )
+        text = pack["text"]
+        self.assertEqual(text.count("[ev:b1@grok-build]"), 1)
+        self.assertEqual(text.count("[ev:q0@grok-build]"), 1)
+        self.assertEqual(text.count("[ev:q4@grok-build]"), 1)
+        self.assertNotIn("[ev:t1@", text)
+        overflow = [ln for ln in text.splitlines() if "ещё с ev:" in ln]
+        self.assertEqual(len(overflow), 1)
+        self.assertIn("ещё с ev:t1", overflow[0])
+        self.assertNotIn("ещё с ev:b1", overflow[0])
+        self.assertNotIn("ещё с ev:q4", overflow[0])
+
 
 if __name__ == "__main__":
     unittest.main()

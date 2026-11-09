@@ -1,11 +1,14 @@
 """Per-agent step_zero. One automatic full pack per session; force at most once per 10 minutes."""
+import re
 from datetime import timedelta
 
 from app.room.clock import as_dt, iso, parse_iso
 from app.room.copy import EMPTY_LANE, STARTER_VERSION
-from app.room.digest import build_while_away
+from app.room.digest import _OVERFLOW, build_while_away
 from app.room.lanes import facts_for
 from app.room.schema import ensure
+
+_CITE_ID = re.compile(r"\[ev:([^\]@\s]+)")
 
 
 def _logs(conn, actor_id):
@@ -63,6 +66,28 @@ def _mark(conn, actor_id, session_id, kind, starter_version, now):
     conn.commit()
 
 
+def _dedupe_pack_overflow(digest, printed_blob, unshown_ids):
+    """Keep the overflow line from citing an ev the full pack already printed.
+
+    The standalone digest is unchanged. Only the copy glued into the pack is rewritten.
+    """
+    lines = (digest or "").splitlines()
+    idx = None
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if s.startswith("+") and "ещё с ev:" in s:
+            idx = i
+    if idx is None:
+        return digest or ""
+    printed = set(_CITE_ID.findall(printed_blob or ""))
+    still = [e for e in (unshown_ids or []) if e and e not in printed]
+    if not still:
+        del lines[idx]
+    else:
+        lines[idx] = _OVERFLOW % (len(still), still[0], still[0])
+    return "\n".join(lines).strip()
+
+
 def step_zero_package(conn, actor_id, key_id, chain_id, role="assistant", session_id="mcp",
                       context_state="normal", force=False, starter_version=STARTER_VERSION, now=None, display_name=""):
     kind = decide(conn, actor_id, session_id, context_state, force, starter_version, now)
@@ -74,15 +99,21 @@ def step_zero_package(conn, actor_id, key_id, chain_id, role="assistant", sessio
     who = display_name or actor_id
     head = "Ты %s, роль %s." % (who, role)
     parts = [head]
+    own_part = ""
     if kind == "full":
-        parts.append(view["own_empty"] or "\n".join(view["own_lines"][:8]))
+        own_part = view["own_empty"] or "\n".join(view["own_lines"][:8])
+        parts.append(own_part)
         if view["others_block"]:
             parts.append(view["others_block"])
     if away.get("text"):
         digest = away["text"]
-        dlines = digest.splitlines()[:12]
+        if kind == "full":
+            printed = (own_part or "") + "\n" + (view.get("others_block") or "")
+            digest = _dedupe_pack_overflow(digest, printed, away.get("unshown_event_ids") or [])
+        dlines = [ln for ln in digest.splitlines() if ln.strip()][:12]
         digest = "\n".join(dlines)[:1500]
-        parts.append(digest)
+        if digest:
+            parts.append(digest)
     elif kind == "delta":
         parts.append("дельта: простой больше 12 ч")
     text = "\n".join(p for p in parts if p)

@@ -133,7 +133,7 @@ def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=Non
         if e.get("ev_kind") == "turn" or e.get("ev_kind") in allowed:
             window.append(e)
     if not window:
-        return {"text": None, "lines": [], "proposed_upto": cur, "covered": [], "event_ids": []}
+        return {"text": None, "lines": [], "proposed_upto": cur, "covered": [], "event_ids": [], "unshown_event_ids": []}
     conflicts, directed, results, changes, raws = [], [], [], [], []
     for e in window:
         if _is_conflict(e, paths, tasks, actor_id):
@@ -226,7 +226,15 @@ def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=Non
     evs = []
     for s in shown:
         evs.extend(s["evs"])
-    return {"text": text or None, "lines": lines, "proposed_upto": proposed, "covered": covered, "event_ids": evs}
+    unshown_event_ids = [e["event_id"] for e in unshown]
+    return {
+        "text": text or None,
+        "lines": lines,
+        "proposed_upto": proposed,
+        "covered": covered,
+        "event_ids": evs,
+        "unshown_event_ids": unshown_event_ids,
+    }
 
 
 def deliver(conn, serialize, actor_id, key_id, chain_id, role="assistant", now=None):

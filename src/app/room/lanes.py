@@ -50,9 +50,13 @@ def visible_other(event, role):
     return event.get("ev_kind") in VISIBLE.get(role or "assistant", VISIBLE["assistant"])
 
 
-def others_block(events, actor_id, key_id, role):
+def others_block(events, actor_id, key_id, role, digest_ids=None):
+    """Third-person lines. An ev already printed by the digest is left out."""
+    skip = set(digest_ids or [])
     lines = []
     for e in events:
+        if e.get("event_id") in skip:
+            continue
         if _is_self(e, actor_id, key_id) or not e.get("actor_agent_id"):
             continue
         if e.get("ev_kind") == "turn":
@@ -115,7 +119,7 @@ def facts_for(conn, actor_id, key_id, chain_id, role="assistant", digest_ids=Non
         "facts": facts,
         "own_lines": [own_line(e) for e in own],
         "own_empty": EMPTY_LANE if not own else "",
-        "others_block": others_block(events, actor_id, key_id, role),
+        "others_block": others_block(events, actor_id, key_id, role, digest_ids),
         "legacy_block": legacy_block(conn, legacy),
     }
 

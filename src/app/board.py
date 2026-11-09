@@ -64,6 +64,19 @@ def _status(s):
     return _OLD_STATUS.get(s, s) if s in _OLD_STATUS else (s or "")
 
 
+def for_line(rows, chain_id):
+    """Drive folder cards are per memory line. A missing chain sees none of them."""
+    out = []
+    mark = "chain:" + (chain_id or "") + "\n"
+    for item in rows or []:
+        if str(item.get("item_id") or "").startswith("drv_"):
+            if chain_id and (item.get("body") or "").startswith(mark):
+                out.append(item)
+            continue
+        out.append(item)
+    return out
+
+
 def items(uid, include_closed=False):
     c = _conn(uid)
     try:
@@ -258,7 +271,7 @@ def _line(i, body=200):
 
 
 def render(uid, tokens=500, chain_id=None):
-    allit = items(uid, include_closed=True)
+    allit = for_line(items(uid, include_closed=True), chain_id)
     access_text = _access_text(uid, chain_id)
     if not allit and not access_text:
         return ""

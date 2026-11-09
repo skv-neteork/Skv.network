@@ -3802,6 +3802,46 @@ def memory_import_text(text: str, source: str = "text_import") -> str:
 
 
 @mcp.tool()
+def drive_connect(code: str = "") -> str:
+    """Start Google Drive connect, or finish it with a one-time code.
+    The refresh token is stored as [vault:drive_oauth]. This tool never returns the token."""
+    if code:
+        return _dumps(_req("POST", "/drive/connect", _uid_body({"code": code})))
+    return _dumps(_req("GET", "/drive/connect"))
+
+
+@mcp.tool()
+def drive_sync() -> str:
+    """Scan this memory line's SKV folder. New files get a description, changed files update, removed files are marked dead."""
+    return _dumps(_req("POST", "/drive/sync", _uid_body({})))
+
+
+@mcp.tool()
+def drive_read(file_id: str, start: int = 0, limit: int = 262144) -> str:
+    """Read a file from this line's Drive folder. Text and PDF come back as text. Large files return one part and next."""
+    return _dumps(_req("POST", "/drive/read", _uid_body({
+        "file_id": file_id, "start": int(start or 0), "limit": int(limit or 262144),
+    })))
+
+
+@mcp.tool()
+def drive_put(name: str, description: str, text: str = "", path: str = "", mime: str = "text/plain") -> str:
+    """Store a file. Over 1 MB goes to this line's Drive folder and memory keeps the link. At or under 1 MB stays in memory.
+    With no Drive connection a heavy file is refused: connect Drive."""
+    import base64
+    body = {"name": name or "file", "description": description or "", "mime": mime or "text/plain", "path": path or ""}
+    if text:
+        body["content_b64"] = base64.b64encode(text.encode("utf-8")).decode("ascii")
+    return _dumps(_req("POST", "/drive/put", _uid_body(body)))
+
+
+@mcp.tool()
+def drive_list() -> str:
+    """Мой Drive: name, size, description, status and scan time for this memory line only."""
+    return _dumps(_req("GET", "/drive/list"))
+
+
+@mcp.tool()
 def drive_queue_list(status: str = "pending", limit: int = 50) -> str:
     """List import→Drive queue — GET /import/drive/queue.
     Agent drain: drive_queue_payload → upload to Drive folder "SKV Import" → drive_queue_complete.
@@ -4424,7 +4464,8 @@ def vault_inject(name: str, purpose: str, url: str, method: str = "POST", body: 
 VISIBLE = {"constitution_get", "turn", "step_zero", "constitution_status", "constitution_install", "memory_start", "memory_search", "memory_event",
            "cube_search", "cube_get", "cube_install", "cube_vote", "cube_create", "cube_confirm", "feedback_submit", "board_list", "board_act", "sandbox_run",
            "cube_consent", "court_case", "court_removal_request", "cube_link", "consult", "consult_accept", "vault_inject", "joint_project", "joint_search", "turn_stats", "memory_recall_later", "memory_recall_status",
-           "identify", "file_claim", "file_release"}
+           "identify", "file_claim", "file_release",
+           "drive_connect", "drive_sync", "drive_read", "drive_put", "drive_list"}
 
 
 _MEMTOOLS = {"step_zero", "memory_start", "constitution_install", "constitution_get", "constitution_status", "turn", "memory_search", "memory_consult", "memory_event", "memory_start", "memory_bootstrap", "step_zero", "memory_lens", "memory_recall_later", "memory_recall_status"}

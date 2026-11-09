@@ -2123,7 +2123,7 @@ def board_get(request: Request, user_id: str = "", history: int = 0, status: str
     uid, chain = _key_line(request, user_id)
     if not uid:
         raise HTTPException(401, "API key required")
-    its = _board.items(uid, include_closed=True)
+    its = _board.for_line(_board.items(uid, include_closed=True), chain)
     if status:
         its = [i for i in its if i.get("status") in status.split(",")]
     out = {"items": its, "text": _board.render(uid, 2000, chain), "statuses": list(_board.STATUSES),

@@ -285,6 +285,26 @@ def _vault_hits(uid, query, stems, limit=3):
     return [o for _, o in out[:limit]]
 
 
+def _drive_hits(uid, query, limit=3):
+    """Files of the caller's memory line only. No row and no chain means no hit."""
+    try:
+        from app import drive_files as _df
+        pair = _df.CALL_CHAIN.get()
+        if not pair or str(pair[0]).lower() != str(uid or "").lower():
+            return []
+        hits = _df.search(uid, pair[1], query, limit=limit)
+    except Exception as exc:
+        print(f"[search_text] drive skipped: {type(exc).__name__}", flush=True)
+        return []
+    out = []
+    for hit in hits:
+        out.append({"event_id": hit.get("event_id") or ("drive:" + str(hit.get("drive_file_id") or "")),
+                    "score": hit.get("score") or 0, "source": "drive",
+                    "summary": (hit.get("memory_text") or "")[:300],
+                    "metadata": {"time_str": hit.get("scanned_at") or ""}})
+    return out
+
+
 def text_search(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
     ctx = _line_ctx()
     k = min(120, max(top_k * 4, 40)) if ctx else top_k
@@ -299,7 +319,7 @@ def text_search(uid, query, top_k=20, since=None, until=None, exclude_imports=Fa
             stems = _stems(query)
             have = {o.get("event_id") for o in out}
             top = max([float(o.get("score") or 0) for o in out] or [1.0]) or 1.0
-            extra = [x for x in _critical_hits(uid, query, stems, ctx) + _vault_hits(uid, query, stems) if x["event_id"] not in have or x["source"] == "vault"]
+            extra = [x for x in _critical_hits(uid, query, stems, ctx) + _vault_hits(uid, query, stems) + _drive_hits(uid, query) if x["event_id"] not in have or x["source"] in ("vault", "drive")]
             for x in extra:
                 x["score"] = round(top * (0.6 + 0.35 * x["score"]), 5)   # full match ranks near the best event hit
             if extra:

@@ -199,6 +199,15 @@ def route_import_text(user_id, text, source="", event_id=None, db=None, cfg=None
                 )
         except Exception as exc:
             print(f"[IMPORT] vault log skipped: {exc}", flush=True)
+    if len((text or "").encode("utf-8", "replace")) > 1_000_000:
+        try:
+            from app import drive_files as _df
+            if not _df.connected(user_id):
+                stats["drive_hint"] = _df.CONNECT_HINT
+                if _df.CONNECT_HINT not in (cleaned or ""):
+                    cleaned = ((cleaned or "").rstrip() + "\n" + _df.CONNECT_HINT).strip()
+        except Exception as exc:
+            print(f"[IMPORT] drive hint skipped: {type(exc).__name__}", flush=True)
     return cleaned, stats
 
 

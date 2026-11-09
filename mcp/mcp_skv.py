@@ -2653,7 +2653,32 @@ def _annotate_mem(mem: str, items: list) -> str:
     return "\n".join(f(l) for l in mem.split("\n"))
 
 
+def _memory_pack_pages():
+    """This user's 8/8/8 document, already split into step_zero pages. Returns (pages, raw_ids, error)."""
+    uid = _caller_id() or USER
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    try:
+        from app.memory_pack888 import leak_names, load_pack, render_document, split_document
+        pack = load_pack(uid)
+        pack["service_accesses"] = _service_access_records(uid)
+        doc = render_document(pack)
+        leaks = leak_names(doc)
+        if leaks:
+            return [], [], "secret patterns remain: " + ",".join(leaks)
+        ids = [r["id"] for r in pack["layers"]["raw"]["included"]]
+        return split_document(doc), ids, ""
+    except Exception as e:
+        line = str(e).splitlines()[0][:180]
+        return [], [], line or type(e).__name__
+
+
 def _step_zero_pages() -> list:
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    from app.memory_pack888 import assemble_step_zero
     last = _last_seal_fresh()
     pblock = ""
     try:
@@ -2663,28 +2688,34 @@ def _step_zero_pages() -> list:
         pblock = ""
     # page 1 must stay whole inside one tool response (RESP_LIMIT 9000 incl. JSON escaping + cube_harvest
     # envelope), otherwise _dumps shrinks the text to 3000 chars and memory + board get cut.
+    # The 8/8/8 pack is the following pages, each checked against that same limit. It is not clipped into page 1.
     BUDGET = 7300
     links = _links_index()
     bpart = _board_part()
+    pack_pages, raw_ids, pack_err = _memory_pack_pages()
+    note = ("\n\n=== STEP ZERO: memory pack 8/8/8 ===\n"
+            "The following pages marked PACK888 are your memory for this user. "
+            "Read every page until done=true before you answer. "
+            "Concatenate the text under each PACK888 line, in order: that is one document. "
+            "A page break does not end a record. Cite facts by the [ev:id] shown in the pack. "
+            "Token figures in the pack are estimates, not a model tokenizer count. "
+            "The service_accesses section lists where an access is stored. A listing is not permission to act. "
+            "After the pack, the constitution pages follow. Read those too.")
+    if pack_err:
+        note += "\nPACK ABSENT: " + pack_err
+    elif not pack_pages:
+        note += "\nPACK ABSENT: empty document"
     btext = _board_step_zero_text(2600, bpart)
-    fixed = len(USE_TURN) + 300 + len(links) + len(pblock)
-    for nt, an in ((5, 800), (4, 700), (4, 500), (3, 450), (2, 400), (1, 300)):
-        mem, items = _sz_memory(nt, an)
-        if fixed + len(mem) + len(btext) <= BUDGET:
-            break
-    if fixed + len(mem) + len(btext) > BUDGET:   # board is step zero call 2: keep it, shorter
-        btext = _board_step_zero_text(max(600, BUDGET - fixed - len(mem) - 150), bpart)
-    over = fixed + len(mem) + len(btext) - BUDGET
+    fixed = len(USE_TURN) + len(note) + 300 + len(links) + len(pblock)
+    if fixed + len(btext) > BUDGET:
+        btext = _board_step_zero_text(max(600, BUDGET - fixed - 150), bpart)
+    over = fixed + len(btext) - BUDGET
     if over > 0 and pblock:
         pblock = _trim_words(pblock, max(400, len(pblock) - over)) + "\n(full profile: memory_dig(focus_id=prof:list))"
-    try:
-        mem = _annotate_mem(mem, items)
-    except Exception:
-        pass
-    t = _tr(); t["sz"] = [{"event_id": e, "summary": x} for e, x in items]; t["sz_t"] = _time.time()
-    p1 = (USE_TURN + "\n\nCONSTITUTION (" + _const_version() + "): the full texts of CUBE 00-04 + CUBE 05-MCP follow on the next step_zero pages; read EVERY page until done=true." +
+    t = _tr(); t["sz"] = [{"event_id": e, "summary": ""} for e in raw_ids]; t["sz_t"] = _time.time()
+    p1 = (USE_TURN + note +
+          "\n\nCONSTITUTION (" + _const_version() + "): CUBE 00-04 + CUBE 05-MCP follow after the PACK888 pages; read EVERY page until done=true." +
           ("\n\n" + pblock if pblock else "") +
-          "\n\n=== STEP ZERO: your memory (cite facts by the [ev:id] shown) ===\n" + mem +
           btext +
           "\n\n" + links +
           "\n\nLast seal: #%03d -> turn will issue %s" % (last, SEAL_FMT.format(n=last + 1)))
@@ -2692,7 +2723,7 @@ def _step_zero_pages() -> list:
         cp = _const_pages(False)
     except Exception:
         cp = []
-    return _pack([p1]) + cp
+    return assemble_step_zero(_pack([p1], limit=5000), pack_pages, cp)
 
 
 def _last_seal_fresh() -> int:
@@ -2787,8 +2818,9 @@ def step_zero(page: int = 1) -> str:
     _blg = _base_lang() if page == 1 else None
     if _blg:
         _ch = {**_ch, "base_language": _blg, "search_language_rule": _bl_note(_blg)}
+    from app.memory_pack888 import step_zero_next
     return _dumps({**_ch, "page": page, "pages": n, "done": page == n, "next_page": (page + 1) if page < n else None,
-                   "next": ("call step_zero(page=%d) now: pages 2..%d hold the full constitution (CUBE 00-04 + CUBE 05-MCP)" % (page + 1, n)) if page < n else "step zero complete: answer the user using turn(user_message, draft)",
+                   "next": step_zero_next(page, pages),
                    "text": pages[page - 1]})
 
 
@@ -2812,8 +2844,9 @@ def constitution_install(user_confirmed: bool = False) -> str:
     if isinstance(r, dict) and r.get("ok") is not False and user_confirmed:
         try:
             pages = _step_zero_pages()
+            from app.memory_pack888 import step_zero_next
             return _dumps({"install": {"ok": True, "installed": True, "constitution_version": _const_version()}, "step_zero": {"page": 1, "pages": len(pages), "text": pages[0],
-                           "next_page": 2 if len(pages) > 1 else None, "next": ("call step_zero(page=2) .. step_zero(page=%d): the full constitution CUBE 00-04 + CUBE 05-MCP; read every page" % len(pages)) if len(pages) > 1 else "done"}})
+                           "next_page": 2 if len(pages) > 1 else None, "next": step_zero_next(1, pages) if len(pages) > 1 else "done"}})
         except Exception as e:
             r["step_zero"] = f"call step_zero(page=1): {e}"
     return _dumps(r)
@@ -3314,13 +3347,104 @@ def _board_part() -> dict:
     return {}
 
 
+def _service_access_records(uid: str) -> list:
+    """This key's service-access rows for the pack. Another line is not listed."""
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    try:
+        from app import access_registry as _ar
+        from app.api_keys import chain_for_token
+        info = chain_for_token(_active_key())
+        owner = (info[0] if info else "") or ""
+        chain = (info[1] if info else "") or ""
+        if not owner or not chain or (uid and owner.lower() != str(uid).lower()):
+            return _ar.pack_records(None, "", "")
+        conn = _ar.open_account(owner)
+        try:
+            return _ar.pack_records(conn, owner, chain)
+        finally:
+            conn.close()
+    except Exception:
+        return [{"id": "service_accesses:error", "layer": "service_access",
+                 "body": "ABSENT: registry could not be read."}]
+
+
+def _access_lines_for_step_zero(acc, cap: int) -> str:
+    """Access block for page 1. Whole rows only. Rows that do not fit are named."""
+    if not isinstance(acc, dict):
+        return ""
+    note = "\n\n=== ACCESSES (a listing is not permission to act; an agent cannot delete these) ===\n"
+    records = list(acc.get("records") or [])
+    text = (acc.get("text") or "").strip()
+    absent = acc.get("absent") or ""
+    if not records and not text and not absent:
+        return ""
+    room = max(0, cap - len(note))
+    if not records:
+        body = text
+        if len(body) > room:
+            ids = [str(i) for i in (acc.get("ids") or acc.get("omitted") or [])]
+            body = "omitted: " + ",".join(ids) + "\nover_cap: true"
+        return note + body
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    from app.access_registry import limit_text
+    fitted = limit_text(records, acc.get("omitted") or [], max(room, 1))
+    body = fitted["text"]
+    if len(body) > room:
+        ids = [str(r.get("access_id") or "") for r in records]
+        body = "count: %d\nomitted: %s\nover_cap: true" % (len(records), ",".join(ids))
+    return note + body
+
+
+def _local_access_payload() -> dict:
+    """Read the registry in this process when the API response has no accesses object."""
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    try:
+        from app import access_registry as _ar
+        from app.api_keys import chain_for_token
+        info = chain_for_token(_active_key())
+        owner = (info[0] if info else "") or ""
+        chain = (info[1] if info else "") or ""
+        if not owner or not chain:
+            return {"records": [], "ids": [], "omitted": [], "absent": "no_line", "text": _ar.NO_LINE}
+        conn = _ar.open_account(owner)
+        try:
+            rows = _ar.list_line(conn, owner, chain)
+        finally:
+            conn.close()
+        if not rows:
+            return {"records": [], "ids": [], "omitted": [], "absent": "empty",
+                    "text": _ar.NOTE + "\n" + _ar.EMPTY_LINE}
+        return {"records": rows, "ids": [r["access_id"] for r in rows], "omitted": [], "absent": "",
+                "text": _ar.render_records(rows)}
+    except Exception:
+        return {"records": [], "ids": [], "omitted": [], "absent": "error",
+                "text": "ABSENT: registry could not be read."}
+
+
 def _board_step_zero_text(cap: int = 2600, b: dict = None) -> str:
     b = _board_part() if b is None else b
+    if not isinstance(b, dict):
+        b = {}
+    acc = b.get("accesses") if isinstance(b.get("accesses"), dict) else None
+    if acc is None:
+        acc = _local_access_payload()
+    acc_text = _access_lines_for_step_zero(acc, cap)
+    task_cap = max(0, cap - len(acc_text))
     t = (b.get("text") or "").strip()
-    if t:
-        if len(t) > cap:
-            t = t[:t.rfind("\n", 0, cap) if t.rfind("\n", 0, cap) > cap // 2 else cap] + "\n…(more: board_list)"
-        return "\n\n=== BOARD: %s open (step zero call 2 of 2; board_list for all, board_act to change) ===\n%s" % (b.get("open_count"), t)
+    head = ""
+    if t and task_cap > 80:
+        if len(t) > task_cap:
+            cut = t.rfind("\n", 0, task_cap)
+            t = (t[:cut] if cut > task_cap // 2 else t[:task_cap]) + "\n…(more: board_list)"
+        head = "\n\n=== BOARD: %s open (step zero call 2 of 2; board_list for all, board_act to change) ===\n%s" % (b.get("open_count"), t)
+    if head or acc_text:
+        return head + acc_text
     return _board_focus_text()
 
 

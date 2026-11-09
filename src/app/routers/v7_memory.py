@@ -2027,17 +2027,60 @@ def board_edit(req: BoardRequest):
         raise HTTPException(422, str(e))
 
 
+def _key_line(request, user_id: str = ""):
+    """Server owner and this key's memory line. The body cannot choose either."""
+    from app import api_keys as _ak
+    uid = (_request_user(request) or user_id or "").strip()
+    token = ""
+    try:
+        auth = request.headers.get("authorization") or ""
+        xkey = request.headers.get("x-api-key") or ""
+    except Exception:
+        auth, xkey = "", ""
+    if auth.lower().startswith("bearer "):
+        token = auth[7:].strip()
+    elif xkey:
+        token = xkey.strip()
+    info = _ak.chain_for_token(token) if token else None
+    if not info:
+        return uid, ""
+    owner, chain = (info[0] or ""), (info[1] or "")
+    if uid and owner and uid.lower() != owner.lower():
+        return uid, ""
+    return (owner or uid), chain
+
+
+def _access_view(uid: str, chain: str) -> dict:
+    from app import access_registry as _ar
+    from app import shelves as _sh
+    if not chain:
+        return {"records": [], "count": 0, "ids": [], "omitted": [], "absent": "no_line",
+                "text": _ar.NO_LINE, "permission": "listing is not permission to act"}
+    conn = _sh.connect(uid)
+    try:
+        rows = _ar.list_line(conn, uid, chain)
+    finally:
+        conn.close()
+    if not rows:
+        return {"records": [], "count": 0, "ids": [], "omitted": [], "absent": "empty",
+                "text": _ar.NOTE + "\n" + _ar.EMPTY_LINE, "permission": "listing is not permission to act"}
+    return {"records": rows, "count": len(rows), "ids": [r["access_id"] for r in rows], "omitted": [],
+            "absent": "", "text": _ar.render_records(rows), "permission": "listing is not permission to act"}
+
+
 @router.get("/board")
-def board_get(user_id: str = "", history: int = 0, status: str = ""):
+def board_get(request: Request, user_id: str = "", history: int = 0, status: str = ""):
     from app import board as _board
-    if not user_id:
+    uid, chain = _key_line(request, user_id)
+    if not uid:
         raise HTTPException(401, "API key required")
-    its = _board.items(user_id, include_closed=True)
+    its = _board.items(uid, include_closed=True)
     if status:
         its = [i for i in its if i.get("status") in status.split(",")]
-    out = {"items": its, "text": _board.render(user_id, 2000), "statuses": list(_board.STATUSES), "actions": list(_board.ACTIONS)}
+    out = {"items": its, "text": _board.render(uid, 2000, chain), "statuses": list(_board.STATUSES),
+           "actions": list(_board.ACTIONS), "accesses": _access_view(uid, chain)}
     if history:
-        out["history"] = _board.history(user_id, min(history, 200))
+        out["history"] = _board.history(uid, min(history, 200))
     return out
 
 
@@ -2060,12 +2103,62 @@ def cube_harvest_due(user_id: str = "", where: str = "step_zero"):
 
 
 @router.get("/board/focus")
-def board_focus(user_id: str = ""):
-    """Tasks in progress and waiting for the user (step_zero page 1)."""
+def board_focus(request: Request, user_id: str = ""):
+    """Tasks in progress, tasks waiting, and this key's access registry."""
     from app import board as _board
-    if not user_id:
+    uid, chain = _key_line(request, user_id)
+    if not uid:
         raise HTTPException(401, "API key required")
-    return _board.focus(user_id)
+    out = _board.focus(uid, chain_id=chain)
+    out["accesses"] = _access_view(uid, chain)
+    return out
+
+
+class AccessRegistryRequest(BaseModel):
+    user_id: str = ""
+    action: str = "add"   # add | check. delete is refused.
+    access_id: str = ""
+    service: str = ""
+    purpose: str = ""
+    locator: str = ""
+    scope: str = ""
+    basis: str = ""
+    status: str = ""
+
+
+@router.post("/board/accesses")
+def board_accesses(req: AccessRegistryRequest, request: Request):
+    """Add or check one access row. owner and memory line come from the API key."""
+    from app import access_registry as _ar
+    from app import shelves as _sh
+    uid, chain = _key_line(request, req.user_id)
+    if not uid:
+        raise HTTPException(401, "API key required")
+    action = (req.action or "add").strip().lower()
+    if action in ("delete", "remove", "clear"):
+        raise HTTPException(403, "an agent cannot delete access registry rows; a server administrator can remove the table")
+    if not chain:
+        raise HTTPException(422, "this key has no memory line")
+    conn = _sh.connect(uid)
+    try:
+        if action == "add":
+            row = _ar.add(conn, uid, chain, service=req.service, purpose=req.purpose,
+                          locator=req.locator, scope=req.scope, basis=req.basis)
+        elif action == "check":
+            row = _ar.check(conn, uid, chain, req.access_id, req.status, req.basis)
+        else:
+            raise HTTPException(422, "action must be add or check")
+    except HTTPException:
+        raise
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except KeyError:
+        raise HTTPException(404, "access row not on this memory line")
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    finally:
+        conn.close()
+    return {"ok": True, "access": row, "ref": _ar.task_ref(row["access_id"])}
 
 
 class RecallLaterRequest(BaseModel):

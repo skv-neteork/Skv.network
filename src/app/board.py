@@ -20,7 +20,8 @@ _OLD_STATUS = {"open": "todo", "in_progress": "doing", "closed": "done", "": "to
 ACTIONS = ("add", "add_subtask", "update", "start", "block", "done", "park", "reopen", "remove", "important", "unimportant")
 ALIASES = {"edit": "update", "progress": "start", "undo": "reopen", "subtask": "add_subtask", "close": "done"}
 HINT = ('Board: board_act(action=add|add_subtask|update|start|block|done|park|reopen|remove, item_id, title, text, '
-        'priority=1..3, parent_id, waiting_for, result). done needs result=<what was achieved>. Secrets only as [vault:name].')
+        'priority=1..3, parent_id, waiting_for, result). done needs result=<what was achieved>. Secrets only as [vault:name]. '
+        'Recovery tasks cite access:<id>. Closing or removing a task does not remove the access registry.')
 _COLS = {"priority": "INTEGER DEFAULT 2", "parent_id": "TEXT DEFAULT ''", "waiting_for": "TEXT DEFAULT ''",
          "result": "TEXT DEFAULT ''", "result_event": "TEXT DEFAULT ''", "created_at": "TEXT DEFAULT ''"}
 FIELDS = ("item_id", "kind", "title", "body", "status", "updated_at", "important", "priority", "parent_id",
@@ -167,6 +168,7 @@ def act(uid, item_id="", action="add", text="", kind="", title="", priority=None
                 if status in STATUSES and status != "done": sets.append("status=?"); vals.append(status)
                 c.execute(f"UPDATE board_items SET {', '.join(sets)} WHERE item_id=?", vals + [item_id])
             elif action == "remove":
+                # Board removal never touches access_registry. That table has no agent delete.
                 c.execute("UPDATE board_items SET removed=1, updated_at=datetime('now') WHERE item_id=?", (item_id,))
             elif action in ("important", "unimportant"):
                 v = 1 if action == "important" else 0
@@ -226,9 +228,10 @@ def _line(i, body=200):
     return f"- {i['item_id']}{pr}{st}{par}{wf} {i['title']}" + (f": {b[:body]}" if b and body else "")
 
 
-def render(uid, tokens=500):
+def render(uid, tokens=500, chain_id=None):
     allit = items(uid, include_closed=True)
-    if not allit:
+    access_text = _access_text(uid, chain_id)
+    if not allit and not access_text:
         return ""
     done = [i for i in allit if i["status"] == "done"][-5:]
     it = [i for i in allit if i["status"] not in ("done", "parked")]
@@ -245,9 +248,37 @@ def render(uid, tokens=500):
         lines.append("PARKED: " + "; ".join(f"{i['item_id']} {i['title'][:50]}" for i in parked))
     if done:
         lines.append("DONE: " + "; ".join(f"~~{i['item_id']} {i['title'][:50]}~~" + (f" → {i['result'][:60]}" if i.get("result") else "") for i in done))
-    s = "\n".join(lines)
+    s = "\n".join(lines) if allit else ""
     lim = tokens * 4
-    return s if len(s) <= lim else s[:lim].rsplit("\n", 1)[0] + "\n...(clipped; board_list for all)"
+    if len(s) > lim:
+        s = s[:lim].rsplit("\n", 1)[0] + "\n...(clipped; board_list for all)"
+    # The registry is appended after the clip, whole. Task cleanup does not remove it.
+    if access_text:
+        s = (s + "\n" + access_text) if s else access_text
+    return s
+
+
+def _access_text(uid, chain_id):
+    """Registry text for one memory line.
+
+    chain_id None means the caller did not ask (recall stays task-only).
+    An empty string means the key has no line: say so, and list nothing.
+    """
+    if chain_id is None:
+        return ""
+    try:
+        from app import access_registry as _ar
+        if not str(chain_id).strip():
+            return _ar.NO_LINE
+        from app import shelves as _shelves
+        c = _shelves.connect(uid)
+        try:
+            return _ar.render_line(c, uid, chain_id)
+        finally:
+            c.close()
+    except Exception as e:
+        print(f"[board] access registry: {type(e).__name__}", flush=True)
+        return "ABSENT: registry could not be read."
 
 
 _STOP = set("the and for with this that what from have will your you are was not but all can как что это для или про так уже его она они мне меня тебя есть нет надо было будет при над под".split())
@@ -306,8 +337,8 @@ def stale(uid, n=3):
     return [{"id": i["item_id"], "status": i["status"], "title": i["title"][:80], "idle_h": int(a)} for a, i in out[:n]]
 
 
-def focus(uid, limit=10):
-    """For step_zero page 1: tasks in progress and tasks waiting for the user."""
+def focus(uid, limit=10, chain_id=None):
+    """For step_zero page 1: tasks in progress, tasks waiting, and this line's accesses."""
     op = [i for i in items(uid) if i["kind"] == "task"]
     doing = [i for i in op if i["status"] == "doing"][:limit]
     wait = [i for i in op if i["status"] == "blocked" or i.get("waiting_for")][:limit]
@@ -322,7 +353,11 @@ def focus(uid, limit=10):
     st = stale(uid)
     if st:
         lines.append("STALE (" + STALE_HINT + "): " + "; ".join(f"{x['id']} {x['status']} {x['idle_h']}h idle" for x in st))
-    return {"doing": [i["item_id"] for i in doing], "waiting": [i["item_id"] for i in wait], "board_stale": st, "text": "\n".join(lines)}
+    text = "\n".join(lines)
+    access_text = _access_text(uid, chain_id)
+    if access_text:
+        text = (text + "\n" + access_text) if text else access_text
+    return {"doing": [i["item_id"] for i in doing], "waiting": [i["item_id"] for i in wait], "board_stale": st, "text": text}
 
 
 def for_recall(uid, session, cfg, force=False):

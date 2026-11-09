@@ -176,14 +176,14 @@ def _constitution(budget: int) -> Dict[str, Any]:
     }
 
 
-def _board(uid: str, budget: int) -> Dict[str, Any]:
+def _board(uid: str, budget: int, chain_id: Optional[str] = None) -> Dict[str, Any]:
     try:
         from app import board as _board
-        text = _board.render(uid, max(100, int(budget)))
+        text = _board.render(uid, max(100, int(budget)), chain_id)
         items = _board.items(uid, include_closed=False)
         return {"text": text, "open_count": len(items), "items": items[:40]}
     except Exception as e:
-        return {"text": "", "error": str(e)}
+        return {"text": "", "error": type(e).__name__}
 
 
 def _reminders() -> str:
@@ -304,7 +304,8 @@ def build_package(
     l2 = _layer_l2(uid, int(budgets["l2"]))
     critical = _layer_critical(uid, int(budgets["critical"]))
     constitution = _constitution(int(budgets["constitution"]))
-    board = _board(uid, int(budgets["board"]))
+    board = _board(uid, int(budgets["board"]), chain_id)
+    accesses = _accesses(uid, chain_id)
     reminders = _reminders()
     consent_text, consent_state = "", {}
     try:
@@ -346,6 +347,7 @@ def build_package(
         "critical": _mv2.est_tokens(critical),
         "constitution": _mv2.est_tokens(constitution.get("compact") or ""),
         "board": _mv2.est_tokens(board.get("text") or ""),
+        "accesses": _mv2.est_tokens(accesses.get("text") or ""),
         "attached_skills": sum(_mv2.est_tokens((a.get("skill_md") or "") + str(a.get("hooks") or "")) for a in attached_skills),
     }
 
@@ -378,6 +380,7 @@ def build_package(
             "memory_map": memory_map,
         },
         "board": board,
+        "accesses": accesses,
         "constitution": constitution,
         "attached_skills": attached_skills,
         "auto_attached": auto_attach,
@@ -415,7 +418,7 @@ def build_package(
 COMPACT_MAX_BYTES = 12000        # plain JSON: stays under the ~15 KB stall point
 COMPACT_MAX_BYTES_GZIP = 26000   # client sent Accept-Encoding: gzip (nginx gzips ~2.2x -> ~12 KB on the wire)
 PART_PAGE_CHARS = 6000
-_PARTS = ("raw", "l1", "l2", "critical", "board", "constitution", "skills", "memory_map")
+_PARTS = ("raw", "l1", "l2", "critical", "board", "accesses", "constitution", "skills", "memory_map")
 
 
 def _jbytes(o: Any) -> int:
@@ -541,6 +544,8 @@ def _layer_full(uid: str, part: str, chain_id: Optional[str]) -> str:
         return _layer_critical(uid, 100000)
     if part == "board":
         return _board_compact(uid).get("text") or ""
+    if part == "accesses":
+        return _accesses(uid, chain_id).get("text") or ""
     if part == "constitution":
         return _mv2.constitution_compact() or ""
     if part == "skills":
@@ -559,9 +564,95 @@ def _layer_full(uid: str, part: str, chain_id: Optional[str]) -> str:
 
 
 BOARD_CALL = 'POST /api/v7/session/bootstrap {"part":"board"}  (MCP: memory_bootstrap / step_zero already make this call)'
-STEP_ZERO_LINE = ("STEP ZERO is two calls. Call 1 (this response): memory = raw tail, L1, L2, critical. "
+ACCESS_CALL = 'POST /api/v7/session/bootstrap {"part":"accesses"}'
+STEP_ZERO_LINE = ("STEP ZERO is two calls. Call 1 (this response): memory = raw tail, L1, L2, critical, and the access registry "
+                  "(or an explicit ABSENT / omitted id list). "
                   "Call 2 now, before answering: " + BOARD_CALL + " -> open tasks. "
+                  "Access rows are not tasks. Closing or removing a task does not remove them. "
+                  "A listed access is not permission to act. "
                   "Then answer the user and save the turn (POST /api/v7/agent/turn).")
+
+
+def _accesses(uid: str, chain_id: Optional[str]) -> Dict[str, Any]:
+    """One registry read for this owner and this memory line.
+
+    No chain lists nothing and says ABSENT. A read error names the error type,
+    not the exception text.
+    """
+    from app import access_registry as _ar
+    base = {
+        "records": [],
+        "count": 0,
+        "ids": [],
+        "omitted": [],
+        "over_cap": False,
+        "permission": "listing is not permission to act",
+        "note": _ar.NOTE,
+    }
+    if not (chain_id or "").strip():
+        base["text"] = _ar.NO_LINE
+        base["absent"] = "no_line"
+        return base
+    try:
+        from app import shelves as _sh
+        conn = _sh.connect(uid)
+        try:
+            rows = _ar.list_line(conn, uid, chain_id)
+        finally:
+            conn.close()
+    except Exception as e:
+        base["text"] = "ABSENT: registry could not be read."
+        base["absent"] = "error"
+        base["error"] = type(e).__name__
+        return base
+    if not rows:
+        base["text"] = _ar.NOTE + "\n" + _ar.EMPTY_LINE
+        base["absent"] = "empty"
+        return base
+    base["records"] = rows
+    base["count"] = len(rows)
+    base["ids"] = [r["access_id"] for r in rows]
+    base["text"] = _ar.render_records(rows)
+    base["absent"] = ""
+    return base
+
+
+def _access_payload(acc: Dict[str, Any], limit: int = PART_PAGE_CHARS) -> Dict[str, Any]:
+    """Whole records that fit in limit characters. The rest are named in omitted."""
+    from app import access_registry as _ar
+    rows = list(acc.get("records") or [])
+    if not rows:
+        out = dict(acc)
+        out["records"] = []
+        out["omitted"] = list(acc.get("omitted") or [])
+        out["over_cap"] = False
+        return out
+    fitted = _ar.limit_text(rows, [], limit)
+    out = dict(acc)
+    out["records"] = fitted["records"]
+    out["omitted"] = fitted["omitted"]
+    out["text"] = fitted["text"]
+    out["over_cap"] = fitted["over_cap"]
+    out["count"] = len(rows)
+    out["ids"] = [r.get("access_id") for r in rows]
+    out["shown"] = len(fitted["records"])
+    return out
+
+
+def _page_whole_lines(text: str, size: int) -> List[str]:
+    """Page on line breaks. A line longer than size stays one page and is not cut."""
+    if not text:
+        return [""]
+    pages, cur = [], ""
+    for ln in text.split("\n"):
+        piece = ln + "\n"
+        if cur and len(cur) + len(piece) > size:
+            pages.append(cur)
+            cur = ""
+        cur += piece
+    if cur:
+        pages.append(cur)
+    return pages or [""]
 
 
 def _board_count(uid: str) -> int:
@@ -572,11 +663,7 @@ def _board_count(uid: str) -> int:
         return -1
 
 
-def build_part(uid: str, part: str, page: int = 1, chain_id: Optional[str] = None) -> Dict[str, Any]:
-    part = (part or "").strip().lower()
-    if part not in _PARTS:
-        return {"ok": False, "error": f"unknown part; use one of {list(_PARTS)}"}
-    text = _layer_full(uid, part, chain_id)
+def _page_text(text: str) -> List[str]:
     pages, i = [], 0
     while i < len(text):
         j = i + PART_PAGE_CHARS
@@ -586,7 +673,20 @@ def build_part(uid: str, part: str, page: int = 1, chain_id: Optional[str] = Non
                 j = k + 1
         pages.append(text[i:j])
         i = j
-    pages = pages or [""]
+    return pages or [""]
+
+
+def build_part(uid: str, part: str, page: int = 1, chain_id: Optional[str] = None) -> Dict[str, Any]:
+    part = (part or "").strip().lower()
+    if part not in _PARTS:
+        return {"ok": False, "error": f"unknown part; use one of {list(_PARTS)}"}
+    acc = _accesses(uid, chain_id) if part in ("board", "accesses") else None
+    if part == "accesses":
+        text = (acc or {}).get("text") or ""
+        pages = _page_whole_lines(text, PART_PAGE_CHARS)
+    else:
+        text = _layer_full(uid, part, chain_id)
+        pages = _page_text(text)
     page = max(1, min(int(page or 1), len(pages)))
     out = {"ok": True, "kind": "session_bootstrap_part", "part": part, "page": page, "pages": len(pages),
            "done": page >= len(pages),
@@ -596,8 +696,21 @@ def build_part(uid: str, part: str, page: int = 1, chain_id: Optional[str] = Non
         b = _board_compact(uid)
         out["open_count"] = b.get("open_count")
         out["actions"] = b.get("actions")
+        out["accesses"] = _access_payload(acc or {}, PART_PAGE_CHARS)
         out["step_zero"] = {"call": 2, "of": 2, "done": out["done"],
                             "then": "step zero complete: answer the user, save with POST /api/v7/agent/turn" if out["done"] else out["next"]}
+    if part == "accesses":
+        payload = _access_payload(acc or {}, 10 ** 9)
+        ids = payload.get("ids") or []
+        page_ids = [i for i in ids if i and ("- " + str(i) + " ") in out["text"]]
+        payload["page_ids"] = page_ids
+        payload["records"] = [r for r in (payload.get("records") or []) if r.get("access_id") in page_ids]
+        # Paging is not omission. Every id is on some page, or named here.
+        payload["omitted"] = []
+        payload["over_cap"] = any(len(p) > PART_PAGE_CHARS for p in pages)
+        out["accesses"] = payload
+        if payload["over_cap"]:
+            out["accesses"]["over_cap_ids"] = [i for i in ids if any(i in p and len(p) > PART_PAGE_CHARS for p in pages)]
     return out
 
 
@@ -644,8 +757,10 @@ def build_compact(
         "constitution_state": consent_state,
         "step_zero": {"call": 1, "of": 2, "this": "memory: raw tail, L1, L2, critical",
                       "next_call": BOARD_CALL, "then": "answer the user, save with turn"},
-        # call 1 of 2 is memory only; the board comes in call 2 (part=board), so neither response hits the size cap
+        # call 1 of 2 keeps the board for call 2. The access registry is in this response.
+        # fit() may omit whole access rows and then names their ids.
         "board": {"pending": True, "open_count": _board_count(uid), "get": BOARD_CALL},
+        "accesses": _accesses(uid, chain_id),
         "continuity": {
             "l2": _l2_text(uid),
             "l1": _l1_text(uid),
@@ -659,7 +774,8 @@ def build_compact(
         "next": {
             "work": "POST /api/v7/agent/turn (save + server seal) or POST /api/v7/remember",
             "board": "CALL 2 OF 2 NOW: " + BOARD_CALL + " (then answer). Board changes: POST /api/v7/board",
-            "more": "POST /api/v7/session/bootstrap {\"part\":\"raw|l1|l2|critical|board|constitution|skills|memory_map\",\"page\":1}",
+            "more": "POST /api/v7/session/bootstrap {\"part\":\"raw|l1|l2|critical|board|accesses|constitution|skills|memory_map\",\"page\":1}",
+            "accesses": ACCESS_CALL,
             "full": "POST /api/v7/session/bootstrap {\"detail\":1} (~100 KB; send Accept-Encoding: gzip)",
         },
     }
@@ -679,7 +795,10 @@ def fit(pkg: Dict[str, Any], max_bytes: int = COMPACT_MAX_BYTES) -> Dict[str, An
             excess = over()
             # ~2 bytes per char for Cyrillic; cut a bit more than needed
             n = max(floor, len(s) - max(200, excess // 2 + 100))
-            s = _cut(s, n) if n > 0 else ""
+            nxt = _cut(s, n) if n > 0 else ""
+            if len(nxt) >= len(s):
+                break
+            s = nxt
             put(s)
             if name not in truncated:
                 truncated.append(name)
@@ -695,6 +814,37 @@ def fit(pkg: Dict[str, Any], max_bytes: int = COMPACT_MAX_BYTES) -> Dict[str, An
     shrink(lambda: b.get("text"), lambda v: b.__setitem__("text", v), "board", 800)
     shrink(lambda: c.get("raw"), lambda v: c.__setitem__("raw", v), "raw", 0)
     shrink(lambda: c.get("l1"), lambda v: c.__setitem__("l1", v), "l1", 0)
+    acc = pkg.get("accesses")
+    if isinstance(acc, dict) and over() > 0:
+        from app import access_registry as _ar
+        rows = list(acc.get("records") or [])
+        omitted = [str(x) for x in (acc.get("omitted") or []) if x]
+        total = len(rows) + len(omitted)
+
+        def _put(shown, skipped, over_flag):
+            acc["records"] = shown
+            acc["omitted"] = skipped
+            acc["count"] = total
+            acc["shown"] = len(shown)
+            acc["ids"] = [r.get("access_id") for r in shown] + skipped
+            acc["text"] = _ar.render_records(shown, skipped) + ("\nover_cap: true" if over_flag else "")
+            acc["over_cap"] = over_flag
+
+        while rows and over() > 0:
+            omitted.append(str(rows.pop()["access_id"]))
+            _put(rows, omitted, False)
+            if "accesses" not in truncated:
+                truncated.append("accesses")
+        if over() > 0 and rows:
+            # One remaining row still does not fit. Do not cut it. Name it and drop the body.
+            omitted.append(str(rows.pop()["access_id"]))
+            _put([], omitted, True)
+            if "accesses" not in truncated:
+                truncated.append("accesses")
+        elif over() > 0:
+            _put(rows, omitted, True)
+            if "accesses" not in truncated:
+                truncated.append("accesses")
     pkg["truncated"] = truncated
     pkg["bytes"] = _jbytes(pkg)
     if truncated:

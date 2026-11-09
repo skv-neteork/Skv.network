@@ -148,29 +148,15 @@ def _split_to_fit(text: str) -> list:
 
 
 def group_pages(pages) -> list:
-    """Reuse the MCP slices. Join neighbors while the page stays near 14 KB."""
-    out = []
-    buf = ""
-    for raw in pages or []:
-        piece = raw or ""
-        if not piece:
-            continue
-        bits = [piece] if _page_fits(piece) else _split_to_fit(piece)
-        for bit in bits:
-            if not bit:
-                continue
-            if not buf:
-                buf = bit
-                continue
-            trial = buf + bit
-            if _page_fits(trial):
-                buf = trial
-            else:
-                out.append(buf)
-                buf = bit
-    if buf:
-        out.append(buf)
-    return [p for p in out if (p or "").strip()]
+    """Reuse the MCP slices, then cut the same text again near 14 KB.
+
+    The MCP slices are sized for a 9 KB tool reply. A REST page can be larger,
+    so neighbors are joined and split on the REST budget. Nothing is dropped.
+    """
+    whole = "".join(raw or "" for raw in (pages or []))
+    if not whole.strip():
+        return []
+    return [part for part in _split_to_fit(whole) if (part or "").strip()]
 
 
 def room_addon(room) -> dict:

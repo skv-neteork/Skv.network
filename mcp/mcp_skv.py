@@ -3054,7 +3054,12 @@ def _step_zero_pages() -> list:
         cp = _const_pages(False, limit=STEP_ZERO_PAGE_TEXT)
     except Exception:
         cp = []
-    return assemble_step_zero(_pack([p1], limit=STEP_ZERO_PAGE_TEXT), pack_pages, cp)
+    pages = assemble_step_zero(_pack([p1], limit=STEP_ZERO_PAGE_TEXT), pack_pages, cp)
+    # Public/local MCP: reuse B8.1 REST gzip page budget (~14 KB compressed),
+    # so the tool returns fewer pages with full decompressed text (like REST).
+    from app.step_zero_rest import group_pages
+    grouped = group_pages(pages, "gzip")
+    return grouped or pages
 
 
 def _last_seal_fresh() -> int:

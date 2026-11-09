@@ -265,7 +265,9 @@ def _tw_turn(saved: bool, seal_n: int = 0, ref=0) -> dict:
     return out
 
 
-_MASK_TOOLS = {"memory_search", "memory_event", "memory_dig", "memory_consult", "memory_start", "memory_bootstrap", "step_zero", "turn", "board_list"}
+# step_zero is not listed: its pages are the memory pack, already refused when a
+# secret pattern remains, and the text must join back to that document.
+_MASK_TOOLS = {"memory_search", "memory_event", "memory_dig", "memory_consult", "memory_start", "memory_bootstrap", "turn", "board_list"}
 _MASK_RX = [re.compile(r"\bsk_[A-Za-z0-9]{16,}"), re.compile(r"\b(?:ghp|gho|ghs|github_pat)_[A-Za-z0-9_]{20,}"),
             re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}"), re.compile(r"\b(?:AKIA|xox[bpa]-)[A-Za-z0-9-]{12,}"),
             re.compile(r"\b(?:\d[ -]?){13,19}\b(?<=\d)")]
@@ -4793,7 +4795,9 @@ def _with_time(fn, name=""):
                 st = _local_times(st, _user_tz())
             except Exception:
                 pass
-        if isinstance(r, str) and name not in ("memory_event", "memory_search", "memory_consult"):
+        # step_zero pages are the pack. Rewriting REST paths inside them would make
+        # the joined text differ from the document.
+        if isinstance(r, str) and name not in ("memory_event", "memory_search", "memory_consult", "step_zero"):
             r = re.sub(r"\\?\((?:POST|GET) /api/v7/agent/second-look\\?\)", "(done by turn)", r)
             r = re.sub(r"(?:POST|GET|PUT|DELETE) (?:https?://[\w.:-]+)?/api/v7/[\w/{}\-]+", "the matching MCP tool", r)
             r = re.sub(r"(?:POST|GET|PUT|DELETE) /(?:agent|constitution|memory|session|cubes|board)/[\w/{}\-]+", "the matching MCP tool", r)

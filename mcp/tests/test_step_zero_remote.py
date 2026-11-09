@@ -9,6 +9,7 @@ sys.path.insert(0, "/root/skv-core/mcp")
 os.environ.pop("SKV_API_KEY", None)
 import mcp_skv as m
 
+_ORIG_REQ = m._req
 m.COMPACT_DB = tempfile.mkdtemp() + "/c.db"
 m._active_key = lambda: "remote-test-key"
 m._ROOM_LOCAL = False
@@ -92,6 +93,7 @@ class RemoteClientTests(unittest.TestCase):
         self.assertTrue(out.get("text"))
         self.assertIn("PACK888", out["text"])
         self.assertIn("OTHER AGENTS", out["text"])
+        self.assertGreater(out["text"].index("OTHER AGENTS"), out["text"].index("PACK888"))
         self.assertEqual(out["pages"], 2)
         self.assertFalse(out["done"])
         nxt = json.loads(m.step_zero(page=2, agent_token="tok-b", session_id="s-b"))
@@ -143,6 +145,60 @@ class RemoteClientTests(unittest.TestCase):
         self.assertEqual(out["room_events"][0]["ev"], "evA-room")
         self.assertTrue(any(c[1] == "/agent/room_events" for c in self.calls))
         self.assertNotIn("room_events_error", out)
+
+    def test_remote_page_is_not_cut_to_three_thousand_chars(self):
+        whole = "П" * 12000
+        self.payload = {"ok": True, "pages": [whole, "second page"], "text": ""}
+        m._TRACK.pop("remote-test-key", None)
+        out = json.loads(m.step_zero(page=1))
+        self.assertEqual(out["text"], whole)
+        self.assertNotIn("trimmed", out["text"])
+        installed = json.loads(m.constitution_install(user_confirmed=True))
+        self.assertEqual(installed["step_zero"]["text"], whole)
+
+    def test_step_zero_read_is_gzip_and_retried(self):
+        import httpx
+
+        class Resp:
+            status_code = 200
+            text = "{}"
+
+            def json(self):
+                return {"ok": True, "page": 2, "total_pages": 2, "text": "hi"}
+
+        class Client:
+            is_closed = False
+
+            def __init__(self):
+                self.n = 0
+                self.timeouts = []
+                self.headers = []
+
+            def request(self, method, url, headers=None, json=None, params=None, timeout=None):
+                self.n += 1
+                self.timeouts.append(timeout)
+                self.headers.append(dict(headers or {}))
+                if self.n < 3:
+                    raise httpx.ReadTimeout("slow")
+                return Resp()
+
+        client = Client()
+        fake = m._req
+        old = m._HTTP_CLIENTS.get("*")
+        m._HTTP_CLIENTS["*"] = client
+        m._req = _ORIG_REQ
+        try:
+            out = m._req("POST", "/agent/step_zero", {"page": 2})
+        finally:
+            m._req = fake
+            if old is None:
+                m._HTTP_CLIENTS.pop("*", None)
+            else:
+                m._HTTP_CLIENTS["*"] = old
+        self.assertEqual(out.get("text"), "hi")
+        self.assertEqual(client.n, 3)
+        self.assertEqual(client.headers[0].get("Accept-Encoding"), "gzip")
+        self.assertGreaterEqual(float(client.timeouts[0].read), 60)
 
     def test_file_check_is_a_visible_rest_tool(self):
         self.assertIn("file_check", m.VISIBLE)

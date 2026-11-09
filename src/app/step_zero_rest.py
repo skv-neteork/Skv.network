@@ -1,22 +1,28 @@
 """Step-zero pages for a client that has no local account database.
 
-The pages are the memory pack 8/8/8 plus the constitution texts.
+The pages are the memory pack 8/8/8. Constitution, profile, L2, L1 and raw
+come first; the fresh tail is last.
 A failure returns ok=false, pages=[] and a non-empty error. Never a silent blank page.
 
-REST serves one page per call. The text is grouped from the MCP step_zero slices
-up to about 14 KB, and the JSON body stays within 16 KB. The room block is not
-part of that text; the route adds it only on page 1.
+REST serves one page per call. A client that accepts gzip gets pages sized by
+the compressed body, about 14 KB on the wire. A client that does not accept
+gzip still gets the plain 14 KB pages. The room block is not part of the pack
+text; the route adds it only on page 1.
 """
+import gzip
 import json
 import os
 import re
 import sqlite3
 
-# One page of pack text, measured as the JSON body without the room block.
+# One plain page, measured as the JSON body without the room block.
 REST_PAGE_JSON = 14000
+# One gzip page, measured as gzip bytes of that same JSON body.
+REST_PAGE_GZIP = 14000
 # Room fields on page 1. Kept apart so page boundaries do not depend on the room.
 REST_ROOM_JSON = 2000
 REST_RESPONSE_JSON = 16000
+REST_RESPONSE_GZIP = 16000
 
 
 def _chunks(text, limit=7000):
@@ -78,10 +84,9 @@ def constitution_pages(shared_db="", owners=None):
 def build_pages(user_id, user_db="", shared_db=""):
     """Full step_zero page list for one account. Does not open a live key by itself."""
     from app.memory_pack888 import (
-        SHARED_DB, assemble_step_zero, leak_names, load_pack, owner_list, render_document, split_document,
+        assemble_step_zero, leak_names, load_pack, render_document, split_document,
     )
     try:
-        owners = owner_list(user_id)
         pack = load_pack(user_id, user_db or "", shared_db or "")
         doc = render_document(pack)
         leaks = leak_names(doc)
@@ -93,12 +98,13 @@ def build_pages(user_id, user_db="", shared_db=""):
         intro = (
             "HOW TO WORK: read every page until done=true before you answer. "
             "The pages marked PACK888 are the memory pack 8/8/8. "
+            "Order: constitution, profile, L2, L1, raw records, then the fresh tail. "
             "Concatenate the text under each PACK888 line, in order. "
-            "A page break does not end a record. "
-            "Constitution pages follow the pack. Read those too.\n"
+            "A page break does not end a record.\n"
         )
-        const_pages = constitution_pages(shared_db or SHARED_DB, owners)
-        pages = assemble_step_zero([intro], pack_pages, const_pages)
+        # Constitution is the first block of the pack. A second copy at the end
+        # would move whenever the tail grows, so it is not appended again.
+        pages = assemble_step_zero([intro], pack_pages, [])
         if not any((p or "").strip() for p in pages):
             return {"ok": False, "pages": [], "error": "empty step_zero pages"}
         return {"ok": True, "pages": pages, "error": ""}
@@ -115,23 +121,32 @@ def _page_envelope(text: str) -> dict:
     return {"ok": True, "page": 99, "total_pages": 99, "text": text, "error": ""}
 
 
+def _gzip_bytes(obj) -> int:
+    raw = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return len(gzip.compress(raw, compresslevel=9, mtime=0))
+
+
 def _page_fits(text: str) -> bool:
     return _json_bytes(_page_envelope(text)) <= REST_PAGE_JSON
 
 
-def _split_to_fit(text: str) -> list:
-    """Split one slice that is larger than a REST page. Nothing is dropped."""
+def _page_fits_gzip(text: str) -> bool:
+    return _gzip_bytes(_page_envelope(text)) <= REST_PAGE_GZIP
+
+
+def _split_to_fit(text: str, fits) -> list:
+    """Split one slice so every piece passes fits. Nothing is dropped."""
     parts = []
     rest = text or ""
     end_mark = "<<<END>>>\n"
     while rest:
-        if _page_fits(rest):
+        if fits(rest):
             parts.append(rest)
             break
         lo, hi, best = 1, len(rest), 1
         while lo <= hi:
             mid = (lo + hi) // 2
-            if _page_fits(rest[:mid]):
+            if fits(rest[:mid]):
                 best = mid
                 lo = mid + 1
             else:
@@ -147,16 +162,18 @@ def _split_to_fit(text: str) -> list:
     return parts
 
 
-def group_pages(pages) -> list:
-    """Reuse the MCP slices, then cut the same text again near 14 KB.
+def group_pages(pages, transport="plain") -> list:
+    """Join the MCP slices and cut them again for one REST transport.
 
-    The MCP slices are sized for a 9 KB tool reply. A REST page can be larger,
-    so neighbors are joined and split on the REST budget. Nothing is dropped.
+    plain keeps the B8 page, about 14 KB of JSON.
+    gzip sizes the same text by the compressed body, about 14 KB on the wire.
+    Nothing is dropped.
     """
     whole = "".join(raw or "" for raw in (pages or []))
     if not whole.strip():
         return []
-    return [part for part in _split_to_fit(whole) if (part or "").strip()]
+    fits = _page_fits_gzip if transport == "gzip" else _page_fits
+    return [part for part in _split_to_fit(whole, fits) if (part or "").strip()]
 
 
 def room_addon(room) -> dict:
@@ -199,8 +216,12 @@ def room_addon(room) -> dict:
     return fields
 
 
-def select_rest_page(built, page=None, room=None) -> dict:
-    """One page of the pack. Missing page means page 1, not the whole pack."""
+def select_rest_page(built, page=None, room=None, transport="plain") -> dict:
+    """One page of the pack. Missing page means page 1, not the whole pack.
+
+    transport gzip is for a client that sends Accept-Encoding: gzip.
+    plain is the B8 fallback.
+    """
     try:
         page_n = 1 if page in (None, "", 0) else int(page)
     except (TypeError, ValueError):
@@ -223,7 +244,7 @@ def select_rest_page(built, page=None, room=None) -> dict:
         if hint:
             out["identify_hint"] = hint
         return out
-    slices = group_pages(built.get("pages") or [])
+    slices = group_pages(built.get("pages") or [], "gzip" if transport == "gzip" else "plain")
     if not slices:
         err = "empty step_zero pages"
         return {

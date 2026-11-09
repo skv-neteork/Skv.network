@@ -105,6 +105,37 @@ class PackTests(unittest.TestCase):
         self.assertEqual(pack["access_registry_status"], "present")
         self.assertEqual(pack["gaps"]["legacy_l2_map"], "excluded_no_disjoint_range")
 
+    def test_stable_prefix_when_the_tail_grows(self):
+        self._seed_layers()
+        doc = render_document(build_pack(self.user, self.shared, owners=["system"]))
+        names = (
+            "constitution", "profile", "l2", "l1", "raw",
+            "critical", "board", "tasks", "access_registry", "pack_status",
+        )
+        spots = [doc.index("## " + name) for name in names]
+        self.assertEqual(spots, sorted(spots))
+        head = doc.split("## pack_status")[0]
+        self.assertNotIn("time_min:", head)
+        self.assertNotIn("time_max:", head)
+        self.assertLess(doc.index("FULL CONST 00"), doc.index("always full profile"))
+        self.assertLess(doc.index("always full profile"), doc.index("L2 OLD COMPLETE"))
+        self.assertLess(doc.index("L2 OLD COMPLETE"), doc.index("L1 OLD COMPLETE"))
+        self.assertLess(doc.index("L1 OLD COMPLETE"), doc.index("A" * 20))
+        # Upper blocks stop at the raw section. A new raw record appends there.
+        upper = doc.split("## raw")[0]
+        self.user.execute(
+            "INSERT INTO event_metadata (rowid, event_id, time_str, raw_dialogue) VALUES (200,'e200','2026-11-10','NEW RAW TAIL')"
+        )
+        self.user.commit()
+        grown = render_document(build_pack(self.user, self.shared, owners=["system"]))
+        self.assertEqual(grown.split("## raw")[0], upper)
+        raw_end = doc.index("## critical")
+        self.assertTrue(grown.startswith(doc[:raw_end]))
+        fresh = grown[raw_end:]
+        self.assertLess(fresh.index("NEW RAW TAIL"), fresh.index("## critical"))
+        again = render_document(build_pack(self.user, self.shared, owners=["system"]))
+        self.assertEqual(again, grown)
+
     def test_underfill_and_whole_exclusion(self):
         self.user.execute("INSERT INTO event_metadata VALUES ('tiny','2026-01-01','hi')")
         self.user.commit()

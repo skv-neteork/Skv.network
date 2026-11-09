@@ -125,11 +125,17 @@ def http_room_attach(req: RoomTurnBody, authorization: str = Header(None)):
 
 
 @router.post("/agent/step_zero")
-def http_step_zero_room(req: StepZeroRoomBody, authorization: str = Header(None)):
+def http_step_zero_room(
+    req: StepZeroRoomBody,
+    authorization: str = Header(None),
+    accept_encoding: str = Header(None),
+):
     """One step_zero page for a client with no local database.
 
     page is 1-based. A missing page returns page 1 and total_pages, not the whole pack.
-    The room block is attached only on page 1. A failed pack is an error, not a blank page.
+    Accept-Encoding gzip sizes the page by the compressed body. Without gzip the
+    page stays the plain B8 size. The room block is attached only on page 1.
+    A failed pack is an error, not a blank page.
     """
     from app.room.bridge import open_account, rest_step_zero
     from app.step_zero_rest import build_pages, select_rest_page
@@ -144,7 +150,8 @@ def http_step_zero_room(req: StepZeroRoomBody, authorization: str = Header(None)
                 bool(req.force), req.context_state or "normal",
             )
         built = build_pages(info.get("user_id") or "")
-        return select_rest_page(built, page, room if isinstance(room, dict) else None)
+        transport = "gzip" if accept_encoding and "gzip" in accept_encoding.lower() else "plain"
+        return select_rest_page(built, page, room if isinstance(room, dict) else None, transport)
     finally:
         conn.close()
 

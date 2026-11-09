@@ -189,6 +189,7 @@ def _l1_records(conn: sqlite3.Connection, before_rowid: Optional[int]) -> Tuple[
             "tokens_estimate": est_tokens(body),
         })
     eligible.sort(key=lambda r: r["row_hi"], reverse=True)
+    overlap.sort()
     return eligible, overlap
 
 
@@ -229,6 +230,7 @@ def _l2_records(conn: sqlite3.Connection, before_rowid: Optional[int]) -> Tuple[
             "tokens_estimate": est_tokens(body),
         })
     eligible.sort(key=lambda r: r["row_hi"], reverse=True)
+    notes["overlap_ids"].sort()
     return eligible, notes
 
 
@@ -251,6 +253,7 @@ def _critical(conn: sqlite3.Connection) -> List[dict]:
                 body, changed = mask(line.strip())
                 out.append({"id": f"mark:{eid}:{i}", "layer": "critical", "time": ts or "", "event_id": str(eid),
                             "body": body, "secrets_masked": changed, "tokens_estimate": est_tokens(body)})
+    out.sort(key=lambda r: r["id"])
     return out
 
 
@@ -271,6 +274,7 @@ def _board(conn: sqlite3.Connection) -> List[dict]:
         out.append({"id": str(rec.get("item_id")), "layer": "board", "kind": rec.get("kind") or "",
                     "status": rec.get("status") or "", "body": body, "secrets_masked": changed,
                     "tokens_estimate": est_tokens(body)})
+    out.sort(key=lambda r: r["id"])
     return out
 
 
@@ -284,6 +288,7 @@ def _profile(conn: sqlite3.Connection) -> List[dict]:
         body, changed = mask(f"{kind} [{status}] scope={scope}\n{text or ''}")
         out.append({"id": str(rid), "layer": "profile", "status": status or "", "body": body,
                     "secrets_masked": changed, "tokens_estimate": est_tokens(body), "time": created or ""})
+    out.sort(key=lambda r: r["id"])
     return out
 
 
@@ -323,7 +328,9 @@ def _registry(conn: Optional[sqlite3.Connection]) -> Tuple[List[dict], str]:
     if not safe:
         return [], "absent"
     out = []
-    for i, row in enumerate(conn.execute("SELECT " + ", ".join(safe) + " FROM user_api_keys")):
+    fetched = list(conn.execute("SELECT " + ", ".join(safe) + " FROM user_api_keys"))
+    fetched.sort(key=lambda row: tuple("" if v is None else str(v) for v in row))
+    for i, row in enumerate(fetched):
         rec = dict(zip(safe, row))
         prefix = str(rec.get("key_prefix") or "")
         if re.fullmatch(r"sk_[A-Za-z0-9]{16,}", prefix):
@@ -403,59 +410,96 @@ def _frame(rec: dict) -> str:
     return f"<<<RECORD layer={rec['layer']} id={ident} bytes={len(raw)}>>>\n" + body + "\n<<<END>>>\n"
 
 
+def _oldest(records, key):
+    """Stable display order. A new record appends; it does not reshuffle the prefix."""
+    return sorted(records or [], key=lambda r: (r.get(key) or 0, str(r.get("id") or "")))
+
+
+def _by_id(records):
+    return sorted(records or [], key=lambda r: str(r.get("id") or ""))
+
+
 def render_document(pack: dict) -> str:
-    lines = [
-        "SKV memory pack 8/8/8",
-        "token_method: memory_v2.est_tokens",
-        "token_exact: false",
-        "formula: ceil(ascii_chars/4 + non_ascii_chars/2.5)",
-        f"budget_each: {BUDGET}",
-        f"overlap_ok: {str(pack['overlap_ok']).lower()}",
-        f"overlap_reason: {pack['overlap_reason']}",
-        f"access_registry: {pack['access_registry_status']}",
-        f"constitution: {pack['constitution_status']}",
-        f"legacy_l2_map: {pack['gaps']['legacy_l2_map']}",
-        "",
+    """One document, stable prefix first.
+
+    constitution, profile, L2, L1, raw, then the fresh tail.
+    Clocks, token totals and overlap notes stay in pack_status at the end.
+    """
+    parts = [
+        "SKV memory pack 8/8/8\n",
+        "token_method: memory_v2.est_tokens\n",
+        "token_exact: false\n",
+        "formula: ceil(ascii_chars/4 + non_ascii_chars/2.5)\n",
+        "budget_each: %s\n\n" % BUDGET,
     ]
-    order = []
-    for name in ("raw", "l1", "l2"):
-        layer = pack["layers"][name]
-        lines.append(f"## {name}")
-        lines.append(f"tokens_estimate: {layer['tokens_estimate']}")
-        lines.append(f"underfill: {layer['underfill']}")
-        lines.append(f"stopped_because: {layer['stopped_because']}")
-        ex = layer["excluded_next"]
-        lines.append("excluded_next: " + (ex["id"] + " tokens_estimate=" + str(ex["tokens_estimate"]) if ex else "none"))
-        span = pack["spans"][name]
-        lines.append(f"rowid_min: {span['rowid_min']}")
-        lines.append(f"rowid_max: {span['rowid_max']}")
-        lines.append(f"time_min: {span['time_min']}")
-        lines.append(f"time_max: {span['time_max']}")
-        lines.append("")
-        for rec in layer["included"]:
-            order.append(rec)
-    if pack["access_registry_status"] == "absent":
-        lines.append("## access_registry")
-        lines.append("ABSENT: no access registry without a secret column was found.")
-        lines.append("")
-    for section in ("critical", "constitution", "board", "profile", "tasks", "access_registry"):
-        if section == "access_registry" and pack["access_registry_status"] == "absent":
-            continue
-        lines.append(f"## {section}")
-        lines.append(f"count: {len(pack[section])}")
-        lines.append("")
-        order.extend(pack[section])
-    # Service accesses are a different list from the API-key access_registry above.
-    # Present only when the caller attached this key's memory line. Whole records.
+
+    def section(title):
+        parts.append("## %s\n\n" % title)
+
+    section("constitution")
+    constitution = sorted(
+        pack.get("constitution") or [],
+        key=lambda r: (str(r.get("cube") or ""), str(r.get("id") or "")),
+    )
+    if not constitution:
+        parts.append("CONSTITUTION ABSENT\n\n")
+    for rec in constitution:
+        parts.append("=== %s (%s) ===\n" % (rec.get("cube") or "CUBE", rec.get("id") or ""))
+        essence = str(rec.get("essence") or "").replace("\n", " ").strip()
+        if essence:
+            parts.append(essence + "\n")
+        parts.append(_frame(rec))
+    section("profile")
+    for rec in _by_id(pack.get("profile") or []):
+        parts.append(_frame(rec))
+    for name, key in (("l2", "row_lo"), ("l1", "row_lo"), ("raw", "rowid")):
+        section(name)
+        for rec in _oldest(pack["layers"][name]["included"], key):
+            parts.append(_frame(rec))
+    section("critical")
+    for rec in _by_id(pack.get("critical") or []):
+        parts.append(_frame(rec))
+    section("board")
+    for rec in _by_id(pack.get("board") or []):
+        parts.append(_frame(rec))
+    section("tasks")
+    for rec in _by_id(pack.get("tasks") or []):
+        parts.append(_frame(rec))
+    section("access_registry")
+    if pack.get("access_registry_status") == "absent":
+        parts.append("ABSENT: no access registry without a secret column was found.\n\n")
+    else:
+        for rec in _by_id(pack.get("access_registry") or []):
+            parts.append(_frame(rec))
     extra = pack.get("service_accesses") or []
     if extra:
-        lines.append("## service_accesses")
-        lines.append("count: %d" % len(extra))
-        lines.append("note: one row per service access on this memory line; a listing is not permission to act")
-        lines.append("")
-        order.extend(extra)
-    header = "\n".join(lines) + "\n"
-    return header + "".join(_frame(r) for r in order)
+        parts.append("## service_accesses\n")
+        parts.append("count: %d\n" % len(extra))
+        parts.append("note: one row per service access on this memory line; a listing is not permission to act\n\n")
+        for rec in extra:
+            parts.append(_frame(rec))
+    parts.append("## pack_status\n")
+    parts.append("overlap_ok: %s\n" % str(pack["overlap_ok"]).lower())
+    parts.append("overlap_reason: %s\n" % pack["overlap_reason"])
+    parts.append("access_registry: %s\n" % pack["access_registry_status"])
+    parts.append("constitution: %s\n" % pack["constitution_status"])
+    parts.append("legacy_l2_map: %s\n" % pack["gaps"]["legacy_l2_map"])
+    for name in ("l2", "l1", "raw"):
+        layer = pack["layers"][name]
+        span = pack["spans"][name]
+        ex = layer["excluded_next"]
+        parts.append("## %s_status\n" % name)
+        parts.append("tokens_estimate: %s\n" % layer["tokens_estimate"])
+        parts.append("underfill: %s\n" % layer["underfill"])
+        parts.append("stopped_because: %s\n" % layer["stopped_because"])
+        parts.append("excluded_next: %s\n" % (
+            ex["id"] + " tokens_estimate=" + str(ex["tokens_estimate"]) if ex else "none"
+        ))
+        parts.append("rowid_min: %s\n" % span["rowid_min"])
+        parts.append("rowid_max: %s\n" % span["rowid_max"])
+        parts.append("time_min: %s\n" % span["time_min"])
+        parts.append("time_max: %s\n" % span["time_max"])
+    return "".join(parts)
 
 
 def parse_records(document: str) -> List[dict]:

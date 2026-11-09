@@ -529,13 +529,16 @@ _REQ_RETRY_WINDOW = float(os.environ.get("SKV_REQ_RETRY_WINDOW", "15"))   # API 
 # connect timeout short + immediate retry: some egress tunnels (e.g. the sandbox box) silently drop ~1/3 of new
 # TCP connects, which used to hang a call for the whole 90 s timeout (MCP -32001 on turn)
 _CONNECT_TMO = float(os.environ.get("SKV_CONNECT_TIMEOUT", "2.5"))
-_SLOW_PATHS = ("/consult", "/import", "/sandbox", "/bureau", "/court")
+_SLOW_PATHS = ("/consult", "/import", "/sandbox", "/bureau", "/court", "/agent/step_zero")
 # idempotent reads: first try with a short read timeout, then one retry on a fresh connection. The box tunnel
 # sometimes loses a response on a reused keep-alive connection (server answered in 0.02 s, client waited 20 s).
 _FAST_READ = float(os.environ.get("SKV_FAST_READ_TIMEOUT", "2.5"))
+# step_zero page=N is a read. Give it a long read and two retries. It is listed in _SLOW_PATHS
+# so operators see it, and handled on its own so the slow flag does not turn the retries off.
+_STEP_ZERO_READ = float(os.environ.get("SKV_STEP_ZERO_READ_TIMEOUT", "60"))
 # POSTs safe to resend: reads, validation, get/set and the seal counter (a resend can only skip one seal number).
 # /remember is resent only with a client_key: the server replays the first result instead of saving twice.
-_IDEMPOTENT_POST = ("/search", "/profile/precheck", "/session/step_zero", "/account/timezone", "/agent/seal_next")
+_IDEMPOTENT_POST = ("/search", "/profile/precheck", "/session/step_zero", "/account/timezone", "/agent/seal_next", "/agent/step_zero")
 
 
 def _http_client(base: str) -> "httpx.Client":
@@ -553,13 +556,22 @@ def _http_client(base: str) -> "httpx.Client":
 def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None, base: Optional[str] = None) -> Any:
     url = f"{(base or BASE).rstrip('/')}{path}"
     c = _http_client((base or BASE).rstrip('/'))
-    slow = any(x in path for x in _SLOW_PATHS)
-    tmo = httpx.Timeout(120.0 if slow else 20.0, connect=_CONNECT_TMO, pool=5.0)
-    idem = (method.upper() == "GET" or path.rstrip("/") in _IDEMPOTENT_POST
-            or (isinstance(body, dict) and bool(body.get("client_key")))) and not slow
-    tmo_fast = httpx.Timeout(_FAST_READ, connect=_CONNECT_TMO, pool=5.0) if idem else tmo
+    step_zero_post = "/agent/step_zero" in (path or "")
+    slow = any(x in path for x in _SLOW_PATHS) and not step_zero_post
+    if step_zero_post:
+        tmo = httpx.Timeout(_STEP_ZERO_READ, connect=_CONNECT_TMO, pool=5.0)
+        tmo_fast = tmo
+        read_retries = 2
+    else:
+        tmo = httpx.Timeout(120.0 if slow else 20.0, connect=_CONNECT_TMO, pool=5.0)
+        idem = (method.upper() == "GET" or path.rstrip("/") in _IDEMPOTENT_POST
+                or (isinstance(body, dict) and bool(body.get("client_key")))) and not slow
+        tmo_fast = httpx.Timeout(_FAST_READ, connect=_CONNECT_TMO, pool=5.0) if idem else tmo
+        read_retries = 1 if idem else 0
     if True:
         h = dict(_headers())
+        if step_zero_post:
+            h["Accept-Encoding"] = "gzip"
         try:   # per-account rate bucket: without it every MCP user shares the docker-gateway IP bucket (300/min for all)
             import hashlib as _hl
             _dc = _demo_client_var.get() if "_demo_client_var" in globals() else ""
@@ -572,7 +584,8 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
         # stale keep-alive dropped before a response, or the proxy's 502/503 = upstream unreachable).
         # Read timeouts: idempotent calls (GET, _IDEMPOTENT_POST, bodies with client_key) wait _FAST_READ first and are
         # resent once on a fresh try (some client networks lose a response on a reused connection); other POSTs wait
-        # the full timeout and are never resent. Total wait <= _REQ_RETRY_WINDOW.
+        # the full timeout and are never resent. step_zero waits _STEP_ZERO_READ and is resent twice.
+        # Total wait <= _REQ_RETRY_WINDOW for connect failures.
         _w = 0.0; _rt = 0; r = None
         while True:
             try:
@@ -587,7 +600,7 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
                 if _w >= _REQ_RETRY_WINDOW:
                     return {"ok": False, "status": 503, "error": "SKV API unavailable (restart?): %s" % str(e)[:120]}
             except (httpx.ReadTimeout, httpx.ReadError, httpx.WriteError, httpx.WriteTimeout) as e:
-                if not idem or _rt >= 1:
+                if _rt >= read_retries:
                     return {"ok": False, "status": 504, "error": "SKV API timeout on %s: %s" % (path[:60], str(e)[:120] or type(e).__name__)}
                 _rt += 1; continue
             _d = 1.0 if _w < 5 else 3.0
@@ -613,6 +626,11 @@ def _shrink(o: Any, cap: int) -> Any:
 
 RESP_LIMIT = 9000  # chars; JSON-RPC escaping inflates ~10-30% -> wire stays < ~14KB (public path stalls >15-20KB)
 PAGE_CHARS = 8000
+
+
+def _dumps_step_zero(obj: Any) -> str:
+    """A step_zero page is already one transport page. Do not cut its text down to RESP_LIMIT."""
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
 
 def _dumps(obj: Any, limit: int = RESP_LIMIT) -> str:
@@ -2175,8 +2193,10 @@ def _remote_step_payload(agent_token: str = "", session_id: str = "", force: boo
 
 def _remote_page_text(payload: dict, page: int) -> str:
     text = str((payload or {}).get("text") or "")
+    # Room sits after the pack text. The stable prefix of page 1 stays the pack.
     if page == 1 and (payload or {}).get("room_text"):
-        text = str(payload.get("room_text")) + "\n\n" + text
+        room = str(payload.get("room_text"))
+        text = (text + "\n\n" + room) if text else room
     return text
 
 
@@ -3008,7 +3028,8 @@ def _step_zero_pages() -> list:
             "A page break does not end a record. Cite facts by the [ev:id] shown in the pack. "
             "Token figures in the pack are estimates, not a model tokenizer count. "
             "The service_accesses section lists where an access is stored. A listing is not permission to act. "
-            "After the pack, the constitution pages follow. Read those too.")
+            "Pack order: constitution, profile, L2, L1, raw, then the fresh tail. "
+            "After the pack, the MCP constitution pages follow. Read those too.")
     if pack_err:
         note += "\nPACK ABSENT: " + pack_err
     elif not pack_pages:
@@ -3136,7 +3157,7 @@ def _step_zero_remote(page: int, force: bool, agent_token: str, session_id: str,
             out["identify_hint"] = payload["identify_hint"]
         if payload.get("others_block"):
             out["others_block"] = payload["others_block"]
-    return _dumps(out)
+    return _dumps_step_zero(out)
 
 
 def _remote_next_n(page: int, total: int, text: str) -> str:
@@ -3152,7 +3173,7 @@ def _remote_next_n(page: int, total: int, text: str) -> str:
 @mcp.tool()
 def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session_id: str = "", context_state: str = "normal") -> str:
     """STEP ZERO, once, when this agent first receives a key or right after constitution_install: HOW TO WORK, then this user's memory pack 8/8/8
-    (PACK888 pages: newest raw, older L1, older L2, full critical, constitution, board, profile, tasks, access registry without secrets) and then the constitution pages.
+    (PACK888 pages, stable prefix first: constitution, profile, L2, L1, raw, then the fresh tail: critical, board, tasks, access registry without secrets) and then the constitution pages.
     Concatenate the text under each PACK888 line in order. Read pages until done=true.
     The same chat then continues with turn only. Do not call this again on later messages or only because a new terminal session kept the same key. A rotated key does step_zero once.
     Several agents on one key: identify first, then pass agent_token. Lost context: force=true or turn(context_state=lost). force at most once per 10 minutes."""
@@ -3265,7 +3286,7 @@ def constitution_install(user_confirmed: bool = False) -> str:
             except Exception:
                 version = "?"
             total = int(payload.get("total_pages") or 1)
-            return _dumps({"install": {"ok": True, "installed": True, "constitution_version": version},
+            return _dumps_step_zero({"install": {"ok": True, "installed": True, "constitution_version": version},
                            "step_zero": {"page": 1, "pages": total, "text": _remote_page_text(payload, 1),
                            "next_page": 2 if total > 1 else None,
                            "next": _remote_next_n(1, total, payload.get("text") or "") if total > 1 else "done"}})

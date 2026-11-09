@@ -4,9 +4,12 @@ import sqlite3
 import tempfile
 import unittest
 
+import gzip
 import json
 
-from app.step_zero_rest import REST_RESPONSE_JSON, build_pages, select_rest_page
+from app.step_zero_rest import (
+    REST_RESPONSE_GZIP, REST_RESPONSE_JSON, build_pages, select_rest_page,
+)
 
 
 def _user(path):
@@ -91,6 +94,52 @@ class StepZeroRestTests(unittest.TestCase):
         self.assertEqual(missing["text"], "")
         self.assertIn("not found", missing["pack_error"])
 
+    def test_gzip_pages_join_and_plain_fallback_stays_small(self):
+        lines = []
+        for i in range(4500):
+            token = "%08x" % (i * 2654435761 & 0xFFFFFFFF)
+            lines.append(
+                "запись %04d %s Пользователь помнит факт %d про проект. уточнение %d"
+                % (i, token, i, i % 17)
+            )
+        whole = "\n".join(lines)
+        built = {"ok": True, "pages": [whole], "error": ""}
+        room = {
+            "text": "=== OTHER AGENTS ===\nbrief",
+            "while_away": "ходы других: +1",
+            "others_block": "=== OTHER AGENTS ===",
+            "step_zero": True,
+            "kind": "full",
+        }
+        gzip_first = select_rest_page(built, 1, room, "gzip")
+        plain_first = select_rest_page(built, 1, room, "plain")
+        self.assertTrue(gzip_first["ok"])
+        self.assertTrue(plain_first["ok"])
+        self.assertGreaterEqual(gzip_first["total_pages"], 4)
+        self.assertLessEqual(gzip_first["total_pages"], 6)
+        self.assertGreater(plain_first["total_pages"], gzip_first["total_pages"])
+        self.assertIn("while_away", gzip_first)
+        joined = []
+        for n in range(1, gzip_first["total_pages"] + 1):
+            got = select_rest_page(built, n, room, "gzip")
+            self.assertTrue(got["ok"])
+            raw = json.dumps(got, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            self.assertLessEqual(len(gzip.compress(raw, compresslevel=9, mtime=0)), REST_RESPONSE_GZIP)
+            if n != 1:
+                self.assertNotIn("while_away", got)
+                self.assertNotIn("room_text", got)
+            joined.append(got["text"])
+        self.assertEqual("".join(joined), whole)
+        plain_joined = []
+        for n in range(1, plain_first["total_pages"] + 1):
+            got = select_rest_page(built, n, room, "plain")
+            self.assertLessEqual(
+                len(json.dumps(got, ensure_ascii=False, separators=(",", ":")).encode("utf-8")),
+                REST_RESPONSE_JSON,
+            )
+            plain_joined.append(got["text"])
+        self.assertEqual("".join(plain_joined), whole)
+
     def test_http_attaches_pages_and_room_events(self):
         try:
             from fastapi import FastAPI
@@ -132,7 +181,7 @@ class StepZeroRestTests(unittest.TestCase):
             app = FastAPI()
             app.include_router(room_http.router)
             client = TestClient(app)
-            headers = {"Authorization": "Bearer test-room-key"}
+            headers = {"Authorization": "Bearer test-room-key", "Accept-Encoding": "identity"}
             got = client.post(
                 "/api/v7/agent/step_zero",
                 json={"session_id": "s-rest", "agent_token": identified["agent_token"]},
@@ -176,6 +225,18 @@ class StepZeroRestTests(unittest.TestCase):
             self.assertEqual(events.status_code, 200)
             self.assertEqual(events.json()["room_events"][0]["ev"], "evA-room")
             self.assertEqual(client.post("/api/v7/agent/step_zero", json={}, headers={"Authorization": "Bearer no-such"}).status_code, 401)
+            gzip_headers = dict(headers)
+            gzip_headers["Accept-Encoding"] = "gzip"
+            varied = "\n".join(
+                "запись %04d про память агента и комнату, номер %d" % (i, i % 13)
+                for i in range(2000)
+            )
+            step_zero_rest.build_pages = lambda *a, **k: {"ok": True, "pages": [varied], "error": ""}
+            gz = client.post("/api/v7/agent/step_zero", json={"agent_token": identified["agent_token"]}, headers=gzip_headers)
+            plain = client.post("/api/v7/agent/step_zero", json={"agent_token": identified["agent_token"]}, headers=headers)
+            self.assertEqual(gz.status_code, 200)
+            self.assertLess(gz.json()["total_pages"], plain.json()["total_pages"])
+            self.assertEqual(gz.json()["page"], 1)
         finally:
             bridge.lookup_key = old_lookup
             bridge.open_account = old_open

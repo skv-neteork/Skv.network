@@ -32,7 +32,7 @@ def ensure_user_db(user_id: str, base_dir: str = "/data/skv/metadata_store") -> 
     os.makedirs(base_dir, exist_ok=True)
     with sqlite3.connect(path, timeout=30) as c:
         for q in (
-            "CREATE TABLE IF NOT EXISTS event_metadata (event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, messages_count INTEGER, links_json TEXT, topics_json TEXT, raw_dialogue TEXT, subject TEXT, action TEXT, object TEXT, status TEXT, metric_value REAL, kind TEXT DEFAULT 'dialogue', source TEXT DEFAULT '', project TEXT DEFAULT '')",
+            "CREATE TABLE IF NOT EXISTS event_metadata (event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, messages_count INTEGER, links_json TEXT, topics_json TEXT, raw_dialogue TEXT, subject TEXT, action TEXT, object TEXT, status TEXT, metric_value REAL, kind TEXT DEFAULT 'dialogue', source TEXT DEFAULT '', project TEXT DEFAULT '', actor_agent_id TEXT, session_id TEXT, ev_kind TEXT, author_kind TEXT, gist TEXT)",
             "CREATE TABLE IF NOT EXISTS shelves (slug TEXT PRIMARY KEY, description TEXT, created_at TEXT)",
             "CREATE TABLE IF NOT EXISTS personal_vectors (event_id TEXT PRIMARY KEY, vector_blob BLOB)",
             "CREATE TABLE IF NOT EXISTS summary_l1 (session_id TEXT, user_id TEXT, topic TEXT, summary_text TEXT, summary_json TEXT, message_count INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
@@ -81,7 +81,7 @@ def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response:
                 event_id TEXT PRIMARY KEY, time_str TEXT, essence TEXT, metric_value REAL,
                 messages_count INTEGER, links_json TEXT, topics_json TEXT, raw_dialogue TEXT,
                 subject TEXT, action TEXT, object TEXT, status TEXT,
-                kind TEXT DEFAULT 'dialogue', source TEXT DEFAULT '', project TEXT DEFAULT '')"""
+                kind TEXT DEFAULT 'dialogue', source TEXT DEFAULT '', project TEXT DEFAULT '', actor_agent_id TEXT, session_id TEXT, ev_kind TEXT, author_kind TEXT, gist TEXT)"""
         )
         try:
             from app import shelves as _sh

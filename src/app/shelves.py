@@ -36,6 +36,11 @@ def ensure_columns(conn):
     for col, ddl in SHELF_COLUMNS:
         if col not in cols:
             conn.execute(f"ALTER TABLE event_metadata ADD COLUMN {col} {ddl}")
+    try:
+        from app.room.schema import ensure_event_columns
+        ensure_event_columns(conn)
+    except Exception as exc:
+        print(f"[room] event columns skipped: {exc}", flush=True)
     conn.execute("CREATE TABLE IF NOT EXISTS shelves (slug TEXT PRIMARY KEY, description TEXT, created_at TEXT)")
     conn.commit()
     return True

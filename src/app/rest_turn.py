@@ -192,7 +192,47 @@ def _with_room(key, result, agent_token="", session_id="rest", context_state="no
         return result
 
 
-def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn"):
+def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None):
+    """msg_ref / recap are optional (turn-watch, see turn_watch_rest.py): clients that send neither get exactly the old behaviour."""
+    if isinstance(recap, str) and not recap.strip():
+        recap = None
+    if not msg_ref and not recap:
+        return _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind)
+    from app import turn_watch_rest as _tw
+    user = ""
+    try:
+        st = _req(key, "GET", "/constitution/status") if key else {}
+        if isinstance(st, dict) and st.get("status") != 401:
+            user = st.get("installed_by") or hashlib.sha256(key.encode()).hexdigest()[:16]
+    except Exception:
+        user = ""
+    if not user:   # no/invalid key: the inner call answers 401
+        return _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind)
+    k = _tw.scope(user, agent_token or "")
+    rc = {}
+    if recap:
+        try:
+            from app.secret_scrub import scrub as _sc
+            rc = _tw.save_recaps(_req, key, k, recap, session_id, sensitive, _sc)
+        except Exception as exc:
+            rc = {"recap_error": "recap not saved: %s" % type(exc).__name__}
+    res = _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind)
+    if not isinstance(res, dict):
+        return res
+    try:
+        ref = _tw.span(msg_ref)
+        saved_now = bool(res.get("saved")) and res.get("mode") != "context"
+        missing = _tw.check(k, ref, saved_now)
+        if missing:
+            res["duties"] = [_tw.duty(missing)] + list(res.get("duties") or [])
+        if rc:
+            res.update(rc)
+    except Exception as exc:
+        print("[rest_turn] turn-watch skipped: %s" % type(exc).__name__, flush=True)
+    return res
+
+
+def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn"):
     if answer and not draft:
         draft = answer
     if not key:

@@ -293,7 +293,7 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
         memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"
     
     # Load constitutional cubes from SQLite (shared_master.db)
-    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v15"]
+    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v16"]
     constitution_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_cube_ids), constitution_cube_ids)
     
     # Build constitution text from loaded cubes
@@ -873,7 +873,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                 memory_map += f"Shared knowledge cubes: {buffer.shared_current_size}\n"
             memory_map += "Use memory search to explore specific topics.\n"
         
-        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v15"]
+        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v16"]
         const_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_ids), constitution_ids)
         const_parts = []
         for cid in constitution_ids:

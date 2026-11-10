@@ -41,7 +41,7 @@ OpenAPI: https://skv.network/api/v7/agent/openapi.json (declares both POST and G
 
 CUBE 00–05. Full text on first call and every 10th step.
 
-Current stored CUBE 05 row: `GET /api/v7/cube/cube_const_05_v15` (old ids like `cube_const_05_v4` resolve to current). MCP CUBE 05-MCP is v16 and adds the shared-room rules: `[ev:id]` is yours, `[ev:id@agent]` is another agent; identify and pass `agent_token` when several agents share a key; `turn(context_state=lost)` or `step_zero(force=true)` after context loss; `skv-edit start/check/finish` around a file edit; `claim` a board task before work.
+Current stored CUBE 05 row: `GET /api/v7/cube/cube_const_05_v16` (old ids like `cube_const_05_v4` resolve to current). MCP CUBE 05-MCP is v17 and adds the shared-room rules: `[ev:id]` is yours, `[ev:id@agent]` is another agent; identify and pass `agent_token` when several agents share a key; `turn(context_state=lost)` or `step_zero(force=true)` after context loss; `skv-edit start/check/finish` around a file edit; `claim` a board task before work.
 
 ## 4. CUBES
 

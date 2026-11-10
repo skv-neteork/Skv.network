@@ -1,7 +1,7 @@
 # SKV installer for local agents on Windows (Claude Code, Cursor, Claude Desktop).
 #   irm https://skv.network/install.ps1 | iex
 #   & ([scriptblock]::Create((irm https://skv.network/install.ps1))) -Uninstall
-# Options: -Clients "claude-code,cursor,claude-desktop,grok-build"  -NoHooks  -Uninstall  -StopGuard  -NoStopGuard
+# Options: -Clients "claude-code,cursor,claude-desktop,grok-build"  -NoHooks  -Uninstall  -NoStopGuard  (-StopGuard is accepted; the guard is on by default)
 # Nothing is installed without your yes. Key is read hidden, stored in %USERPROFILE%\.skv\key (only your user can read it).
 param([switch]$Uninstall, [string]$Clients = "", [switch]$NoHooks, [switch]$StopGuard, [switch]$NoStopGuard)
 $ErrorActionPreference = "Stop"
@@ -54,8 +54,8 @@ if ($Action -eq "install") {
     [IO.File]::WriteAllText($KeyFile, $k); Lock $KeyFile; Remove-Variable k
   }
   if (-not $NoHooks) { Fetch "skv_hook.py" (Join-Path $SkvHome "skv_hook.py") }
-  if ($StopGuard) { New-Item -ItemType File -Force (Join-Path $SkvHome "guard") | Out-Null; Write-Host "Stop guard ON. Turn it off: delete $SkvHome\guard" }
-  if ($NoStopGuard) { Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $SkvHome "guard"); Write-Host "Stop guard OFF" }
+  if (-not $NoStopGuard -and -not $NoHooks) { New-Item -ItemType File -Force (Join-Path $SkvHome "guard") | Out-Null; Write-Host "Stop guard ON by default. Turn it off: delete $SkvHome\guard (or re-run with -NoStopGuard). Pause everything: create $SkvHome\off" }
+  else { Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $SkvHome "guard"); Write-Host "Stop guard OFF" }
 }
 $env:SKV_NO_HOOKS = if ($NoHooks) { "1" } else { "0" }
 foreach ($c in $sel) {

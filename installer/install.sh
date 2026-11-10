@@ -4,7 +4,8 @@
 #   curl -fsSL https://skv.network/install.sh | bash -s -- --uninstall
 # Options: --clients claude-code,cursor,claude-desktop,grok-build   (skip the questions)
 #          --no-hooks   MCP only        --uninstall   remove everything SKV added
-#          --stop-guard  the Stop hook blocks a reply that has no SKV turn (Claude Code, Grok Build, Cursor); --no-stop-guard turns it off
+#          Stop guard is ON by default with hooks: the Stop hook blocks a reply that has no SKV turn (Claude Code, Grok Build,
+#          Cursor), at most 2 times per message. --no-stop-guard opts out (--stop-guard is accepted and is the default).
 # Nothing is installed without your yes. Key is read hidden and kept in ~/.skv/key (0600), never in shell history.
 set -euo pipefail
 BASE="${SKV_BASE:-https://skv.network}"
@@ -65,8 +66,8 @@ if [ "$ACTION" = install ]; then
     ( umask 077; printf "%s" "$K" >"$SKV_HOME/key" ); chmod 600 "$SKV_HOME/key"; unset K
   fi
   if [ "$HOOKS" = 1 ]; then fetch skv_hook.py "$SKV_HOME/skv_hook.py"; chmod 700 "$SKV_HOME/skv_hook.py"; fi
-  if [ "$GUARD" = on ]; then ( umask 077; : >"$SKV_HOME/guard" ); echo "Stop guard ON ($SKV_HOME/guard). Turn it off: rm $SKV_HOME/guard"; fi
-  if [ "$GUARD" = off ]; then rm -f "$SKV_HOME/guard"; echo "Stop guard OFF"; fi
+  if [ "$GUARD" != off ] && [ "$HOOKS" = 1 ]; then ( umask 077; : >"$SKV_HOME/guard" ); echo "Stop guard ON by default ($SKV_HOME/guard). Turn it off: rm $SKV_HOME/guard (or re-run with --no-stop-guard). Pause everything: touch $SKV_HOME/off"; fi
+  if [ "$GUARD" = off ] || [ "$HOOKS" != 1 ]; then rm -f "$SKV_HOME/guard"; echo "Stop guard OFF"; fi
 fi
 
 IFS=',' read -ra LIST <<<"$CLIENTS"

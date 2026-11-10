@@ -11,7 +11,7 @@ Modes (argv[1]):
   test            send a test turn, print the seal
 Key: ~/.skv/key (0600) or SKV_API_KEY. Off switch: touch ~/.skv/off (or uninstall).
 
-STOP GUARD (opt-in: install.sh --stop-guard, or touch ~/.skv/guard): the Stop hook blocks the end of a reply when no SKV
+STOP GUARD (ON by default since the installer creates ~/.skv/guard; opt out: install.sh --no-stop-guard or rm ~/.skv/guard): the Stop hook blocks the end of a reply when no SKV
 turn was called for the current user message (no seal in the answer and no turn tool call after the last user message).
 Claude Code and Grok Build get {"decision":"block","reason":...}; Cursor gets {"followup_message":...} from its stop event.
 At most 2 blocks per user message, then the old fallback runs (the hook saves the turn itself). Fail-open on any error.

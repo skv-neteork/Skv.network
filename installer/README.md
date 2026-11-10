@@ -12,7 +12,7 @@ Asks per detected client (Claude Code, Cursor, Claude Desktop, Grok Build); noth
   Skips answers that already carry a seal (agent called turn via MCP). Fail-open. Pause: touch ~/.skv/off.
 - Key: hidden prompt -> ~/.skv/key (0600). Also present in the MCP config files (chmod 600), as those clients require.
 - Every changed config is backed up next to it as *.skv-bak.<timestamp>.
-- Stop guard (opt-in, `--stop-guard` / `-StopGuard`, flag file ~/.skv/guard; off: `--no-stop-guard` or rm ~/.skv/guard):
+- Stop guard (ON by default when hooks are installed; flag file ~/.skv/guard; opt out: `--no-stop-guard` / `-NoStopGuard`, or rm ~/.skv/guard; `--stop-guard` / `-StopGuard` are accepted and equal the default; with `--no-hooks` there is no guard):
   the Stop hook blocks the end of a reply when no SKV turn was called for the current user message (no seal in the answer
   and no `turn` tool call after the last user message). Claude Code and Grok Build: `{"decision":"block","reason":...}`;
   Cursor: the `stop` event (registered with loop_limit 2) answers `{"followup_message":...}`. At most 2 blocks per user

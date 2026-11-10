@@ -8,6 +8,36 @@ from app.room.events import list_events
 from app.room.schema import ensure
 
 _OVERFLOW = "+%d ещё с ev:%s — memory_search(since=%s, lines=all)"
+_MSK_HOURS = 3   # Europe/Moscow, no DST
+_ID_LIKE = re.compile(r"^\S*(?:remember|ev|evt)_\d{6,}$")
+
+
+def short_id(event_id):
+    """Event ids are stored as <account>::<id>; people and agents see the part after ::."""
+    return str(event_id or "").split("::")[-1]
+
+
+def _hhmm_msk(created_at):
+    dt = parse_iso(created_at)
+    if not dt:
+        return "--:--"
+    return (dt + timedelta(hours=_MSK_HOURS)).strftime("%H:%M")
+
+
+def _entry(agent, created_at, gist, event_id):
+    """One stable line per foreign move: <agent> HH:MM MSK: <gist> [ev:id@agent]. The citation tail is never cut."""
+    ev = short_id(event_id)
+    head = "%s %s MSK: " % (agent, _hhmm_msk(created_at))
+    tail = " [ev:%s@%s]" % (ev, agent)
+    g = re.sub(r"\s+", " ", gist or "").strip()
+    if not g or _ID_LIKE.match(g):
+        g = "ход"
+    room = 140 - len(head) - len(tail)
+    if room < 12:
+        room = 12
+    if len(g) > room:
+        g = g[: room - 1].rstrip() + "…"
+    return head + g + tail
 
 
 def cursor_of(conn, actor_id, chain_id):
@@ -98,9 +128,9 @@ def _agg_files(events):
         ids = [e["id"] for e in g]
         evs = [e["event_id"] for e in g]
         if len(g) == 1:
-            text = "[ev:%s@%s] %s" % (g[0]["event_id"], g[0]["actor_agent_id"], g[0].get("gist") or "FILE_CHANGE")
+            text = _entry(g[0]["actor_agent_id"], g[0].get("created_at"), g[0].get("gist") or "FILE_CHANGE", g[0]["event_id"])
         else:
-            text = "FILE_CHANGE %s ×%d [ev:%s..%s]" % (g[0].get("path") or "?", len(g), evs[0], evs[-1])
+            text = "FILE_CHANGE %s ×%d [ev:%s..%s]" % (g[0].get("path") or "?", len(g), short_id(evs[0]), short_id(evs[-1]))
         lines.append({"text": _clip(text), "ids": ids, "evs": evs, "conflict": False})
     return lines
 
@@ -109,10 +139,10 @@ def _line_for(e, conflict=False):
     agent = e.get("actor_agent_id") or "?"
     gist = e.get("gist") or e.get("ev_kind") or ""
     if conflict:
-        text = "⚠ КОНФЛИКТ %s [ev:%s@%s]" % (gist, e["event_id"], agent)
+        text = _clip("⚠ КОНФЛИКТ %s [ev:%s@%s]" % (gist, short_id(e["event_id"]), agent))
     else:
-        text = "[ev:%s@%s] агент %s — %s" % (e["event_id"], agent, agent, gist)
-    return {"text": _clip(text), "ids": [e["id"]], "evs": [e["event_id"]], "conflict": conflict}
+        text = _entry(agent, e.get("created_at"), gist, e["event_id"])
+    return {"text": text, "ids": [e["id"]], "evs": [e["event_id"]], "conflict": conflict}
 
 
 def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=None):
@@ -160,18 +190,12 @@ def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=Non
         + [_line_for(e) for e in claims]
         + _agg_files(files)
     )
-    if raws:
-        ess = ""
-        for e in reversed(raws):
-            if e.get("essence"):
-                ess = e["essence"]
-                break
-        text = "ходы других: +%d" % len(raws)
-        if ess:
-            extra = "; " + ess
-            if len(text) + len(extra) <= 140:
-                text += extra
-        ordered.append({"text": _clip(text), "ids": [e["id"] for e in raws], "evs": [e["event_id"] for e in raws], "conflict": False})
+    for e in raws:
+        # one line per foreign turn (agent, MSK time, one-phrase gist, citation)
+        ordered.append({
+            "text": _entry(e.get("actor_agent_id") or "?", e.get("created_at"), e.get("gist") or e.get("essence") or "", e["event_id"]),
+            "ids": [e["id"]], "evs": [e["event_id"]], "conflict": False,
+        })
     shown, used = [], set()
     budget = 700
 
@@ -213,7 +237,7 @@ def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=Non
             lines = [s["text"] for s in shown]
             unshown = [e for e in window if e["id"] not in used]
         nxt = min(unshown, key=lambda e: e["id"])
-        lines.append(_clip(_OVERFLOW % (len(unshown), nxt["event_id"], nxt["event_id"])))
+        lines.append(_clip(_OVERFLOW % (len(unshown), short_id(nxt["event_id"]), short_id(nxt["event_id"]))))
         if len(lines) > 5:
             lines = lines[:4] + [lines[-1]]
     text = "\n".join(lines)
@@ -225,8 +249,8 @@ def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=Non
     covered = sorted(used)
     evs = []
     for s in shown:
-        evs.extend(s["evs"])
-    unshown_event_ids = [e["event_id"] for e in unshown]
+        evs.extend(short_id(x) for x in s["evs"])
+    unshown_event_ids = [short_id(e["event_id"]) for e in unshown]
     return {
         "text": text or None,
         "lines": lines,

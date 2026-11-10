@@ -96,7 +96,8 @@ def build_pages(user_id, user_db="", shared_db=""):
         if not any((p or "").strip() for p in pack_pages):
             return {"ok": False, "pages": [], "error": "empty memory pack"}
         intro = (
-            "HOW TO WORK: read every page until done=true before you answer. "
+            "HOW TO WORK: every agent, even a single one, first calls identify(name) and passes agent_token on every call "
+            "(this step_zero too); read every page until done=true before you answer. "
             "The pages marked PACK888 are the memory pack 8/8/8. "
             "Order: constitution, profile, L2, L1, raw records, open_items, access counter. "
             "Critical marks are CRITICAL: heading lines inside L2/L1; open_items lists open board items only. "

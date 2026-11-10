@@ -166,7 +166,7 @@ def _prof_rel(user, msg, answer, session_id, compact):
         return {}
 
 
-def _with_room(key, result, agent_token="", session_id="rest", context_state="normal", kind="turn"):
+def _with_room(key, result, agent_token="", session_id="rest", context_state="normal", kind="turn", gist=""):
     """Attach the room digest when this key has agents. A missing token does not undo the save."""
     if not isinstance(result, dict) or result.get("mode") in ("context", "recap") or result.get("saved") is False:
         return result
@@ -178,10 +178,13 @@ def _with_room(key, result, agent_token="", session_id="rest", context_state="no
         if not info:
             return result
         if not agent_token and not explicit_count_ro(info.get("user_id") or "", info.get("key_id") or ""):
+            from app.room.bridge import SOFT_IDENTIFY_HINT, soft_nudge_due
+            if soft_nudge_due(info.get("key_id"), session_id or "rest"):
+                return {**result, "identify_hint": SOFT_IDENTIFY_HINT}
             return result
         conn = open_account(info)
         try:
-            return rest_attach(info, conn, result, agent_token or "", session_id or "rest", kind or "turn", context_state or "normal")
+            return rest_attach(info, conn, result, agent_token or "", session_id or "rest", kind or "turn", context_state or "normal", gist or "")
         finally:
             conn.close()
     except Exception as exc:
@@ -334,13 +337,13 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
         elif no_read: r["seal_warning"] = "SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)
         if not ok: r["error"] = saved
         r.update(_board_rel(user, user_message, clean)); r.update(prof)
-        return _with_room(key, r, agent_token, session_id, context_state, kind)
+        return _with_room(key, r, agent_token, session_id, context_state, kind, (answer or draft))
     return _with_room(key, {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "event_id": eid or None, "seal": seal if ok else None,
             "cited_ok": cited, "facts": facts, "cubes": cubes, "self_check": checklist, "duties": [str(d)[:300] for d in duties], **_board_rel(user, user_message, clean), **prof,
             "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else
                             (("SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)) if no_read else None),
             "summary_due": saved.get("summary_due") if isinstance(saved, dict) else None, "saved_parts": saved.get("saved") if isinstance(saved, dict) else None,
-            "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})})
+            "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}, agent_token, session_id, context_state, kind, (answer or draft))
 
 
 def seal_next(key, same=False):

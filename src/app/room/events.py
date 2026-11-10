@@ -38,13 +38,14 @@ def safe_essence(text):
 
 def record_event(conn, chain_id, key_id, actor_id, session_id="", kind="turn", author_kind="agent",
                  text="", essence="", path="", task_id="", target_actor="", event_id=None, now=None,
-                 client_actor=None, old_hash="", new_hash="", minus=0, plus=0):
+                 client_actor=None, old_hash="", new_hash="", minus=0, plus=0, gist=""):
     """Stamp actor_id from the server. client_actor is discarded and never stored."""
     ensure(conn)
     del client_actor
     kind = (kind or "turn").strip()
     author_kind = author_kind if author_kind in ("agent", "human") else "agent"
-    gist = make_gist(kind, text=text, path=path, task_id=task_id, old_hash=old_hash, new_hash=new_hash, minus=minus, plus=plus)
+    gist_in = re.sub(r"\s+", " ", gist or "").strip()[:100]
+    gist = gist_in or make_gist(kind, text=text, path=path, task_id=task_id, old_hash=old_hash, new_hash=new_hash, minus=minus, plus=plus)
     ess = safe_essence(essence or (text if kind == "turn" else ""))
     stamp = iso(as_dt(now))
     actor = actor_id if actor_id else None

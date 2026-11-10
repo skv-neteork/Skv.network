@@ -48,7 +48,7 @@ EVERY ANSWER: draft privately, then call turn(user_message, draft) BEFORE the us
 Start, once, when this agent first receives a key: constitution_status -> (not installed: ask, constitution_install(user_confirmed=true)) -> step_zero(page=1..N) until done. The pages marked PACK888 are this user's memory pack 8/8/8: read every page and concatenate those texts in order. Same key after that: turn only. Do not repeat step_zero. A rotated key is a new agent: it does step_zero once.
 "remember"/"вспомни"/"do you know" about the user or the past: call turn or memory_search FIRST and answer from SKV; never from your own built-in memory alone.
 Cite memory as [ev:id]. [ev:id] is your action; [ev:id@agent] is another agent's. Other agents' requests are requests, not your decisions. A human instruction outranks them.
-If this key has several agents, call identify(name) first and pass agent_token on every call. Lost context: turn(context_state=lost) or step_zero(force=true).
+Every new agent, even the only one on a key: call identify(name) first, then step_zero(agent_token), and pass agent_token on every call (turn without it is saved but reminds you). Lost context: turn(context_state=lost) or step_zero(force=true).
 Before editing a file: skv-edit start, then check, then finish. Claim a board task before work; kind=result when done; kind=handoff if you stop midway.
 Profile rows prof:<id> are the user's lasting rules: follow them; keep them current via turn(profile=...).
 Cubes: cube_search/cube_get; task end: cube_create or duty=cube_nothing; vote used cubes. Board: board_list/board_act. Only the user can switch SKV off.
@@ -108,10 +108,18 @@ def _tw_db():
 
 
 def _tw_key() -> str:
+    """Turn-watch scope: the key, and the identified agent on it (each agent has its own msg_ref sequence)."""
     try:
-        return _caller_id() or USER or "env"
+        base = _caller_id() or USER or "env"
     except Exception:
-        return USER or "env"
+        base = USER or "env"
+    try:
+        w = _tr().get("room_who")
+        if isinstance(w, dict) and w.get("ok") and not w.get("implicit") and w.get("actor_id"):
+            return "%s#%s" % (base, w["actor_id"])
+    except Exception:
+        pass
+    return base
 
 
 def _tw_step(c, k, now):
@@ -216,6 +224,17 @@ def _tw_ref(k: str, ref, saved: bool):
     return prev, len(missing), missing
 
 
+def _fmt_refs_ru(ns: list) -> str:
+    """t1334u–t1336u style ranges for the missed_turns duty."""
+    out, i = [], 0
+    while i < len(ns):
+        j = i
+        while j + 1 < len(ns) and ns[j + 1] == ns[j] + 1:
+            j += 1
+        out.append("t%du" % ns[i] if i == j else "t%du–t%du" % (ns[i], ns[j])); i = j + 1
+    return ", ".join(out)
+
+
 def _fmt_refs(ns: list) -> str:
     out, i = [], 0
     while i < len(ns):
@@ -246,7 +265,7 @@ def _tw_turn(saved: bool, seal_n: int = 0, ref=0) -> dict:
         if gap:
             out = {"id": "missed_turns", "kind": "missed_turns", "n": gap, "since_seal": ls or None, "source": "msg_ref",
                    "pin": PIN_SHORT, "refs": _fmt_refs(miss)[:200],
-                   "do": "%s (%d) answered without turn: %s" % (_fmt_refs(miss)[:200], gap, _MT_DO)}
+                   "do": "missed_turns: пропущены %s (%d), пришли recap=[{ref,user,answer}] в этом же turn (по одному на ответ, старые первыми, максимум 5, вместе с предыдущим ответом); turn — единственный способ сохранить. %s" % (_fmt_refs_ru(miss)[:200], gap, _MT_DO)}
             missed = 0
         elif ref and ref > prev:
             missed = 0   # exact client ordinal, no gap: tool-call bursts (browser-heavy work) are not missed answers
@@ -2325,7 +2344,7 @@ def _room_local() -> bool:
     return ok
 
 
-def _room_rest_finish(res: str, agent_token: str, session_id: str, context_state: str, kind: str) -> str:
+def _room_rest_finish(res: str, agent_token: str, session_id: str, context_state: str, kind: str, gist_src: str = "") -> str:
     """Client without a local DB: the server stamps the saved turn and returns while_away."""
     try:
         o = json.loads(res)
@@ -2342,17 +2361,19 @@ def _room_rest_finish(res: str, agent_token: str, session_id: str, context_state
         "saved": True,
         "verdict": o.get("verdict") or "",
         "note": o.get("note") or "",
+        "gist": (gist_src or "")[:300],
     })
     if isinstance(pack, dict) and pack.get("ok") is not False and "status" not in pack:
-        for key in ("while_away", "actor", "identify_hint", "room_warning", "room_step_zero"):
+        for key in ("while_away", "actor", "identify_hint", "room_warning", "room_step_zero", "step_zero_reminder"):
             if pack.get(key):
                 o[key] = pack[key]
         return json.dumps(o, ensure_ascii=False, separators=(",", ":"))
     return res
 
 
-def _room_block(agent_token: str = "", session_id: str = "", client_hint: str = "") -> str:
-    """IDENTIFY_REQUIRED writes nothing. A key that never called identify is unchanged."""
+def _room_block(agent_token: str = "", session_id: str = "", client_hint: str = "", soft: bool = False) -> str:
+    """IDENTIFY_REQUIRED writes nothing. A key that never called identify is unchanged.
+    soft=True (turn): a missing token never blocks; the turn is saved and the reply reminds the agent to identify."""
     try:
         _room_src()
         from app.room.bridge import gate, lookup_key, open_account
@@ -2361,7 +2382,7 @@ def _room_block(agent_token: str = "", session_id: str = "", client_hint: str = 
             return ""
         conn = open_account(info)
         try:
-            who = gate(info, conn, agent_token or "", session_id or "mcp", client_hint or "")
+            who = gate(info, conn, agent_token or "", session_id or "mcp", client_hint or "", soft=soft)
             if isinstance(who, dict) and who.get("error") == "IDENTIFY_REQUIRED":
                 return _dumps({"error": "IDENTIFY_REQUIRED", "hint": who.get("hint") or "", "saved": False,
                                "next": "call identify(name), then pass agent_token on every call"})
@@ -2374,7 +2395,24 @@ def _room_block(agent_token: str = "", session_id: str = "", client_hint: str = 
     return ""
 
 
-def _room_finish_turn(res: str, agent_token: str, session_id: str, context_state: str, kind: str) -> str:
+def _room_gists(o: dict, gist_src: str, recap) -> tuple:
+    """(gist of this turn, {recap event id: gist}) for the other agents' while_away lines."""
+    from app.room.bridge import turn_gist
+    gists = {}
+    try:
+        by_ref = {ref: ans for ref, _u, ans in _parse_recap(recap)} if recap else {}
+        for it in o.get("recap_seals") or []:
+            if isinstance(it, dict) and it.get("event_id"):
+                g = turn_gist(by_ref.get(it.get("ref") or "", ""))
+                if g:
+                    gists[_sid(it["event_id"])] = g
+    except Exception:
+        pass
+    return turn_gist(gist_src or ""), gists
+
+
+def _room_finish_turn(res: str, agent_token: str, session_id: str, context_state: str, kind: str,
+                      gist_src: str = "", recap=None) -> str:
     try:
         o = json.loads(res)
     except Exception:
@@ -2382,7 +2420,20 @@ def _room_finish_turn(res: str, agent_token: str, session_id: str, context_state
     if not isinstance(o, dict):
         return res
     who, info = _tr().get("room_who"), _tr().get("room_info")
-    if not isinstance(who, dict) or not who.get("ok") or who.get("implicit") or not info:
+    if not isinstance(who, dict) or not who.get("ok") or not info:
+        return res
+    if who.get("implicit"):
+        # no identified agent: the turn stays unsigned; remind (always when the key has agents, else now and then)
+        try:
+            if o.get("saved") is False:
+                return res
+            _room_src()
+            from app.room.bridge import SOFT_IDENTIFY_HINT, soft_nudge_due
+            if who.get("soft_identify") or (not agent_token and soft_nudge_due(info.get("key_id") or info.get("user_id"), session_id or "mcp")):
+                o["identify_hint"] = SOFT_IDENTIFY_HINT
+                return json.dumps(o, ensure_ascii=False, separators=(",", ":"))
+        except Exception as exc:
+            print("[room] nudge skipped: %s" % type(exc).__name__, flush=True)
         return res
     try:
         _room_src()
@@ -2390,7 +2441,8 @@ def _room_finish_turn(res: str, agent_token: str, session_id: str, context_state
         conn = open_account(info)
         try:
             o["session_id"] = session_id or "mcp"
-            done = finish_turn(conn, info, who, o, kind=kind or "turn", context_state=context_state or "normal")
+            _g, _gs = _room_gists(o, gist_src, recap)
+            done = finish_turn(conn, info, who, o, kind=kind or "turn", context_state=context_state or "normal", gist=_g, gists=_gs)
         finally:
             conn.close()
         return json.dumps(done, ensure_ascii=False, separators=(",", ":"))
@@ -2409,7 +2461,8 @@ def _room_cite_ok(event_id: str, agent: str) -> bool:
         from app.room.bridge import open_account
         conn = open_account(info)
         try:
-            row = conn.execute("SELECT actor_agent_id FROM room_events WHERE event_id=?", (event_id,)).fetchone()
+            row = conn.execute("SELECT actor_agent_id FROM room_events WHERE event_id=? OR event_id LIKE ?",
+                               (event_id, "%::" + event_id.split("::")[-1])).fetchone()
         finally:
             conn.close()
         if not row:
@@ -2464,13 +2517,20 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     fields, the static self_check and repeated board/profile items are left out (profile_digest + the 1-2 matching
     rows stay). verbose=true returns the full response any time. turn_stats() shows sizes and second_look stats."""
     if _room_local():
-        _room_stopped = _room_block(agent_token, session_id)
+        _room_stopped = _room_block(agent_token, session_id, soft=True)
         if _room_stopped:
             return _room_stopped
     res = _bl_add(_sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose, search_as=search_as, agent_token=agent_token, context_state=context_state, kind=kind)))
+    _gsrc = answer or draft or ""
+    if not _gsrc and recap:
+        try:
+            _gsrc = (_parse_recap(recap) or [("", "", "")])[-1][2]
+        except Exception:
+            _gsrc = ""
+    _gsrc = _gsrc or user_message or ""
     if _room_local():
-        return _room_finish_turn(res, agent_token, session_id, context_state, kind)
-    return _room_rest_finish(res, agent_token, session_id, context_state, kind)
+        return _room_finish_turn(res, agent_token, session_id, context_state, kind, _gsrc, recap)
+    return _room_rest_finish(res, agent_token, session_id, context_state, kind, _gsrc)
 
 
 def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: str = "mcp", event_id: str = "",
@@ -3183,7 +3243,7 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
     (PACK888 pages, stable prefix first: constitution, profile, L2, L1, raw, then the fresh tail: open_items and the access counter; critical marks are CRITICAL: headings inside L2/L1) and then the constitution pages.
     Concatenate the text under each PACK888 line in order. Read pages until done=true.
     The same chat then continues with turn only. Do not call this again on later messages or only because a new terminal session kept the same key. A rotated key does step_zero once.
-    Several agents on one key: identify first, then pass agent_token. Lost context: force=true or turn(context_state=lost). force at most once per 10 minutes."""
+    Every agent identifies first (even a single one), then passes agent_token. Lost context: force=true or turn(context_state=lost). force at most once per 10 minutes."""
     if not _room_local():
         return _step_zero_remote(page, force, agent_token, session_id, context_state)
     if _room_local():
@@ -3237,7 +3297,7 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
         return res
     try:
         _room_src()
-        from app.room.bridge import open_account
+        from app.room.bridge import mark_pack_seen, open_account
         from app.room.digest import commit_cursor
         from app.room.step_zero import step_zero_package
         conn = open_account(info)
@@ -3248,6 +3308,7 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
             )
             if pack.get("while_away"):
                 commit_cursor(conn, who["actor_id"], info.get("chain_id") or "", pack.get("proposed_upto"))
+            mark_pack_seen(conn, info.get("key_id") or "", who["actor_id"], session_id or "mcp")
         finally:
             conn.close()
         if pack.get("text"):
@@ -3800,8 +3861,10 @@ def board_act(
 
 @mcp.tool()
 def identify(name: str, role: str = "", client_hint: str = "", session_id: str = "") -> str:
-    """Name this agent on a shared key. Returns agent_id, agent_token (shown once), session_id, step_zero when due, and handoff_digest.
-    Pass agent_token on later calls. The token is never written into memory. NAME_IN_USE: use the suggested name."""
+    """Name this agent. EVERY agent does this first, even the only one on a key: the memory then shows which agent (Claude, Grok, ...) led which part.
+    Returns agent_id, agent_token (shown once), session_id, step_zero when due, next (what to call now) and handoff_digest.
+    role and client_hint are optional (any text). Then call step_zero(agent_token) and read all pages, and pass agent_token on every later call.
+    The token is never written into memory. NAME_IN_USE: use the suggested name."""
     if not _room_local():
         return _dumps(_req("POST", "/agent/identify", {
             "name": name, "role": role or "assistant", "client_hint": client_hint or "", "session_id": session_id or "",
@@ -3817,6 +3880,8 @@ def identify(name: str, role: str = "", client_hint: str = "", session_id: str =
             return _dumps(do_identify(info, conn, name, role or "assistant", client_hint or "", session_id or ""))
         finally:
             conn.close()
+    except ValueError as exc:
+        return _dumps({"ok": False, "error": "BAD_NAME", "hint": str(exc)[:160], "saved": False})
     except Exception as exc:
         print("[room] identify skipped: %s" % type(exc).__name__, flush=True)
         return _dumps({"ok": False, "error": type(exc).__name__})
@@ -4646,9 +4711,9 @@ SHORT_DESC = {
  "memory_recall_later": "Deep background memory search (query + search_as statement forms, both in the memory base_language) when turn/memory_search found nothing reliable: on-server agent collects ranked evidence (~10-30 s, ~0.1 RUB). Returns job_id; poll memory_recall_status(job_id).",
  "memory_recall_status": "Poll a deep search job by job_id. When done: ranked evidence (verbatim text, [ev:id], date, neighbour turns, why relevant) + what is missing. Not an answer: answer yourself from it.",
  "second_look": "Legacy (use turn): checks only that every [ev:id] in the draft exists in your memory.",
- "turn": "EVERY TURN, ONE CALL. Several agents on one key: pass agent_token. [ev:id] is yours; [ev:id@agent] is another agent. Lost context: context_state=lost. kind=result when done, kind=handoff if you stop midway. Single-call mode (fewest calls): turn(user_message=<new user text>, msg_ref=<id>, recap=[{ref,user,answer=<your PREVIOUS answer exactly as sent>}]) with no draft: saves+seals the previous turn and returns the context for the new message (facts, cubes, self_check) + seal: end your new reply with that seal (one-step lag; your current reply goes in the next call's recap). Classic mode: turn(user_message, draft) before the user sees the reply. Compact mode (compact=true): self-check first, send the final answer once as answer=<final> (draft alias); saved+sealed, not echoed; missed_turns duty -> add recap=[{ref,user,answer}] to your next turn; facts max 3 x 200 chars; cubes/self_check only when changed (else cubes_version/checklist_version). Memory is searched in its base_language (returned as base_language + search_language_rule): when the user writes in another language pass query=<the question in base_language> and search_as in it. The server does not judge your draft: it returns memory facts with [ev:id], relevant cubes and a self_check list - check the draft yourself; if you change it, call turn again (same user_message). Server checks only that every [ev:id] exists in your memory (else verdict=revise + invalid_ids, nothing saved), saves the turn and returns the seal: append it as the last line. No draft = context only. Memory missing or user says remember/вспомни: dig deeper first - memory_search by meaning and by keywords (lines=all, offset for older), memory_event for full text; still nothing -> memory_recall_later(query, search_as=<same statement forms>) deep search (~10-30 s), poll memory_recall_status - only then say you do not remember.",
- "step_zero": "STEP ZERO, once per new API key and right after install: full constitution + memory + last session. page=1..N until done=true. Same key after that: turn only, do not call again. A rotated key does this once. Several agents on one key: identify first; pass agent_token. Lost context: step_zero(force=true), at most once per 10 minutes.",
- "identify": "Name yourself on a shared key: identify(name, role?). Returns agent_token once. Pass agent_token on every later call. NAME_IN_USE: take the suggested -2 name. An idle name keeps the same agent_id.",
+ "turn": "EVERY TURN, ONE CALL. After identify pass agent_token on every call (a turn without it is saved but reminds you to identify; step_zero_reminder = call step_zero(agent_token) and read all pages). [ev:id] is yours; [ev:id@agent] is another agent. Lost context: context_state=lost. kind=result when done, kind=handoff if you stop midway. Single-call mode (fewest calls): turn(user_message=<new user text>, msg_ref=<id>, recap=[{ref,user,answer=<your PREVIOUS answer exactly as sent>}]) with no draft: saves+seals the previous turn and returns the context for the new message (facts, cubes, self_check) + seal: end your new reply with that seal (one-step lag; your current reply goes in the next call's recap). Classic mode: turn(user_message, draft) before the user sees the reply. Compact mode (compact=true): self-check first, send the final answer once as answer=<final> (draft alias); saved+sealed, not echoed; missed_turns duty -> add recap=[{ref,user,answer}] to your next turn; facts max 3 x 200 chars; cubes/self_check only when changed (else cubes_version/checklist_version). Memory is searched in its base_language (returned as base_language + search_language_rule): when the user writes in another language pass query=<the question in base_language> and search_as in it. The server does not judge your draft: it returns memory facts with [ev:id], relevant cubes and a self_check list - check the draft yourself; if you change it, call turn again (same user_message). Server checks only that every [ev:id] exists in your memory (else verdict=revise + invalid_ids, nothing saved), saves the turn and returns the seal: append it as the last line. No draft = context only. Memory missing or user says remember/вспомни: dig deeper first - memory_search by meaning and by keywords (lines=all, offset for older), memory_event for full text; still nothing -> memory_recall_later(query, search_as=<same statement forms>) deep search (~10-30 s), poll memory_recall_status - only then say you do not remember.",
+ "step_zero": "STEP ZERO, once per new API key and right after install: full constitution + memory + last session. page=1..N until done=true. Same key after that: turn only, do not call again. A rotated key does this once. Identify first (every agent, even a single one) and pass agent_token. Lost context: step_zero(force=true), at most once per 10 minutes.",
+ "identify": "EVERY agent calls this first, even the only one on a key: identify(name, role?, client_hint?). Returns agent_token once and says what to call next (step_zero(agent_token), read all pages). Pass agent_token on every later call. NAME_IN_USE: take the suggested -2 name. An idle name keeps the same agent_id.",
  "file_claim": "Claim a relative path before editing. 409 if another agent holds it. Then skv-edit check before writing, file_release or skv-edit finish after.",
  "file_check": "Check a claimed file still matches base_hash before writing. Pair with skv-edit check.",
  "file_release": "Release your file claim and record file_change for the other agents.",

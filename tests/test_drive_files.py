@@ -131,6 +131,35 @@ class DriveTests(unittest.TestCase):
         drive.ensure(self.other)
         self.assertEqual(drive.search("b@example.invalid", "ch_line_a", "lantern map", conn=self.other), [])
 
+    def test_two_lines_with_one_name_get_two_folders_and_see_only_their_files(self):
+        self._connect(chain="ch_line_a", name="alpha")
+        drive.connect_token(
+            "a@example.invalid", "ch_line_b", "alpha", TOKEN, self.store, self.disk,
+            conn=self.conn, embedder=lambda text: drive._hash_vec(text), board_fn=self._board,
+            tag_line=False, now=1_000_001,
+        )
+        rows = dict(self.conn.execute("SELECT chain_id, folder_name FROM drive_lines").fetchall())
+        self.assertEqual(rows["ch_line_a"], "alpha")
+        self.assertNotEqual(rows["ch_line_b"], "alpha")
+        self.assertTrue(rows["ch_line_b"].startswith("alpha-"))
+        folders = sorted(n["name"] for n in self.disk.nodes.values() if n["kind"] == "folder" and n["name"] != "SKV")
+        self.assertEqual(len(folders), 2)
+        drive.place(
+            "a@example.invalid", "ch_line_b", "alpha", b"c" * (drive.HEAVY_BYTES + 2), "b-only.bin",
+            "line b private cedar plan", mime="application/octet-stream", client=self.disk, conn=self.conn,
+            embedder=lambda text: drive._hash_vec(text), board_fn=self._board, now=3_000_000,
+        )
+        self.assertEqual(len(drive.search("a@example.invalid", "ch_line_b", "cedar plan", conn=self.conn)), 1)
+        self.assertEqual(drive.search("a@example.invalid", "ch_line_a", "cedar plan", conn=self.conn), [])
+        # reconnecting a line keeps its folder: nothing is renamed or moved
+        drive.connect_token(
+            "a@example.invalid", "ch_line_b", "alpha", TOKEN, self.store, self.disk,
+            conn=self.conn, embedder=lambda text: drive._hash_vec(text), board_fn=self._board,
+            tag_line=False, now=1_000_002,
+        )
+        again = dict(self.conn.execute("SELECT chain_id, folder_name FROM drive_lines").fetchall())
+        self.assertEqual(again, rows)
+
     def test_read_pdf_and_text_range(self):
         self._connect()
         folder = self._line_folder()

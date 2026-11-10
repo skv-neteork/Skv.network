@@ -22,16 +22,20 @@ def third_person(agent, gist):
     return g
 
 
+def _short(ev):
+    return str(ev or "").split("::")[-1]
+
+
 def other_line(event):
     agent = event.get("actor_agent_id") or "?"
-    ev = event.get("event_id") or ""
+    ev = _short(event.get("event_id"))
     g = third_person(agent, event.get("gist") or event.get("essence") or event.get("ev_kind") or "ход")
     line = "[ev:%s@%s] агент %s — %s" % (ev, agent, agent, g)
     return line[:140]
 
 
 def own_line(event):
-    ev = event.get("event_id") or ""
+    ev = _short(event.get("event_id"))
     g = event.get("gist") or event.get("essence") or event.get("ev_kind") or ""
     return ("[ev:%s] %s" % (ev, g)).strip()[:140]
 
@@ -52,10 +56,10 @@ def visible_other(event, role):
 
 def others_block(events, actor_id, key_id, role, digest_ids=None):
     """Third-person lines. An ev already printed by the digest is left out."""
-    skip = set(digest_ids or [])
+    skip = {_short(x) for x in (digest_ids or [])}
     lines = []
     for e in events:
-        if e.get("event_id") in skip:
+        if _short(e.get("event_id")) in skip:
             continue
         if _is_self(e, actor_id, key_id) or not e.get("actor_agent_id"):
             continue
@@ -80,7 +84,7 @@ def legacy_block(conn, room_legacy):
             continue
         seen.add(ev)
         g = (r.get("gist") or r.get("essence") or "").strip()
-        lines.append(("[ev:%s] %s" % (ev, g)).strip()[:140])
+        lines.append(("[ev:%s] %s" % (_short(ev), g)).strip()[:140])
         if len(lines) >= 5:
             break
     if not lines:
@@ -90,12 +94,12 @@ def legacy_block(conn, room_legacy):
 
 def facts_for(conn, actor_id, key_id, chain_id, role="assistant", digest_ids=None):
     """Facts with actor and is_self. An ev already covered by the digest is not repeated."""
-    digest_ids = set(digest_ids or [])
+    digest_ids = {_short(x) for x in (digest_ids or [])}
     events = list_events(conn, chain_id)
     facts = []
     legacy = []
     for e in events:
-        if e["event_id"] in digest_ids:
+        if _short(e["event_id"]) in digest_ids:
             continue
         self_ = _is_self(e, actor_id, key_id)
         if not e.get("actor_agent_id"):
@@ -107,7 +111,7 @@ def facts_for(conn, actor_id, key_id, chain_id, role="assistant", digest_ids=Non
             continue
         cite = own_line(e) if self_ else other_line(e)
         facts.append({
-            "ev": e["event_id"],
+            "ev": _short(e["event_id"]),
             "actor": e.get("actor_agent_id"),
             "is_self": bool(self_),
             "fact": cite,
@@ -140,4 +144,8 @@ def check_citations(text, owners):
 
 
 def owners_map(conn, chain_id):
-    return {e["event_id"]: e.get("actor_agent_id") for e in list_events(conn, chain_id)}
+    out = {}
+    for e in list_events(conn, chain_id):
+        out[e["event_id"]] = e.get("actor_agent_id")
+        out.setdefault(_short(e["event_id"]), e.get("actor_agent_id"))
+    return out

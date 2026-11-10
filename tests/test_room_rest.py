@@ -95,9 +95,13 @@ class RoomRestTests(unittest.TestCase):
         self.assertFalse(refused["saved"])
 
     def test_no_agents_stays_implicit(self):
-        out = rest_attach(INFO, self.conn, {"saved": True, "event_id": "ev-plain", "session_id": "solo"})
+        out = rest_attach(INFO, self.conn, {"saved": True, "event_id": "ev-plain", "session_id": "solo-implicit"})
         self.assertTrue(out["saved"])
-        self.assertNotIn("identify_hint", out)
+        # C1: a lone agent is asked once per session to identify (soft nudge); nothing is stamped or refused
+        self.assertIn("identify", out.get("identify_hint", "identify"))
+        again = rest_attach(INFO, self.conn, {"saved": True, "event_id": "ev-plain2", "session_id": "solo-implicit"})
+        self.assertTrue(again["saved"])
+        self.assertNotIn("identify_hint", again)
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM room_events").fetchone()[0], 0)
 
     def test_http_identify_and_room_do_not_touch_a_live_key(self):

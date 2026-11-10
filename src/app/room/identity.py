@@ -55,9 +55,13 @@ def identify(conn, key_id, chain_id, name, role="assistant", client_hint="", ses
     """Return a fresh token, or NAME_IN_USE. Does not replace another session's token hash."""
     ensure(conn)
     name = check_name(name)
-    role = (role or "assistant").strip().lower()
+    # role and client_hint are optional. An unknown role is kept in client_hint and the agent is an assistant.
+    role_in = (role or "").strip()
+    role = role_in.lower() or "assistant"
     if role not in ROLES:
-        raise ValueError("role must be one of: " + "|".join(ROLES))
+        client_hint = ("role=%s %s" % (role_in[:40], client_hint or "")).strip()
+        role = "assistant"
+    client_hint = str(client_hint or "")
     session_id = (session_id or "").strip() or secrets.token_hex(8)
     now_dt = as_dt(now)
     cur = _row(conn, key_id, name)

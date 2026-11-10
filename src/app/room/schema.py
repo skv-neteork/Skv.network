@@ -90,6 +90,14 @@ def ensure(conn):
            WHERE released_at IS NULL OR released_at = ''"""
     )
     conn.execute(
+        """CREATE TABLE IF NOT EXISTS agent_pack_seen (
+            key_id TEXT NOT NULL,
+            actor_id TEXT NOT NULL,
+            session_id TEXT DEFAULT '',
+            seen_at TEXT,
+            PRIMARY KEY (key_id, actor_id))"""
+    )
+    conn.execute(
         """CREATE TABLE IF NOT EXISTS identify_misses (
             key_id TEXT NOT NULL,
             session_id TEXT NOT NULL,

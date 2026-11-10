@@ -56,6 +56,18 @@ def line_folder_name(chain_id: str, chain_name: str = "") -> str:
     return safe or "main"
 
 
+def unique_line_folder(conn, chain_id: str, name: str) -> str:
+    """Two lines of one account never share a Drive folder: a name another line already uses gets a short suffix.
+    The line keeps its own stored folder; existing folders and files are never renamed or moved."""
+    clash = conn.execute(
+        "SELECT 1 FROM drive_lines WHERE folder_name=? AND chain_id!=? LIMIT 1", (name, chain_id)
+    ).fetchone()
+    if not clash:
+        return name
+    tag = hashlib.sha256((chain_id or "").encode("utf-8")).hexdigest()[:6]
+    return "%s-%s" % (name[:73], tag)
+
+
 def child_query(folder_id: str) -> str:
     """Drive files.list query. Empty parent is refused: that would scan the whole disk."""
     folder_id = (folder_id or "").strip()
@@ -521,8 +533,13 @@ def connect_token(user_id: str, chain_id: str, chain_name: str, token_value: str
     conn, own = _open(user_id, conn)
     try:
         root_id = client.ensure_folder(SKV_FOLDER, None)
-        folder_name = line_folder_name(chain_id, chain_name)
-        folder_id = client.ensure_folder(folder_name, root_id)
+        ensure(conn)
+        known = conn.execute("SELECT folder_id, folder_name FROM drive_lines WHERE chain_id=?", (chain_id,)).fetchone()
+        if known and known[0]:
+            folder_name, folder_id = known[1] or line_folder_name(chain_id, chain_name), known[0]
+        else:
+            folder_name = unique_line_folder(conn, chain_id, line_folder_name(chain_id, chain_name))
+            folder_id = client.ensure_folder(folder_name, root_id)
         conn.execute(
             "INSERT OR REPLACE INTO drive_account (user_id, vault_ref, scope, skv_folder_id, connected_at) VALUES (?,?,?,?,?)",
             (user_id, ref, SCOPE, root_id, time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())),
@@ -551,7 +568,7 @@ def _line_folder(conn, client, chain_id: str, chain_name: str, user_id: str) -> 
     known = conn.execute("SELECT folder_id, folder_name FROM drive_lines WHERE chain_id=?", (chain_id,)).fetchone()
     if known and known[0]:
         return known[0]
-    folder_name = line_folder_name(chain_id, chain_name)
+    folder_name = unique_line_folder(conn, chain_id, line_folder_name(chain_id, chain_name))
     folder_id = client.ensure_folder(folder_name, row[0])
     conn.execute(
         "INSERT OR REPLACE INTO drive_lines (chain_id, folder_id, folder_name, last_sync, scanned_at) VALUES (?,?,?,?,?)",

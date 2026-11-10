@@ -3,8 +3,12 @@
 One UTF-8 document: about 8000 estimated tokens of the newest raw turns,
 8000 of older L1 summaries, 8000 of still older L2 blocks. Layer ranges are
 event rowids and do not overlap. A record is kept whole or left out.
-Critical, constitution, board, profile and tasks are included in full.
-The access registry is included without secrets, or marked absent.
+Constitution and profile are included in full. Critical marks are not a
+separate list: the marks whose source events fall inside the shipped L2, L1 and
+raw windows are written as short "CRITICAL:" heading lines inside those sections
+(capped; the rest is counted). The board and tasks are one short list of open
+items (id | status | title | waiting_for). The access registry is one counter
+line; the full list stays behind the profile page and the keys tools.
 
 Token figures use memory_v2.est_tokens. That is an estimate, not a tokenizer count.
 This does not change the HTTP bootstrap, which stays size-capped for the network stall.
@@ -234,6 +238,22 @@ def _l2_records(conn: sqlite3.Connection, before_rowid: Optional[int]) -> Tuple[
     return eligible, notes
 
 
+CRITICAL_TITLE_CHARS = 110
+CRITICAL_PER_RECORD = 4
+CRITICAL_PER_LAYER = 24
+OPEN_TITLE_CHARS = 120
+OPEN_DONE_STATUSES = ("done", "parked")
+
+
+def _one_line(text: str, limit: int) -> str:
+    line = re.sub(r"\s+", " ", str(text or "")).strip()
+    return line if len(line) <= limit else line[: max(1, limit - 1)].rstrip() + "\u2026"
+
+
+def _short_ev(eid: str) -> str:
+    return str(eid or "").split("::")[-1]
+
+
 def _critical(conn: sqlite3.Connection) -> List[dict]:
     out = []
     if "critical_auto" in _tables(conn):
@@ -241,7 +261,9 @@ def _critical(conn: sqlite3.Connection) -> List[dict]:
             "SELECT key, kind, value, context, event_id, time_str, hits FROM critical_auto"
         ):
             body, changed = mask(f"{kind}: {value}\ncontext: {ctx or ''}\nhits: {hits}")
+            title, _c = mask(_one_line(f"{kind}: {value}", CRITICAL_TITLE_CHARS))
             out.append({"id": "auto:" + str(key), "layer": "critical", "time": ts or "", "event_id": eid or "",
+                        "title": title, "hits": int(hits or 0), "auto": True,
                         "body": body, "secrets_masked": changed, "tokens_estimate": est_tokens(body)})
     if "event_metadata" in _tables(conn):
         for eid, ts, raw in conn.execute(
@@ -251,7 +273,9 @@ def _critical(conn: sqlite3.Connection) -> List[dict]:
                 if ">>>" not in line:
                     continue
                 body, changed = mask(line.strip())
+                title, _c = mask(_one_line(re.sub(r"^\s*>>>\s*", "", line), CRITICAL_TITLE_CHARS))
                 out.append({"id": f"mark:{eid}:{i}", "layer": "critical", "time": ts or "", "event_id": str(eid),
+                            "title": title, "hits": 0, "auto": False,
                             "body": body, "secrets_masked": changed, "tokens_estimate": est_tokens(body)})
     out.sort(key=lambda r: r["id"])
     return out
@@ -272,10 +296,63 @@ def _board(conn: sqlite3.Connection) -> List[dict]:
             "\n".join(f"{k}: {rec.get(k) or ''}" for k in want if k != "removed")
         )
         out.append({"id": str(rec.get("item_id")), "layer": "board", "kind": rec.get("kind") or "",
-                    "status": rec.get("status") or "", "body": body, "secrets_masked": changed,
+                    "status": rec.get("status") or "", "title": rec.get("title") or "",
+                    "waiting_for": rec.get("waiting_for") or "", "body": body, "secrets_masked": changed,
                     "tokens_estimate": est_tokens(body)})
     out.sort(key=lambda r: r["id"])
     return out
+
+
+def _open_items(board: Sequence[dict]) -> Tuple[List[str], int]:
+    """One line per open board item. Done and parked items are only counted."""
+    lines, closed = [], 0
+    for rec in sorted(board, key=lambda r: str(r.get("id") or "")):
+        status = str(rec.get("status") or "").strip().lower()
+        if status in OPEN_DONE_STATUSES:
+            closed += 1
+            continue
+        title, _c = mask(_one_line(rec.get("title") or "", OPEN_TITLE_CHARS))
+        waiting, _c = mask(_one_line(rec.get("waiting_for") or "", 60))
+        label = status or str(rec.get("kind") or "item")
+        lines.append("%s | %s | %s | %s" % (str(rec.get("id") or "").replace("|", "/"), label, title.replace("|", "/"), waiting.replace("|", "/")))
+    return lines, closed
+
+
+def _event_rows(conn: sqlite3.Connection) -> Dict[str, int]:
+    if "event_metadata" not in _tables(conn):
+        return {}
+    return {str(e): int(r) for r, e in conn.execute("SELECT rowid, event_id FROM event_metadata")}
+
+
+def _attach_critical(layers: dict, critical: Sequence[dict], rows: Dict[str, int]) -> Dict[str, int]:
+    """Write critical marks into the shipped L2/L1/raw records as heading lines.
+
+    A mark belongs to a record when its source event row is inside the record's
+    row range. Raw records already carry their own >>> lines, so only automatic
+    marks are added there. Newest records are filled first, each layer is capped,
+    and what is left out is counted. The record body in the pack is not changed;
+    the lines are rendered after it.
+    """
+    placed = []
+    for rec in critical:
+        row = rows.get(str(rec.get("event_id") or ""))
+        if row is not None:
+            placed.append((row, rec))
+    leftover: Dict[str, int] = {}
+    for name in ("l2", "l1", "raw"):
+        shown, seen = set(), set()
+        for rec in sorted(layers[name]["included"], key=lambda r: r["row_hi"], reverse=True):
+            hits = [c for row, c in placed if rec["row_lo"] <= row <= rec["row_hi"]
+                    and (name != "raw" or c.get("auto"))]
+            seen.update(c["id"] for c in hits)
+            hits = [c for c in hits if c["id"] not in shown]
+            hits.sort(key=lambda c: (bool(c.get("auto")), -int(c.get("hits") or 0), str(c.get("id"))))
+            room = max(0, min(CRITICAL_PER_RECORD, CRITICAL_PER_LAYER - len(shown)))
+            take = hits[:room]
+            shown.update(c["id"] for c in take)
+            rec["critical_lines"] = ["CRITICAL: %s [ev:%s]" % (c["title"], _short_ev(c["event_id"])) for c in take]
+        leftover[name] = len(seen - shown)
+    return leftover
 
 
 def _profile(conn: sqlite3.Connection) -> List[dict]:
@@ -341,6 +418,18 @@ def _registry(conn: Optional[sqlite3.Connection]) -> Tuple[List[dict], str]:
     return out, "present" if out else "absent"
 
 
+def _registry_counts(conn: Optional[sqlite3.Connection], user_id: str) -> Tuple[int, int]:
+    """Keys and active keys of this account only. Another account is never counted."""
+    if conn is None or "user_api_keys" not in _tables(conn):
+        return 0, 0
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(user_api_keys)")}
+    if "user_id" not in cols:
+        return 0, 0
+    active = "sum(coalesce(is_active,0))" if "is_active" in cols else "0"
+    total, act = conn.execute("SELECT count(*), %s FROM user_api_keys WHERE lower(user_id)=lower(?)" % active, (user_id,)).fetchone()
+    return int(total or 0), int(act or 0)
+
+
 def build_pack(user_conn: sqlite3.Connection, shared_conn: Optional[sqlite3.Connection] = None,
                owners: Optional[Sequence[str]] = None) -> dict:
     owners = list(owners or ["denizchavdarov@gmail.com"])
@@ -357,11 +446,14 @@ def build_pack(user_conn: sqlite3.Connection, shared_conn: Optional[sqlite3.Conn
     l2 = _take(l2_all, BUDGET)
     critical = _critical(user_conn)
     board = _board(user_conn)
+    open_lines, closed_items = _open_items(board)
     tasks = [dict(r, layer="tasks") for r in board if r.get("kind") == "task"]
     profile = _profile(user_conn)
     constitution, const_status = _constitution(shared_conn, owners)
     registry, reg_status = _registry(shared_conn)
     layers = {"raw": raw, "l1": l1, "l2": l2}
+    critical_left = _attach_critical(layers, critical, _event_rows(user_conn))
+    reg_total, reg_active = _registry_counts(shared_conn, owners[0])
     spans = {
         "raw": _span(raw["included"], "rowid", "rowid"),
         "l1": _span(l1["included"], "row_lo", "row_hi"),
@@ -382,6 +474,9 @@ def build_pack(user_conn: sqlite3.Connection, shared_conn: Optional[sqlite3.Conn
             "raw_rows_not_reached": max(0, len(raw_all) - len(raw["included"]) - (1 if raw["excluded_next"] else 0)),
         },
         "critical": critical,
+        "critical_not_listed": critical_left,
+        "open_items": open_lines,
+        "open_items_closed": closed_items,
         "constitution": constitution,
         "constitution_status": const_status,
         "board": board,
@@ -389,6 +484,8 @@ def build_pack(user_conn: sqlite3.Connection, shared_conn: Optional[sqlite3.Conn
         "tasks": tasks,
         "access_registry": registry,
         "access_registry_status": reg_status,
+        "access_registry_keys": reg_total,
+        "access_registry_active": reg_active,
     }
 
 
@@ -422,10 +519,10 @@ def _by_id(records):
 def render_document(pack: dict) -> str:
     """One document, stable prefix first.
 
-    constitution, profile, L2, L1, raw, then the fresh tail.
-    critical stays in that tail: new critical rows keep arriving, so it is
-    not part of the stable prefix. Clocks, token totals and overlap notes
-    stay in pack_status at the end.
+    constitution, profile, L2, L1, raw, then the open items, the access counter
+    and pack_status. Critical marks are not a section: they are heading lines
+    inside the L2/L1/raw records whose rows contain their source events.
+    Clocks, token totals and overlap notes stay in pack_status at the end.
     """
     parts = [
         "SKV memory pack 8/8/8\n",
@@ -457,23 +554,22 @@ def render_document(pack: dict) -> str:
     for name, key in (("l2", "row_lo"), ("l1", "row_lo"), ("raw", "rowid")):
         section(name)
         for rec in _oldest(pack["layers"][name]["included"], key):
-            parts.append(_frame(rec))
-    # critical changes often, so it stays after raw, not in the prefix after L1.
-    section("critical")
-    for rec in _by_id(pack.get("critical") or []):
-        parts.append(_frame(rec))
-    section("board")
-    for rec in _by_id(pack.get("board") or []):
-        parts.append(_frame(rec))
-    section("tasks")
-    for rec in _by_id(pack.get("tasks") or []):
-        parts.append(_frame(rec))
+            lines = rec.get("critical_lines") or []
+            parts.append(_frame(dict(rec, body=rec["body"] + "\n" + "\n".join(lines)) if lines else rec))
+        left = (pack.get("critical_not_listed") or {}).get(name) or 0
+        if left:
+            parts.append("CRITICAL: +%d more marks in these rows, not listed (POST /api/v7/memory with budget_critical)\n\n" % left)
+    section("open_items")
+    open_lines = pack.get("open_items") or []
+    body = "\n".join(open_lines) if open_lines else "none"
+    body += "\nclosed: %d done or parked, not listed. Full cards: board_list tool or GET /api/v7/board.\n" % int(pack.get("open_items_closed") or 0)
+    parts.append(_frame({"layer": "open_items", "id": "open_items", "body": body}))
     section("access_registry")
     if pack.get("access_registry_status") == "absent":
-        parts.append("ABSENT: no access registry without a secret column was found.\n\n")
+        parts.append("access_registry: absent. No access registry without a secret column was found.\n\n")
     else:
-        for rec in _by_id(pack.get("access_registry") or []):
-            parts.append(_frame(rec))
+        parts.append("access_registry: %d keys, %d active. Full list: https://skv.network/profile (named keys); service accesses of this line are in service_accesses.\n\n"
+                     % (int(pack.get("access_registry_keys") or 0), int(pack.get("access_registry_active") or 0)))
     extra = pack.get("service_accesses") or []
     if extra:
         parts.append("## service_accesses\n")
@@ -636,6 +732,9 @@ def write_snapshot(pack: dict, out_dir: str, part_bytes: int = 32768) -> str:
             "tasks": len(pack["tasks"]),
             "access_registry": pack["access_registry_status"],
             "access_registry_rows": len(pack["access_registry"]),
+            "access_registry_keys": pack.get("access_registry_keys", 0),
+            "open_items": len(pack.get("open_items") or []),
+            "critical_not_listed": pack.get("critical_not_listed") or {},
         },
         "checks": {
             "whole_records": True,

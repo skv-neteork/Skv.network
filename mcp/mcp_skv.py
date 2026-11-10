@@ -3030,7 +3030,7 @@ def _step_zero_pages() -> list:
             "A page break does not end a record. Cite facts by the [ev:id] shown in the pack. "
             "Token figures in the pack are estimates, not a model tokenizer count. "
             "The service_accesses section lists where an access is stored. A listing is not permission to act. "
-            "Pack order: constitution, profile, L2, L1, raw, then the fresh tail. "
+            "Pack order: constitution, profile, L2, L1, raw, open_items, access counter. Critical marks are CRITICAL: heading lines inside L2/L1; open_items lists open board items only (board_list for all). "
             "After the pack, the MCP constitution pages follow. Read those too.")
     if pack_err:
         note += "\nPACK ABSENT: " + pack_err

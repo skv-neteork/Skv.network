@@ -86,23 +86,40 @@ class PackTests(unittest.TestCase):
         self.assertNotIn("B" * 20, doc)
         self.assertEqual(parsed[("l1", "l1-old")], "L1 OLD COMPLETE")
         self.assertNotIn(("l1", "l1-overlap"), parsed)
-        self.assertEqual(parsed[("l2", "1")], "L2 OLD COMPLETE")
+        self.assertTrue(parsed[("l2", "1")].startswith("L2 OLD COMPLETE"))
         self.assertNotIn(("l2", "9"), parsed)
         self.assertNotIn("LEGACYMAPTOKEN", doc)
         self.assertTrue(pack["overlap_ok"])
         self.assertLess(pack["spans"]["l2"]["rowid_max"], pack["spans"]["l1"]["rowid_min"])
         self.assertLess(pack["spans"]["l1"]["rowid_max"], pack["spans"]["raw"]["rowid_min"])
-        self.assertIn("a fact", parsed[("critical", "auto:k1")])
-        self.assertIn(">>> critical mark full line", parsed[("critical", "mark:e2:1")])
+        # critical is not a section; its marks are heading lines inside the L2 block that covers them
+        self.assertNotIn("## critical", doc)
+        self.assertEqual(parsed[("l2", "1")].split("\n")[0], "L2 OLD COMPLETE")
+        self.assertIn("CRITICAL: fact: a fact [ev:e10]", parsed[("l2", "1")])
+        self.assertIn("CRITICAL: critical mark full line [ev:e2]", parsed[("l2", "1")])
+        self.assertEqual(doc.count("CRITICAL: fact: a fact"), 1)
+        self.assertEqual(pack["critical_not_listed"], {"l2": 0, "l1": 0, "raw": 0})
         self.assertIn("FULL CONST 00", parsed[("constitution", "cube_const_00_v5")])
         self.assertNotIn(("constitution", "cube_const_00_v4"), parsed)
-        self.assertIn("full task body", parsed[("tasks", "T1")])
-        self.assertIn("full note body", parsed[("board", "N1")])
+        # board and tasks are one short list of open items, titles only
+        self.assertNotIn("full task body", doc)
+        self.assertNotIn("full note body", doc)
+        self.assertNotIn("## board", doc)
+        self.assertNotIn("## tasks", doc)
+        items = parsed[("open_items", "open_items")]
+        self.assertIn("T1 | todo | Do | ", items)
+        self.assertIn("N1 | note | N | ", items)
+        self.assertNotIn("gone", items)
         self.assertNotIn("secret body", doc)
         self.assertIn("always full profile", parsed[("profile", "p1")])
         self.assertNotIn("sk_thisisasecretkeyvalue123", doc)
-        self.assertIn("sk_abcd", doc)
+        self.assertNotIn("sk_abcd", doc)
         self.assertEqual(pack["access_registry_status"], "present")
+        # no registry rows in the document; one counter line for this account only
+        self.assertNotIn("layer=access", doc)
+        self.assertIn("access_registry: 0 keys, 0 active.", doc)
+        own = render_document(build_pack(self.user, self.shared, owners=["u", "system"]))
+        self.assertIn("access_registry: 1 keys, 1 active.", own)
         self.assertEqual(pack["gaps"]["legacy_l2_map"], "excluded_no_disjoint_range")
 
     def test_stable_prefix_when_the_tail_grows(self):
@@ -110,7 +127,7 @@ class PackTests(unittest.TestCase):
         doc = render_document(build_pack(self.user, self.shared, owners=["system"]))
         names = (
             "constitution", "profile", "l2", "l1", "raw",
-            "critical", "board", "tasks", "access_registry", "pack_status",
+            "open_items", "access_registry", "pack_status",
         )
         spots = [doc.index("## " + name) for name in names]
         self.assertEqual(spots, sorted(spots))
@@ -129,10 +146,10 @@ class PackTests(unittest.TestCase):
         self.user.commit()
         grown = render_document(build_pack(self.user, self.shared, owners=["system"]))
         self.assertEqual(grown.split("## raw")[0], upper)
-        raw_end = doc.index("## critical")
+        raw_end = doc.index("## open_items")
         self.assertTrue(grown.startswith(doc[:raw_end]))
         fresh = grown[raw_end:]
-        self.assertLess(fresh.index("NEW RAW TAIL"), fresh.index("## critical"))
+        self.assertLess(fresh.index("NEW RAW TAIL"), fresh.index("## open_items"))
         again = render_document(build_pack(self.user, self.shared, owners=["system"]))
         self.assertEqual(again, grown)
 
@@ -170,7 +187,7 @@ class PackTests(unittest.TestCase):
         self.shared.commit()
         pack = build_pack(self.user, self.shared)
         self.assertEqual(pack["access_registry_status"], "absent")
-        self.assertIn("ABSENT", render_document(pack))
+        self.assertIn("access_registry: absent", render_document(pack))
 
     def test_gzip_parts_and_secret_refusal(self):
         self._seed_layers()
@@ -270,3 +287,32 @@ class StepZeroPagesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CriticalHeadingTests(unittest.TestCase):
+    def test_caps_and_overflow_are_counted(self):
+        from app import memory_pack888 as m
+        crit = [{"id": "auto:%d" % i, "event_id": "u::ev%d" % i, "title": "t%d" % i, "hits": i, "auto": True} for i in range(10)]
+        rows = {"u::ev%d" % i: 5 for i in range(10)}
+        layers = {"l2": {"included": [{"row_lo": 1, "row_hi": 9}]}, "l1": {"included": []}, "raw": {"included": [{"row_lo": 5, "row_hi": 5}]}}
+        left = m._attach_critical(layers, crit, rows)
+        self.assertEqual(len(layers["l2"]["included"][0]["critical_lines"]), m.CRITICAL_PER_RECORD)
+        self.assertEqual(left["l2"], 10 - m.CRITICAL_PER_RECORD)
+        # highest hits first, short event id without the account prefix
+        self.assertEqual(layers["l2"]["included"][0]["critical_lines"][0], "CRITICAL: t9 [ev:ev9]")
+        # a raw record gets only automatic marks (its >>> lines are already in the text)
+        crit.append({"id": "mark:x:0", "event_id": "u::ev0", "title": "m", "hits": 0, "auto": False})
+        m._attach_critical(layers, crit, rows)
+        self.assertNotIn("CRITICAL: m [ev:ev0]", layers["raw"]["included"][0]["critical_lines"])
+
+    def test_open_items_titles_only(self):
+        from app import memory_pack888 as m
+        board = [
+            {"id": "A", "kind": "task", "status": "blocked", "title": "Wait for B", "waiting_for": "B"},
+            {"id": "D", "kind": "task", "status": "done", "title": "finished", "waiting_for": ""},
+            {"id": "P", "kind": "task", "status": "parked", "title": "later", "waiting_for": ""},
+            {"id": "N", "kind": "note", "status": "", "title": "pinned | note", "waiting_for": ""},
+        ]
+        lines, closed = m._open_items(board)
+        self.assertEqual(lines, ["A | blocked | Wait for B | B", "N | note | pinned / note | "])
+        self.assertEqual(closed, 2)

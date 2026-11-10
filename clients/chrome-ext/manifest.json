@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SKV Guard 2",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "SKV memory + server seal for web chats without MCP (ChatGPT; Le Chat, Gemini, Claude unverified). Key stays in the extension.",
   "permissions": [
     "storage"

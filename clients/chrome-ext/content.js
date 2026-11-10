@@ -8,7 +8,25 @@
     try { chrome.runtime.sendMessage(msg, (r) => { const le = chrome.runtime.lastError; res(r || { error: "no_reply", message: le ? le.message : null }); }); }
     catch (e) { res({ error: "ext_context", message: String(e.message || e) }); }   // e.g. extension reloaded: refresh the tab
   });
-  const keyOf = (p) => p.assistant.id || ("h" + p.assistant.text.length + ":" + p.assistant.text.slice(0, 40));
+  // Key of a reply. With a page message id: the id. Without one (0.1.8): user text + reply text + how many identical
+  // pairs came before, so two identical short replies ("ok?" -> "Да.") are two turns, not one.
+  const sig = (u, a) => "h" + (u ? u.text.length + ":" + u.text.slice(0, 30) : "-") + "|" + a.text.length + ":" + a.text.slice(0, 40);
+  function keysOfAll(list) {
+    const out = [], seen = new Map(); let lastUser = null;
+    for (const t of list) {
+      if (t.role === "user") { lastUser = t; continue; }
+      if (t.role !== "assistant") continue;
+      if (t.id) { out.push([t, t.id]); continue; }
+      const sg = sig(lastUser, t), n = seen.get(sg) || 0; seen.set(sg, n + 1);
+      out.push([t, sg + "#" + n]);
+    }
+    return out;
+  }
+  const keyOf = (p) => {
+    if (p.assistant.id) return p.assistant.id;
+    const hit = keysOfAll(A.turns(document)).find(([t]) => t.el === p.assistant.el);
+    return hit ? hit[1] : sig(p.user, p.assistant) + "#0";
+  };
 
   // ---- UI (shadow DOM; never contains the key) ----
   const host = document.createElement("div");
@@ -182,7 +200,15 @@
     if (!st.enabled) return status("SKV is off: this reply was not saved (switch on in the toolbar popup).");
     if (!st.hasKey) return status("Set your SKV key in the extension Options.");
     status("Saving turn…");
-    const r = await send({ type: "turn", site: A.id, user_message: p.user ? p.user.text : "", draft: p.assistant.text });
+    // 0.1.8: a transient failure (network, 5xx, 429) must not lose the turn: retry 3 times (2 s, 6 s, 15 s).
+    const retryable = (e) => e === "network" || e === "no_reply" || e === "bad_json" || e === "http_429" || /^http_5/.test(e || "");
+    let r = await send({ type: "turn", site: A.id, user_message: p.user ? p.user.text : "", draft: p.assistant.text });
+    for (const d of [2000, 6000, 15000]) {
+      if (!r.error || !retryable(r.error)) break;
+      status("Saving turn… retry (" + (r.message || r.error) + ")");
+      await new Promise((res) => setTimeout(res, d));
+      r = await send({ type: "turn", site: A.id, user_message: p.user ? p.user.text : "", draft: p.assistant.text });
+    }
     // Only a seal returned by the server is shown. No seal from server = no seal. True state only.
     const bf = self.SKVSeal.badgeFor(r);
     remember(p, bf.text, bf.ok);
@@ -216,7 +242,7 @@
     if (Date.now() - stableSince >= 1500) onReplyDone(p);
   }
   // Mark replies already on the page at load as done (don't re-save history).
-  setTimeout(() => { const t = A.turns(document); for (let i = 0; i < t.length; i++) if (t[i].role === "assistant") done.add(t[i].id || ("h" + t[i].text.length + ":" + t[i].text.slice(0, 40))); }, 1200);
+  setTimeout(() => { for (const [, k] of keysOfAll(A.turns(document))) done.add(k); }, 1200);
   new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(tick, 400); }).observe(document.body, { childList: true, subtree: true, characterData: true });
   setInterval(tick, 1000);
 })();

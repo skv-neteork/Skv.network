@@ -15,9 +15,9 @@ test("mask: ordinary text untouched", () => {
   const t = "Meeting at 18:43 MSK, task-board item T_EXT015, see skv.network docs";
   assert.equal(maskSecrets(t), t);
 });
-test("manifest 0.1.7: popup, minimal permissions", () => {
+test("manifest 0.1.8: popup, minimal permissions", () => {
   const m = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
-  assert.equal(m.version, "0.1.7");
+  assert.equal(m.version, "0.1.8");
   assert.equal(m.action.default_popup, "popup.html");
   assert.deepEqual(m.permissions, ["storage"]);
   assert.deepEqual(m.host_permissions, ["https://skv.network/*"]);

@@ -50,3 +50,9 @@ Later: Le Chat, Gemini, Claude via per-site adapters. Source: /workspace/skv-gua
 - Server marks web turns sent without a memory block and without [ev:] citations as `[READ ?]` + seal_warning; the badge is then not green.
 - Gemini user text: screen-reader label ("Ваш запрос"/"You said") removed, doubled prompt de-duplicated.
 - 0.1.7b (live Gemini test, auto-insert did not fire): send hook moved to window capture phase; Enter by key/code/keyCode; composer via composedPath/activeElement; pointerdown/mousedown/click on the send button; send attempts swallowed while facts load; send by button click or synthetic Enter, then a check that it was really sent. Diagnostics show v=content/background version, auto=on/off, send=button found, and the last hook decision.
+
+## 0.1.8 (2026-11-11, C3.3: turn on every user message)
+- Audit: with the extension installed and on, `turn` is called once per finished assistant reply with the user message that belongs to it (content.js onReplyDone -> background `turn`). A reply that already carries an SKV seal is skipped (the agent called turn through MCP). Switched off / no key: nothing is sent, by design.
+- Fix 1: two identical short replies on a page without message ids ("ok?" -> "Да." twice) shared one dedupe key, so the second turn was never sent. The key is now user text + reply text + occurrence number (page id still wins).
+- Fix 2: a transient failure (network, 5xx, 429, no reply) lost the turn for good (the reply was marked done before sending). Now retried 3 times (2 s, 6 s, 15 s); non-retryable errors (off, no key, 4xx) are not.
+- Tests: tests/turn_autocall.test.js. Run: `node --test tests/*.test.js` (node 22+ needs the glob, not the directory).

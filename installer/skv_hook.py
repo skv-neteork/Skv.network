@@ -7,8 +7,16 @@ Modes (argv[1]):
   claude-stop     Claude Code Stop: save turn (user msg + last_assistant_message), show seal
   cursor-prompt   Cursor beforeSubmitPrompt: remember the user message
   cursor-response Cursor afterAgentResponse: save turn
+  cursor-stop     Cursor stop: with the stop guard on, one follow-up message when no SKV turn was called
   test            send a test turn, print the seal
 Key: ~/.skv/key (0600) or SKV_API_KEY. Off switch: touch ~/.skv/off (or uninstall).
+
+STOP GUARD (opt-in: install.sh --stop-guard, or touch ~/.skv/guard): the Stop hook blocks the end of a reply when no SKV
+turn was called for the current user message (no seal in the answer and no turn tool call after the last user message).
+Claude Code and Grok Build get {"decision":"block","reason":...}; Cursor gets {"followup_message":...} from its stop event.
+At most 2 blocks per user message, then the old fallback runs (the hook saves the turn itself). Fail-open on any error.
+Grok Build reads ~/.claude/settings.json and ~/.cursor/hooks.json too: camelCase fields (sessionId, lastAssistantMessage,
+stopHookActive, reason) are accepted next to the snake_case ones.
 """
 import json, os, re, sys, time, urllib.request, hashlib
 
@@ -19,6 +27,25 @@ SEAL_RE = re.compile(r"(?:🔐\s*)?SKV\s*\|\s*#\d+·[0-9a-f]{4}")
 TIMEOUT = 20
 REMIND = ("SKV: before you answer, call the skv MCP tool turn(user_message, draft) and end the answer "
           "with the seal it returns. If the tool is unavailable, answer normally (the Stop hook saves the turn).")
+MAX_BLOCKS = 2
+GUARD_REASON = ("SKV: no turn was called for the current user message. Call the skv MCP tool turn(user_message=<the user's "
+                "message>, msg_ref=<its id>, draft=<your answer>) now, in this step, then finish the reply with the seal it "
+                "returns. turn is called in the same first step as the first reply to every user message, however short; "
+                "the seal at the end is the user's visible check.")
+TURN_TOOL_RE = re.compile(r"(?:^|__|\.|/)turn$")
+
+
+def guard_on():
+    return os.environ.get("SKV_STOP_GUARD") == "1" or os.path.exists(os.path.join(D, "guard"))
+
+
+def ev_get(ev, *names):
+    """First non-empty field: Claude Code snake_case, Grok Build and Cursor camelCase/snake_case."""
+    for n in names:
+        v = ev.get(n)
+        if v not in (None, ""):
+            return v
+    return ""
 
 
 def log(msg):
@@ -49,7 +76,7 @@ def state_path(sid):
 def remember_prompt(sid, prompt):
     p = state_path(sid)
     with open(p, "w", encoding="utf-8") as f:
-        json.dump({"prompt": prompt, "t": time.time()}, f)
+        json.dump({"prompt": prompt, "t": time.time(), "blocks": 0}, f)
     try:
         os.chmod(p, 0o600)
     except Exception:
@@ -62,6 +89,72 @@ def recall_prompt(sid):
             return json.load(f).get("prompt") or ""
     except Exception:
         return ""
+
+
+def load_state(sid):
+    try:
+        with open(state_path(sid), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def update_state(sid, **kw):
+    st = load_state(sid)
+    st.update(kw)
+    p = state_path(sid)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(st, f)
+    try:
+        os.chmod(p, 0o600)
+    except Exception:
+        pass
+    return st
+
+
+def turn_called_in_transcript(path):
+    """Claude Code JSONL: True when an assistant tool_use named like <server>__turn follows the last real user message."""
+    called = False
+    try:
+        with open(os.path.expanduser(path), encoding="utf-8") as f:
+            for line in f:
+                try:
+                    o = json.loads(line)
+                except Exception:
+                    continue
+                m = o.get("message") or {}
+                c = m.get("content")
+                if o.get("type") == "user" and m.get("role") == "user":
+                    if isinstance(c, str):
+                        called = False
+                    elif isinstance(c, list) and any(isinstance(x, dict) and x.get("type") == "text" and (x.get("text") or "").strip() for x in c):
+                        called = False
+                elif o.get("type") == "assistant" and isinstance(c, list):
+                    for x in c:
+                        if isinstance(x, dict) and x.get("type") == "tool_use" and TURN_TOOL_RE.search(str(x.get("name") or "")) \
+                                and "skv" in str(x.get("name") or "").lower():
+                            called = True
+    except Exception:
+        return False
+    return called
+
+
+def guard_verdict(sid, answer, transcript_path=""):
+    """None = let the reply finish. A string = block with that reason (at most MAX_BLOCKS per user message)."""
+    if not guard_on() or os.path.exists(os.path.join(D, "off")):
+        return None
+    if SEAL_RE.search(answer or ""):
+        return None
+    if transcript_path and turn_called_in_transcript(transcript_path):
+        return None
+    st = load_state(sid)
+    n = int(st.get("blocks") or 0)
+    if n >= MAX_BLOCKS:
+        log("stop guard: gave up after %d blocks, fallback save" % n)
+        return None
+    update_state(sid, blocks=n + 1)
+    log("stop guard: blocked (%d)" % (n + 1))
+    return GUARD_REASON
 
 
 def last_user_from_transcript(path):
@@ -133,15 +226,23 @@ def main():
     if mode == "claude-prompt":
         if os.environ.get("CURSOR_VERSION"):   # Cursor also runs Claude Code hooks: Cursor has its own
             return
-        remember_prompt(ev.get("session_id"), ev.get("prompt") or "")
+        remember_prompt(ev_get(ev, "session_id", "sessionId"), ev.get("prompt") or "")
         if not os.path.exists(os.path.join(D, "off")):   # per-prompt reminder (stdout -> agent context)
             print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": REMIND}}))
     elif mode == "claude-stop":
         if os.environ.get("CURSOR_VERSION"):
             return
-        sid = ev.get("session_id") or ""
-        um = recall_prompt(sid) or last_user_from_transcript(ev.get("transcript_path") or "")
-        seal = save(um, ev.get("last_assistant_message") or "", "hook:claude_code", sid)
+        if ev.get("reason") not in (None, "", "end_turn"):   # Grok Build also fires Stop at session end
+            return
+        sid = ev_get(ev, "session_id", "sessionId")
+        tp = ev_get(ev, "transcript_path", "transcriptPath")
+        answer = ev_get(ev, "last_assistant_message", "lastAssistantMessage") or ""
+        why = guard_verdict(sid, answer, tp)
+        if why:
+            print(json.dumps({"decision": "block", "reason": why}, ensure_ascii=False))
+            return
+        um = recall_prompt(sid) or last_user_from_transcript(tp)
+        seal = save(um, answer, "hook:claude_code", sid)
         if seal:
             print(json.dumps({"systemMessage": seal}, ensure_ascii=False))
     elif mode == "cursor-prompt":
@@ -149,7 +250,32 @@ def main():
         print(json.dumps({"continue": True}))
     elif mode == "cursor-response":
         sid = ev.get("conversation_id") or ""
-        save(recall_prompt(sid), ev.get("text") or "", "hook:cursor", sid)
+        text = ev.get("text") or ""
+        if guard_on() and not os.path.exists(os.path.join(D, "off")):
+            # the stop event decides: block once, or save as the fallback
+            update_state(sid, last_answer=text[:60000], sealed=bool(SEAL_RE.search(text)))
+        else:
+            save(recall_prompt(sid), text, "hook:cursor", sid)
+        print("{}")
+    elif mode == "cursor-stop":
+        sid = ev.get("conversation_id") or ""
+        if not sid or not guard_on() or os.path.exists(os.path.join(D, "off")):   # Grok Build has no conversation_id: claude-stop covers it
+            print("{}")
+            return
+        st = load_state(sid)
+        if ev.get("status") not in (None, "", "completed"):
+            print("{}")
+            return
+        if st.get("sealed") or not (st.get("last_answer") or "").strip():
+            print("{}")
+            return
+        n = int(st.get("blocks") or 0)
+        if n < MAX_BLOCKS and int(ev.get("loop_count") or 0) < MAX_BLOCKS:
+            update_state(sid, blocks=n + 1)
+            log("stop guard (cursor): follow-up (%d)" % (n + 1))
+            print(json.dumps({"followup_message": GUARD_REASON}, ensure_ascii=False))
+            return
+        save(st.get("prompt") or "", st.get("last_answer") or "", "hook:cursor", sid)
         print("{}")
     elif mode == "test":
         seal = save("SKV installer test: are hooks connected?", "Yes - this is the SKV installer test turn.",

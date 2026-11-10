@@ -1,9 +1,9 @@
 # SKV installer for local agents on Windows (Claude Code, Cursor, Claude Desktop).
 #   irm https://skv.network/install.ps1 | iex
 #   & ([scriptblock]::Create((irm https://skv.network/install.ps1))) -Uninstall
-# Options: -Clients "claude-code,cursor,claude-desktop"  -NoHooks  -Uninstall
+# Options: -Clients "claude-code,cursor,claude-desktop,grok-build"  -NoHooks  -Uninstall  -StopGuard  -NoStopGuard
 # Nothing is installed without your yes. Key is read hidden, stored in %USERPROFILE%\.skv\key (only your user can read it).
-param([switch]$Uninstall, [string]$Clients = "", [switch]$NoHooks)
+param([switch]$Uninstall, [string]$Clients = "", [switch]$NoHooks, [switch]$StopGuard, [switch]$NoStopGuard)
 $ErrorActionPreference = "Stop"
 $Base = if ($env:SKV_BASE) { $env:SKV_BASE } else { "https://skv.network" }
 $SkvHome = if ($env:SKV_HOME) { $env:SKV_HOME } else { Join-Path $HOME ".skv" }
@@ -30,12 +30,13 @@ $det = @{
   "claude-code"    = (Get-Command claude -ErrorAction SilentlyContinue) -or (Test-Path "$HOME\.claude") -or (Test-Path "$HOME\.claude.json")
   "cursor"         = (Test-Path "$HOME\.cursor")
   "claude-desktop" = (Test-Path "$env:APPDATA\Claude")
+  "grok-build"     = (Get-Command grok -ErrorAction SilentlyContinue) -or (Test-Path "$HOME\.grok")
 }
-$label = @{ "claude-code" = "Claude Code (MCP + hooks)"; "cursor" = "Cursor (MCP + hooks)"; "claude-desktop" = "Claude Desktop (MCP only, needs Node.js; no hooks there)" }
+$label = @{ "claude-code" = "Claude Code (MCP + hooks)"; "cursor" = "Cursor (MCP + hooks)"; "claude-desktop" = "Claude Desktop (MCP only, needs Node.js; no hooks there)"; "grok-build" = "Grok Build (hooks only; its MCP connection is set in Grok Build)" }
 $sel = @()
 if ($Clients) { $sel = $Clients.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ } }
 else {
-  foreach ($c in @("claude-code", "cursor", "claude-desktop")) {
+  foreach ($c in @("claude-code", "cursor", "claude-desktop", "grok-build")) {
     if ($det[$c]) {
       $verb = if ($Action -eq "install") { "Connect SKV to" } else { "Remove SKV from" }
       if (Ask "$verb $($label[$c])?") { $sel += $c }
@@ -53,6 +54,8 @@ if ($Action -eq "install") {
     [IO.File]::WriteAllText($KeyFile, $k); Lock $KeyFile; Remove-Variable k
   }
   if (-not $NoHooks) { Fetch "skv_hook.py" (Join-Path $SkvHome "skv_hook.py") }
+  if ($StopGuard) { New-Item -ItemType File -Force (Join-Path $SkvHome "guard") | Out-Null; Write-Host "Stop guard ON. Turn it off: delete $SkvHome\guard" }
+  if ($NoStopGuard) { Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $SkvHome "guard"); Write-Host "Stop guard OFF" }
 }
 $env:SKV_NO_HOOKS = if ($NoHooks) { "1" } else { "0" }
 foreach ($c in $sel) {

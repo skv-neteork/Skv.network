@@ -2,6 +2,7 @@
 """SKV config editor used by install.sh / install.ps1. Merges or removes SKV entries in agent configs.
 Never touches other entries. Backs up every file it changes (<file>.skv-bak.<timestamp>).
 usage: skv_config.py install|uninstall <client> <skv_home> <base>
+clients: claude-code, cursor, claude-desktop, grok-build (hooks only)
 """
 import json, os, shutil, sys, time, platform
 
@@ -113,13 +114,36 @@ def main():
         d = load(p)
         d.setdefault("version", 1)
         hk = d.setdefault("hooks", {})
-        for ev, mode in (("beforeSubmitPrompt", "cursor-prompt"), ("afterAgentResponse", "cursor-response")):
+        for ev, mode in (("beforeSubmitPrompt", "cursor-prompt"), ("afterAgentResponse", "cursor-response"), ("stop", "cursor-stop")):
             hk[ev] = [h for h in hk.get(ev, []) if MARK not in str(h.get("command", ""))]
             if act == "install" and HOOKS_ON:
-                hk[ev].append({"command": hook_cmd(home, mode, "powershell"), "timeout": 30})
+                entry = {"command": hook_cmd(home, mode, "powershell"), "timeout": 30}
+                if ev == "stop":
+                    entry["loop_limit"] = 2   # the stop guard follows up at most twice (a no-op unless ~/.skv/guard exists)
+                hk[ev].append(entry)
             if not hk[ev]:
                 hk.pop(ev)
         save(p, d)
+
+    elif client == "grok-build":
+        # Hooks only (Grok Build also reads ~/.claude/settings.json and ~/.cursor/hooks.json; identical commands are deduplicated).
+        # The MCP connection of Grok Build is set up in Grok Build itself.
+        p = os.path.expanduser("~/.grok/hooks/skv.json")
+        d = load(p)
+        hk = d.setdefault("hooks", {})
+        for ev, mode in (("UserPromptSubmit", "claude-prompt"), ("Stop", "claude-stop")):
+            hk[ev] = strip_hooks(hk.get(ev))
+            if act == "install" and HOOKS_ON:
+                hk[ev].append({"hooks": [{"type": "command", "command": hook_cmd(home, mode), "timeout": 30}]})
+            if not hk[ev]:
+                hk.pop(ev)
+        if not hk:
+            d.pop("hooks")
+        if d or act == "install":
+            save(p, d)
+        elif os.path.exists(p):
+            os.remove(p)
+            print("  removed:", p)
 
     elif client == "claude-desktop":
         # Claude Desktop config only launches local (stdio) servers: bridge to the remote MCP with mcp-remote (needs Node.js).

@@ -17,19 +17,24 @@ DEFAULT_HOURS = 72
 RESOLVING_DUTIES = ("skills_none", "skills_skip")
 SHARED_DB = "/data/skv/metadata_store/shared_master.db"
 
+RULES = (
+    " Rules: English; no secrets, tokens or personal data; never edit another author's cube, publish a new version; "
+    "anything that comes from personal memory or private files: ask the user first and publish only after a yes. "
+    "General rules for writing a cube: the meta create-cubes cube cube_3de96286fc73 (or its latest version)."
+)
 STEP3 = (
     "3) publish your own skills and hooks as cubes to the shared pool: cube_get(cube_id=\"%s\") and follow it "
     "(search the pool for a duplicate first). If you have none, reply turn(..., duty=skills_none, duty_reason=\"<why>\")." % META_CUBE_ID
-)
+) + RULES
 FIRST_NOTE = (
     "DUTY skills_harvest (first time): review your own skills and hooks and publish the proven, reusable ones as shared "
-    "cubes (English, no secrets): cube_get(cube_id=\"%s\"). Nothing to publish: turn(..., duty=skills_none, duty_reason=\"<why>\")." % META_CUBE_ID
-)
+    "cubes (English, no secrets): cube_get(cube_id=\"%s\"), search the pool for a duplicate first. Nothing to publish: turn(..., duty=skills_none, duty_reason=\"<why>\")." % META_CUBE_ID
+) + RULES
 AGAIN_NOTE = (
     "DUTY skills_harvest (every ~%dh): look back since your last harvest: repeated mistakes, fixes that worked, the user's "
     "corrections, new rules of craft. Publish each as a cube (cube_get(cube_id=\"%s\"): search for a duplicate first). "
     "Nothing new: turn(..., duty=skills_none, duty_reason=\"<why>\"). Reminder only, nothing is blocked."
-)
+) + RULES
 
 
 def interval_hours():

@@ -122,6 +122,30 @@ class SkillsHarvestTests(unittest.TestCase):
         for t in (sh.STEP3, sh.FIRST_NOTE, sh.AGAIN_NOTE % (72, sh.META_CUBE_ID)):
             self.assertIn(sh.META_CUBE_ID, t)
 
+    def test_rules_consent_and_privacy_in_every_text(self):
+        """Brief: new version not edit, no secrets/personal data, ask the user before publishing from personal memory."""
+        for t in (sh.STEP3, sh.FIRST_NOTE, sh.AGAIN_NOTE % (72, sh.META_CUBE_ID)):
+            low = t.lower()
+            self.assertIn("personal data", low)
+            self.assertIn("personal memory", low)
+            self.assertIn("ask the user first", low)
+            self.assertIn("never edit another author", low)
+            self.assertIn("duplicate", low)
+            self.assertIn("cube_3de96286fc73", t)
+        self.assertNotIn("%", sh.RULES)
+
+    def test_constitution_texts_carry_the_consent_rule(self):
+        import re
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        src = open(os.path.join(root, "mcp", "mcp_skv.py"), encoding="utf-8").read() if os.path.exists(os.path.join(root, "mcp", "mcp_skv.py")) else ""
+        if not src:
+            self.skipTest("mcp source not available here")
+        i = src.index("CUBE05_MCP = ")
+        line = src[i:src.index("\n", i)]
+        self.assertIn("ask the user first and publish only after a yes", line)
+        self.assertIn("personal data", line)
+        self.assertIn('CUBE05_ID = "cube_const_05_mcp_v19"', src)
+
 
 if __name__ == "__main__":
     unittest.main()

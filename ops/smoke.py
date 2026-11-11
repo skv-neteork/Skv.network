@@ -87,6 +87,22 @@ def vault_has(user, value):
     try: return int(r.stdout.strip().split()[-1])
     except Exception: return -1
 
+def skills_checks(tag):
+    """Identify step 3 (skills and hooks as cubes) and the harvest state, on the fixed smoke account."""
+    u, k = fresh_account()
+    h = {"Authorization": "Bearer " + k}
+    s1, b1, _ = http(REST + "/agent/identify", {"name": "smoke-sh-" + tag[-6:], "session_id": "sh-" + tag[-6:]}, h)
+    try: d1 = json.loads(b1)
+    except Exception: d1 = {}
+    rec("SH1 identify reply carries step 3 (publish skills/hooks as cubes)", s1 == 200 and "cube_meta_publish_skills" in str(d1.get("skills_step")) and "skills_none" in str(d1.get("skills_step")) and d1.get("skills_step") in str(d1.get("room_text")), str({k: v for k, v in d1.items() if k not in ("agent_token", "room_text")})[:100])
+    s2, b2, _ = http(REST + "/agent/identify", {"name": "smoke-sh-" + tag[-6:], "session_id": "sh-" + tag[-6:]}, h)
+    try: d2 = json.loads(b2)
+    except Exception: d2 = {"raw": b2[:80]}
+    rec("SH2 step 3 is shown once per agent", s2 == 200 and "skills_step" not in d2 and bool(d2.get("agent_token")), str({k: v for k, v in d2.items() if k not in ("agent_token", "room_text")})[:100])
+    s3, b3, _ = http(REST + "/agent/room", {"agent_token": d2.get("agent_token", ""), "session_id": "sh-" + tag[-6:], "event_id": "", "saved": True, "duty": "skills_none"}, h)
+    rec("SH3 room accepts duty=skills_none", s3 == 200 and "skills_harvest" not in b3, b3[:100])
+
+
 def profile_checks(tag):
     """Profile layer (flag on for the skvext test account + the smoke account) and the MCP turn watch."""
     J = lambda d: json.dumps(d, ensure_ascii=False)
@@ -621,6 +637,8 @@ print(json.dumps({'eid': eid, 'before': before, 'after': after, 'z': list(z or [
     except Exception as e: rec("consent checks ran", False, repr(e))
     try: profile_checks(tag)
     except Exception as e: rec("profile checks ran", False, repr(e))
+    try: skills_checks(tag)
+    except Exception as e: rec("skills checks ran", False, repr(e))
     # CL: close this run's test-account court cases (no judge calls): withdraw pending fixes, drop their queue rows
     _cl = _dex("import sqlite3;c=sqlite3.connect('/data/skv/metadata_store/shared_master.db',timeout=30);"
                "w=\"status='pending' AND (lower(user_id)='denizchavdarov+skvext@gmail.com' OR lower(user_id) LIKE '%.invalid')\";"

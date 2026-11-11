@@ -204,7 +204,7 @@ def _saved_events(info, result, gist="", gists=None):
     return out
 
 
-def finish_turn(conn, info, who, result, kind="", context_state="normal", gist="", gists=None, agent_token_given=True):
+def finish_turn(conn, info, who, result, kind="", context_state="normal", gist="", gists=None, agent_token_given=True, duty=""):
     """Attach the digest when this key has explicit agents. Commit the cursor only after serialization.
 
     gist is a short phrase about this turn (the agent's answer); gists maps a recap event id to its phrase.
@@ -260,6 +260,14 @@ def finish_turn(conn, info, who, result, kind="", context_state="normal", gist="
                 result["identify_hint"] = SOFT_IDENTIFY_HINT
         if not pack_seen(conn, info.get("key_id") or "", who["actor_id"]):
             result["step_zero_reminder"] = STEP_ZERO_REMINDER
+        try:
+            from app.room.skills_harvest import turn_note
+            note = turn_note(conn, info.get("key_id") or "", who["actor_id"], user_id=info.get("user_id") or "", duty=duty)
+            if note:
+                result["skills_harvest"] = note
+                result["duties"] = list(result.get("duties") or []) + [note]
+        except Exception as exc:
+            print("[room] skills harvest skipped: %s" % type(exc).__name__, flush=True)
         if context_state == "lost":
             pack = step_zero_package(
                 conn, who["actor_id"], info.get("key_id") or "", info.get("chain_id") or "",
@@ -300,7 +308,15 @@ def do_identify(info, conn, name, role="", client_hint="", session_id=""):
     room_text = pack.get("text") or ""
     if first:
         room_text = (nxt + "\n" + room_text).strip()
-    return {
+    skills_step = ""
+    try:
+        from app.room.skills_harvest import identify_step
+        skills_step = identify_step(conn, info["key_id"], out["agent_id"])
+    except Exception as exc:
+        print("[room] skills step skipped: %s" % type(exc).__name__, flush=True)
+    if skills_step:
+        room_text = (room_text + "\n" + skills_step).strip()
+    res = {
         "agent_id": out["agent_id"],
         "agent_token": out["agent_token"],
         "session_id": out["session_id"],
@@ -309,6 +325,9 @@ def do_identify(info, conn, name, role="", client_hint="", session_id=""):
         "handoff_digest": pack.get("while_away"),
         "room_text": room_text,
     }
+    if skills_step:
+        res["skills_step"] = skills_step
+    return res
 
 
 def explicit_count_ro(user_id, key_id):
@@ -341,7 +360,7 @@ def _hinted(result, hint):
     return out
 
 
-def rest_attach(info, conn, result, agent_token="", session_id="rest", kind="turn", context_state="normal", gist=""):
+def rest_attach(info, conn, result, agent_token="", session_id="rest", kind="turn", context_state="normal", gist="", duty=""):
     """Stamp a REST turn and attach while_away.
 
     A missing token never refuses the save. MCP still returns IDENTIFY_REQUIRED
@@ -368,7 +387,7 @@ def rest_attach(info, conn, result, agent_token="", session_id="rest", kind="tur
         hint = REST_IDENTIFY_HINT if (who or {}).get("error") == "IDENTIFY_REQUIRED" else REST_BAD_TOKEN_HINT
         return _hinted(result, hint)
     return finish_turn(conn, info, who, result, kind=kind or "turn", context_state=context_state or "normal",
-                       gist=turn_gist(gist or ""))
+                       gist=turn_gist(gist or ""), duty=duty or "")
 
 
 def rest_step_zero(info, conn, agent_token="", session_id="rest", force=False, context_state="normal"):

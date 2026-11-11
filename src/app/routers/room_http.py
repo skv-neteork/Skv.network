@@ -35,6 +35,7 @@ class RoomTurnBody(BaseModel):
     verdict: str = ""
     note: str = ""
     gist: str = ""
+    duty: str = ""
 
 
 class StepZeroRoomBody(BaseModel):
@@ -114,10 +115,10 @@ def http_room_attach(req: RoomTurnBody, authorization: str = Header(None)):
         }
         done = rest_attach(
             info, conn, result, req.agent_token or "", req.session_id or "rest",
-            req.kind or "turn", req.context_state or "normal", req.gist or "",
+            req.kind or "turn", req.context_state or "normal", req.gist or "", req.duty or "",
         )
         keep = {}
-        for key in ("saved", "event_id", "while_away", "actor", "identify_hint", "room_warning", "room_step_zero", "step_zero_reminder"):
+        for key in ("saved", "event_id", "while_away", "actor", "identify_hint", "room_warning", "room_step_zero", "step_zero_reminder", "skills_harvest"):
             if isinstance(done, dict) and done.get(key) not in (None, ""):
                 keep[key] = done.get(key)
         return keep

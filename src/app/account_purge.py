@@ -40,17 +40,15 @@ SIDE = [("rest_turn.db", "st"), ("compact_state_rest.db", "cst"), ("compact_stat
         ("cube_harvest.db", "h")]
 
 
-def name_variants(user_id):
-    u = user_id or ""
-    out = {
-        "".join(c for c in u if c.isalnum() or c in ("_", "-")),           # account_db_name / semantic.account_name
-        re.sub(r"[^a-z0-9_]", "", u.lower()),                               # memory_lines
-        "".join(c for c in u if c.isalnum() or c in ("_", "-", "+")),       # older '+' variant
-        "".join(c for c in u if c.isalnum() or c in ("_", "-", "+", "@", ".")),
-    }
+def name_variants(user_id, protected=()):
+    """File names to remove for this account. `protected` = primary storage names of OTHER registered accounts:
+    never returned (2026-11-11: purging "bench-locomo" removed the db of "benchlocomo" through the hyphen-less variant)."""
+    from app.account_ids import account_name, legacy_names
+    out = {account_name(user_id)} | legacy_names(user_id)
     bad = {"shared_master", "rest_turn", "seal_counter", "cube_harvest", "compact_state_rest", "compact_state_mcp",
            "cube_link", "admin", "demo", "anonymous", "archive", "chrono_buffer"}
-    return sorted(v for v in out if v and v not in (".", "..") and "/" not in v and len(v) >= 6 and v not in bad)
+    prot = set(protected or ())
+    return sorted(v for v in out if v and v not in (".", "..") and "/" not in v and len(v) >= 6 and v not in bad and v not in prot)
 
 
 def _tables(c):
@@ -78,11 +76,26 @@ def _anon_votes(c, table, uid, anon_id):
     return n
 
 
-def purge(user_id, key_hashes=()):
-    """Delete the user's rows and files. key_hashes: sha256(key) hex of the user's keys (from user_api_keys)."""
+class NameCollision(ValueError):
+    """The account's storage name is shared with another registered account: nothing may be deleted."""
+
+
+def purge(user_id, key_hashes=(), registered=None):
+    """Delete the user's rows and files. key_hashes: sha256(key) hex of the user's keys (from user_api_keys).
+    registered: all registered emails (default: read from shared_master.users); used to protect other accounts' files."""
     uid = (user_id or "").strip()
     if "@" not in uid:
         raise ValueError("purge: account ids are emails")
+    from app.account_ids import conflicting_accounts, protected_names, registered_emails
+    if registered is None:
+        _c = sqlite3.connect(SHARED_DB, timeout=30)
+        try:
+            registered = registered_emails(_c)
+        finally:
+            _c.close()
+    if conflicting_accounts(uid, registered):
+        raise NameCollision("storage name is shared with another account: refusing to purge")
+    protected = protected_names(uid, registered)
     anon_id = "deleted:" + hashlib.sha256(uid.encode()).hexdigest()[:12]
     users = [uid] + [h[:16] for h in key_hashes if h]
     report = {"rows": {}, "anonymized": {}, "files": 0}
@@ -136,7 +149,10 @@ def purge(user_id, key_hashes=()):
         except Exception as e:
             report.setdefault("errors", []).append(f"{db}:{tb}: {e}")
     # files: every name variant, with and without .db, sidecars, chunk/l1 indexes, staging dirs
-    for v in name_variants(uid):
+    _skipped = sorted(set(name_variants(uid)) - set(name_variants(uid, protected)))
+    if _skipped:
+        report["skipped_other_account_names"] = len(_skipped)   # names only counted, never listed
+    for v in name_variants(uid, protected):
         pats = [os.path.join(BASE, v), os.path.join(BASE, v + ".db"), os.path.join(BASE, v + ".db-wal"),
                 os.path.join(BASE, v + ".db-shm"), os.path.join(BASE, v + ".db-journal"),
                 os.path.join(BASE, glob.escape(v) + "__*.db")]

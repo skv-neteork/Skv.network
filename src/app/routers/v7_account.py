@@ -191,6 +191,11 @@ async def register(req: RegisterRequest, request: Request):
         # Check if email exists
         cur.execute("SELECT email, confirmed FROM users WHERE email = ?", (req.email,))
         _ex = cur.fetchone()
+        if not _ex:   # a different address with the same storage name would share (and later delete) another account's data
+            from app.account_ids import conflicting_accounts as _conf, registered_emails as _regs
+            if _conf(req.email, _regs(cur)):
+                conn.close()
+                raise HTTPException(status_code=409, detail="This address cannot be used (its storage name is taken). Use another address.")
         if _ex and _ex[1]:
             conn.close()
             raise HTTPException(status_code=409, detail="Email already registered")
@@ -498,6 +503,11 @@ async def delete_account(req: DeleteAccountRequest):
     if not row or not verify_password(req.password, row[0] or ""):
         conn.close()
         raise HTTPException(401, "Wrong password")
+    from app.account_ids import conflicting_accounts as _conf, registered_emails as _regs
+    _registered = _regs(conn)
+    if _conf(user_id, _registered):   # same storage name as another account: deleting would remove that account's data
+        conn.close()
+        raise HTTPException(409, "This account shares its storage name with another account. Nothing was deleted; contact support.")
     _hashes = [str(r[0] or "").split("$", 1)[-1] for r in conn.execute("SELECT api_key FROM user_api_keys WHERE user_id=?", (user_id,))]
     conn.execute("DELETE FROM user_api_keys WHERE user_id=?", (user_id,))
     conn.execute("DELETE FROM users WHERE email=?", (user_id,))
@@ -505,7 +515,7 @@ async def delete_account(req: DeleteAccountRequest):
     conn.close()
     from app.account_purge import purge as _purge
     try:
-        rep = _purge(user_id, _hashes)
+        rep = _purge(user_id, _hashes, [e for e in _registered if e != user_id])
     except Exception as e:
         print(f"[SKV] purge error for deleted account: {e}")
         rep = {"errors": [str(e)[:200]]}

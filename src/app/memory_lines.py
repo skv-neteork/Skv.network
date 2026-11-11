@@ -57,7 +57,8 @@ def foreign(ki):
         tagged = dict(c.execute("SELECT event_id, chain_id FROM event_lines WHERE user_id=?", (uid,)).fetchall())
     finally:
         c.close()
-    db = STORE + re.sub(r"[^a-z0-9_]", "", uid.lower()) + ".db"
+    from app.account_ids import account_name as _an
+    db = STORE + _an(uid) + ".db"
     ids, snips = set(), []
     own_tok, for_tok = set(), set()
     TOK = re.compile(r"\b[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)+\b")
@@ -159,7 +160,8 @@ def _mm():
 
 
 def db_file(uid):
-    return os.path.realpath(STORE + re.sub(r"[^a-z0-9_]", "", uid.lower()) + ".db")
+    from app.account_ids import account_name as _an   # one mapper for the whole code base (was lower-cased and hyphen-less)
+    return os.path.realpath(STORE + _an(uid) + ".db")
 
 
 def line_map(uid):
@@ -168,6 +170,105 @@ def line_map(uid):
         return dict(c.execute("SELECT event_id, chain_id FROM event_lines WHERE user_id=?", (uid,)).fetchall())
     finally:
         c.close()
+
+
+# ---- 2026-11-11: line split of server-made summaries independent of existing L1s ----------------------------------------
+# The fallback job took the account's uid from "an L1 that has an email in user_id"; in a fresh account there is none, the uid
+# became the db name, the line map was empty and L1 chunks / L2 blocks crossed line boundaries (benchlme1: llm_l1_237_251).
+# Lines now come from the events themselves: event_lines is keyed by the (full) event id, which also carries the account email.
+def lines_for_events(event_ids):
+    """{event_id: chain_id} for the tagged ones (untagged events belong to the account's main line)."""
+    ids = [e for e in dict.fromkeys(event_ids or []) if e]
+    out = {}
+    if not ids:
+        return out
+    c = _mm()
+    try:
+        for i in range(0, len(ids), 500):
+            part = ids[i:i + 500]
+            for e, ch in c.execute("SELECT event_id, chain_id FROM event_lines WHERE event_id IN (%s)" % ",".join("?" * len(part)), part):
+                out[e] = ch
+    finally:
+        c.close()
+    return out
+
+
+def rowid_lines(conn, rowids=None):
+    """{rowid: chain_id or None} for events of an account db (None = untagged = main line)."""
+    if rowids is None:
+        rows = conn.execute("SELECT rowid, event_id FROM event_metadata").fetchall()
+    else:
+        rs = [r for r in dict.fromkeys(rowids) if r]
+        rows = []
+        for i in range(0, len(rs), 500):
+            part = rs[i:i + 500]
+            rows += conn.execute("SELECT rowid, event_id FROM event_metadata WHERE rowid IN (%s)" % ",".join("?" * len(part)), part).fetchall()
+    lm = lines_for_events([e for _, e in rows])
+    return {r: lm.get(e) for r, e in rows}
+
+
+def resolve_uid(conn, acct=""):
+    """Account email for a db: an L1 user_id with an email, else the email in the event ids, else the registered user whose
+    storage name is acct, else acct. Never depends on an L1 already existing."""
+    from app.account_ids import account_name as _an
+    try:
+        r = conn.execute("SELECT user_id FROM summary_l1 WHERE user_id LIKE '%@%' LIMIT 1").fetchone()
+        if r and r[0]:
+            return r[0]
+    except Exception:
+        pass
+    try:
+        for (e,) in conn.execute("SELECT event_id FROM event_metadata WHERE event_id LIKE '%@%::%' ORDER BY rowid LIMIT 5"):
+            u = str(e).split("::", 1)[0]
+            if u and (not acct or _an(u) == acct):
+                return u
+    except Exception:
+        pass
+    if acct:
+        try:
+            c = _orig_connect("file:" + MASTER + "?mode=ro", uri=True, timeout=5)
+            try:
+                hit = [r[0] for r in c.execute("SELECT email FROM users") if _an(r[0]) == acct]
+            finally:
+                c.close()
+            if len(hit) == 1:
+                return hit[0]
+        except Exception:
+            pass
+    return acct
+
+
+def main_chain(uid):
+    c = _mm()
+    try:
+        r = c.execute("SELECT chain_id FROM user_api_keys WHERE user_id=? AND kind='agent' AND name='main' AND is_active=1 LIMIT 1", (uid,)).fetchone()
+        return r[0] if r else None
+    except Exception:
+        return None
+    finally:
+        c.close()
+
+
+def range_line(rl, fr, to):
+    """Line of a summary over rowids fr..to: the chain, None (all untagged = main), or "mixed" when it spans lines."""
+    s = {ch for r, ch in rl.items() if (fr or to) <= r <= to}
+    if len(s) == 1:
+        return next(iter(s))
+    return "mixed" if s else None
+
+
+def tag_summary_rows(uid, rows):
+    """rows: [(tbl, skey, chain_id)] -> summary_lines, so the reader's line filter does not depend on rowid ranges."""
+    rows = [(uid, t, k, ch) for t, k, ch in rows if ch and ch != "mixed"]
+    if not rows:
+        return 0
+    c = _mm()
+    try:
+        c.executemany("INSERT OR REPLACE INTO summary_lines(user_id,tbl,skey,chain_id) VALUES (?,?,?,?)", rows)
+        c.commit()
+    finally:
+        c.close()
+    return len(rows)
 
 
 def make_ctx(ki):

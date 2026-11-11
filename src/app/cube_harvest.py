@@ -1,6 +1,9 @@
-"""Periodic cube-harvest reminder (25.10). Reminder only, never a gate: turn/step_zero get a 'cube_harvest' duty
-about every SKV_CUBE_HARVEST_DAYS (default 3) per account, pointing to the harvest cube with the turn range since
-the last harvest. The agent closes it with duty="cube_harvest" (+duty_reason); that resets the timer."""
+"""Per-account cube-harvest fallback (25.10), used only when the caller has no identified agent.
+
+Identified agents use the per-agent reminder in app.room.skills_harvest (same duty name: cube_harvest,
+~SKV_SKILLS_HARVEST_HOURS / 72h). This module stays for implicit sessions and for GET /cube_harvest/due.
+Closing aliases (cube_harvest, skills_harvest, skills_none, skills_skip) reset this timer via done().
+The reminder points at the live author cube (CUBE_ID followed through superseded_by)."""
 import os, sqlite3, time
 DB = "/data/skv/metadata_store/cube_harvest.db"
 CUBE_ID = "cube_688c0ebbb3be"
@@ -33,7 +36,11 @@ def latest_cube_id(cid=None):
 
 
 def _days():
+    """Interval in days. SKV_SKILLS_HARVEST_HOURS wins when set; else SKV_CUBE_HARVEST_DAYS; else 3."""
     try:
+        if os.environ.get("SKV_SKILLS_HARVEST_HOURS"):
+            from app.room.skills_harvest import interval_hours
+            return max(0.01, float(interval_hours()) / 24.0)
         return max(0.01, float(os.environ.get("SKV_CUBE_HARVEST_DAYS", "3")))
     except Exception:
         return 3.0

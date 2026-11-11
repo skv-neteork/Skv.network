@@ -221,6 +221,17 @@ def finish_turn(conn, info, who, result, kind="", context_state="normal", gist="
         if hint:
             result = dict(result)
             result["identify_hint"] = hint
+        try:
+            from app import cube_harvest as _ch
+            user = info.get("user_id") or ""
+            extra = _ch.due(user, "turn") if user else {}
+            if extra:
+                result = dict(result)
+                result.update(extra)
+                if result.get("cube_harvest"):
+                    result["duties"] = [result["cube_harvest"]] + list(result.get("duties") or [])
+        except Exception as exc:
+            print("[room] cube harvest fallback skipped: %s" % type(exc).__name__, flush=True)
         return result
     if result.get("saved") is False or result.get("error") == "IDENTIFY_REQUIRED":
         return result
@@ -261,13 +272,14 @@ def finish_turn(conn, info, who, result, kind="", context_state="normal", gist="
         if not pack_seen(conn, info.get("key_id") or "", who["actor_id"]):
             result["step_zero_reminder"] = STEP_ZERO_REMINDER
         try:
-            from app.room.skills_harvest import turn_note
+            from app.room.skills_harvest import duty_item, turn_note
             note = turn_note(conn, info.get("key_id") or "", who["actor_id"], user_id=info.get("user_id") or "", duty=duty)
-            if note:
-                result["skills_harvest"] = note
-                result["duties"] = list(result.get("duties") or []) + [note]
+            item = duty_item(note)
+            if item:
+                result["cube_harvest"] = item
+                result["duties"] = list(result.get("duties") or []) + [item]
         except Exception as exc:
-            print("[room] skills harvest skipped: %s" % type(exc).__name__, flush=True)
+            print("[room] cube harvest skipped: %s" % type(exc).__name__, flush=True)
         if context_state == "lost":
             pack = step_zero_package(
                 conn, who["actor_id"], info.get("key_id") or "", info.get("chain_id") or "",

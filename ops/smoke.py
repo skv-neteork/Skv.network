@@ -94,13 +94,13 @@ def skills_checks(tag):
     s1, b1, _ = http(REST + "/agent/identify", {"name": "smoke-sh-" + tag[-6:], "session_id": "sh-" + tag[-6:]}, h)
     try: d1 = json.loads(b1)
     except Exception: d1 = {}
-    rec("SH1 identify reply carries step 3 (publish skills/hooks as cubes)", s1 == 200 and "cube_meta_publish_skills" in str(d1.get("skills_step")) and "skills_none" in str(d1.get("skills_step")) and d1.get("skills_step") in str(d1.get("room_text")), str({k: v for k, v in d1.items() if k not in ("agent_token", "room_text")})[:100])
+    rec("SH1 identify reply carries step 3 (publish skills/hooks as cubes)", s1 == 200 and "cube_3de96286fc73" in str(d1.get("skills_step")) and "skills_none" in str(d1.get("skills_step")) and d1.get("skills_step") in str(d1.get("room_text")), str({k: v for k, v in d1.items() if k not in ("agent_token", "room_text")})[:100])
     s2, b2, _ = http(REST + "/agent/identify", {"name": "smoke-sh-" + tag[-6:], "session_id": "sh-" + tag[-6:]}, h)
     try: d2 = json.loads(b2)
     except Exception: d2 = {"raw": b2[:80]}
     rec("SH2 step 3 is shown once per agent", s2 == 200 and "skills_step" not in d2 and bool(d2.get("agent_token")), str({k: v for k, v in d2.items() if k not in ("agent_token", "room_text")})[:100])
     s3, b3, _ = http(REST + "/agent/room", {"agent_token": d2.get("agent_token", ""), "session_id": "sh-" + tag[-6:], "event_id": "", "saved": True, "duty": "skills_none"}, h)
-    rec("SH3 room accepts duty=skills_none", s3 == 200 and "skills_harvest" not in b3, b3[:100])
+    rec("SH3 room accepts duty=skills_none", s3 == 200 and "cube_harvest" not in b3 and "skills_harvest" not in b3, b3[:100])
 
 
 def profile_checks(tag):

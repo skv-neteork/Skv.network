@@ -293,7 +293,7 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
         memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"
     
     # Load constitutional cubes from SQLite (shared_master.db)
-    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v18"]
+    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v19"]
     constitution_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_cube_ids), constitution_cube_ids)
     
     # Build constitution text from loaded cubes
@@ -873,7 +873,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                 memory_map += f"Shared knowledge cubes: {buffer.shared_current_size}\n"
             memory_map += "Use memory search to explore specific topics.\n"
         
-        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v18"]
+        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v19"]
         const_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_ids), constitution_ids)
         const_parts = []
         for cid in constitution_ids:
@@ -1657,12 +1657,11 @@ async def remember(req: RememberRequest):
         _out["cube_duty"] = _duty_notes
     if _rate_missed:
         _out["rate_missed"] = _rate_missed
-    try:   # periodic cube harvest: reminder only (app/cube_harvest.py)
+    try:   # close the per-account timer on any harvest alias; the reminder is attached in the room layer
         from app import cube_harvest as _ch
-        if (req.duty or "").strip() == "cube_harvest":
+        from app.room.skills_harvest import RESOLVING_DUTIES as _harvest_duties
+        if (req.duty or "").strip().lower() in _harvest_duties:
             _out.update(_ch.done(req.user_id, req.duty_reason or ""))
-        elif req.query or req.response:
-            _out.update(_ch.due(req.user_id, "turn"))
     except Exception as _e:
         print(f"[cube_harvest] skipped: {_e}", flush=True)
     if _cube_info:

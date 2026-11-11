@@ -1,4 +1,4 @@
-"""Skills/hooks harvest: identify step 3, per-agent state, periodic skills_harvest duty, resolution."""
+"""Unified cube harvest: identify step 3, per-agent state, one cube_harvest duty, resolution aliases."""
 import os
 import sqlite3
 import time
@@ -22,10 +22,12 @@ class SkillsHarvestTests(unittest.TestCase):
         )
         self.conn.commit()
         os.environ.pop("SKV_SKILLS_HARVEST_HOURS", None)
+        os.environ.pop("SKV_CUBE_HARVEST_DAYS", None)
         self.t0 = 1_800_000_000.0
 
     def tearDown(self):
         os.environ.pop("SKV_SKILLS_HARVEST_HOURS", None)
+        os.environ.pop("SKV_CUBE_HARVEST_DAYS", None)
         self.conn.close()
 
     def note(self, now, duty="", cube=None, actor="a1"):
@@ -34,7 +36,7 @@ class SkillsHarvestTests(unittest.TestCase):
     def test_identify_adds_step3_once(self):
         a = do_identify(INFO, self.conn, "agent-a", session_id="s1")
         self.assertEqual(a["next"], STEP_ZERO_NEXT)
-        self.assertIn("cube_meta_publish_skills", a["skills_step"])
+        self.assertIn(sh.AUTHOR_CUBE_ID, a["skills_step"])
         self.assertIn("skills_none", a["skills_step"])
         self.assertTrue(a["skills_step"].startswith("3)"))
         self.assertIn(a["skills_step"], a["room_text"])
@@ -52,11 +54,15 @@ class SkillsHarvestTests(unittest.TestCase):
         self.assertEqual(sh.interval_hours(), 72)
         os.environ["SKV_SKILLS_HARVEST_HOURS"] = "-5"
         self.assertEqual(sh.interval_hours(), 72)
+        os.environ.pop("SKV_SKILLS_HARVEST_HOURS", None)
+        os.environ["SKV_CUBE_HARVEST_DAYS"] = "2"
+        self.assertEqual(sh.interval_hours(), 48)
 
     def test_agent_without_state_is_asked_once(self):
         first = self.note(self.t0)
         self.assertIn("first time", first)
-        self.assertIn("cube_meta_publish_skills", first)
+        self.assertIn(sh.AUTHOR_CUBE_ID, first)
+        self.assertIn("DUTY cube_harvest", first)
         self.assertEqual(self.note(self.t0 + 10 * H), "")
 
     def test_reminder_every_interval_when_unresolved(self):
@@ -65,8 +71,10 @@ class SkillsHarvestTests(unittest.TestCase):
         again = self.note(self.t0 + 73 * H)
         self.assertIn("every ~72h", again)
         self.assertIn("skills_none", again)
+        self.assertIn("DUTY cube_harvest", again)
+        self.assertNotIn("DUTY skills_harvest", again)
         self.assertEqual(self.note(self.t0 + 100 * H), "")          # next one 72h after the reminder
-        self.assertIn("DUTY skills_harvest", self.note(self.t0 + 146 * H))
+        self.assertIn("DUTY cube_harvest", self.note(self.t0 + 146 * H))
 
     def test_explicit_skip_resolves_and_restarts_period(self):
         self.note(self.t0)
@@ -74,12 +82,20 @@ class SkillsHarvestTests(unittest.TestCase):
         row = sh._row(self.conn, "k", "a1")
         self.assertEqual(row[3], "skills_none")
         self.assertEqual(self.note(self.t0 + 100 * H), "")          # 40h after the skip: quiet
-        self.assertIn("DUTY skills_harvest", self.note(self.t0 + 133 * H))   # 73h after the skip
+        self.assertIn("DUTY cube_harvest", self.note(self.t0 + 133 * H))   # 73h after the skip
 
     def test_skip_before_any_state_and_alias(self):
         self.assertEqual(self.note(self.t0, duty="skills_skip"), "")
         self.assertEqual(sh._row(self.conn, "k", "a1")[3], "skills_skip")
         self.assertEqual(self.note(self.t0 + H), "")
+
+    def test_all_resolution_aliases(self):
+        for i, duty in enumerate(sh.RESOLVING_DUTIES):
+            actor = "alias-%d" % i
+            self.note(self.t0, actor=actor)
+            self.assertEqual(self.note(self.t0 + H, duty=duty, actor=actor), "")
+            self.assertEqual(sh._row(self.conn, "k", actor)[3], duty)
+            self.assertEqual(self.note(self.t0 + 60 * H, actor=actor), "")
 
     def test_cube_published_after_prompt_resolves(self):
         self.note(self.t0)
@@ -91,7 +107,7 @@ class SkillsHarvestTests(unittest.TestCase):
         self.assertEqual(seen[0][0], "u@example.invalid")
         self.assertEqual(sh._row(self.conn, "k", "a1")[3], "cube_publish")
         self.assertEqual(self.note(self.t0 + 70 * H, cube=cube), "")
-        self.assertIn("DUTY skills_harvest", self.note(self.t0 + 5 * H + 73 * H, cube=cube))
+        self.assertIn("DUTY cube_harvest", self.note(self.t0 + 5 * H + 73 * H, cube=cube))
 
     def test_state_is_per_agent(self):
         self.note(self.t0, actor="a1")
@@ -104,47 +120,71 @@ class SkillsHarvestTests(unittest.TestCase):
         a = do_identify(INFO, self.conn, "agent-a", session_id="s1")
         who = resolve_call(self.conn, INFO["key_id"], INFO["chain_id"], INFO["key_name"], agent_token=a["agent_token"], session_id="s1")
         r1 = finish_turn(self.conn, INFO, who, {"saved": True, "event_id": "e1", "session_id": "s1", "duties": ["x"]})
-        self.assertNotIn("skills_harvest", r1)            # identify already showed it
+        self.assertNotIn("cube_harvest", r1)            # identify already showed it
+        self.assertNotIn("skills_harvest", r1)
         self.assertEqual(r1["duties"], ["x"])
         self.conn.execute("UPDATE agent_skills_harvest SET last_prompt_at=?", (sh._fmt(time.time() - 80 * H),))
         self.conn.commit()
         r2 = finish_turn(self.conn, INFO, who, {"saved": True, "event_id": "e2", "session_id": "s1", "duties": ["x"]})
-        self.assertIn("DUTY skills_harvest", r2["skills_harvest"])
+        item = r2["cube_harvest"]
+        self.assertIsInstance(item, dict)
+        self.assertEqual(item["duty"], "cube_harvest")
+        self.assertIn("DUTY cube_harvest", item["do"])
+        self.assertEqual(item["cube_id"], sh.meta_cube_id())
         self.assertEqual(r2["duties"][0], "x")
-        self.assertEqual(r2["duties"][1], r2["skills_harvest"])
+        self.assertEqual(r2["duties"][1], r2["cube_harvest"])
+        self.assertNotIn("skills_harvest", r2)
         r3 = finish_turn(self.conn, INFO, who, {"saved": True, "event_id": "e3", "session_id": "s1"})
-        self.assertNotIn("skills_harvest", r3)
+        self.assertNotIn("cube_harvest", r3)
         r4 = finish_turn(self.conn, INFO, who, {"saved": True, "event_id": "e4", "session_id": "s1"}, duty="skills_none")
-        self.assertNotIn("skills_harvest", r4)
+        self.assertNotIn("cube_harvest", r4)
         self.assertEqual(sh._row(self.conn, INFO["key_id"], "agent-a")[3], "skills_none")
+        r5 = finish_turn(self.conn, INFO, who, {"saved": True, "event_id": "e5", "session_id": "s1"}, duty="cube_harvest")
+        self.assertNotIn("cube_harvest", r5)
+        self.assertEqual(sh._row(self.conn, INFO["key_id"], "agent-a")[3], "cube_harvest")
 
     def test_meta_cube_id_is_named_in_every_text(self):
-        for t in (sh.STEP3, sh.FIRST_NOTE, sh.AGAIN_NOTE % (72, sh.META_CUBE_ID)):
-            self.assertIn(sh.META_CUBE_ID, t)
+        cid = sh.AUTHOR_CUBE_ID
+        for t in (sh.step3_text(cid), sh.first_note(cid), sh.again_note(72, cid)):
+            self.assertIn(cid, t)
+            self.assertNotIn("cube_meta_publish_skills", t)
 
     def test_rules_consent_and_privacy_in_every_text(self):
-        """Brief: new version not edit, no secrets/personal data, ask the user before publishing from personal memory."""
-        for t in (sh.STEP3, sh.FIRST_NOTE, sh.AGAIN_NOTE % (72, sh.META_CUBE_ID)):
+        """Anonymized experience after the one-time notice; quotes from personal memory still need a yes."""
+        cid = sh.AUTHOR_CUBE_ID
+        for t in (sh.step3_text(cid), sh.first_note(cid), sh.again_note(72, cid), sh.rules_text()):
             low = t.lower()
             self.assertIn("personal data", low)
             self.assertIn("personal memory", low)
-            self.assertIn("ask the user first", low)
+            self.assertIn("one-time notice", low)
+            self.assertIn("do not publish", low)
+            self.assertIn("anonymized", low)
+            self.assertIn("explicit yes", low)
             self.assertIn("never edit another author", low)
-            self.assertIn("duplicate", low)
-            self.assertIn("cube_3de96286fc73", t)
-        self.assertNotIn("%", sh.RULES)
+            self.assertIn("published cube:", low)
+            if t is not sh.rules_text():
+                self.assertIn("duplicate", low)
+                self.assertIn(cid, t)
+        self.assertNotIn("%", sh.rules_text())
 
     def test_constitution_texts_carry_the_consent_rule(self):
-        import re
         root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-        src = open(os.path.join(root, "mcp", "mcp_skv.py"), encoding="utf-8").read() if os.path.exists(os.path.join(root, "mcp", "mcp_skv.py")) else ""
+        src_path = os.path.join(root, "mcp", "mcp_skv.py")
+        src = open(src_path, encoding="utf-8").read() if os.path.exists(src_path) else ""
         if not src:
             self.skipTest("mcp source not available here")
         i = src.index("CUBE05_MCP = ")
         line = src[i:src.index("\n", i)]
-        self.assertIn("ask the user first and publish only after a yes", line)
+        self.assertIn("one-time notice", line)
+        self.assertIn("do not publish", line)
+        self.assertIn("personal memory", line)
         self.assertIn("personal data", line)
-        self.assertIn('CUBE05_ID = "cube_const_05_mcp_v19"', src)
+        self.assertIn("cube_harvest", line)
+        self.assertIn("cube_3de96286fc73", line)
+        self.assertIn('CUBE05_ID = "cube_const_05_mcp_v20"', src)
+        # one duty name in the constitution body: the periodic reminder is cube_harvest
+        self.assertIn("one duty, cube_harvest", line.lower() or line)
+        self.assertNotIn("cube_meta_publish_skills", line)
 
 
 if __name__ == "__main__":

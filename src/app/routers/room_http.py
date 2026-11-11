@@ -118,7 +118,7 @@ def http_room_attach(req: RoomTurnBody, authorization: str = Header(None)):
             req.kind or "turn", req.context_state or "normal", req.gist or "", req.duty or "",
         )
         keep = {}
-        for key in ("saved", "event_id", "while_away", "actor", "identify_hint", "room_warning", "room_step_zero", "step_zero_reminder", "skills_harvest"):
+        for key in ("saved", "event_id", "while_away", "actor", "identify_hint", "room_warning", "room_step_zero", "step_zero_reminder", "cube_harvest", "skills_harvest"):
             if isinstance(done, dict) and done.get(key) not in (None, ""):
                 keep[key] = done.get(key)
         return keep

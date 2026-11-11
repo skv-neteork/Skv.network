@@ -1,48 +1,111 @@
-"""Skills and hooks harvest: every agent publishes its proven skills/hooks as shared cubes, then is reminded.
+"""Unified cube harvest: every agent publishes proven skills, hooks and new experience as shared cubes.
 
 State is per agent (key_id + agent id), in the account database next to the room tables:
   first prompt  : shown in the identify reply (step 3) the first time an agent identifies.
-  reminder      : a turn reply carries the duty `skills_harvest` when the interval has passed.
-Resolved by a cube the account created after the prompt (cube_publish), or an explicit turn
-duty=skills_none | skills_skip. A reminder only: no seal penalty, nothing is forced.
-Interval: env SKV_SKILLS_HARVEST_HOURS (default 72).
+  reminder      : a turn reply carries one duty, `cube_harvest`, when the interval has passed.
+Resolved by duty=cube_harvest, skills_harvest, skills_none or skills_skip, or by a cube the
+account created after the prompt. A reminder only: no seal penalty, nothing is forced.
+Interval: env SKV_SKILLS_HARVEST_HOURS (default 72). SKV_CUBE_HARVEST_DAYS is an alias
+(days * 24) when the hours env is unset.
+The live author / harvest cube is cube_3de96286fc73 (followed through superseded_by).
+cube_meta_publish_skills is a superseded pointer to that cube.
 """
 import calendar
 import os
 import sqlite3
 import time
 
+AUTHOR_CUBE_ID = "cube_3de96286fc73"
+# kept as a name so older tests/docs can still import it; value is the pointer id, not the live cube
 META_CUBE_ID = "cube_meta_publish_skills"
+DUTY_NAME = "cube_harvest"
 DEFAULT_HOURS = 72
-RESOLVING_DUTIES = ("skills_none", "skills_skip")
+RESOLVING_DUTIES = ("cube_harvest", "skills_harvest", "skills_none", "skills_skip")
 SHARED_DB = "/data/skv/metadata_store/shared_master.db"
 
-RULES = (
-    " Rules: English; no secrets, tokens or personal data; never edit another author's cube, publish a new version; "
-    "anything that comes from personal memory or private files: ask the user first and publish only after a yes. "
-    "General rules for writing a cube: the meta create-cubes cube cube_3de96286fc73 (or its latest version)."
-)
-STEP3 = (
-    "3) publish your own skills and hooks as cubes to the shared pool: cube_get(cube_id=\"%s\") and follow it "
-    "(search the pool for a duplicate first). If you have none, reply turn(..., duty=skills_none, duty_reason=\"<why>\")." % META_CUBE_ID
-) + RULES
-FIRST_NOTE = (
-    "DUTY skills_harvest (first time): review your own skills and hooks and publish the proven, reusable ones as shared "
-    "cubes (English, no secrets): cube_get(cube_id=\"%s\"), search the pool for a duplicate first. Nothing to publish: turn(..., duty=skills_none, duty_reason=\"<why>\")." % META_CUBE_ID
-) + RULES
-AGAIN_NOTE = (
-    "DUTY skills_harvest (every ~%dh): look back since your last harvest: repeated mistakes, fixes that worked, the user's "
-    "corrections, new rules of craft. Publish each as a cube (cube_get(cube_id=\"%s\"): search for a duplicate first). "
-    "Nothing new: turn(..., duty=skills_none, duty_reason=\"<why>\"). Reminder only, nothing is blocked."
-) + RULES
+
+def meta_cube_id():
+    """Live author cube: follow superseded_by from AUTHOR_CUBE_ID, else the constant."""
+    try:
+        from app.cube_harvest import latest_cube_id
+        return latest_cube_id(AUTHOR_CUBE_ID) or AUTHOR_CUBE_ID
+    except Exception:
+        return AUTHOR_CUBE_ID
+
+
+def rules_text():
+    return (
+        " Rules: English; no secrets, tokens or personal data (scrub them). "
+        "After the one-time notice that this agent may publish anonymized, scrubbed experience cubes, "
+        "those cubes may be published (the user can say do not publish). "
+        "Anything that quotes personal memory or private files still needs an explicit yes. "
+        "Never edit another author's cube: publish a new version (your own version supersedes; "
+        "someone else's goes to review). Tell the user in one line: published cube: <topic>."
+    )
+
+
+def step3_text(cid=None):
+    cid = cid or meta_cube_id()
+    return (
+        "3) publish your own skills and hooks as cubes to the shared pool: cube_get(cube_id=\"%s\") and follow it "
+        "(search the pool for a duplicate first). If you have none, reply turn(..., duty=skills_none, duty_reason=\"<why>\") "
+        "(duty=cube_harvest also closes it)." % cid
+    ) + rules_text()
+
+
+def first_note(cid=None):
+    cid = cid or meta_cube_id()
+    return (
+        "DUTY cube_harvest (first time): review your own skills and hooks and publish the proven, reusable ones as shared "
+        "cubes (English, no secrets): cube_get(cube_id=\"%s\"), search the pool for a duplicate first. "
+        "Nothing to publish: turn(..., duty=skills_none, duty_reason=\"<why>\") "
+        "(duty=cube_harvest also closes it)." % cid
+    ) + rules_text()
+
+
+def again_note(hours=None, cid=None, turns_blurb=""):
+    cid = cid or meta_cube_id()
+    if hours is None:
+        hours = int(round(interval_hours()))
+    extra = (" " + turns_blurb.strip()) if (turns_blurb or "").strip() else ""
+    return (
+        "DUTY cube_harvest (every ~%dh): look back since your last harvest: repeated mistakes, fixes that worked, the user's "
+        "corrections, new rules of craft, and skills or hooks worth sharing.%s Publish each as a cube "
+        "(cube_get(cube_id=\"%s\"): search for a duplicate first). "
+        "Nothing new: turn(..., duty=skills_none, duty_reason=\"<why>\") "
+        "(duty=cube_harvest also closes it). Reminder only, nothing is blocked."
+        % (hours, extra, cid)
+    ) + rules_text()
+
+
+# backwards-compatible aliases used by older tests (computed at import from the fallback id)
+STEP3 = step3_text(AUTHOR_CUBE_ID)
+FIRST_NOTE = first_note(AUTHOR_CUBE_ID)
+AGAIN_NOTE = "DUTY cube_harvest (every ~%dh): look back since your last harvest: repeated mistakes, fixes that worked, the user's " \
+             "corrections, new rules of craft, and skills or hooks worth sharing. Publish each as a cube " \
+             "(cube_get(cube_id=\"%s\"): search for a duplicate first). " \
+             "Nothing new: turn(..., duty=skills_none, duty_reason=\"<why>\") " \
+             "(duty=cube_harvest also closes it). Reminder only, nothing is blocked." + rules_text()
+RULES = rules_text()
 
 
 def interval_hours():
-    try:
-        h = float(os.environ.get("SKV_SKILLS_HARVEST_HOURS", "") or DEFAULT_HOURS)
-    except ValueError:
-        h = DEFAULT_HOURS
-    return h if h > 0 else DEFAULT_HOURS
+    raw = os.environ.get("SKV_SKILLS_HARVEST_HOURS", "")
+    if raw:
+        try:
+            h = float(raw)
+        except ValueError:
+            h = DEFAULT_HOURS
+        return h if h > 0 else DEFAULT_HOURS
+    days = os.environ.get("SKV_CUBE_HARVEST_DAYS", "")
+    if days:
+        try:
+            d = float(days)
+            if d > 0:
+                return d * 24.0
+        except ValueError:
+            pass
+    return DEFAULT_HOURS
 
 
 def _fmt(ts):
@@ -122,18 +185,66 @@ def _resolve(conn, key_id, actor_id, now, how):
     conn.commit()
 
 
+def _turns_blurb(user_id):
+    """Optional 'N turns from ev A to B' line from the account event log. Never raises."""
+    if not user_id:
+        return ""
+    try:
+        from app import cube_harvest as ch
+        path, mx = ch._udb(user_id)
+        if not path:
+            return ""
+        row = None
+        try:
+            c = ch._db()
+            row = c.execute("select last_rowid from h where user=?", (user_id,)).fetchone()
+            c.close()
+        except Exception:
+            row = None
+        after = (row[0] or 0) if row else 0
+        n, a, b, since = ch._range(path, after)
+        if n <= 0:
+            return ""
+        bits = ["%d new turns" % n]
+        if a and b:
+            bits.append("from ev %s to %s" % (a, b))
+        if since:
+            bits.append("since %s" % since)
+        return " ".join(bits) + "."
+    except Exception:
+        return ""
+
+
 def identify_step(conn, key_id, actor_id, now=None):
     """Step 3 text for the identify reply, or "". Shown the first time this agent identifies, then only when due."""
     now = time.time() if now is None else now
     row = _row(conn, key_id, actor_id)
     if row is None:
         _prompt(conn, key_id, actor_id, now, True)
-        return STEP3
+        return step3_text()
     base = _base(row)
     if base is not None and now - base >= interval_hours() * 3600:
         _prompt(conn, key_id, actor_id, now, False)
-        return STEP3
+        return step3_text()
     return ""
+
+
+def duty_item(note, extra=None):
+    """Structured cube_harvest payload for turn/step_zero/duties (one duty name)."""
+    if not note:
+        return None
+    item = {
+        "due": True,
+        "kind": "reminder",
+        "duty": DUTY_NAME,
+        "cube_id": meta_cube_id(),
+        "do": note,
+        "close": "turn(..., duty=\"cube_harvest\" or duty=\"skills_none\", duty_reason=\"created: <ids> | nothing: <why>\") resets the timer; aliases: skills_harvest, skills_skip",
+        "note": "reminder only, nothing is blocked",
+    }
+    if extra:
+        item.update(extra)
+    return item
 
 
 def turn_note(conn, key_id, actor_id, user_id="", duty="", now=None, cube_check=None):
@@ -149,7 +260,7 @@ def turn_note(conn, key_id, actor_id, user_id="", duty="", now=None, cube_check=
     if row is None:
         # an agent that identified before this feature: ask once on its next turn
         _prompt(conn, key_id, actor_id, now, True)
-        return FIRST_NOTE
+        return first_note()
     last = _parse(row[1])
     if last is None:
         return ""
@@ -159,5 +270,5 @@ def turn_note(conn, key_id, actor_id, user_id="", duty="", now=None, cube_check=
     base = _base(row)
     if base is not None and now - base >= interval_hours() * 3600:
         _prompt(conn, key_id, actor_id, now, False)
-        return AGAIN_NOTE % (int(round(interval_hours())), META_CUBE_ID)
+        return again_note(turns_blurb=_turns_blurb(user_id))
     return ""

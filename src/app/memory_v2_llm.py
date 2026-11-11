@@ -97,9 +97,12 @@ def _uncovered_chunks(conn, user_id=None):
     cols = {r[1] for r in conn.execute("PRAGMA table_info(event_metadata)")}
     sel = ", ".join(c if c in cols else f"NULL AS {c}" for c in ("essence", "topics_json", "kind", "raw_dialogue"))
     rows = conn.execute(f"SELECT rowid, {sel}, event_id FROM event_metadata WHERE rowid <= ? ORDER BY rowid DESC LIMIT 3000", (limit,)).fetchall()
-    try:   # memory lines: an L1 chunk never spans two key lines
+    try:   # memory lines: an L1 chunk never spans two key lines (lines come from the events, not from existing L1s)
         from app import memory_lines as _ml
-        lmap = _ml.line_map(user_id) if user_id else {}
+        lmap = _ml.lines_for_events([r[-1] for r in rows])
+        if user_id:
+            for k, v in _ml.line_map(user_id).items():
+                lmap.setdefault(k, v)
     except Exception:
         lmap = {}
     chunks, cur, cur_line = [], [], None
@@ -161,6 +164,12 @@ def gen_l1(conn, user_id, acct):
         conn.execute("INSERT INTO summary_l1 (session_id, user_id, topic, summary_text, summary_json, message_count, created_at, from_rowid, to_rowid, lang) VALUES (?,?,?,?,?,?,datetime('now'),?,?,?)",
                      (sid, user_id, topic, summ, json.dumps({"source": "server_fallback", "model": _c("llm_model", "deepseek/deepseek-chat-v3.1"), "usage": u}), len(ch), fr, to, "en"))
         conn.commit()
+        try:   # the chunk is one line: tag the row with it
+            from app import memory_lines as _ml
+            _ln = _ml.range_line(_ml.rowid_lines(conn, [fr, to]), fr, to)
+            _ml.tag_summary_rows(user_id, [("l1", sid, _ln or _ml.main_chain(user_id))])
+        except Exception as _e:
+            print(f"[lines] l1 tag skipped: {_e}", flush=True)
         try:
             from app import source_links as _sl; _sl.link_all(conn)
         except Exception as _e:
@@ -189,10 +198,39 @@ L2_PROMPT = ("Compress these L1 memory summaries (oldest first) into an L2 map. 
 
 
 def gen_l2(conn, user_id, acct):
-    last = conn.execute("SELECT MAX(to_rowid) FROM summary_l2_blocks WHERE source IN ('llm','server_fallback')").fetchone()[0] or 0
-    rows = conn.execute("SELECT topic, summary_text, from_rowid, to_rowid FROM summary_l1 WHERE session_id LIKE 'llm_l1_%' AND from_rowid > ? ORDER BY to_rowid LIMIT 12", (last,)).fetchall()
+    """One L2 block per line per cycle (an L2 block never spans two lines). A single-line account behaves as before."""
+    try:
+        from app import memory_lines as _ml
+        rl = _ml.rowid_lines(conn)
+        multi = len(set(rl.values())) > 1
+    except Exception:
+        _ml, rl, multi = None, {}, False
+    if not multi:
+        return _gen_l2_line(conn, user_id, acct, None, None, False)
+    made, us = 0, []
+    lines = list(dict.fromkeys(_ml.range_line(rl, r[0], r[1]) for r in conn.execute("SELECT from_rowid, to_rowid FROM summary_l1 WHERE session_id LIKE 'llm_l1_%' AND to_rowid IS NOT NULL ORDER BY to_rowid")))
+    for ln in lines:
+        if ln == "mixed":
+            continue
+        m, u = _gen_l2_line(conn, user_id, acct, rl, ln, True)
+        made += m; us += u
+    return made, us
+
+
+def _gen_l2_line(conn, user_id, acct, rl, line, tag):
+    if tag:
+        from app import memory_lines as _ml
+        sel = lambda r: _ml.range_line(rl, r[2], r[3]) == line                     # an L1 chunk is contiguous: one line
+        blk = lambda fr, to: rl.get(fr or to)                                        # a block belongs to the line of its first event
+        last = max([b[1] or 0 for b in conn.execute("SELECT from_rowid, to_rowid FROM summary_l2_blocks WHERE source IN ('llm','server_fallback')").fetchall() if blk(b[0], b[1]) == line] or [0])
+        _ag = max([b[1] or 0 for b in conn.execute("SELECT from_rowid, to_rowid FROM summary_l2_blocks WHERE source='agent'").fetchall() if blk(b[0], b[1]) == line] or [0])
+    else:
+        sel = lambda r: True
+        last = conn.execute("SELECT MAX(to_rowid) FROM summary_l2_blocks WHERE source IN ('llm','server_fallback')").fetchone()[0] or 0
+        _ag = conn.execute("SELECT MAX(to_rowid) FROM summary_l2_blocks WHERE source='agent'").fetchone()[0] or 0
+    rows = conn.execute("SELECT topic, summary_text, from_rowid, to_rowid FROM summary_l1 WHERE session_id LIKE 'llm_l1_%' AND from_rowid > ? ORDER BY to_rowid", (last,)).fetchall()
+    rows = [r for r in rows if sel(r)][:12]
     rows = [r for r in rows if not W._excluded_topic(r[0])]
-    _ag = conn.execute("SELECT MAX(to_rowid) FROM summary_l2_blocks WHERE source='agent'").fetchone()[0] or 0
     rows = [r for r in rows if (r[2] or 0) > _ag]   # agent L2 already covers that range: no server re-summary
     if len(rows) < int(_c("llm_l2_min_l1", 8)):
         return 0, []
@@ -205,6 +243,12 @@ def gen_l2(conn, user_id, acct):
     conn.execute("INSERT OR IGNORE INTO summary_l2_blocks (user_id, source, period_key, period_from, period_to, from_rowid, to_rowid, topics_json, text) VALUES (?,?,?,?,?,?,?,?,?)",
                  (user_id, "server_fallback", f"llm:{fr}", d.get(fr, ""), d.get(to, ""), fr, to, json.dumps(topics, ensure_ascii=False), text))
     conn.commit()
+    if tag:
+        try:
+            from app import memory_lines as _ml
+            _ml.tag_summary_rows(user_id, [("l2", "server_fallback:llm:%s" % fr, line or _ml.main_chain(user_id))])
+        except Exception as _e:
+            print(f"[lines] l2 tag skipped: {_e}", flush=True)
     _log({"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "account": acct, "kind": "l2", "range": [fr, to], **u})
     return 1, [u]
 
@@ -220,7 +264,11 @@ def run_account(fname):
         if n < int(_c("llm_min_events", 30)):
             return {"skipped": f"{n} events"}
         W.ensure_schema(conn)
-        uid = (conn.execute("SELECT user_id FROM summary_l1 WHERE user_id LIKE '%@%' LIMIT 1").fetchone() or [acct])[0]
+        try:   # the account email from the events, not from an existing L1 (fresh accounts have none)
+            from app import memory_lines as _ml
+            uid = _ml.resolve_uid(conn, acct)
+        except Exception:
+            uid = (conn.execute("SELECT user_id FROM summary_l1 WHERE user_id LIKE '%@%' LIMIT 1").fetchone() or [acct])[0]
         l1, u1 = gen_l1(conn, uid, acct)
         l2, u2 = gen_l2(conn, uid, acct)
         if l1 or l2:

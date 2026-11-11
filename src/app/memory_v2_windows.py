@@ -195,14 +195,39 @@ def _group_blocks(l1s, dates):
     return groups
 
 
+def _split_by_line(conn, l1s, user_id):
+    """[(line, [l1 rows])]: an auto L2 block never spans two memory lines. One line (or no tags) = one list, as before."""
+    try:
+        from app import memory_lines as _ml
+        rl = _ml.rowid_lines(conn)
+        if len(set(rl.values())) <= 1:
+            return [(None, l1s)], None, user_id
+        uid = user_id if "@" in (user_id or "") else _ml.resolve_uid(conn, "")
+        out = {}
+        for r in l1s:
+            out.setdefault(_ml.range_line(rl, r[3], r[4]), []).append(r)
+        return list(out.items()), _ml, uid
+    except Exception:
+        return [(None, l1s)], None, user_id
+
+
 def rebuild_auto_blocks(conn, user_id=""):
     l1s = [r for r in _l1_rows(conn) if not _excluded_topic(r[1])]
     if not l1s:
         return 0
     dates = _dates_for(conn, [r[3] for r in l1s] + [r[4] for r in l1s])
     n = 0
-    for g in _group_blocks(l1s, dates):
+    parts, _mlm, _uid = _split_by_line(conn, l1s, user_id)
+    _tags = []
+    _main = _mlm.main_chain(_uid) if _mlm else None
+    groups = []
+    for ln, part in parts:
+        for g in _group_blocks(part, dates):
+            groups.append((ln, g))
+    for ln, g in groups:
         b = _make_block(g, dates)
+        if _mlm:
+            _tags.append(("l2", "auto:auto:%s" % min(r[3] or r[4] for r in g), ln if ln not in (None,) else _main))
         key = f"auto:{min(r[3] or r[4] for r in g)}"
         conn.execute("""INSERT INTO summary_l2_blocks (user_id, source, period_key, period_from, period_to, from_rowid, to_rowid, topics_json, text)
                         VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(source, period_key) DO UPDATE SET
@@ -210,6 +235,11 @@ def rebuild_auto_blocks(conn, user_id=""):
                         to_rowid=excluded.to_rowid, topics_json=excluded.topics_json, text=excluded.text""",
                      (user_id, "auto", key, b["period_from"], b["period_to"], b["from_rowid"], b["to_rowid"], json.dumps(b["topics"], ensure_ascii=False), b["text"]))
         n += 1
+    if _mlm and _tags:
+        try:
+            _mlm.tag_summary_rows(_uid, _tags)
+        except Exception as _e:
+            print(f"[lines] auto l2 tag skipped: {_e}", flush=True)
     try:
         from app import source_links as _sl; _sl.link_all(conn)
     except Exception as _e:

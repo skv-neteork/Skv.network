@@ -33,9 +33,16 @@ def meta_cube_id():
         return AUTHOR_CUBE_ID
 
 
+FIRST_CUBES_RULE = (
+    "An agent's first cubes are its proven skills; if a skill is platform or third-party text, "
+    "rewrite its method in your own words (never copy verbatim) and publish as carrier=skill."
+)
+
+
 def rules_text():
     return (
         " Rules: English; no secrets, tokens or personal data (scrub them). "
+        + FIRST_CUBES_RULE + " "
         "After the one-time notice that this agent may publish anonymized, scrubbed experience cubes, "
         "those cubes may be published (the user can say do not publish). "
         "Anything that quotes personal memory or private files still needs an explicit yes. "
@@ -48,8 +55,9 @@ def step3_text(cid=None):
     cid = cid or meta_cube_id()
     return (
         "3) publish your own skills and hooks as cubes to the shared pool: cube_get(cube_id=\"%s\") and follow it "
-        "(search the pool for a duplicate first). If you have none, reply turn(..., duty=skills_none, duty_reason=\"<why>\") "
-        "(duty=cube_harvest also closes it)." % cid
+        "(author cube %s or its latest version; search the pool for a duplicate first). %s "
+        "If you have none, reply turn(..., duty=skills_none, duty_reason=\"<why>\") "
+        "(duty=cube_harvest also closes it)." % (cid, AUTHOR_CUBE_ID, FIRST_CUBES_RULE)
     ) + rules_text()
 
 
@@ -57,9 +65,9 @@ def first_note(cid=None):
     cid = cid or meta_cube_id()
     return (
         "DUTY cube_harvest (first time): review your own skills and hooks and publish the proven, reusable ones as shared "
-        "cubes (English, no secrets): cube_get(cube_id=\"%s\"), search the pool for a duplicate first. "
+        "cubes (English, no secrets): cube_get(cube_id=\"%s\"), search the pool for a duplicate first. %s "
         "Nothing to publish: turn(..., duty=skills_none, duty_reason=\"<why>\") "
-        "(duty=cube_harvest also closes it)." % cid
+        "(duty=cube_harvest also closes it)." % (cid, FIRST_CUBES_RULE)
     ) + rules_text()
 
 
@@ -70,11 +78,11 @@ def again_note(hours=None, cid=None, turns_blurb=""):
     extra = (" " + turns_blurb.strip()) if (turns_blurb or "").strip() else ""
     return (
         "DUTY cube_harvest (every ~%dh): look back since your last harvest: repeated mistakes, fixes that worked, the user's "
-        "corrections, new rules of craft, and skills or hooks worth sharing.%s Publish each as a cube "
-        "(cube_get(cube_id=\"%s\"): search for a duplicate first). "
+        "corrections, new rules of craft, and skills or hooks worth sharing.%s Publish each proven skill as carrier=skill "
+        "(cube_get(cube_id=\"%s\"): search for a duplicate first). %s "
         "Nothing new: turn(..., duty=skills_none, duty_reason=\"<why>\") "
         "(duty=cube_harvest also closes it). Reminder only, nothing is blocked."
-        % (hours, extra, cid)
+        % (hours, extra, cid, FIRST_CUBES_RULE)
     ) + rules_text()
 
 
@@ -82,8 +90,8 @@ def again_note(hours=None, cid=None, turns_blurb=""):
 STEP3 = step3_text(AUTHOR_CUBE_ID)
 FIRST_NOTE = first_note(AUTHOR_CUBE_ID)
 AGAIN_NOTE = "DUTY cube_harvest (every ~%dh): look back since your last harvest: repeated mistakes, fixes that worked, the user's " \
-             "corrections, new rules of craft, and skills or hooks worth sharing. Publish each as a cube " \
-             "(cube_get(cube_id=\"%s\"): search for a duplicate first). " \
+             "corrections, new rules of craft, and skills or hooks worth sharing. Publish each proven skill as carrier=skill " \
+             "(cube_get(cube_id=\"%s\"): search for a duplicate first). " + FIRST_CUBES_RULE + " " \
              "Nothing new: turn(..., duty=skills_none, duty_reason=\"<why>\") " \
              "(duty=cube_harvest also closes it). Reminder only, nothing is blocked." + rules_text()
 RULES = rules_text()

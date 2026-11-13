@@ -108,7 +108,8 @@ def due(user, where="turn"):
         return {"cube_harvest": {
             "due": True, "kind": "reminder", "cube_id": _cid, "turns": n, "from_ev": a, "to_ev": b, "since": since,
             "do": "Harvest experience from these turns: cube_get(cube_id=\"%s\") and follow its cube_harvest-duty path "
-                  "(repeated mistakes, fixes that worked, user corrections, new craft facts; search before writing; 0-2 strong cubes is normal)." % _cid,
+                  "(repeated mistakes, fixes that worked, user corrections, new craft facts; search before writing; 0-2 strong cubes is normal). "
+                  "An agent's first cubes are its proven skills; if a skill is platform or third-party text, rewrite its method in your own words (never copy verbatim) and publish as carrier=skill." % _cid,
             "close": "turn(..., duty=\"cube_harvest\", duty_reason=\"created: <ids> | fixed: <ids> | nothing: <why>\") resets the timer",
             "note": "reminder only, nothing is blocked"}}
     except Exception as e:

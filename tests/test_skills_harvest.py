@@ -162,10 +162,22 @@ class SkillsHarvestTests(unittest.TestCase):
             self.assertIn("explicit yes", low)
             self.assertIn("never edit another author", low)
             self.assertIn("published cube:", low)
-            if t is not sh.rules_text():
+            if t != sh.rules_text():
                 self.assertIn("duplicate", low)
                 self.assertIn(cid, t)
         self.assertNotIn("%", sh.rules_text())
+
+    def test_first_cubes_are_proven_skills_carrier_skill(self):
+        rule = sh.FIRST_CUBES_RULE
+        self.assertIn("carrier=skill", rule)
+        self.assertIn("never copy verbatim", rule.lower())
+        cid = sh.AUTHOR_CUBE_ID
+        for t in (sh.step3_text(cid), sh.first_note(cid), sh.again_note(72, cid), sh.rules_text()):
+            self.assertIn(rule, t)
+        self.assertIn(sh.AUTHOR_CUBE_ID, sh.step3_text("cube_deadbeef12"))
+        from app import cube_harvest as ch
+        src = open(ch.__file__, encoding="utf-8").read()
+        self.assertIn(rule, src)
 
     def test_constitution_texts_carry_the_consent_rule(self):
         root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
@@ -181,6 +193,8 @@ class SkillsHarvestTests(unittest.TestCase):
         self.assertIn("personal data", line)
         self.assertIn("cube_harvest", line)
         self.assertIn("cube_3de96286fc73", line)
+        self.assertIn("carrier=skill", line)
+        self.assertIn("never copy verbatim", line.lower())
         self.assertIn('CUBE05_ID = "cube_const_05_mcp_v20"', src)
         # one duty name in the constitution body: the periodic reminder is cube_harvest
         self.assertIn("one duty, cube_harvest", line.lower() or line)

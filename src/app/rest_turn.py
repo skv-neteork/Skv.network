@@ -58,7 +58,7 @@ def _words(s, n):
 
 
 def _hits(key, q, search_as=None):
-    _b = {"query_text": q, "top_k": 20}
+    _b = {"query_text": q, "top_k": 5, "pack": True, "budget_tokens": 1800}
     if search_as:
         _b["search_as"] = [str(x)[:160] for x in (search_as if isinstance(search_as, list) else [search_as])][:3]
     d = _req(key, "POST", "/search", _b)

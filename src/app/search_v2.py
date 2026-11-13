@@ -166,8 +166,10 @@ def fts_ranked(uid, query, limit=30):
         if rare_terms:
             use = rare_terms   # rare/latin terms decide alone, common words would drown them in bm25
         expr = " OR ".join('"' + x[1].replace('"', '') + '"' for x in use[:12])
+        from app import search_line as _ln
+        line_sql = _ln.attach_vis(conn)
         rows = conn.execute("SELECT event_id, bm25(events_fts_stem) FROM events_fts_stem WHERE events_fts_stem MATCH ? "
-                            "AND event_id IN (SELECT event_id FROM event_metadata) ORDER BY bm25(events_fts_stem) LIMIT ?",
+                            "AND event_id IN (SELECT event_id FROM event_metadata) %s ORDER BY bm25(events_fts_stem) LIMIT ?" % line_sql,
                             (expr, limit)).fetchall()
     except Exception as e:
         print(f"[search_v2] fts failed: {e}", flush=True)
@@ -185,22 +187,32 @@ def fts_ranked(uid, query, limit=30):
 
 
 QUESTION_STARTS = ["when did", "what did", "what is", "what are", "where did", "how long", "what types of", "what do", "what kind of", "who did", "who is", "who are"]
+_QSTRIP = re.compile(
+    r"^\s*(when did|what did|what is|what are|where did|how long|what types of|what do|what kind of|"
+    r"who did|who is|who are|when|what|where|who|how|which|why|"
+    r"когда|что|где|кто|как|почему|зачем|сколько|какой|какая|какое|какие|"
+    r"wann|was|wo|wer|wie|warum|qué|cuando|dónde|quién|cómo|quand|où|qui|comment)\b[\s,.:;?¿¡]*",
+    re.I)
 
 def reformulate(query):
     q = query.strip().rstrip("?").strip()
     ql = q.lower()
     # extract capitalized names
     names = []
+    skip = ("what", "when", "where", "who", "how", "the", "did", "does", "is", "are",
+            "что", "когда", "где", "кто", "как", "почему", "сколько", "какой", "какая")
     for tok in q.split():
-        if tok[:1].isupper() and len(tok) > 2 and tok.lower() not in ("what", "when", "where", "who", "how", "the", "did", "does", "is", "are"):
+        if tok[:1].isupper() and len(tok) > 2 and tok.lower() not in skip:
             names.append(tok)
     name = names[0] if names else None
-    # strip question words
+    # strip question words (EN phrases first, then per-language table)
     narrative = q
     for w in QUESTION_STARTS:
         if ql.startswith(w):
             narrative = q[len(w):].strip()
             break
+    else:
+        narrative = _QSTRIP.sub("", q).strip() or q
     # remove name from narrative (name is exact, rest is vector)
     if name:
         narrative = narrative.replace(name, "").replace(name.lower(), "").strip()
@@ -287,38 +299,44 @@ def name_and_meaning(uid, query, top_k=20):
     if not name_hits:
         return hybrid(uid, query, top_k)
     try:
-        sem,_=_sem.semantic_events(uid, narrative if name else query, k=100)
+        from app import search_line as _ln
+        sem,_=_ln.semantic_visible(uid, narrative if name else query, k=100)
         # also keyword search within name hits
-        kw, _ = fts_ranked(uid, narrative if name else query, limit=50)
+        kw, _ = fts_ranked(uid, narrative if name else query, limit=80)
         kw = [(e,s) for e,s in kw if e in name_hits]
         # merge: keyword hits get boost
         kw_ids = {e for e,_ in kw}
         sem = [(e, s+1.0 if e in kw_ids else s) for e,s in sem]
         sem=[(e,s) for e,s in sem if e in name_hits]
+        sem = _ln.take(sem)
     except Exception:
         return hybrid(uid, query, top_k)
     sem.sort(key=lambda x:-x[1])
     return sem[:top_k], True
 
 def hybrid(uid, query, top_k=20, vec_k=None, with_cos=False):
-    """Weighted RRF of vector (mml12) and stemmed keyword search. Returns [(eid, score)]."""
+    """Weighted RRF of vector (mml12) and stemmed keyword search. Returns [(eid, score)].
+    Line scope is applied inside retrieval (vector over-fetch + FTS line condition), not after top-k."""
     from app import semantic as _sem
+    from app import search_line as _ln
     c = cfg()
     sem = []
+    vk = vec_k or max(c.get("vec_k") or 50, 80, top_k)
+    fk = max(c.get("fts_limit") or 30, 80, top_k)
     try:
         if c.get("chunks"):
-            sem, _v = chunk_events(uid, query, k=vec_k or max(c["vec_k"], top_k))
+            sem, _v = chunk_events(uid, query, k=vk)
+            sem = _ln.take(sem, vk)
         else:
-            sem, _v = _sem.semantic_events(uid, query, k=100)
-            sem = [(e, s) for e, s in sem if e.startswith(uid + "::")]
+            sem, _v = _ln.semantic_visible(uid, query, k=vk)
     except Exception as e:
         print(f"[search_v2] semantic skipped: {e}", flush=True)
     sem = name_filter(uid, sem, query)
-    words, rare = fts_ranked(uid, query, limit=c["fts_limit"])
+    words, rare = fts_ranked(uid, query, limit=fk)
     fused = wrrf(sem, words, c["w_vec"], word_weight(c, rare))
     if not c.get("chunks"):
         fused = _impute_pending(uid, fused, sem, words, c["w_vec"])
-    fused = fused[:top_k]
+    fused = _ln.take(fused, top_k)
     if with_cos:
         return fused, rare, (sem[0][1] if sem else 0.0), bool(words)
     return fused, rare

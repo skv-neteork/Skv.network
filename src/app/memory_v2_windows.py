@@ -43,6 +43,14 @@ def ensure_schema(conn):
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, source TEXT, period_key TEXT,
         period_from TEXT, period_to TEXT, from_rowid INTEGER, to_rowid INTEGER,
         topics_json TEXT, text TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(source, period_key))""")
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_l1_range ON summary_l1(from_rowid, to_rowid)")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_l2_range ON summary_l2_blocks(from_rowid, to_rowid)")
+    except sqlite3.OperationalError:
+        pass
     conn.execute("""CREATE TABLE IF NOT EXISTS user_profile (
         user_id TEXT PRIMARY KEY, who TEXT, projects_json TEXT, topics_json TEXT, prefs_json TEXT, updated_at TEXT)""")
 

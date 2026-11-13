@@ -95,6 +95,9 @@ class SearchRequest(BaseModel):
     exclude_imports: bool = False     # drop kind=import, archived and test events
     source: Optional[str] = None      # events (default) | board | all
     search_as: Optional[List[str]] = None   # Q2S: up to 3 statements of how the answer was written (agent-supplied)
+    focus_event_id: Optional[str] = None    # B10: wider episode around one hit (old memory_lens/memory_event)
+    budget_tokens: Optional[int] = None     # B10 mini-lens budget (default 3000, cap 12000)
+    pack: bool = False                      # B10: return mini-lens package (memory_search / turn / follow-up)
 
 
 class ChatRequest(BaseModel):
@@ -153,11 +156,18 @@ class MemoryRequest(BaseModel):
     as_of: Optional[str] = None          # memory v4: "now" (ISO date) for relative dates in the query; default server time
 
 class SearchResultItem(BaseModel):
-    event_id: str
-    score: float
-    source: str
+    event_id: Optional[str] = None
+    score: Optional[float] = None
+    source: Optional[str] = None
     summary: str = ""
     metadata: Optional[Dict[str, Any]] = None
+    centre: Optional[Dict[str, Any]] = None
+    neighbours: Optional[List[Dict[str, Any]]] = None
+    l1: Optional[str] = None
+    l2: Optional[str] = None
+    match_reason: Optional[str] = None
+    truncated: Optional[bool] = None
+    archived: Optional[bool] = None
 
 class SearchResponse(BaseModel):
     results: List[SearchResultItem]
@@ -170,6 +180,9 @@ class SearchResponse(BaseModel):
     explanation: Optional[str] = None
     deep_search: Optional[Dict[str, Any]] = None
     suggested_cubes: Optional[Dict[str, Any]] = None   # targeted cube suggestions (cube_suggest)
+    pack: Optional[Dict[str, Any]] = None              # B10 mini-lens package
+    window: Optional[Dict[str, Any]] = None
+    truncated: Optional[bool] = None
 
 class ExperienceCreateRequest(BaseModel):
     msg_ref: Optional[str] = ""   # client id of the user message this reply answers (consent notice window)

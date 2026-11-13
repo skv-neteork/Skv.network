@@ -787,7 +787,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
         raise HTTPException(status_code=422, detail="user_id or API key required")
     if not req.query_vector or len(req.query_vector) != 768:
         # no/invalid vector used to crash the worker inside HNSW (502); text goes through semantic+FTS
-        if not (req.query_text or "").strip():
+        if not (req.query_text or "").strip() and not getattr(req, "focus_event_id", None):
             raise HTTPException(status_code=422, detail="query_text or a 768-d query_vector is required")
         if (getattr(req, "mode", None) or "") in ("grouped", "drilldown") or getattr(req, "parent_id", None):
             from app import search_v2 as _v2
@@ -796,6 +796,24 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
         from app import search_text as _st, q2s as _q2s
         _tok = _q2s.SEARCH_AS.set(getattr(req, "search_as", None))
         try:
+            if getattr(req, "pack", False) or getattr(req, "focus_event_id", None):
+                from app import search_pack as _sp
+                pack = _sp.search(req.user_id, req.query_text or "", top_k=req.top_k,
+                                  since=getattr(req, "since", None), until=getattr(req, "until", None),
+                                  exclude_imports=bool(getattr(req, "exclude_imports", False)),
+                                  source=getattr(req, "source", None),
+                                  focus_event_id=getattr(req, "focus_event_id", None) or "",
+                                  budget=getattr(req, "budget_tokens", None))
+                results = []
+                for h in pack.get("hits") or []:
+                    results.append({"event_id": h.get("event_id"), "score": h.get("score"), "source": "personal",
+                                    "summary": ((h.get("centre") or {}).get("text") or "")[:400],
+                                    "metadata": {"time_str": h.get("date")},
+                                    "centre": h.get("centre"), "neighbours": h.get("neighbours"),
+                                    "l1": h.get("l1"), "l2": h.get("l2"),
+                                    "match_reason": h.get("match_reason"), "truncated": h.get("truncated")})
+                return {"results": results, "pack": pack, "window": pack.get("window"),
+                        "truncated": pack.get("truncated"), "hint": pack.get("hint")}
             return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=getattr(req, "since", None), until=getattr(req, "until", None), exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
         finally:
             _q2s.SEARCH_AS.reset(_tok)

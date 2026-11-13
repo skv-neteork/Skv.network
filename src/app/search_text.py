@@ -7,7 +7,9 @@ def _text_search_core(uid, query, top_k=20, since=None, until=None, exclude_impo
     from app import search_v2 as _v2
     if _v2.enabled():
         # question -> reformulate: name exact, narrative vector
-        if any(query.lower().startswith(w) for w in ("when ","what ","where ","who ","how ")):
+        from app import q2s as _q2s
+        qt = _q2s.qtype(query)
+        if qt in ("when", "what", "where", "who", "how", "which", "how_many"):
             fused, _rare = _v2.name_and_meaning(uid, query, top_k=top_k)
         else:
             fused, _rare = _v2.hybrid(uid, query, top_k=top_k)
@@ -306,10 +308,11 @@ def _drive_hits(uid, query, limit=3):
 
 
 def text_search(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
+    # Line scope is applied inside FTS/vector retrieval (search_v2 / search_line). A post-cut
+    # filter remains as a safety net so a missed candidate never leaks a foreign line.
     ctx = _line_ctx()
-    k = min(120, max(top_k * 4, 40)) if ctx else top_k
     from app import q2s as _q2s   # 2026-11-02 Q2S: question -> statement forms (flag search_config q2s; off = _text_search_core)
-    out = _q2s.text_core(uid, query, k, since, until, exclude_imports, source)
+    out = _q2s.text_core(uid, query, top_k, since, until, exclude_imports, source)
     if ctx:
         out = [o for o in out if _visible(ctx, o.get("event_id"))]
     out = out[:top_k]

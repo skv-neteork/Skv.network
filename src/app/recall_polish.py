@@ -329,6 +329,14 @@ def polish(uid, q, res, cfg=None):
             pool.append(eid); prior[eid] = p
         elif eid:
             prior[eid] = max(prior[eid], p)
+    try:
+        from app import search_pack as _sp
+        pack = _sp.search(uid, q, budget=int((cfg or {}).get("budgets", {}).get("followup") or 3000))
+        res["pack"] = pack
+        for i, h in enumerate(pack.get("hits") or []):
+            add(h.get("event_id"), 0.85 / (1 + i * 0.2))
+    except Exception as _e:
+        print("[polish] pack skipped: %s" % type(_e).__name__, flush=True)
     for i, h in enumerate(res.get("hits") or []):
         add(h.get("event_id"), 0.6 / (1 + i * 0.3))
     for i, f in enumerate(((res.get("facts") or {}).get("items")) or []):

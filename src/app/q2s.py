@@ -81,6 +81,28 @@ _RU_WH = re.compile(r"\b(что|чего|чем|когда|где|куда|от�
 _DE_WH = re.compile(r"^\s*(was|wann|wo|woher|wohin|wer|wen|wem|wie|warum|welche[rsnm]?|wieviel)\b\s*", re.I)
 _ES_WH = re.compile(r"^\s*[¿¡]?\s*(qué|que|cuándo|cuando|dónde|donde|quién|quien|cómo|como|por qué|cuál|cual|cuánto|cuántos|cuántas)\b\s*", re.I)
 _FR_WH = re.compile(r"^\s*(qu'est-ce que|que|quand|où|qui|comment|pourquoi|quel|quelle|quels|quelles|combien)\b\s*", re.I)
+# per-language question-type table (B10): same routes as who/what/when/where/why/how/how-many/which
+_QTYPE = [
+    ("when", re.compile(r"^\s*(when|когда|wann|cuándo|cuando|quand)\b", re.I)),
+    ("where", re.compile(r"^\s*(where|где|куда|откуда|wo|woher|wohin|dónde|donde|où)\b", re.I)),
+    ("who", re.compile(r"^\s*(who|whom|whose|кто|кого|кому|wer|wen|wem|quién|quien|qui)\b", re.I)),
+    ("why", re.compile(r"^\s*(why|почему|зачем|warum|por\s+qué|pourquoi)\b", re.I)),
+    ("how_many", re.compile(r"^\s*(how\s+many|how\s+much|how\s+long|how\s+often|сколько|wieviel|cuánt[oa]s?|combien)\b", re.I)),
+    ("which", re.compile(r"^\s*(which|какой|какая|какое|какие|каким|какую|какого|welche[rsnm]?|cuál|cual|quel|quelle|quels|quelles)\b", re.I)),
+    ("how", re.compile(r"^\s*(how|как|wie|cómo|como|comment)\b", re.I)),
+    ("what", re.compile(r"^\s*(what|что|чего|чем|was|qué|que|qu'est-ce que)\b", re.I)),
+]
+
+
+def qtype(q):
+    """Language-agnostic question type or None. Used to pick the same search route as EN who/what/when/..."""
+    s = (q or "").strip()
+    if not s:
+        return None
+    for name, rx in _QTYPE:
+        if rx.search(s):
+            return name
+    return None
 _NAME = re.compile(r"\b([A-ZА-ЯЁ][\w'’-]+)")
 _SKIPCAP = set("what when where who which why how did do does is are was were i the a an что когда где кто как почему сколько какой какая какие was wann wo wer wie warum qué cuándo dónde".split())
 
@@ -237,11 +259,11 @@ def _hybrid_pair(uid, query, pool):
         return r, r
     sem = []
     try:
-        sem, _v = _sem.semantic_events(uid, query, k=100)
-        sem = [(e, s) for e, s in sem if e.startswith(uid + "::")]
+        from app import search_line as _ln
+        sem, _v = _ln.semantic_visible(uid, query, k=100)
     except Exception as e:
         print("[q2s] semantic skipped: %s" % type(e).__name__, flush=True)
-    words, rare = _v2.fts_ranked(uid, query, limit=c["fts_limit"])
+    words, rare = _v2.fts_ranked(uid, query, limit=max(c["fts_limit"], 80))
     ww = _v2.word_weight(c, rare)
     out = []
     for s in (nfil(uid, sem, query), sem):

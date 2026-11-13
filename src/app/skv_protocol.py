@@ -21,7 +21,7 @@ PROTOCOL (same core as MCP — follow this order):
 2. Draft privately. VERIFY CUBE 01/02/03 (+04 if pressured). Cite memory facts as [ev:id]; dig deeper (lines=all, GET /api/v7/event/{id}, POST /api/v7/memory/dig) before saying you do not remember.
 3. turn = POST /api/v7/agent/turn {user_message, draft} (GET /api/v7/agent/turn?k=&q=&draft= if you can only open URLs). It is YOUR self-check: the server only checks that every [ev:id] exists (any memory line of the account), saves the turn and returns the seal. verdict=revise = a made-up id: fix and call again. Changed the draft after the self_check: call turn again with the same user_message. second_look_questions (first field, only when a rule fires on your draft) quote your own phrase: answer each from facts/tools, not from the draft; on the next turn send second_look="kept|changed: <what>".
 4. Output the answer + the "seal" line from turn as the last line.
-5. Task end: task_done=true in turn; cube_create OR duty=cube_nothing; cube_vote OR duty=vote_nothing. Silence = error.
+5. Task end: task_done=true in turn; cube_create OR duty=cube_nothing; cube_vote OR duty=vote_nothing. Silence = error. An agent's first cubes are its proven skills; if a skill is platform or third-party text, rewrite its method in your own words (never copy verbatim) and publish as carrier=skill.
 6. L1/L2/critical/secrets are YOUR job: when turn returns summary_due (about every 15 turns) or a topic closes, send l1_summary (stages: done / decided / outcome) + source_event_ids in turn; l2_summary after about 10 L1; critical=<lasting fact> (several: " | "); sensitive=["<exact secret string>"] for any password/key/token in the turn (masked as [SECRET] before saving). The server is only a late fallback (source=server_fallback) when you skip it.
 7. PROFILE (lasting rules about HOW to work with the user): follow the PROFILE rows (bootstrap "profile", turn "profile"); when the user states/changes one send profile=[{"op":"add|supersede|retract|confirm|dismiss", "kind":"prohibition|rule|decision|preference|identity", "text":"<one rule>", "scope":"global|project:<x>|topic:<x>", "ev":["this"]}] in turn; with every l2_summary send profile_review={"ops":[...]} or {"no_changes":true,"reason":"<why>"} (first 3 L2 only warn, then the L2 is rejected). No secrets/contacts in profile text.
 8. Cubes: install/attach only after the user's fresh explicit yes in this move.
@@ -62,7 +62,7 @@ GUARD2_CHECKLIST = """PROTOCOL CHECKLIST (same core as MCP; full text: https://s
   2 draft → SECOND LOOK → FINAL (full protocol) then service lines (L1/L2/CRITICAL are yours; no seal)
   3 turn (POST /api/v7/agent/turn) — guard sends your final: [ev:] id check, save, server seal #NNN·code appended by the guard
   4 second_look API (POST /api/v7/agent/second-look) — guard calls it
-  5 cube_create|CUBE_NOTHING + cube_vote|RATE/vote_nothing — your service lines; silence = error
+  5 cube_create|CUBE_NOTHING + cube_vote|RATE/vote_nothing — your service lines; silence = error. First cubes are proven skills (carrier=skill); rewrite platform or third-party text in your own words, never copy verbatim.
 MCP primary: https://skv.network/mcp + Bearer sk_. This Guard 2 emulates the same duties for non-MCP agents and is draft insurance even with MCP.
 """
 

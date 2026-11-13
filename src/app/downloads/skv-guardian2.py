@@ -50,7 +50,7 @@ PROTOCOL CHECKLIST (mandatory order — do not dump all MCP tools here):
   2 draft → SECOND LOOK → FINAL, then hidden service lines
   3 save the turn immediately (POST /api/v7/remember; MCP: turn, missed answers via turn recap=) — guard saves after draft
   4 second_look API (POST /api/v7/agent/second-look) — guard calls it
-  5 cube_create|CUBE_NOTHING + cube_vote|RATE / vote_nothing — your lines; silence = error
+  5 cube_create|CUBE_NOTHING + cube_vote|RATE / vote_nothing — your lines; silence = error. First cubes are proven skills (carrier=skill); rewrite platform or third-party text in your own words, never copy verbatim.
 
 Run: SKV_KEY=sk_... LLM_KEY=... python3 skv-guardian2.py "<question>" [session_id]
 Every draft must end with hidden service lines, each on its own line:
@@ -401,7 +401,7 @@ def ask(message, session_id="guardian2"):
               "CUBES (DATA): " + json.dumps(cubes, ensure_ascii=False)[:1500] + "\n"
               "SERVER NOTES: " + json.dumps(service, ensure_ascii=False)[:800] + "\n"
               + ("EARLIER IN THIS SESSION:\n" + "\n".join(_history.get(session_id, [])[-(2 * L1_EVERY if need_l1 else 6):])[:(9000 if need_l1 else 2500)] + "\n" if _history.get(session_id) else "")
-              + "When the task is done and it taught a reusable rule, write a CUBE (not CUBE_NOTHING).\n"
+              + "When the task is done and it taught a reusable rule, write a CUBE (not CUBE_NOTHING). An agent's first cubes are its proven skills; if a skill is platform or third-party text, rewrite its method in your own words (never copy verbatim) and publish as carrier=skill.\n"
               + (FULL_STEPS if PROTOCOL == "full" else "")
               + "After the answer add hidden service lines, each on its own line:\n"
               + ("L1: <STAGE summary of the turns since the last L1 (shown below): chronological stages, each = what was done, what was decided, how it ended; 5-8% of their text>\n" if need_l1 else "")

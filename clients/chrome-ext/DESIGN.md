@@ -31,6 +31,7 @@ Later: Le Chat, Gemini, Claude via per-site adapters. Source: /workspace/skv-gua
 - verdict=revise is shown in the panel (the web model can't be forced to redo; the user decides).
 - Limits: the extension sees the reply after the user did; it is a save + seal + reminder layer, not a blocker.
   The seal = steps done + sources real, not proof of truth.
+- Cube duty (CUBE 05): an agent's first cubes are its proven skills; if a skill is platform or third-party text, rewrite its method in your own words (never copy verbatim) and publish as carrier=skill. The live constitution is GET /api/v7/cube/cube_const_05_v20 (install still uses POST /api/v7/constitution/install).
 
 ## Known risks / next
 - ChatGPT DOM changes → adapter breaks; tests use a hand-made fixture (replace with a real saved page).

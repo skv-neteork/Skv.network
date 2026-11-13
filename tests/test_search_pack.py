@@ -145,5 +145,31 @@ class PackShape(unittest.TestCase):
         self.assertIn("memory_search(focus_event_id", pack["hint"])
 
 
+class FollowNext(unittest.TestCase):
+    def test_empty_points_to_recall_later(self):
+        n = SP.follow_next("kids dinosaur", [], 0, 0)
+        self.assertTrue(n.startswith("nothing found: memory_recall_later("))
+        self.assertIn("kids dinosaur", n)
+
+    def test_hits_point_to_focus_and_offset(self):
+        hits = [{"ev": "remember_9", "event_id": "u::remember_9", "truncated": False},
+                {"ev": "remember_8", "event_id": "u::remember_8", "truncated": True}]
+        n = SP.follow_next("kids", hits, offset=0, total=12)
+        self.assertIn("more around #2: memory_search(focus_event_id=remember_8)", n)
+        self.assertIn("more results: memory_search(query=", n)
+        self.assertIn("offset=2", n)
+        self.assertNotIn("memory_event", n)
+        self.assertNotIn("memory_dig", n)
+        self.assertNotIn("memory_lens", n)
+
+    def test_offset_skips_earlier_hits(self):
+        hits = [{"event_id": "u::a", "score": 1}, {"event_id": "u::b", "score": 0.9},
+                {"event_id": "u::c", "score": 0.8}, {"event_id": "u::d", "score": 0.7}]
+        # package/search offset is applied on the diversified list before packaging
+        nxt = SP.follow_next("q", [{"ev": "c"}, {"ev": "d"}], offset=2, total=10)
+        self.assertIn("more around #3: memory_search(focus_event_id=c)", nxt)
+        self.assertIn("offset=4", nxt)
+
+
 if __name__ == "__main__":
     unittest.main()

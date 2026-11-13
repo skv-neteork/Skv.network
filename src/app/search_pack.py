@@ -7,7 +7,7 @@ Each hit: centre verbatim (cap ~400 tokens) + neighbours +-1 (widen to +-2 when 
 Budget default 3000 tokens; N = floor(budget/600) clamped 3..10.
 Never silent-cut: truncated flag + hint to memory_search(focus_event_id=...).
 """
-import os, re, sqlite3, time
+import json, os, re, sqlite3, time
 from datetime import datetime, timedelta
 
 from app.memory_v2 import config as _mcfg, db_path, est_tokens, clip as _clip
@@ -33,6 +33,26 @@ def budget_of(n=None, cfg=None):
 
 def n_hits(budget):
     return max(3, min(10, int(budget) // TOK_PER_HIT))
+
+
+def follow_next(query, hits, offset=0, total=None, reliable=True, focus_event_id=""):
+    """Ready-to-call next step. Follow-ups stay on memory_search; recall_later only if that fails."""
+    q = json.dumps(query or "", ensure_ascii=False)
+    if not hits:
+        return "nothing found: memory_recall_later(query=%s)" % q
+    pick = 0
+    for i, h in enumerate(hits):
+        if h.get("truncated") or ((h.get("centre") or {}).get("truncated")):
+            pick = i
+            break
+    ev = (hits[pick].get("ev") or _ev(hits[pick].get("event_id")))
+    num = int(offset or 0) + pick + 1
+    parts = ["more around #%d: memory_search(focus_event_id=%s)" % (num, ev)]
+    if query and total is not None and int(offset or 0) + len(hits) < int(total):
+        parts.append("more results: memory_search(query=%s, offset=%d)" % (q, int(offset or 0) + len(hits)))
+    if not reliable:
+        parts.append("nothing found: memory_recall_later(query=%s)" % q)
+    return "; ".join(parts)
 
 
 # ---------- relative dates (basic) ----------
@@ -252,8 +272,9 @@ def package(uid, hits, query, budget=None, window=None):
     used, items, truncated = 0, [], False
     hint = "memory_search(focus_event_id=<ev>) for a wider episode; memory_recall_later for a deep search"
     if not hits:
+        nxt = follow_next(query, [], 0, 0, True, "")
         return {"hits": [], "n": 0, "budget_tokens": budget, "window": window,
-                "truncated": False, "hint": hint}
+                "truncated": False, "hint": hint, "next": nxt}
     conn = sqlite3.connect(f"file:{db_path(uid)}?mode=ro", uri=True, timeout=10)
     try:
         for h in hits[:n]:
@@ -331,8 +352,9 @@ def expand(uid, focus_event_id, radius=4, budget=None):
             "SELECT rowid, event_id, time_str, raw_dialogue FROM event_metadata WHERE event_id=? OR event_id LIKE ?",
             (eid, "%::" + (focus_event_id or "").split("::")[-1])).fetchone()
         if not row:
+            nxt = "nothing found: memory_recall_later(query=%s)" % json.dumps(focus_event_id or "", ensure_ascii=False)
             return {"hits": [], "n": 0, "focus_event_id": focus_event_id, "truncated": False,
-                    "hint": "unknown event_id"}
+                    "hint": "unknown event_id", "next": nxt}
         rid, eid, ts, raw = row
         archived = False
         try:
@@ -357,14 +379,17 @@ def expand(uid, focus_event_id, radius=4, budget=None):
                 "archived": archived}
     finally:
         conn.close()
+    nxt = follow_next("", [item], 0, 1, True, eid)
     return {"hits": [item], "n": 1, "focus_event_id": eid, "budget_tokens": budget,
             "truncated": item["truncated"], "archived": archived,
-            "hint": "memory_search(query, since, until) for a time window; memory_recall_later for a deep search"}
+            "hint": "memory_search(query, since, until) for a time window; memory_recall_later for a deep search",
+            "next": nxt}
 
 
 def search(uid, query="", top_k=None, since=None, until=None, exclude_imports=False, source=None,
-           focus_event_id="", budget=None, now=None, radius=4):
+           focus_event_id="", budget=None, now=None, radius=4, offset=0):
     """One call = one answer package. Used by memory_search, turn facts, /memory follow-up."""
+    offset = max(0, int(offset or 0))
     if focus_event_id:
         return expand(uid, focus_event_id, radius=radius, budget=budget)
     window = resolve_time(query, now=now, since=since, until=until)
@@ -382,7 +407,13 @@ def search(uid, query="", top_k=None, since=None, until=None, exclude_imports=Fa
         wide = sorted(wide, key=lambda h: (_age(h) < (window["now"][:10]), -float(h.get("score") or 0)))
     gap = int(_mcfg().get("lens_gap", 3) or 3)
     div = diversify(wide, query, window, gap=gap)
-    pack = package(uid, div[:n], query, budget=b, window=window)
+    sliced = div[offset:offset + n]
+    pack = package(uid, sliced, query, budget=b, window=window)
     pack["window"] = window
     pack["retrieved"] = len(wide)
+    pack["offset"] = offset
+    pack["total"] = len(div)
+    for i, h in enumerate(pack.get("hits") or []):
+        h["rank"] = offset + i + 1
+    pack["next"] = follow_next(query, pack.get("hits") or [], offset, len(div), True, "")
     return pack

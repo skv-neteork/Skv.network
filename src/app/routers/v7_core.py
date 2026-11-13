@@ -98,6 +98,7 @@ class SearchRequest(BaseModel):
     focus_event_id: Optional[str] = None    # B10: wider episode around one hit (old memory_lens/memory_event)
     budget_tokens: Optional[int] = None     # B10 mini-lens budget (default 3000, cap 12000)
     pack: bool = False                      # B10: return mini-lens package (memory_search / turn / follow-up)
+    offset: int = 0                         # B10 follow-up: more results from the same query
 
 
 class ChatRequest(BaseModel):
@@ -168,6 +169,7 @@ class SearchResultItem(BaseModel):
     match_reason: Optional[str] = None
     truncated: Optional[bool] = None
     archived: Optional[bool] = None
+    rank: Optional[int] = None
 
 class SearchResponse(BaseModel):
     results: List[SearchResultItem]
@@ -183,6 +185,7 @@ class SearchResponse(BaseModel):
     pack: Optional[Dict[str, Any]] = None              # B10 mini-lens package
     window: Optional[Dict[str, Any]] = None
     truncated: Optional[bool] = None
+    next: Optional[str] = None                         # B10: ready-to-call follow-up on memory_search
 
 class ExperienceCreateRequest(BaseModel):
     msg_ref: Optional[str] = ""   # client id of the user message this reply answers (consent notice window)

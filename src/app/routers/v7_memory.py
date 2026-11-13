@@ -803,7 +803,8 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                                   exclude_imports=bool(getattr(req, "exclude_imports", False)),
                                   source=getattr(req, "source", None),
                                   focus_event_id=getattr(req, "focus_event_id", None) or "",
-                                  budget=getattr(req, "budget_tokens", None))
+                                  budget=getattr(req, "budget_tokens", None),
+                                  offset=int(getattr(req, "offset", 0) or 0))
                 results = []
                 for h in pack.get("hits") or []:
                     results.append({"event_id": h.get("event_id"), "score": h.get("score"), "source": "personal",
@@ -811,9 +812,11 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                                     "metadata": {"time_str": h.get("date")},
                                     "centre": h.get("centre"), "neighbours": h.get("neighbours"),
                                     "l1": h.get("l1"), "l2": h.get("l2"),
-                                    "match_reason": h.get("match_reason"), "truncated": h.get("truncated")})
+                                    "match_reason": h.get("match_reason"), "truncated": h.get("truncated"),
+                                    "rank": h.get("rank")})
                 return {"results": results, "pack": pack, "window": pack.get("window"),
-                        "truncated": pack.get("truncated"), "hint": pack.get("hint")}
+                        "truncated": pack.get("truncated"), "hint": pack.get("hint"),
+                        "next": pack.get("next")}
             return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=getattr(req, "since", None), until=getattr(req, "until", None), exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
         finally:
             _q2s.SEARCH_AS.reset(_tok)

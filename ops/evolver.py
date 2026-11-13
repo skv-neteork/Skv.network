@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """Courier and watch. Not the old evolver. Drains court_queue. Alerts only when the server is sick."""
-import json, os, sqlite3, urllib.request
+import fcntl, json, os, sqlite3, urllib.request
 from datetime import datetime
 
 DB = "/data/skv/metadata_store/shared_master.db"
 LOG = "/tmp/skv_evolver.log"
+# Digest/new-user cursors live next to the DB so a reboot (tmpfs /tmp) cannot
+# re-announce every old account or send the daily mail twice.
+DIGEST_DIR = os.environ.get("SKV_DIGEST_DIR", "/data/skv/metadata_store")
+_TMP_SEEN = "/tmp/skv_users.seen"
+_TMP_SENT = "/tmp/skv_digest.sent"
+_TMP_LOG = "/tmp/skv_digest.txt"
+_UNSET = ("", "1970-01-01", "1970-01-01 00:00:00")
 
 def log(msg):
     line = datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " " + msg
@@ -266,8 +273,48 @@ def drain():
     c.close()
 
 
-def note(line):
-    open("/tmp/skv_digest.txt", "a").write(datetime.now().strftime("%H:%M") + " " + line + "\n")
+def _digest_paths(state_dir=None):
+    d = state_dir or DIGEST_DIR
+    os.makedirs(d, exist_ok=True)
+    return {
+        "seen": os.path.join(d, "skv_users.seen"),
+        "sent": os.path.join(d, "skv_digest.sent"),
+        "log": os.path.join(d, "skv_digest.txt"),
+        "lock": os.path.join(d, "skv_digest.lock"),
+    }
+
+
+def _digest_lock(paths):
+    fd = os.open(paths["lock"], os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    return fd
+
+
+def _read_strip(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def _write_state(path, text):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
+def note(line, log_path=None):
+    path = log_path or _digest_paths()["log"]
+    with open(path, "a") as f:
+        f.write(datetime.now().strftime("%H:%M") + " " + line + "\n")
 
 def court_cases():
     """Open court cases for the digest: new (last 24h) and older, with age. No separate court mails."""
@@ -284,20 +331,33 @@ def court_cases():
             + ("New:\n" + "\n".join(map(f, new)) + "\n" if new else "") + ("Older (oldest first):\n" + "\n".join(map(f, old[:30])) + "\n" if old else ""))
 
 
-def send_digest():
-    """Once a day (first hourly run after 09:00): today's new events + server status. Always sent, even if quiet."""
-    path = "/tmp/skv_digest.txt"
-    stamp = "/tmp/skv_digest.sent"
-    today = datetime.now().strftime("%Y-%m-%d")
-    if os.path.exists(stamp) and open(stamp).read().strip() == today:
-        return
-    if datetime.now().hour < 9 and "--digest-now" not in __import__("sys").argv:
-        return
-    events = open(path).read().strip() if os.path.exists(path) else ""
-    body = "SKV daily digest " + today + "\n\nNew events since last digest:\n" + (events or "(none)") + "\n\n" + court_cases() + "\n\nServer: " + (", ".join(health()) or "ok") + "\nBackup: " + backup_status() + "\n"
-    if mail("SKV day", body):
-        open(path, "w").write("")
-        open(stamp, "w").write(today)
+def send_digest(now=None, force=False, mail_fn=None, state_dir=None, court_fn=None, health_fn=None, backup_fn=None):
+    """Once a day (first hourly run after 09:00). Stamp lives on durable disk so a reboot cannot resend."""
+    now = now or datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    argv = __import__("sys").argv
+    force = force or ("--digest-now" in argv)
+    paths = _digest_paths(state_dir)
+    fd = _digest_lock(paths)
+    try:
+        if _read_strip(paths["sent"]) == today:
+            return False
+        if now.hour < 9 and not force:
+            return False
+        events = _read_strip(paths["log"])
+        court = (court_fn or court_cases)()
+        body = ("SKV daily digest " + today + "\n\nNew events since last digest:\n" + (events or "(none)")
+                + "\n\n" + court + "\n\nServer: " + (", ".join((health_fn or health)()) or "ok")
+                + "\nBackup: " + (backup_fn or backup_status)() + "\n")
+        ok = (mail_fn or mail)("SKV day", body)
+        if ok:
+            with open(paths["log"], "w"):
+                pass
+            _write_state(paths["sent"], today)
+        return bool(ok)
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 def backup_status():
     import glob, time
@@ -331,18 +391,39 @@ def mail(subject, body):
         return False
 
 
-def new_users():
-    import sqlite3
-    seen = "/tmp/skv_users.seen"
-    last = open(seen).read().strip() if os.path.exists(seen) else "1970-01-01"
-    c = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
-    rows = c.execute("select email, confirmed, created_at from users where created_at > ? order by created_at", (last,)).fetchall()
-    c.close()
-    if not rows:
-        return
-    for email, confirmed, created in rows:
-        note("new user " + email + " confirmed=" + str(confirmed))
-    open(seen, "w").write(rows[-1][2])
+def new_users(db=None, state_dir=None):
+    """Announce users created after the durable cursor. Missing/1970 cursor = first run after
+    a reboot: seed with max(created_at) and do not list anyone (old accounts are not 'new')."""
+    db = db or DB
+    paths = _digest_paths(state_dir)
+    fd = _digest_lock(paths)
+    try:
+        last = _read_strip(paths["seen"])
+        if last in _UNSET and os.path.abspath(os.path.dirname(paths["seen"])) == os.path.abspath(DIGEST_DIR):
+            last = _read_strip(_TMP_SEEN)
+            if last not in _UNSET:
+                _write_state(paths["seen"], last)
+        c = sqlite3.connect(db, timeout=30)
+        try:
+            if last in _UNSET:
+                mx = c.execute("select max(created_at) from users").fetchone()[0]
+                _write_state(paths["seen"], mx or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                return []
+            rows = c.execute(
+                "select email, confirmed, created_at from users where created_at > ? order by created_at",
+                (last,),
+            ).fetchall()
+        finally:
+            c.close()
+        if not rows:
+            return []
+        for email, confirmed, created in rows:
+            note("new user " + email + " confirmed=" + str(confirmed), log_path=paths["log"])
+        _write_state(paths["seen"], rows[-1][2])
+        return list(rows)
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 def health():
     sick = []

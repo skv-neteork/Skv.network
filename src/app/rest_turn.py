@@ -381,6 +381,8 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     duties = [saved.get(k) for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders") if isinstance(saved, dict) and saved.get(k)]
     if isinstance(saved, dict) and saved.get("cube_harvest"):
         duties.insert(0, saved["cube_harvest"])
+    if isinstance(saved, dict) and isinstance(saved.get("duty_rules"), dict) and saved["duty_rules"].get("rules") and not ext:
+        duties = [str(x) for x in saved["duty_rules"]["rules"]] + duties   # T72 duty rules (soft or MANDATORY)
     prof = {k: saved[k] for k in ("profile_applied", "profile_version", "profile_warnings", "profile_errors", "profile_mark", "profile_fallback_started", "profile_duties")
             if isinstance(saved, dict) and saved.get(k)}
     prof.update({k: v for k, v in _prof_rel(user, user_message, clean, session_id, compact).items() if k not in prof})

@@ -1716,6 +1716,7 @@ async def remember(req: RememberRequest):
     if _vaulted:
         _out["vaulted"] = list(dict.fromkeys(_vaulted))
         _out["vault_note"] = "Secrets were moved to the vault; memory keeps [vault:<name>] references. Use POST /api/v7/vault/use."
+    _dr_ctx = {}
     try:   # L1/L2 are written by the agent; the server only reminds when they are due (and summarizes only as a fallback)
         if (req.query or req.response) and not req.l1_summary:
             _sc = sqlite3.connect(f"/data/skv/metadata_store/{name}.db", timeout=10)
@@ -1734,6 +1735,7 @@ async def remember(req: RememberRequest):
                                   "l1_summary='<stages: done / decided / outcome>' and source_event_ids=l1_source_event_ids from this field." % (_mx - _l1to))
             _l2to = _sc.execute("SELECT MAX(to_rowid) FROM summary_l2_blocks").fetchone()[0] or 0
             _nl1 = _sc.execute("SELECT COUNT(*) FROM summary_l1 WHERE to_rowid > ?", (_l2to,)).fetchone()[0] or 0
+            _dr_ctx.update(l1_pending=_mx - _l1to, nl1=_nl1)
             if _nl1 >= 10:
                 _due["l2"] = "%d L1 summaries since the last L2: send l2_summary (one headline per stage + open items, about 5%% of those L1) with source_event_ids." % _nl1
             _sc.close()
@@ -1741,6 +1743,23 @@ async def remember(req: RememberRequest):
                 _out["summary_due"] = _due
     except Exception as _e:
         print(f"[summary_due] skipped: {_e}", flush=True)
+    try:   # T72: duty RULES (what / when / how), 1-2 per reply, escalating to MANDATORY when ignored (app/duty_rules.py)
+        if (req.query and req.response and (req.kind or "dialogue") == "dialogue" and req.topic != "recap" and not (req.ts or req.occurred_at)
+                and not (req.source or "").startswith(("guard2_ext", "ext", "hook", "server_fallback", "import"))):
+            from app import duty_rules as _dr
+            if _dr.enabled():
+                _notes = [str(x) for x in (_duty_notes or [])]
+                _dctx = dict(_dr_ctx, summary_due=_out.get("summary_due"), cube_hint=any(x.startswith("• CUBE DUTY") for x in _notes),
+                             rate_hint=bool(_rate_missed) or any(x.startswith("• RATE") for x in _notes), vaulted=bool(_vaulted),
+                             profile_open=bool(_out.get("profile_duties")))
+                _dsig = _dr.signals({"l1_summary": req.l1_summary, "l2_map": req.l2_map, "critical": req.critical, "sensitive": req.sensitive, "profile": req.profile,
+                                     "profile_review": req.profile_review, "duty": req.duty, "duty_reason": req.duty_reason, "task_done": req.task_done,
+                                     "query": req.query, "cube_created": bool(_cube_info and _cube_info.get("cube_id"))}, _dctx)
+                _dres = _dr.on_turn(req.user_id, req.session_id, done=_dsig[0], dismissed=_dsig[1], events=_dsig[2], applicable=_dsig[3])
+                if _dres:
+                    _out["duty_rules"] = _dres
+    except Exception as _e:
+        print(f"[duty_rules] skipped: {type(_e).__name__}", flush=True)
     return _out
 
 

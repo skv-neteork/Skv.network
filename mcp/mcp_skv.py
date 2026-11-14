@@ -2146,7 +2146,7 @@ def _recap_duties(resps: list, mts: list):
         duties.insert(0, x) if front else duties.append(x)
     last = resps[-1] if resps else {}
     for d in resps:
-        for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders"):
+        for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders", "duty_rules"):
             if k == "summary_due" and d is not last: continue
             if d.get(k): add(_shrink(d.get(k), 300))
         for pd in d.get("profile_duties") or []: add(pd)
@@ -2716,7 +2716,9 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     Duties missed_turns / profile_candidate / profile_conflict / profile_unconfirmed come back in duties: resolve them. cube_harvest (about every 3 days) is a reminder to publish proven skills as carrier=skill cubes (rewrite platform or third-party text in your own words, never copy verbatim) plus new experience: cube_get the live author cube cube_3de96286fc73 (or its latest version), or duty=skills_none / duty=cube_harvest with a reason; skills_harvest and skills_skip also close it.
     The first turn of a session returns everything. Later turns return only what changed or matters now: empty
     fields, the static self_check and repeated board/profile items are left out (profile_digest + the 1-2 matching
-    rows stay). verbose=true returns the full response any time. turn_stats() shows sizes and second_look stats."""
+    rows stay). verbose=true returns the full response any time. turn_stats() shows sizes and second_look stats.
+    duties may hold {id:duty_rules, rules:[...]}: 1-2 short rules (what / when / how) for L1, critical, L2, cube, sensitive, vote, profile. You decide
+    from the chat when they apply. "MANDATORY: <duty> reminded <k> times without action" = do it now, or dismiss it: duty=rule_<duty> + duty_reason."""
     if _room_local():
         _room_stopped = _room_block(agent_token, session_id, soft=True)
         if _room_stopped:
@@ -2901,7 +2903,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         t["verdict"] = "revise"
     duties = []
     if isinstance(saved, dict):
-        for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders"):
+        for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders", "duty_rules"):
             if saved.get(k):
                 duties.append(_shrink(saved.get(k), 300))
         if saved.get("cube_harvest"):

@@ -95,10 +95,13 @@ class SearchRequest(BaseModel):
     exclude_imports: bool = False     # drop kind=import, archived and test events
     source: Optional[str] = None      # events (default) | board | all
     search_as: Optional[List[str]] = None   # Q2S: up to 3 statements of how the answer was written (agent-supplied)
-    focus_event_id: Optional[str] = None    # B10: wider episode around one hit (old memory_lens/memory_event)
+    focus_event_id: Optional[str] = None    # B10, rejected by B11: use date/since/until around that event
     budget_tokens: Optional[int] = None     # B10 mini-lens budget (default 3000, cap 12000)
     pack: bool = False                      # B10: return mini-lens package (memory_search / turn / follow-up)
     offset: int = 0                         # B10 follow-up: more results from the same query
+    date: Optional[str] = None              # B11: YYYY-MM-DD -> window [D-1, D+1]. Not with since/until
+    time: Optional[str] = None              # B11: "unknown" -> no time filter
+    limit: Optional[int] = None             # B11: page size inside a window (default 20, max 100)
 
 
 class ChatRequest(BaseModel):
@@ -186,6 +189,12 @@ class SearchResponse(BaseModel):
     window: Optional[Dict[str, Any]] = None
     truncated: Optional[bool] = None
     next: Optional[str] = None                         # B10: ready-to-call follow-up on memory_search
+    total_in_window: Optional[int] = None              # B11
+    covered_window: Optional[Any] = None
+    window_set: Optional[bool] = None
+    offset: Optional[int] = None
+    next_offset: Optional[int] = None
+    has_more: Optional[bool] = None
 
 class ExperienceCreateRequest(BaseModel):
     msg_ref: Optional[str] = ""   # client id of the user message this reply answers (consent notice window)

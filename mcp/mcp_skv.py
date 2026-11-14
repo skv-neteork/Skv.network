@@ -742,12 +742,12 @@ def _fact_key(summary: str) -> str:
 
 
 def _mark_conflicts(items: list) -> list:
-    """Newest first; an older hit stating the same fact key is marked superseded_by the newer one."""
+    """Flag an older hit stating the same fact. Search order stays (window rank or mini-lens rank)."""
     for it in items:
         it["time"] = _ev_time(it.get("event_id") or "")
-    items.sort(key=lambda x: _ev_ts(x.get("event_id") or ""), reverse=True)
+    ranked = sorted(items, key=lambda x: _ev_ts(x.get("event_id") or ""), reverse=True)
     newest: dict = {}
-    for it in items:
+    for it in ranked:
         k = _fact_key(it.get("summary") or "")
         if not k:
             continue
@@ -757,11 +757,11 @@ def _mark_conflicts(items: list) -> list:
         else:
             newest[k] = it.get("event_id")
     # same topic (question overlap) -> older entry superseded; flag negative-vs-positive contradictions
-    for i, old in enumerate(items):
+    for i, old in enumerate(ranked):
         if old.get("superseded_by"):
             continue
         oq = _qwords((old.get("summary") or "").split(" A: ")[0])
-        for new in items[:i]:
+        for new in ranked[:i]:
             nq = _qwords((new.get("summary") or "").split(" A: ")[0])
             if not oq or not nq:
                 continue
@@ -1373,19 +1373,111 @@ def _recall_hint(query: str) -> dict:
     return {"deep_search": _RECALL_HINT, "deep_search_call": "memory_recall_later(query=%r)" % (query or "")[:200]}
 
 
+def _query_is_secret(query: str) -> bool:
+    """True when the query itself is a secret value (search must not echo it)."""
+    q = (query or "").strip()
+    if len(q) < 4 or len(q) > 200:
+        return False
+    return _mask_text("token is " + q) != "token is " + q
+
+
+def _scrub_secret_query(out, query: str):
+    if not _query_is_secret(query):
+        return out
+    def scrub(o, k=""):
+        if isinstance(o, str):
+            return o if k in ("seal", "next_seal", "event_id", "ev", "id") else o.replace(query, "[SECRET]")
+        if isinstance(o, list):
+            return [scrub(v, k) for v in o]
+        if isinstance(o, dict):
+            return {kk: scrub(v, kk) for kk, v in o.items()}
+        return o
+    return scrub(out)
+
+
+def _search_json(out: dict) -> str:
+    """Valid compact JSON inside RESP_LIMIT. Keeps the first hits; drops the tail. Never slices the JSON string."""
+    def pack(o):
+        return json.dumps(o, ensure_ascii=False, separators=(",", ":"))
+    s = pack(out)
+    if len(s) <= RESP_LIMIT:
+        return s
+    cap = 1200
+    cur = out
+    while cap >= 80:
+        cur = _shrink(out, cap)
+        s = pack(cur)
+        if len(s) <= RESP_LIMIT:
+            return s
+        cap //= 2
+    res = list(cur.get("results") or [])
+    while len(res) > 1:
+        res = res[:-1]
+        cur = dict(cur)
+        cur["results"] = res
+        cur["hits"] = res
+        cur["n"] = len(res)
+        cur["truncated"] = True
+        cur.setdefault("hint", "truncated:true — pass date or since/until for a window, or memory_recall_later for a deep search")
+        s = pack(cur)
+        if len(s) <= RESP_LIMIT:
+            return s
+    h0 = res[0] if res and isinstance(res[0], dict) else {}
+    text = h0.get("content") or h0.get("summary") or ""
+    if not isinstance(text, str):
+        text = str(text)
+    summ = h0.get("summary") if isinstance(h0.get("summary"), str) else text
+    slim = {
+        "id": h0.get("id") or h0.get("event_id"),
+        "event_id": h0.get("event_id") or h0.get("id"),
+        "ev": h0.get("ev"),
+        "date": h0.get("date"),
+        "score": h0.get("score"),
+        "content": text[:900],
+        "summary": (summ or "")[:400],
+        "archived": h0.get("archived"),
+        "source": h0.get("source"),
+    }
+    cur = {
+        "results": [slim], "hits": [slim], "n": 1, "truncated": True,
+        "window_set": out.get("window_set"), "note": out.get("note"),
+        "total_in_window": out.get("total_in_window"), "covered_window": out.get("covered_window"),
+        "offset": out.get("offset"), "next_offset": out.get("next_offset"), "has_more": True,
+        "hint": "truncated:true — open one hit with memory_event(event_id)",
+        "next": out.get("next"), "order": out.get("order"),
+    }
+    return pack(cur)
+
+
+_SEARCH_GUIDE = (
+    "Search memory for the EVENT, not the user's question. "
+    "1) Plain words (\"who gave me jewelry?\" -> query \"received a gift\"). "
+    "2) Keep names and exact words (aunt, тётя, Airbnb). "
+    "3) Time is date=YYYY-MM-DD (that day ±1), or since/until inclusive (one side is ok). "
+    "Exact day: since=until=that day. Unknown time: time=unknown. Never guess. "
+    "Do not put yesterday/last week/ago in query. "
+    "4) Computed answers (\"how many months ago\") use the hit date; you do the arithmetic. "
+    "5) Before/after X: find X, read its date, then search a window around that date. "
+    "6) Nothing found: rephrase, or widen ±3 days (the reply shows the call), and only then say you do not remember. "
+    "Convert relative dates yourself from the conversation date. "
+    "Examples: memory_search(query=\"received a gift\", date=\"2023-03-04\"); "
+    "memory_search(query=\"trip\", since=\"2023-03-01\", until=\"2023-03-07\"); "
+    "memory_search(query=\"dentist\", time=\"unknown\"); "
+    "memory_search(since=\"2023-03-04\", until=\"2023-03-04\")."
+)
+
+
 @mcp.tool()
-def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = "", offset: int = 0, since: str = "", until: str = "", exclude_imports: bool = False, source: str = "", search_as: Union[list, str] = "", agents: str = "", agent_token: str = "", session_id: str = "", focus_event_id: str = "", budget_tokens: int = 0) -> str:
-    """Main memory search. One call returns a mini-lens per hit (verbatim centre + neighbours + L1/L2 + date).
-    Default: only this key's memory line; lines="all" searches all lines of the account.
-    Follow-ups stay on this tool: query=new question, focus_event_id=open a hit, offset=more results,
-    since/until=time window. Only if that fails: memory_recall_later. Each answer has a 'next' line
-    with the ready-to-call step. agents="all" adds every agent's room events."""
+def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = "", offset: int = 0, since: str = "", until: str = "", exclude_imports: bool = False, source: str = "", search_as: Union[list, str] = "", agents: str = "", agent_token: str = "", session_id: str = "", focus_event_id: str = "", budget_tokens: int = 0, date: str = "", time: str = "", limit: int = 0) -> str:
+    """Search memory for the event, not the user's question. See the tool description for date/since/until/time=unknown."""
     if _room_local():
         _room_stopped = _room_block(agent_token, session_id)
         if _room_stopped:
             return _room_stopped
-    top_k = max(1, min(int(top_k or 8), 10))
-    offset = max(0, int(offset or 0))
+    try:
+        top_k = max(1, min(int(top_k or 8), 10))
+    except (TypeError, ValueError):
+        top_k = 8
     body: dict[str, Any] = _uid_body({"query_text": query or "", "top_k": min(10, top_k), "pack": True})
     if mode:
         body["mode"] = mode
@@ -1393,12 +1485,27 @@ def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = 
         body["lines"] = "all"
     if since: body["since"] = since
     if until: body["until"] = until
+    if date: body["date"] = date
+    if time: body["time"] = time
     if exclude_imports: body["exclude_imports"] = True
     if source: body["source"] = source
     if _sa_list(search_as): body["search_as"] = _sa_list(search_as)
     if focus_event_id: body["focus_event_id"] = focus_event_id
-    if budget_tokens: body["budget_tokens"] = int(budget_tokens)
-    if offset: body["offset"] = offset
+    if budget_tokens:
+        try:
+            body["budget_tokens"] = int(budget_tokens)
+        except (TypeError, ValueError):
+            body["budget_tokens"] = budget_tokens
+    if limit:
+        try:
+            body["limit"] = int(limit)
+        except (TypeError, ValueError):
+            body["limit"] = limit
+    if offset:
+        try:
+            body["offset"] = int(offset)
+        except (TypeError, ValueError):
+            body["offset"] = offset
     data = _req("POST", "/search", body)
     if isinstance(data, dict) and data.get("ok") is False:
         return _dumps(data)
@@ -1408,13 +1515,19 @@ def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = 
     results = []
     if pkg and pkg.get("hits") is not None:
         for h in (pkg.get("hits") or []):
+            content = h.get("content")
+            if content is None:
+                content = ((h.get("centre") or {}).get("text") or "")
+            eid = h.get("event_id") or h.get("id")
             results.append({
-                "event_id": h.get("event_id"), "ev": h.get("ev"), "date": h.get("date"),
-                "score": h.get("score"), "centre": h.get("centre"), "neighbours": h.get("neighbours"),
+                "id": h.get("id") or eid, "event_id": eid, "ev": h.get("ev") or _sid(eid or ""),
+                "date": h.get("date"),
+                "score": h.get("score"), "content": content,
+                "centre": h.get("centre"), "neighbours": h.get("neighbours"),
                 "l1": h.get("l1"), "l2": h.get("l2"), "match_reason": h.get("match_reason"),
                 "truncated": h.get("truncated"), "archived": h.get("archived"),
                 "rank": h.get("rank"),
-                "summary": _fact_text(_norm_seal(((h.get("centre") or {}).get("text") or "")[:400])),
+                "summary": _fact_text(_norm_seal((content or "")[:400])),
                 "source": h.get("match_reason") or "personal",
             })
     else:
@@ -1456,23 +1569,28 @@ def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = 
     except Exception:
         pass
     t = _tr(); t["hits"] = [x["event_id"] for x in results if x.get("event_id")]; t["t"] = _time.time()
-    out: dict[str, Any] = {"results": results, "hits": results, "n": len(results), "offset": offset,
+    out: dict[str, Any] = {"results": results, "hits": results, "n": len(results), "offset": (pkg or {}).get("offset", offset),
                            "window": (pkg or {}).get("window") or data.get("window"),
                            "truncated": (pkg or {}).get("truncated") or data.get("truncated"),
                            "budget_tokens": (pkg or {}).get("budget_tokens"),
                            "filtered": f"{dropped} weak (<45% of best score) or duplicate hits dropped" if dropped else "",
-                           "order": "mini-lens per hit (centre + neighbours + L1/L2); cite as [ev:id]"}
+                           "order": "window hits are {id, date, content, score}; otherwise a mini-lens. Cite as [ev:id]"}
+    for _k in ("total_in_window", "covered_window", "window_set", "next_offset", "has_more", "note"):
+        if (pkg or {}).get(_k) is not None or _k in (pkg or {}):
+            out[_k] = (pkg or {}).get(_k)
+        elif isinstance(data, dict) and _k in data:
+            out[_k] = data.get(_k)
     if (pkg or data).get("hint"):
         out["hint"] = (pkg or data).get("hint")
     elif (pkg or {}).get("truncated") or data.get("truncated"):
-        out["hint"] = "truncated:true — memory_search(focus_event_id=<ev>) for a wider episode; memory_recall_later for a deep search"
+        out["hint"] = "truncated:true — pass date or since/until for a window, or memory_recall_later for a deep search"
     nxt = (pkg or {}).get("next") or data.get("next")
     if not nxt:
         if not results:
             nxt = "nothing found: memory_recall_later(query=%s)" % json.dumps((query or "")[:200], ensure_ascii=False)
         else:
-            ev = _sid((results[0].get("ev") or results[0].get("event_id") or ""))
-            nxt = "more around #%d: memory_search(focus_event_id=%s)" % (offset + 1, ev)
+            nxt = "more: memory_search(query=%s, offset=%d)" % (
+                json.dumps((query or "")[:200], ensure_ascii=False), offset + 1)
             if len(allr) > offset + len(results) and query:
                 nxt += "; more results: memory_search(query=%s, offset=%d)" % (
                     json.dumps(query[:200], ensure_ascii=False), offset + len(results))
@@ -1489,13 +1607,23 @@ def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = 
     if data.get("no_confident_match") or data.get("note"):
         out["no_confident_match"] = data.get("no_confident_match")
         out["note"] = data.get("note")
+    windowed = bool((pkg or {}).get("window_set"))
     if not results:
         out["reliable_matches"] = False
         out["not_in_memory"] = True
-        out["message"] = "Not in memory: nothing saved matches %r (searched events, critical marks, vault names; vault values are never searched). " \
-                         "Say this plainly; do not invent." % (query or "")[:80]
-        out["offer"] = "memory_recall_later"
-        out["next"] = "nothing found: memory_recall_later(query=%s)" % json.dumps((query or "")[:200], ensure_ascii=False)
+        if windowed:
+            out["message"] = ("Nothing in this window. Rephrase, or widen ±3 days (the next line is that call), "
+                              "and only then say you do not remember.")
+            out["offer"] = "widen"
+            if not out.get("next"):
+                out["next"] = "nothing found: memory_recall_later(query=%s)" % json.dumps((query or "")[:200], ensure_ascii=False)
+        else:
+            out["message"] = "Not in memory: nothing saved matches %r (searched events, critical marks, vault names; vault values are never searched). " \
+                             "Say this plainly; do not invent." % (query or "")[:80]
+            out["offer"] = "memory_recall_later"
+            out["next"] = "nothing found: memory_recall_later(query=%s)" % json.dumps((query or "")[:200], ensure_ascii=False)
+    elif windowed:
+        out["reliable_matches"] = True
     elif not any(_rel(query, x.get("summary") or "") > 0 for x in results) and _qwords(query):
         out["reliable_matches"] = False
         out["not_in_memory"] = True
@@ -1535,7 +1663,7 @@ def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = 
                 out["room_events"] = [{"ev": r[0], "actor": r[1], "kind": r[2], "gist": r[3]} for r in rows]
         except Exception as exc:
             print("[room] agents=all skipped: %s" % type(exc).__name__, flush=True)
-    return _dumps(out)
+    return _search_json(_scrub_secret_query(out, query))
 
 
 @mcp.tool()
@@ -1610,19 +1738,40 @@ def memory_dig(query: str = "", focus_event_id: str = "", radius: int = 2, focus
 
 @mcp.tool()
 def memory_lens(query: str = "", focus_event_id: str = "", radius: int = 2, offset: int = 0) -> str:
-    """Compatibility alias of memory_search. Prefer memory_search(focus_event_id=...) or memory_search(query)."""
+    """Episode around one event (POST /memory/lens), or memory_search(query) when there is no focus."""
     if focus_event_id:
-        return memory_search(focus_event_id=focus_event_id)
+        eid = _full_eid(focus_event_id)
+        d = _req("POST", "/memory/lens", _uid_body({
+            "focus_event_id": eid,
+            "radius": max(0, min(int(radius or 2), 6)),
+            "offset": max(0, int(offset or 0)),
+        }))
+        return _dumps(d if isinstance(d, dict) else {"ok": False, "error": "lens failed"})
     return memory_search(query=query)
 
 
 @mcp.tool()
 def memory_event(event_id: str) -> str:
-    """Compatibility alias of memory_search(focus_event_id=...). Prefer memory_search."""
+    """Full text of one event (GET /event). Archived events come back with archived=true. Not a search."""
+    from urllib.parse import quote
     eid = _full_eid(event_id)
     if not eid:
         return _dumps({"ok": False, "error": "event_id required"})
-    return memory_search(focus_event_id=eid)
+    d = _req("GET", "/event/" + quote(eid, safe=""), params={"lines": "all"})
+    if not isinstance(d, dict):
+        return _dumps({"ok": False, "error": "event unreadable"})
+    if d.get("ok") is False:
+        return _dumps(d)
+    text = d.get("full_text") or ""
+    return _dumps({
+        "ok": True,
+        "event_id": d.get("event_id") or eid,
+        "ev": _sid(d.get("event_id") or eid),
+        "date": d.get("time"),
+        "full_text": text,
+        "archived": bool(d.get("archived")),
+        "essence": d.get("essence") or "",
+    })
 
 
 def _full_eid(event_id: str) -> str:
@@ -4751,10 +4900,10 @@ SHORT_DESC = {
  "memory_bootstrap": "STEP 0 (preferred): compact continuity pack (consent step, rule 0, duties, seal, memory tail, board). MUST call before first answer. detail=1&page=N = full pack.",
  "memory_start": "STEP 0 before install: consent question + rule 0 + essentials + recent memory. Once installed use step_zero.",
  "memory_consult": "PRIMARY memory call before every answer (POST /memory). query in the memory base_language (see turn/step_zero); stable session_id; interact=true first call of turn, probe=true extras; lines='all' = all account lines. Empty hits != fact. page=N if long.",
- "memory_search": "Main memory search in the memory base_language (turn/step_zero report it; write query/search_as in it). One call returns a mini-lens per hit (centre + neighbours + L1/L2) and a 'next' line with the ready-to-call follow-up. Follow-ups: query, focus_event_id, offset, since/until. Only if that fails: memory_recall_later.",
- "memory_dig": "Compatibility alias of memory_search. Prefer memory_search (focus_event_id= for an episode; query+since/until for a window).",
- "memory_lens": "Compatibility alias of memory_search(focus_event_id=...).",
- "memory_event": "Compatibility alias of memory_search(focus_event_id=...).",
+ "memory_search": _SEARCH_GUIDE,
+ "memory_dig": "Compatibility alias of memory_search. Prefer memory_search with date or since/until.",
+ "memory_lens": "Compatibility alias. Prefer memory_search(date=) or memory_search(since=, until=).",
+ "memory_event": "Compatibility alias. Prefer memory_search(date=) or memory_search(since=, until=).",
  "memory_remember": "Legacy (hidden, kept for old clients): use turn.",
  "memory_critical": "Pin a critical fact.",
  "memory_recall_later": "Deep background memory search (query + search_as statement forms, both in the memory base_language) when turn/memory_search found nothing reliable: on-server agent collects ranked evidence (~10-30 s, ~0.1 RUB). Returns job_id; poll memory_recall_status(job_id).",

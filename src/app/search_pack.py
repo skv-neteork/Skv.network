@@ -387,24 +387,36 @@ def expand(uid, focus_event_id, radius=4, budget=None):
 
 
 def search(uid, query="", top_k=None, since=None, until=None, exclude_imports=False, source=None,
-           focus_event_id="", budget=None, now=None, radius=4, offset=0):
-    """One call = one answer package. Used by memory_search, turn facts, /memory follow-up."""
-    offset = max(0, int(offset or 0))
+           focus_event_id="", budget=None, now=None, radius=4, offset=0, date=None, time=None, limit=None):
+    """One call = one answer package. Used by memory_search, turn facts, /memory follow-up.
+
+    A date / since / until window is filtered first and ranked inside the window (B11).
+    Phrases in the query ("yesterday", "last week") are not a window: the agent passes dates.
+    """
+    from app.search_window import WindowError, parse as parse_window, relative_phrase, run as window_run, EXAMPLE
     if focus_event_id:
-        return expand(uid, focus_event_id, radius=radius, budget=budget)
-    window = resolve_time(query, now=now, since=since, until=until)
-    use_since = window["since"] if window["hard"] else since
-    use_until = window["until"] if window["hard"] else until
+        raise WindowError(
+            400, "focus_removed",
+            "focus_event_id is not a search parameter. Find that event, read its date, then search a window around it.",
+            'memory_search(query="...", since="2023-03-01", until="2023-03-07")')
+    bounds = parse_window(date, since, until, time, now=now)
+    if bounds["window_set"]:
+        return window_run(uid, query, date=date, since=since, until=until, time=time, budget=budget,
+                          limit=limit, offset=offset, exclude_imports=exclude_imports, now=now)
+    if not (query or "").strip():
+        raise WindowError(400, "query_required",
+                          "No window and no query. Pass a query, or set date / since / until. "
+                          "If you do not know when, pass time=unknown with the query.",
+                          EXAMPLE)
+    offset = max(0, int(offset or 0))
+    use_since = None
+    use_until = None
+    window = {"since": None, "until": None, "hard": False, "soft": False, "phrase": None,
+              "window_set": False, "now": None}
     b = budget_of(budget)
     n = n_hits(b) if top_k is None else max(1, min(10, int(top_k)))
     wide = retrieve_wide(uid, query, top_k=50, since=use_since, until=use_until,
                          exclude_imports=exclude_imports, source=source)
-    if window.get("soft"):
-        # recency boost only: keep order mostly, but pull last 14 days slightly up
-        def _age(h):
-            ts = str((h.get("metadata") or {}).get("time_str") or "")
-            return ts
-        wide = sorted(wide, key=lambda h: (_age(h) < (window["now"][:10]), -float(h.get("score") or 0)))
     gap = int(_mcfg().get("lens_gap", 3) or 3)
     div = diversify(wide, query, window, gap=gap)
     sliced = div[offset:offset + n]
@@ -416,4 +428,14 @@ def search(uid, query="", top_k=None, since=None, until=None, exclude_imports=Fa
     for i, h in enumerate(pack.get("hits") or []):
         h["rank"] = offset + i + 1
     pack["next"] = follow_next(query, pack.get("hits") or [], offset, len(div), True, "")
+    pack["window_set"] = False
+    pack["note"] = "no window set"
+    pack["covered_window"] = "all time (window unknown)"
+    pack["total_in_window"] = None
+    pack["offset"] = offset
+    pack["next_offset"] = (offset + len(pack.get("hits") or [])) if (offset + len(pack.get("hits") or []) < len(div)) else None
+    pack["has_more"] = pack["next_offset"] is not None
+    if relative_phrase(query):
+        pack["hint"] = ("No window set. Convert the date yourself and pass date or since/until. Example: %s. %s"
+                        % (EXAMPLE, pack.get("hint") or "")).strip()
     return pack

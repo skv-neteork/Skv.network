@@ -144,6 +144,19 @@ def filtered_search(uid, query, top_k=20, since=None, until=None, exclude_import
     src = (source or "events").lower()
     if src in ("board", "notes", "board_notes"):
         return _board(uid, query, top_k)
+    # B11: an explicit window is the candidate set. Do not take a global top-600 and then drop dates.
+    if since or until:
+        from app.search_window import run as _window_run
+        pack = _window_run(uid, query or "", since=since, until=until, budget=10 ** 9,
+                           limit=max(1, int(top_k or 20)), offset=0, exclude_imports=exclude_imports,
+                           always_rank=bool((query or "").strip()))
+        out = []
+        for h in pack.get("hits") or []:
+            out.append({"event_id": h.get("id"), "score": float(h.get("score") or 0.0), "source": "personal",
+                        "summary": (h.get("content") or "")[:300], "metadata": {"time_str": h.get("date")}})
+        if src == "all":
+            out = sorted(out + _board(uid, query, max(3, top_k // 3)), key=lambda x: -x["score"])[:top_k]
+        return out[:top_k]
     lo, hi = _bound(since), _bound(until)
     c = _sq3.connect(_v2._db(uid), timeout=10)
     try:

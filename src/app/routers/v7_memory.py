@@ -787,37 +787,63 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
         raise HTTPException(status_code=422, detail="user_id or API key required")
     if not req.query_vector or len(req.query_vector) != 768:
         # no/invalid vector used to crash the worker inside HNSW (502); text goes through semantic+FTS
-        if not (req.query_text or "").strip() and not getattr(req, "focus_event_id", None):
+        _date = getattr(req, "date", None)
+        _time = getattr(req, "time", None)
+        _since = getattr(req, "since", None)
+        _until = getattr(req, "until", None)
+        _has_window = any(str(x or "").strip() for x in (_date, _since, _until, _time))
+        if not (req.query_text or "").strip() and not _has_window and not getattr(req, "focus_event_id", None):
             raise HTTPException(status_code=422, detail="query_text or a 768-d query_vector is required")
         if (getattr(req, "mode", None) or "") in ("grouped", "drilldown") or getattr(req, "parent_id", None):
             from app import search_v2 as _v2
             if _v2.enabled():
                 return _v2.grouped(req.user_id, req.query_text, top_k=min(req.top_k, 12), parent_id=req.parent_id)
         from app import search_text as _st, q2s as _q2s
+        from app.search_window import WindowError as _WindowError
         _tok = _q2s.SEARCH_AS.set(getattr(req, "search_as", None))
         try:
-            if getattr(req, "pack", False) or getattr(req, "focus_event_id", None):
+            if getattr(req, "pack", False) or getattr(req, "focus_event_id", None) or _has_window:
                 from app import search_pack as _sp
-                pack = _sp.search(req.user_id, req.query_text or "", top_k=req.top_k,
-                                  since=getattr(req, "since", None), until=getattr(req, "until", None),
-                                  exclude_imports=bool(getattr(req, "exclude_imports", False)),
-                                  source=getattr(req, "source", None),
-                                  focus_event_id=getattr(req, "focus_event_id", None) or "",
-                                  budget=getattr(req, "budget_tokens", None),
-                                  offset=int(getattr(req, "offset", 0) or 0))
+                try:
+                    pack = _sp.search(req.user_id, req.query_text or "", top_k=req.top_k,
+                                      since=_since, until=_until,
+                                      exclude_imports=bool(getattr(req, "exclude_imports", False)),
+                                      source=getattr(req, "source", None),
+                                      focus_event_id=getattr(req, "focus_event_id", None) or "",
+                                      budget=getattr(req, "budget_tokens", None),
+                                      offset=int(getattr(req, "offset", 0) or 0),
+                                      date=_date, time=_time, limit=getattr(req, "limit", None))
+                except _WindowError as _we:
+                    raise HTTPException(status_code=_we.status, detail=_we.body())
                 results = []
                 for h in pack.get("hits") or []:
-                    results.append({"event_id": h.get("event_id"), "score": h.get("score"), "source": "personal",
-                                    "summary": ((h.get("centre") or {}).get("text") or "")[:400],
+                    content = h.get("content")
+                    if content is None:
+                        content = ((h.get("centre") or {}).get("text") or "")
+                    results.append({"event_id": h.get("event_id") or h.get("id"), "score": h.get("score"),
+                                    "source": "personal",
+                                    "summary": (content or "")[:400],
                                     "metadata": {"time_str": h.get("date")},
                                     "centre": h.get("centre"), "neighbours": h.get("neighbours"),
                                     "l1": h.get("l1"), "l2": h.get("l2"),
                                     "match_reason": h.get("match_reason"), "truncated": h.get("truncated"),
-                                    "rank": h.get("rank")})
+                                    "rank": h.get("rank"),
+                                    "id": h.get("id") or h.get("event_id"),
+                                    "date": h.get("date"), "content": content})
                 return {"results": results, "pack": pack, "window": pack.get("window"),
                         "truncated": pack.get("truncated"), "hint": pack.get("hint"),
-                        "next": pack.get("next")}
-            return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=getattr(req, "since", None), until=getattr(req, "until", None), exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
+                        "next": pack.get("next"),
+                        "total_in_window": pack.get("total_in_window"),
+                        "covered_window": pack.get("covered_window"),
+                        "window_set": pack.get("window_set"),
+                        "offset": pack.get("offset"),
+                        "next_offset": pack.get("next_offset"),
+                        "has_more": pack.get("has_more"),
+                        "note": pack.get("note")}
+            try:
+                return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=_since, until=_until, exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
+            except _WindowError as _we:
+                raise HTTPException(status_code=_we.status, detail=_we.body())
         finally:
             _q2s.SEARCH_AS.reset(_tok)
     q_vec = np.array(req.query_vector, dtype=np.float32)

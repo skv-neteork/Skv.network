@@ -124,6 +124,9 @@ class TurnRequest(BaseModel):
     kind: str = "turn"
     msg_ref: str = ""                      # optional: client ordinal of this user message ("t648u"); lets the server spot answers that went out without turn
     recap: Optional[Any] = None            # optional: [{ref,user,answer}] answers that went out without turn (saved as topic=recap, no seal)
+    const_ack: bool = False                # T73: agent read the constitution_manifest
+    ack: str = ""                          # T73: ack="const" is the same as const_ack=true
+    context_reset: bool = False            # T73: after context compaction, ask for the manifest again
 
 
 def _turn_key(request, k=""):
@@ -148,14 +151,14 @@ def _with_pin(r):
 def agent_turn_post(req: TurnRequest, request: Request):
     """REST twin of the MCP tool turn: self-check context, [ev:] id check, save, server seal #NNN·code."""
     from app.rest_turn import turn as _t
-    return _with_pin(_t(_turn_key(request), req.user_message, req.draft, req.query, req.session_id, req.duty, req.duty_reason, req.task_done, req.critical, req.l1_summary, req.l2_summary, req.source_event_ids, req.sensitive, req.compact, req.answer, req.draft_summary, req.profile, req.profile_review, source=req.source, second_look=req.second_look, search_as=req.search_as, agent_token=req.agent_token, context_state=req.context_state, kind=req.kind, msg_ref=req.msg_ref, recap=req.recap))
+    return _with_pin(_t(_turn_key(request), req.user_message, req.draft, req.query, req.session_id, req.duty, req.duty_reason, req.task_done, req.critical, req.l1_summary, req.l2_summary, req.source_event_ids, req.sensitive, req.compact, req.answer, req.draft_summary, req.profile, req.profile_review, source=req.source, second_look=req.second_look, search_as=req.search_as, agent_token=req.agent_token, context_state=req.context_state, kind=req.kind, msg_ref=req.msg_ref, recap=req.recap, const_ack=req.const_ack, ack=req.ack, context_reset=req.context_reset))
 
 
 @router.get("/agent/turn")
-def agent_turn_get(request: Request, q: str = "", draft: str = "", k: str = "", duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "", compact: bool = False, answer: str = "", draft_summary: str = "", profile: str = "", profile_review: str = "", second_look: str = "", agent_token: str = "", context_state: str = "normal", kind: str = "turn", msg_ref: str = "", recap: str = ""):
+def agent_turn_get(request: Request, q: str = "", draft: str = "", k: str = "", duty: str = "", duty_reason: str = "", task_done: bool = False, critical: str = "", l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "", compact: bool = False, answer: str = "", draft_summary: str = "", profile: str = "", profile_review: str = "", second_look: str = "", agent_token: str = "", context_state: str = "normal", kind: str = "turn", msg_ref: str = "", recap: str = "", const_ack: bool = False, ack: str = "", context_reset: bool = False):
     """Same as POST /agent/turn for chats that can only open URLs: ?k=KEY&q=USER_MESSAGE&draft=DRAFT."""
     from app.rest_turn import turn as _t
-    return _with_pin(_t(_turn_key(request, k), q, draft, "", "rest-get", duty, duty_reason, task_done, critical, l1_summary, l2_summary, [x.strip() for x in source_event_ids.split(",") if x.strip()], [x.strip() for x in sensitive.split("|") if x.strip()], compact, answer, draft_summary, profile or None, profile_review or None, second_look=second_look, agent_token=agent_token, context_state=context_state, kind=kind, msg_ref=msg_ref, recap=recap or None))
+    return _with_pin(_t(_turn_key(request, k), q, draft, "", "rest-get", duty, duty_reason, task_done, critical, l1_summary, l2_summary, [x.strip() for x in source_event_ids.split(",") if x.strip()], [x.strip() for x in sensitive.split("|") if x.strip()], compact, answer, draft_summary, profile or None, profile_review or None, second_look=second_look, agent_token=agent_token, context_state=context_state, kind=kind, msg_ref=msg_ref, recap=recap or None, const_ack=const_ack, ack=ack, context_reset=context_reset))
 
 
 from pydantic import BaseModel as _BM

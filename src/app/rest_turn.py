@@ -209,12 +209,34 @@ def _with_room(key, result, agent_token="", session_id="rest", context_state="no
         return result
 
 
-def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None):
-    """msg_ref / recap are optional (turn-watch, see turn_watch_rest.py): clients that send neither get exactly the old behaviour."""
+def _const_heartbeat(result, user, session_id, user_message="", msg_ref="", ack=False, reset=False, wrote=False):
+    """T73 heartbeat for REST /agent/turn: constitution{v,hash,rule,stale} + manifest when due. Never fails the turn."""
+    if not isinstance(result, dict) or "verdict" not in result or not user:
+        return result
+    try:
+        from app import const_bind as _CB
+        if not _CB.enabled():
+            return result
+        key = hashlib.sha1(((msg_ref or "") + "|" + (user_message or "")[:400]).encode("utf-8", "replace")).hexdigest()[:12]
+        missed = "missed_turns" in json.dumps(result.get("duties") or "", ensure_ascii=False)
+        cb = _CB.on_turn(user, session_id or "rest", msg_key=key, ack=bool(ack), reset=bool(reset),
+                         no_seal=bool(wrote and not result.get("seal")), missed=missed)
+        if not cb:
+            return result
+        out = dict(result)
+        out.update(cb)
+        return out
+    except Exception as exc:
+        print("[rest_turn] const_bind skipped: %s" % type(exc).__name__, flush=True)
+        return result
+
+
+def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None, const_ack=False, ack="", context_reset=False):
+    """msg_ref / recap are optional (turn-watch, see turn_watch_rest.py): clients that send neither get exactly the old behaviour. const_ack / ack="const" / context_reset are the T73 constitution heartbeat (same as MCP turn)."""
     if isinstance(recap, str) and not recap.strip():
         recap = None
     if not msg_ref and not recap:
-        return _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind)
+        return _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind, const_ack=const_ack, ack=ack, context_reset=context_reset, msg_ref=msg_ref)
     from app import turn_watch_rest as _tw
     user = ""
     try:
@@ -224,7 +246,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
     except Exception:
         user = ""
     if not user:   # no/invalid key: the inner call answers 401
-        return _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind)
+        return _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind, const_ack=const_ack, ack=ack, context_reset=context_reset, msg_ref=msg_ref)
     k = _tw.scope(user, agent_token or "")
     rc = {}
     if recap:
@@ -233,7 +255,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
             rc = _tw.save_recaps(_req, key, k, recap, session_id, sensitive, _sc)
         except Exception as exc:
             rc = {"recap_error": "recap not saved: %s" % type(exc).__name__}
-    res = _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind)
+    res = _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind, const_ack=const_ack, ack=ack, context_reset=context_reset, msg_ref=msg_ref)
     if not isinstance(res, dict):
         return res
     try:
@@ -242,6 +264,13 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
         missing = _tw.check(k, ref, saved_now)
         if missing:
             res["duties"] = [_tw.duty(missing)] + list(res.get("duties") or [])
+            if user:
+                try:
+                    from app import const_bind as _CB
+                    if _CB.enabled():
+                        _CB.bump(user, "missed_turns")
+                except Exception:
+                    pass
         if rc:
             res.update(rc)
     except Exception as exc:
@@ -249,7 +278,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
     return res
 
 
-def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn"):
+def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", const_ack=False, ack="", context_reset=False, msg_ref=""):
     if answer and not draft:
         draft = answer
     if not key:
@@ -258,6 +287,11 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     if isinstance(st, dict) and st.get("status") == 401:
         return {"ok": False, "status": 401, "error": "invalid API key"}
     user = (st.get("installed_by") if isinstance(st, dict) else "") or hashlib.sha256(key.encode()).hexdigest()[:16]
+    _ack = bool(const_ack) or (str(ack or "").strip().lower() == "const")
+    _reset = bool(context_reset)
+    _wrote = bool(draft)
+    def _hb(res):
+        return _const_heartbeat(res, user, session_id, user_message, msg_ref, _ack, _reset, _wrote)
     c = _db()
     row = c.execute("select last_user, saved_t, eid, seal, final, verdict from st where user=?", (user,)).fetchone() or (None, 0, "", None, "", "")
     last_user, saved_t, last_eid, last_seal, last_final, last_verdict = row
@@ -318,17 +352,17 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     unverified = list(invalid) if (invalid and ext_src) else []   # ext/hook: save anyway, flag [VERIFY ?]; MCP/REST agents stay strict
     if invalid and not ext_src:
         c.close()
-        return {"verdict": "revise", "saved": False, "seal": None, "invalid_ids": invalid,
+        return _hb({"verdict": "revise", "saved": False, "seal": None, "invalid_ids": invalid,
                 "fixes": ["[ev:%s] does not exist in your memory: remove it, cite a real id from facts, or say the fact is unknown" % x for x in invalid],
-                "facts": facts, "next": "nothing saved: fix the draft, call turn again with the same user_message"}
+                "facts": facts, "next": "nothing saved: fix the draft, call turn again with the same user_message"})
     pc = {}
     if True:   # profile check (always: also yields the [PROFILE ✗] seal mark) BEFORE the seal is reserved: a rejection burns no seal
         from app import profile as _prof
         pc = _prof.precheck(user, profile, profile_review, bool(l2_summary))
         if pc.get("errors"):
             c.close()
-            return {"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
-                    "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}
+            return _hb({"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
+                    "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"})
     seal_n = last_seal if (same and last_verdict == "pass" and last_seal) else _next_seal(key, user, same)
     # Web extension: the model only saw SKV memory if the user inserted the memory block (or the reply cites [ev:]).
     # Otherwise the seal must not claim READ: [READ ?] + a warning naming how many facts the model did not see.
@@ -398,13 +432,13 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
         elif no_read: r["seal_warning"] = "SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)
         if not ok: r["error"] = saved
         r.update(_board_rel(user, user_message, clean)); r.update(prof)
-        return _with_room(key, r, agent_token, session_id, context_state, kind, (answer or draft), duty)
-    return _with_room(key, {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "event_id": eid or None, "seal": seal if ok else None,
+        return _hb(_with_room(key, r, agent_token, session_id, context_state, kind, (answer or draft), duty))
+    return _hb(_with_room(key, {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "event_id": eid or None, "seal": seal if ok else None,
             "cited_ok": cited, "facts": facts, "cubes": cubes, "self_check": checklist, "duties": [str(d)[:300] for d in duties], **_board_rel(user, user_message, clean), **prof,
             "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else
                             (("SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)) if no_read else None),
             "summary_due": saved.get("summary_due") if isinstance(saved, dict) else None, "saved_parts": saved.get("saved") if isinstance(saved, dict) else None,
-            "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}, agent_token, session_id, context_state, kind, (answer or draft), duty)
+            "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}, agent_token, session_id, context_state, kind, (answer or draft), duty))
 
 
 def seal_next(key, same=False):

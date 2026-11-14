@@ -29,7 +29,7 @@ EXPECTED_PARAMS = {
     "drive_put": ["description", "mime", "name", "path", "text"],
     "drive_read": ["file_id", "limit", "start"],
     "drive_sync": [],
-    "feedback_submit": ["cube_id", "description", "event_id", "severity", "title", "type"],
+    "feedback_submit": ["cube_id", "description", "event_id", "rating", "severity", "title", "type"],
     "file_check": ["agent_token", "base_hash", "current_hash", "path", "session_id"],
     "file_claim": ["agent_token", "base_hash", "path", "session_id", "task_id"],
     "file_release": ["agent_token", "minus", "new_hash", "old_hash", "path", "plus", "session_id"],

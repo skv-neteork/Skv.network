@@ -3031,13 +3031,19 @@ CUBE05_MCP = 'CUBE 05-MCP - How to work through the SKV MCP tools (v20: shared r
 
 
 def _cube00_mcp(t: str) -> str:
-    t = re.sub(r"6\. End with the seal\.[^\n]*", "6. Call turn(user_message, draft); end the reply with the seal turn returns.", t)
-    t = re.sub(r"SEAL \(MANDATORY\):.*?(?=\nRELOAD:)", "SEAL (MANDATORY): issued by turn (server); never draw it yourself.\n"
-               "Append exactly the 'seal' line turn returns; numbering is kept by the server.\n", t, flags=re.S)
-    t = t.replace("reload CUBE 00", "reload CUBE 00 (constitution_get)")
+    t = re.sub(r"6\. End with the seal\.[^\n]*",
+               "6. Call turn(user_message, draft); end the reply with the seal turn returns. Never invent or continue the seal number yourself.", t)
+    t = re.sub(r"SEAL \(MANDATORY\):.*?(?=\n(?:RELOAD:|FORBIDDEN:|HEARTBEAT:))",
+               "SEAL (MANDATORY): issued by turn (server); never draw it yourself.\n"
+               "Append exactly the 'seal' line turn returns; never invent or continue the number yourself.\n",
+               t, flags=re.S)
+    t = re.sub(r"\nRELOAD:\nEvery 10 messages, reload CUBE 00[^\n]*\n",
+               "\nHEARTBEAT:\nThe server sends the constitution manifest every 10th turn; acknowledge it with const_ack=true. Do not re-read CUBE 00 on a fixed message count.\n",
+               t)
+    t = t.replace("reload CUBE 00 (constitution_get)", "acknowledge the server manifest with const_ack")
+    t = t.replace("reload CUBE 00", "acknowledge the server manifest with const_ack")
     t = re.sub(r"The seal is not magic\.[^\n]*", "The seal proves turn ran; it is not yours to draw.", t)
     return t
-
 
 CUBE05_ID = "cube_const_05_mcp_v20"
 PIN_SHORT = 'Call SKV turn before every reply, even short ones, including during browser/tool-heavy work.'  # shown only inside a missed_turns duty
@@ -3209,8 +3215,9 @@ _SLOT_RX = [
     ("codename", re.compile(r"(?:code ?name|кодов\w* имя|позывн\w*)[^.\n]{0,20}?(?:is|=|:|—|-|это)?\s*[\"«']?([A-Z0-9][A-Z0-9-]{3,})", re.I)),
     ("codeword/password", re.compile(r"(?:code ?word|secret (?:code|word|phrase)|password|passcode|passphrase|pin|пароль|кодов\w* слов\w*|секретн\w* (?:код|слово)\w*)[^.\n]{0,20}?(?:is|=|:|—|-|это)?\s*[\"«']?([A-Za-z0-9][\w-]{2,})", re.I)),
 ]
-_SENS_RX = re.compile(r"(?:code ?name|code ?word|secret (?:word|code|phrase)|password|passcode|passphrase|\bpin\b|api key|token|пароль|кодов\w* (?:имя|слово)|секретн\w* (?:код|слово)|позывн\w*)\s*(?:is|was|=|:|—|-|это|теперь|now)\s*[\"«']?(?=[^\s\"«']*[\d-])[A-Za-z0-9][\w-]{3,}"
+_SENS_RX = re.compile(r"(?:code ?word|secret (?:word|code|phrase)|password|passcode|passphrase|\bpin\b|api key|token|пароль|кодов\w* слов\w*|секретн\w* (?:код|слово))\s*(?:is|was|=|:|—|-|это|теперь|now)\s*[\"«']?(?=[^\s\"«']*[\d-])[A-Za-z0-9][\w-]{3,}"
                       r"|\bsk_[A-Za-z0-9]{16,}|\b[a-f0-9]{32,}\b|\bgh[pous]_[A-Za-z0-9]{20,}|\bAKIA[A-Z0-9]{12,}", re.I)
+
 _TOK_RX = re.compile(r"\b[A-Z]{3,}-[A-Z]{3,}-\d{2,}\b")
 SENS_NOTE = "sensitive: secret-like value; do not repeat it unless the user asks for it"
 
@@ -4018,8 +4025,9 @@ def feedback_submit(
     cube_id: Annotated[str, Field(description="Cube the feedback is about (optional)")] = "",
     event_id: Annotated[str, Field(description="Memory event id it refers to (optional)")] = "",
     severity: Annotated[int, Field(description="1 low .. 5 critical")] = 1,
+    rating: Annotated[int, Field(description="1-10 optional")] = 0,
 ) -> str:
-    """Agent feedback on SKV — POST /feedback (bug|proposal|improvement|anomaly). Helps court."""
+    """Agent feedback on SKV — POST /feedback (bug|proposal|improvement|anomaly). Optional rating 1-10. Helps court."""
     title = (title or "").strip() or _trim_words(description or "feedback", 80).replace(" [cut]", "")
     body = _uid_body({
         "title": title,
@@ -4030,6 +4038,8 @@ def feedback_submit(
         "severity": int(severity),
         "agent_id": "mcp",
     })
+    if rating:
+        body["rating"] = int(rating)
     return _dumps(_req("POST", "/feedback", body))
 
 
@@ -5061,7 +5071,7 @@ for _k, _v in _T75_HELP_EXTRA.items():
 # turn heartbeat is appended only when const_bind is loaded (test_t73 kill switch).
 SHORT_DESC.update({
     "turn": "Call before every reply; end with the seal. compact=true, msg_ref, agent_token, recap.",
-    "memory_search": "Search the event, not the question (date/since/until or time=unknown).",
+    "memory_search": "Search the event, not the question (date/since/until).",
     "memory_start": "Start order: constitution_install, identify, step_zero, then turn.",
     "memory_recall_later": "If memory_search missed, poll memory_recall_status.",
     "memory_recall_status": "Poll recall job; evidence, not an answer.",
@@ -5236,6 +5246,21 @@ VISIBLE = {"constitution_get", "turn", "step_zero", "constitution_status", "cons
            "cube_consent", "court_case", "court_removal_request", "cube_link", "consult", "consult_accept", "vault_inject", "joint_project", "joint_search", "turn_stats", "memory_recall_later", "memory_recall_status",
            "identify", "file_claim", "file_check", "file_release",
            "drive_connect", "drive_sync", "drive_read", "drive_put", "drive_list"}
+
+
+
+try:
+    import os as _os, sys as _sys
+    _src = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "..", "src"))
+    if _src not in _sys.path:
+        _sys.path.insert(0, _src)
+    from app.mcp_public_tools import VISIBLE as _VISIBLE_SHARED
+    if set(_VISIBLE_SHARED) != set(VISIBLE):
+        raise RuntimeError("mcp_public_tools.VISIBLE drifted from mcp_skv.VISIBLE: %s" % (set(_VISIBLE_SHARED) ^ set(VISIBLE)))
+except Exception as _e:
+    if "drifted" in str(_e):
+        raise
+    pass
 
 
 _MEMTOOLS = {"step_zero", "memory_start", "constitution_install", "constitution_get", "constitution_status", "turn", "memory_search", "memory_consult", "memory_event", "memory_start", "memory_bootstrap", "step_zero", "memory_lens", "memory_recall_later", "memory_recall_status"}

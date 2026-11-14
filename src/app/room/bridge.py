@@ -266,6 +266,10 @@ def finish_turn(conn, info, who, result, kind="", context_state="normal", gist="
         result = dict(result)
         result["actor"] = who["actor_id"]
         result["while_away"] = away.get("text")
+        # Commit as soon as the digest is attached, so a later decoration error
+        # cannot re-deliver the same while_away on the next turn.
+        if away.get("text"):
+            commit_cursor(conn, who["actor_id"], info.get("chain_id") or "", away.get("proposed_upto"))
         _annotate_facts(conn, info.get("chain_id") or "", who["actor_id"], result.get("facts"), set(away.get("event_ids") or []))
         if who.get("warning"):
             result["room_warning"] = who["warning"]
@@ -290,8 +294,6 @@ def finish_turn(conn, info, who, result, kind="", context_state="normal", gist="
             if pack.get("text"):
                 result["room_step_zero"] = pack["text"]
         blob = json.dumps(result, ensure_ascii=False, default=str)
-        if away.get("text"):
-            commit_cursor(conn, who["actor_id"], info.get("chain_id") or "", away.get("proposed_upto"))
         json.loads(blob)
         return result
     except Exception as exc:

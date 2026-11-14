@@ -1,4 +1,8 @@
-"""While-away digest. No LLM. The cursor moves only after a successful serialize."""
+"""While-away digest. No LLM. The cursor moves only after a successful serialize.
+
+After a successful deliver the cursor jumps to the end of the window
+(including overflow). The overflow line points at memory_search for the rest.
+"""
 import re
 from datetime import timedelta
 
@@ -145,8 +149,25 @@ def _line_for(e, conflict=False):
     return {"text": text, "ids": [e["id"]], "evs": [e["event_id"]], "conflict": conflict}
 
 
+
+def _in_window(e, actor_id, key_id, allowed):
+    """Foreign events this actor may be told about. Handoffs aimed at someone else stay out, so they cannot pin the cursor."""
+    if not e.get("actor_agent_id"):
+        return False
+    if e.get("actor_agent_id") == actor_id and (not key_id or e.get("key_id") == key_id):
+        return False
+    if e.get("ev_kind") in ("human_directive", "handoff") and e.get("target_actor") and e.get("target_actor") != actor_id:
+        return False
+    return e.get("ev_kind") == "turn" or e.get("ev_kind") in allowed
+
+
 def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=None):
-    """Assemble the digest. Does not move the cursor."""
+    """Assemble the digest. Does not move the cursor.
+
+    proposed_upto is the end of the current window, including overflow, so a
+    successful deliver clears the digest. Unshown lines are pointed at with
+    memory_search(since=...); they are not held for the next turn.
+    """
     ensure(conn)
     role = role if role in VISIBLE else "assistant"
     allowed = VISIBLE[role]
@@ -156,11 +177,7 @@ def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=Non
     for e in list_events(conn, chain_id):
         if e["id"] <= cur:
             continue
-        if not e.get("actor_agent_id"):
-            continue
-        if e.get("actor_agent_id") == actor_id and (not key_id or e.get("key_id") == key_id):
-            continue
-        if e.get("ev_kind") == "turn" or e.get("ev_kind") in allowed:
+        if _in_window(e, actor_id, key_id, allowed):
             window.append(e)
     if not window:
         return {"text": None, "lines": [], "proposed_upto": cur, "covered": [], "event_ids": [], "unshown_event_ids": []}
@@ -243,7 +260,10 @@ def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=Non
     text = "\n".join(lines)
     if len(text) > 700:
         text = text[:700]
-    proposed = (min(e["id"] for e in unshown) - 1) if unshown else max(all_ids)
+    # Advance past the whole window. Pagination by min(unshown)-1 left the
+    # cursor stuck when a lower-id unshown (or a handoff aimed at someone else)
+    # sat in front of the shown high-priority lines.
+    proposed = max(all_ids) if all_ids else cur
     if proposed < cur:
         proposed = cur
     covered = sorted(used)

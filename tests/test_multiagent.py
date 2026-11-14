@@ -173,7 +173,7 @@ class RoomTests(unittest.TestCase):
         self.assertGreaterEqual(again["text"].count("⚠ КОНФЛИКТ"), 2)
         deliver(self.c, lambda b: b["text"], me["agent_id"], "k", "ch", "coder", T0)
         nxt = build_while_away(self.c, me["agent_id"], "k", "ch", "coder", T0)
-        self.assertIn("⚠ КОНФЛИКТ", nxt["text"] or "")
+        self.assertFalse(nxt["text"])
         view = facts_for(self.c, me["agent_id"], "k", "ch", "coder", digest_ids=set(built["event_ids"]))
         for ev in built["event_ids"]:
             self.assertFalse(any(f["ev"] == ev for f in view["facts"]))

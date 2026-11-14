@@ -144,6 +144,46 @@ class C1Tests(unittest.TestCase):
         self.assertEqual(turn_gist("Первая фраза. Вторая фраза."), "Первая фраза.")
         self.assertLessEqual(len(turn_gist("а" * 300)), 80)
 
+    def test_while_away_delivered_once_then_cleared(self):
+        wb = _who(self.c, self.b["agent_token"], "sb")
+        wa = _who(self.c, self.a["agent_token"], "sa")
+        for i in range(9):
+            finish_turn(self.c, INFO, wb, {"saved": True, "event_id": "u@example.invalid::remember_70%d" % i, "session_id": "sb"}, gist="ход %d" % i)
+        first = finish_turn(self.c, INFO, wa, {"saved": True, "event_id": "u@example.invalid::remember_71a", "session_id": "sa"}, gist="я прочитал")
+        away = first.get("while_away") or ""
+        self.assertTrue(away)
+        self.assertRegex(away, r"\+\d+ ещё")
+        self.assertIn("remember_70", away)
+        second = finish_turn(self.c, INFO, wa, {"saved": True, "event_id": "u@example.invalid::remember_71b", "session_id": "sa"}, gist="второй ход")
+        self.assertFalse(second.get("while_away"))
+        finish_turn(self.c, INFO, wb, {"saved": True, "event_id": "u@example.invalid::remember_71c", "session_id": "sb"}, gist="новый ход других")
+        third = finish_turn(self.c, INFO, wa, {"saved": True, "event_id": "u@example.invalid::remember_71d", "session_id": "sa"}, gist="третий")
+        self.assertIn("remember_71c", third.get("while_away") or "")
+        self.assertNotIn("remember_700", third.get("while_away") or "")
+        self.assertNotIn("remember_708", third.get("while_away") or "")
+
+    def test_while_away_not_stuck_on_earlier_unshown(self):
+        from app.room.events import record_event
+        from app.room.digest import deliver, cursor_of
+        record_event(self.c, "ch1", "k1", "room-lease", "sys", kind="handoff", event_id="r123",
+                     gist="LEASE_EXPIRED other", target_actor="grok-chat")
+        ev = record_event(self.c, "ch1", "k1", "grok-build", "sx", kind="claim", event_id="r155",
+                          gist="CLAIM task#B10", task_id="B10")
+        built = build_while_away(self.c, "grok-bot", "k1", "ch1", "assistant")
+        self.assertIn("r155", built["text"] or "")
+        self.assertNotIn("r123", built["text"] or "")
+        self.assertNotIn("r123", built["unshown_event_ids"])
+        self.assertEqual(built["proposed_upto"], ev["id"])
+        self.assertIn("text", built)
+        self.assertIn("lines", built)
+        self.assertIn("covered", built)
+        self.assertIn("event_ids", built)
+        deliver(self.c, lambda b: b["text"], "grok-bot", "k1", "ch1", "assistant")
+        self.assertEqual(cursor_of(self.c, "grok-bot", "ch1"), ev["id"])
+        nxt = build_while_away(self.c, "grok-bot", "k1", "ch1", "assistant")
+        self.assertFalse(nxt["text"])
+
+
 
 if __name__ == "__main__":
     unittest.main()

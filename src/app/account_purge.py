@@ -37,7 +37,11 @@ ANONYMIZE = [
 # side DBs keyed by user (or by sha256(key)[:16] for key-only clients)
 SIDE = [("rest_turn.db", "st"), ("compact_state_rest.db", "cst"), ("compact_state_rest.db", "sl_q"),
         ("compact_state_mcp.db", "cst"), ("compact_state_mcp.db", "sl_q"), ("seal_counter.db", "ctr"),
-        ("cube_harvest.db", "h")]
+        ("cube_harvest.db", "h"),
+        # turn_diet / duty_rules state (T72, T72b); all keyed by "user"
+        ("compact_state_mcp.db", "diet_sess"), ("compact_state_mcp.db", "diet_user"), ("compact_state_rest.db", "sl_last"),
+        ("duty_rules.db", "dr_scope"), ("duty_rules.db", "dr_duty")]
+OAUTH_STATE_DB = "/data/skv/drive_oauth_state.db"   # pending Drive OAuth states: (token, user_id, ...)
 
 
 def name_variants(user_id, protected=()):
@@ -148,6 +152,17 @@ def purge(user_id, key_hashes=(), registered=None):
             s.close()
         except Exception as e:
             report.setdefault("errors", []).append(f"{db}:{tb}: {e}")
+    if os.path.exists(OAUTH_STATE_DB):
+        try:
+            s = sqlite3.connect(OAUTH_STATE_DB, timeout=30)
+            if "oauth_state" in _tables(s):
+                n = s.execute("delete from oauth_state where user_id=?", (uid,)).rowcount
+                if n:
+                    report["rows"]["drive_oauth_state:oauth_state"] = n
+            s.commit()
+            s.close()
+        except Exception as e:
+            report.setdefault("errors", []).append(f"drive_oauth_state: {e}")
     # files: every name variant, with and without .db, sidecars, chunk/l1 indexes, staging dirs
     _skipped = sorted(set(name_variants(uid)) - set(name_variants(uid, protected)))
     if _skipped:

@@ -194,11 +194,81 @@
             border: 1px solid #1f2937;
             padding: 18px;
             border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .cube-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(139, 92, 246, 0.5);
         }
         .cube-icon { font-size: 28px; margin-bottom: 8px; }
         .cube-id { font-size: 11px; color: #10b981; margin-bottom: 4px; }
         .cube-name { color: white; font-weight: 700; margin-bottom: 6px; font-size: 14px; }
         .cube-preview { font-size: 12px; color: #9ca3af; }
+        .cube-hint {
+            font-size: 11px;
+            color: #a78bfa;
+            margin-top: 10px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: #0B0F19;
+            border: 1px solid #1f2937;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border-radius: 12px;
+            padding: 28px;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        .modal-icon { font-size: 36px; margin-bottom: 6px; }
+        .modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: white;
+        }
+        .modal-subtitle {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 3px;
+        }
+        .modal-close {
+            color: #6b7280;
+            font-size: 28px;
+            cursor: pointer;
+            line-height: 1;
+            background: none;
+            border: none;
+        }
+        .modal-close:hover { color: white; }
+        .modal-body {
+            border-top: 1px solid #1f2937;
+            padding-top: 20px;
+        }
+        .modal-body pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #d1d5db;
+        }
         .steps {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -302,6 +372,7 @@
         .footer-contacts { font-size: 11px; color: #4b5563; }
         .footer-contacts a { color: #9ca3af; text-decoration: none; }
         .footer-contacts a:hover { color: #10b981; }
+        .footer-contacts code { color: #10b981; }
         .draft-banner {
             background: rgba(139, 92, 246, 0.12);
             border-bottom: 1px solid rgba(139, 92, 246, 0.35);
@@ -458,9 +529,9 @@
         <section id="constitution" class="section">
             <h2 class="section-title">The constitution is public</h2>
             <p class="section-lead">
-                Six cubes. They are versioned and readable. Full text on a new key, then a short pulse after that — not a reread before every sentence.
+                Six cubes. They are versioned and readable. Click a cube to read the full text. Agents get the full text on a new key, then a short pulse after that — not a reread before every sentence.
             </p>
-            <div class="cubes-grid">
+            <div class="cubes-grid" id="cubesGrid">
                 <div class="cube-card">
                     <div class="cube-icon">🧠</div>
                     <div class="cube-id">CUBE 00</div>
@@ -550,6 +621,22 @@
         </section>
     </main>
 
+    <div id="cubeModal" class="modal" onclick="if(event.target===this)closeModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <div id="modalIcon" class="modal-icon"></div>
+                    <h2 id="modalTitle" class="modal-title"></h2>
+                    <p id="modalSubtitle" class="modal-subtitle"></p>
+                </div>
+                <button class="modal-close" type="button" onclick="closeModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <pre id="modalText"></pre>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <p class="footer-text">© 2026 SKV Network · Humans are the owners · Protected by CUBE 00–05</p>
         <p class="footer-contacts">
@@ -561,6 +648,9 @@
             &nbsp;·&nbsp;
             <a href="/guide">Agent guide</a>
         </p>
+        <p class="footer-contacts">
+            💎 USDT TRON (Telegram Wallet): <code>TKiRxHVxHSnZSP7ERwkv73nPmGfq2fKwJF</code>
+        </p>
     </footer>
     <script>
         function copyPhrase(btn) {
@@ -570,6 +660,106 @@
                 setTimeout(() => btn.textContent = 'COPY', 2000);
             });
         }
+
+        const CUBE_META = {
+            'CUBE 00': { icon: '🧠', name: 'Core algorithm' },
+            'CUBE 01': { icon: '🛡️', name: 'Harm prevention' },
+            'CUBE 02': { icon: '✓', name: 'Truth and verification' },
+            'CUBE 03': { icon: '⚖️', name: 'Moral compass' },
+            'CUBE 04': { icon: '🔒', name: 'Anti-manipulation' },
+            'CUBE 05': { icon: '📜', name: 'Agent protocol' }
+        };
+
+        function cubeKey(cube) {
+            if (cube && cube.cube && CUBE_META[cube.cube]) return cube.cube;
+            const m = String((cube && (cube.id || cube.cube)) || '').match(/const_0(\d)|CUBE\s*0(\d)/i);
+            return m ? ('CUBE 0' + (m[1] || m[2])) : '';
+        }
+
+        function metaFor(cube) {
+            return CUBE_META[cubeKey(cube)] || { icon: '📦', name: (cube && cube.cube) || 'Cube' };
+        }
+
+        function esc(s) {
+            return String(s).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function openCube(cube, meta) {
+            meta = meta || metaFor(cube);
+            document.getElementById('modalIcon').textContent = meta.icon;
+            document.getElementById('modalTitle').textContent = meta.name;
+            document.getElementById('modalSubtitle').textContent =
+                (cube.id || cube.cube || '') + (cube.length ? (' · ' + cube.length + ' chars') : '');
+            document.getElementById('modalText').textContent = cube.content || 'No text.';
+            document.getElementById('cubeModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('cubeModal').classList.remove('active');
+        }
+
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+        async function loadCubes() {
+            const grid = document.getElementById('cubesGrid');
+            if (!grid) return;
+            try {
+                const r = await fetch('/api/v7/constitution');
+                if (!r.ok) throw new Error('http ' + r.status);
+                const data = await r.json();
+                if (!data.cubes || !data.cubes.length) throw new Error('empty');
+                grid.innerHTML = '';
+                data.cubes.forEach(cube => {
+                    const meta = metaFor(cube);
+                    const preview = (cube.content || cube.essence || '').substring(0, 120).replace(/\n/g, ' ') + '…';
+                    const card = document.createElement('div');
+                    card.className = 'cube-card';
+                    card.setAttribute('role', 'button');
+                    card.tabIndex = 0;
+                    card.innerHTML =
+                        '<div class="cube-icon">' + meta.icon + '</div>' +
+                        '<div class="cube-id">' + esc(cube.cube) + (cube.id ? ' · ' + esc(cube.id) : '') + '</div>' +
+                        '<div class="cube-name">' + esc(meta.name) + '</div>' +
+                        '<p class="cube-preview">' + esc(preview) + '</p>' +
+                        '<p class="cube-hint">Click to read full text →</p>';
+                    card.onclick = () => openCube(cube, meta);
+                    card.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCube(cube, meta); } };
+                    grid.appendChild(card);
+                });
+            } catch (e) {
+                // Keep the static cards. Click still loads the live text.
+                grid.querySelectorAll('.cube-card').forEach(card => {
+                    const label = ((card.querySelector('.cube-id') || {}).textContent || '').trim();
+                    card.setAttribute('role', 'button');
+                    card.tabIndex = 0;
+                    if (!card.querySelector('.cube-hint')) {
+                        const hint = document.createElement('p');
+                        hint.className = 'cube-hint';
+                        hint.textContent = 'Click to read full text →';
+                        card.appendChild(hint);
+                    }
+                    const open = async () => {
+                        try {
+                            const r = await fetch('/api/v7/constitution');
+                            const data = await r.json();
+                            const cube = (data.cubes || []).find(c =>
+                                label.indexOf(c.cube) === 0 || (c.id && label.indexOf(c.id) !== -1)
+                            );
+                            if (cube) openCube(cube);
+                            else openCube({ cube: label, content: 'Could not load this cube.' });
+                        } catch (err) {
+                            openCube({ cube: label, content: 'Could not load the constitution.' });
+                        }
+                    };
+                    card.onclick = open;
+                    card.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } };
+                });
+            }
+        }
+
+        loadCubes();
     </script>
 </body>
 </html>

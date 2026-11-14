@@ -1756,6 +1756,15 @@ async def remember(req: RememberRequest):
                                      "profile_review": req.profile_review, "duty": req.duty, "duty_reason": req.duty_reason, "task_done": req.task_done,
                                      "query": req.query, "cube_created": bool(_cube_info and _cube_info.get("cube_id"))}, _dctx)
                 _dres = _dr.on_turn(req.user_id, req.session_id, done=_dsig[0], dismissed=_dsig[1], events=_dsig[2], applicable=_dsig[3])
+                _sdd = _out.get("summary_due")
+                if _dres and isinstance(_sdd, dict) and _sdd.get("l1"):   # one L1 ask: summary_due / l1_overdue already carries it
+                    _keep = []
+                    for _r in _dres.get("rules") or []:
+                        if _r.startswith("MANDATORY: l1 "):
+                            _sdd["l1"] = _r.split(" do it now", 1)[0] + " do it now. " + str(_sdd["l1"])
+                        elif not _r.startswith("RULE L1"):
+                            _keep.append(_r)
+                    _dres = dict(_dres, rules=_keep) if _keep else {}
                 if _dres:
                     _out["duty_rules"] = _dres
     except Exception as _e:

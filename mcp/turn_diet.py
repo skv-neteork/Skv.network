@@ -32,6 +32,9 @@ DEFAULTS = {
     "duty_cooldown_turns": 5,
     "duty_max_shows": 3,
     "duty_expiry_turns": 20,
+    "duty_reset_turns": 30,          # T72b: a duty held by max_shows/expiry is allowed again this many turns after its last show
+    "overdue_cooldown_turns": 3,     # T72b: l1_overdue (critical) is shown at most this often unless escalated (MANDATORY) or its count moved a bucket
+    "throttled_critical": ["l1_overdue"],
     "critical_duties": ["missed_turns", "l1_overdue", "profile_conflict", "profile_candidate", "duty_errors"],  # shown every turn until resolved (seal marks depend on them)
     "caps_check": True,              # plan #1: duties never name a tool/param this client lacks
     "metrics": True,                 # plan #7: per-turn size + confirmed-use log (ids/hashes only)
@@ -63,6 +66,10 @@ def _db(path):
     c.execute("create table if not exists diet_sess(user text, session text, turns int, last_t real, prof_v text, board_sig text, stale_sig text, cubes_sig text, last_facts text, primary key(user, session))")
     c.execute("create table if not exists diet_user(user text primary key, stale_t real, stale_sig text, reset_t real, turns int default 0)")
     c.execute("create table if not exists diet_duty(user text, k text, shows int, last_turn int, first_turn int, primary key(user, k))")
+    try:
+        c.execute("alter table diet_duty add column sig text")
+    except sqlite3.OperationalError:
+        pass
     c.execute("create table if not exists diet_metrics(t real, user text, mode text, tokens int, sections text, facts int, cited int, used_prev int)")
     return c
 
@@ -166,28 +173,48 @@ def _critical(d):
     return False
 
 
-def gate_duties(c, user, turn_no, duties, has_check):
-    """Plan #4: dedupe + cooldown + max shows + expiry for non-critical duties; one interruption per turn."""
+def _dsig(d):
+    """State signature of a duty: its first number (due count) in buckets of 10. A new bucket = new state = show again."""
+    txt = " ".join(str(d.get(k)) for k in ("do", "n", "l1_pending", "pending") if d.get(k) is not None) if isinstance(d, dict) else str(d)
+    m = re.search(r"\d+", txt)
+    return str(int(m.group()) // 10) if m else ""
+
+
+def _escalated(d):
+    return isinstance(d, dict) and str(d.get("do") or d.get("rule") or "").startswith("MANDATORY")
+
+
+def gate_duties(c, user, turn_no, duties, has_check, scope=""):
+    """Plan #4: dedupe + cooldown + max shows + expiry for non-critical duties; one interruption per turn.
+    T72b: state is per account+scope (session); a held duty comes back after duty_reset_turns without a show or when its state signature
+    (due count bucket) changes; throttled critical duties (l1_overdue) repeat at most every overdue_cooldown_turns unless escalated."""
     show, held = [], 0
     one = bool(cfg("one_interruption"))
     budget = 0 if (one and has_check) else (1 if one else 10 ** 6)
+    uk = user + ("#" + scope if scope else "")
+    thr = set(cfg("throttled_critical") or [])
     for d in duties:
         k = _dkey(d)
-        r = c.execute("select shows, last_turn, first_turn from diet_duty where user=? and k=?", (user, k)).fetchone()
-        shows, last, first = (r or (0, -10 ** 6, turn_no))
+        sig = _dsig(d)
+        r = c.execute("select shows, last_turn, first_turn, sig from diet_duty where user=? and k=?", (uk, k)).fetchone()
+        shows, last, first = (r[:3] if r else (0, -10 ** 6, turn_no))
         if _critical(d):
+            if k in thr and r and not _escalated(d) and sig == (r[3] or "") and turn_no - last < int(cfg("overdue_cooldown_turns")):
+                held += 1; continue
             show.append(d)
-            c.execute("insert or replace into diet_duty values(?,?,?,?,?)", (user, k, shows + 1, turn_no, first)); continue
+            c.execute("insert or replace into diet_duty(user,k,shows,last_turn,first_turn,sig) values(?,?,?,?,?,?)", (uk, k, shows + 1, turn_no, first, sig)); continue
+        if r and (sig != (r[3] or "") or turn_no - last >= int(cfg("duty_reset_turns"))):
+            shows, last, first, r = 0, -10 ** 6, turn_no, None   # state moved on or long quiet: a fresh start
         if r and turn_no - first > int(cfg("duty_expiry_turns")):
             held += 1; continue
         if shows >= int(cfg("duty_max_shows")) or turn_no - last < int(cfg("duty_cooldown_turns")) or budget <= 0:
             held += 1
             if not r:
-                c.execute("insert or replace into diet_duty values(?,?,?,?,?)", (user, k, 0, -10 ** 6, turn_no))
+                c.execute("insert or replace into diet_duty(user,k,shows,last_turn,first_turn,sig) values(?,?,?,?,?,?)", (uk, k, 0, -10 ** 6, turn_no, sig))
             continue
         budget -= 1
         show.append(d)
-        c.execute("insert or replace into diet_duty values(?,?,?,?,?)", (user, k, shows + 1, turn_no, first))
+        c.execute("insert or replace into diet_duty(user,k,shows,last_turn,first_turn,sig) values(?,?,?,?,?,?)", (uk, k, shows + 1, turn_no, first, sig))
     return show, held
 
 
@@ -226,9 +253,14 @@ def apply(path, resp, ctx):
             if any(isinstance(d, dict) and d.get("id") == "l1_overdue" for d in ds):   # same L1 ask twice (summary_due copy)
                 resp["duties"] = [d for d in ds if not (isinstance(d, dict) and "l1_source_event_ids" in d and d.get("id") != "l1_overdue")]
             if resp.get("duties"):
-                resp["duties"], held = gate_duties(c, user, turn_no, resp["duties"], bool(ctx.get("slq")))
+                resp["duties"], held = gate_duties(c, user, turn_no, resp["duties"], bool(ctx.get("slq")), sid)
                 if held:
                     resp["duties_held"] = held
+            sd = resp.get("summary_due")   # T72b: l1_overdue (throttled) carries the overdue L1 ask; do not repeat it in summary_due every turn
+            if isinstance(sd, dict) and int(sd.get("l1_pending") or 0) >= 20:
+                sd = {k: v for k, v in sd.items() if k not in ("l1", "l1_pending", "l1_source_event_ids")}
+                if sd: resp["summary_due"] = sd
+                else: resp.pop("summary_due", None)
             if cfg("drop_static_self_check"):
                 sc = triggered_self_check(ctx.get("draft") or "", ctx.get("checklist") or [], bool(resp.get("cubes")), bool(ctx.get("slq")))
                 if sc:

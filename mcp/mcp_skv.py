@@ -2179,7 +2179,7 @@ def _recap_gate(duties: list, session_id: str, n_sealed: int) -> dict:
         if duties and _DIET.cfg("enabled") and not first:
             if any(isinstance(d, dict) and d.get("id") == "l1_overdue" for d in duties):
                 duties = [d for d in duties if not (isinstance(d, dict) and "l1_source_event_ids" in d and d.get("id") != "l1_overdue")]
-            duties, held = _DIET.gate_duties(c, user, turn_no, duties, False)
+            duties, held = _DIET.gate_duties(c, user, turn_no, duties, False, sid)
             if held: out["duties_held"] = held
         if n_sealed:
             c.execute("insert into diet_user(user, turns) values(?,?) on conflict(user) do update set turns=excluded.turns", (user, turn_no))

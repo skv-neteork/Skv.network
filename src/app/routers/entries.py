@@ -776,7 +776,7 @@ async def _search_cubes_impl(query: str = "", response: Response = None):
             where = " or ".join([_f + " like ?"] * len(stems))
             scored = []
             for cid, essence, rules, topic, kind, carrier, blob in conn.execute(
-                    "select cube_id, essence, rules_markdown, subject_action_object, kind, carrier, " + _f + " from cubes_new where coalesce(status,'') not in ('archived','rejected','deleted','superseded','pending_version') and (" + where + ") limit 300",
+                    "select cube_id, essence, rules_markdown, subject_action_object, kind, carrier, " + _f + " from cubes_new where coalesce(status,'') not in ('archived','rejected','deleted','superseded','pending_version') and coalesce(kind,'moment')!='task' and (" + where + ") limit 300",
                     ["%" + t + "%" for t in stems]):
                 head = ((topic or "") + " " + (essence or "")).lower()
                 sc = sum(2 if t in head else 1 for t in stems if t in blob)

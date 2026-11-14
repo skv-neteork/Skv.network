@@ -2146,7 +2146,7 @@ def _recap_duties(resps: list, mts: list):
         duties.insert(0, x) if front else duties.append(x)
     last = resps[-1] if resps else {}
     for d in resps:
-        for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders", "duty_rules"):
+        for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders", "duty_rules", "task_cube"):
             if k == "summary_due" and d is not last: continue
             if d.get(k): add(_shrink(d.get(k), 300))
         for pd in d.get("profile_duties") or []: add(pd)
@@ -2679,7 +2679,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
          l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "",
          compact: bool = False, answer: str = "", draft_summary: str = "", profile: Union[list, str] = "", profile_review: Union[dict, str] = "",
          msg_ref: str = "", second_look: str = "", recap: Union[list, str] = "", verbose: bool = False, search_as: Union[list, str] = "",
-         agent_token: str = "", context_state: str = "normal", kind: str = "") -> str:
+         agent_token: str = "", context_state: str = "normal", kind: str = "", l1_task: str = "") -> str:
     """ONE CALL PER TURN: self-check context + save + seal. Write your draft privately, then call
     turn(user_message=<exact user text>, draft=<draft>) BEFORE the user sees it.
     The server does NOT judge the meaning of the draft. It returns: memory facts with [ev:id] (deduped, latest only),
@@ -2717,13 +2717,16 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     The first turn of a session returns everything. Later turns return only what changed or matters now: empty
     fields, the static self_check and repeated board/profile items are left out (profile_digest + the 1-2 matching
     rows stay). verbose=true returns the full response any time. turn_stats() shows sizes and second_look stats.
+    BIG TASKS: when you start a notable task (routine excluded) send an L1 "started task: <what, in general terms>" (l1_task="start" is optional);
+    when it is done send an L1 "finished, solution: <what worked>" (l1_task="end"). The server scrubs it and opens a task cube, or suggests an existing
+    experience cube right away; the end turns it into an experience cube. A duties item {id:task_cube, note} reports it; other agents' answers arrive there too.
     duties may hold {id:duty_rules, rules:[...]}: 1-2 short rules (what / when / how) for L1, critical, L2, cube, sensitive, vote, profile. You decide
     from the chat when they apply. "MANDATORY: <duty> reminded <k> times without action" = do it now, or dismiss it: duty=rule_<duty> + duty_reason."""
     if _room_local():
         _room_stopped = _room_block(agent_token, session_id, soft=True)
         if _room_stopped:
             return _room_stopped
-    res = _bl_add(_sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose, search_as=search_as, agent_token=agent_token, context_state=context_state, kind=kind)))
+    res = _bl_add(_sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose, search_as=search_as, agent_token=agent_token, context_state=context_state, kind=kind, l1_task=l1_task)))
     _gsrc = answer or draft or ""
     if not _gsrc and recap:
         try:
@@ -2741,7 +2744,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
          l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "",
          compact: bool = False, answer: str = "", draft_summary: str = "", profile: Union[list, str] = "", profile_review: Union[dict, str] = "",
          msg_ref: str = "", second_look: str = "", recap: Union[list, str] = "", verbose: bool = False, search_as: Union[list, str] = "",
-         agent_token: str = "", context_state: str = "normal", kind: str = "") -> str:
+         agent_token: str = "", context_state: str = "normal", kind: str = "", l1_task: str = "") -> str:
     """turn() body; turn() adds the auto step_zero package on the first turn of a key."""
     _g = _not_installed_reply("turn")
     if _g: return _g
@@ -2861,7 +2864,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
                           "self_check": True, "l1_summary": l1_summary or "", "l2_map": l2_summary or "",
                           "source_event_ids": [_sid(x.strip()) for x in re.split(r"[,\s]+", source_event_ids or "") if x.strip()],
                           "sensitive": [x.strip() for x in (sensitive or "").split("|") if x.strip()],
-                          "profile": profile or None, "profile_review": profile_review or None})
+                          "profile": profile or None, "profile_review": profile_review or None, "l1_task": l1_task or ""})
         light = _is_low(user_message) and len(final) < 400 and not (critical or duty or l1_summary or l2_summary or sensitive)
         if light:
             body["topic"] = "lightweight"; body["query"] = "[lightweight] " + user_message
@@ -2903,7 +2906,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         t["verdict"] = "revise"
     duties = []
     if isinstance(saved, dict):
-        for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders", "duty_rules"):
+        for k in ("summary_due", "cube_duty", "duties", "duty_errors", "reminders", "duty_rules", "task_cube"):
             if saved.get(k):
                 duties.append(_shrink(saved.get(k), 300))
         if saved.get("cube_harvest"):
@@ -3976,7 +3979,7 @@ def cube_consent(action: str = "status", msg_ref: str = "") -> str:
 
 @mcp.tool()
 def cube_link(src: str, dst: str, kind: str = "progress") -> str:
-    """Link cubes — POST /cube/link. kind=progress|next|from|against."""
+    """Link cubes — POST /cube/link. kind=progress|next|from|against; answers = your own experience cube (src) onto an open task cube of another agent (dst)."""
     body = _uid_body({"src": src, "dst": dst, "kind": kind or "progress"})
     return _dumps(_req("POST", "/cube/link", body))
 

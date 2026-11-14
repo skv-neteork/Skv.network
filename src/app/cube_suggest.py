@@ -76,7 +76,7 @@ def _load():
                 COALESCE(kind,'moment'), COALESCE(carrier,'answer'), COALESCE(status,'community'), COALESCE(rating,0),
                 COALESCE(upvotes,0)+COALESCE(downvotes,0), COALESCE(skill_md,''), COALESCE(created_at,''), COALESCE(hooks,'')
                 FROM cubes_new WHERE COALESCE(status,'community') NOT IN ({q}) AND COALESCE(is_constitutional,0)=0
-                AND COALESCE(kind,'') NOT IN ('help_request')""", HIDE).fetchall()
+                AND COALESCE(kind,'') NOT IN ('help_request','task')""", HIDE).fetchall()
         finally:
             c.close()
         out = []
@@ -122,6 +122,22 @@ def _item(r, rate_this=False):
             "rate_this": rate_this,
             "action": ("skill cube: offer the user to install (cube_install) — install only after yes" if skill
                        else "use in the answer if it fits") + ("; then rate it with cube_vote (+1/-1, or a fix)" if rate_this else "; rate after use")}
+
+
+def open_tasks(query, uid, limit=1):
+    """T71: open task cubes (kind='task') of other agents that resemble this message; each shown once per account."""
+    try:
+        from app import task_cubes as _tc
+        c = sqlite3.connect(DB, timeout=10)
+        try:
+            _tc.ensure(c)
+            out = _tc.open_tasks_for(c, uid, query, limit)
+            c.commit()
+            return out
+        finally:
+            c.close()
+    except Exception:
+        return []
 
 
 def suggest(query, uid="", session_id="", top=3):

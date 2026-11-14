@@ -1673,15 +1673,34 @@ async def remember(req: RememberRequest):
                     (req.user_id, _duty_step(req.user_id), req.duty, req.duty_reason or ""))
         conn.commit(); conn.close()
         saved.append(req.duty)
+    _tc, _tc_note = {}, ""
+    try:   # T71: a task-start / task-end L1 opens a task cube or turns it into an experience cube; answers and open tasks come back as one line
+        from app import task_cubes as _tcm
+        _real_turn = bool(req.query and req.response and (req.kind or "dialogue") == "dialogue" and req.topic != "recap" and not (req.ts or req.occurred_at)
+                          and not (req.source or "").startswith(("guard2_ext", "ext", "hook", "server_fallback", "import")))
+        if _tcm.enabled() and (req.l1_summary or req.l1_task or _real_turn):
+            _tcc = sqlite3.connect(SHARED_DB, timeout=30)
+            try:
+                _tcm.ensure(_tcc)
+                if req.l1_summary or req.l1_task:
+                    _tc = _tcm.process(_tcc, req.user_id, req.session_id, req.l1_summary, req.l1_task, req.sensitive)
+                if _real_turn or _tc:
+                    _tc_note = _tcm.turn_note(_tcc, req.user_id, req.query if _real_turn else "", _tc)
+                _tcc.commit()
+            finally:
+                _tcc.close()
+    except Exception as _e:
+        print(f"[task_cubes] skipped: {type(_e).__name__}", flush=True)
     _duty_notes = []
     _rate_missed = None
     try:
         from app import cubes_v2 as _cv2
         _dc = sqlite3.connect(SHARED_DB, timeout=30)
         _cv2.ensure(_dc)
-        _wrote = bool(_cube_info and _cube_info.get("cube_id"))
+        _tc_exp = (_tc or {}).get("experience") or ""
+        _wrote = bool(_cube_info and _cube_info.get("cube_id")) or bool(_tc_exp)
         if _wrote:
-            _dc.execute("INSERT INTO agent_duty (user_id, step, duty, reason, created_at) VALUES (?,?,?,?,datetime('now'))", (req.user_id, _duty_step(req.user_id), "cube", _cube_info["cube_id"]))
+            _dc.execute("INSERT INTO agent_duty (user_id, step, duty, reason, created_at) VALUES (?,?,?,?,datetime('now'))", (req.user_id, _duty_step(req.user_id), "cube", (_cube_info or {}).get("cube_id") or _tc_exp))
         _duty_notes = _cv2.on_remember(_dc, req.user_id, _duty_step(req.user_id), topic=req.topic or req.cube_topic if not _wrote else req.topic,
                                        task_done=req.task_done, wrote_cube=_wrote, duty=req.duty, duty_reason=req.duty_reason, turn=bool(req.query or req.response))
         _duty_notes += [h for h in _cv2.duty_hints(_dc, req.user_id) if h.startswith("• RATE")]
@@ -1743,6 +1762,8 @@ async def remember(req: RememberRequest):
                 _out["summary_due"] = _due
     except Exception as _e:
         print(f"[summary_due] skipped: {_e}", flush=True)
+    if _tc_note:
+        _out["task_cube"] = {"id": "task_cube", "severity": "critical", "note": _tc_note}
     try:   # T72: duty RULES (what / when / how), 1-2 per reply, escalating to MANDATORY when ignored (app/duty_rules.py)
         if (req.query and req.response and (req.kind or "dialogue") == "dialogue" and req.topic != "recap" and not (req.ts or req.occurred_at)
                 and not (req.source or "").startswith(("guard2_ext", "ext", "hook", "server_fallback", "import"))):
@@ -1754,7 +1775,7 @@ async def remember(req: RememberRequest):
                              profile_open=bool(_out.get("profile_duties")))
                 _dsig = _dr.signals({"l1_summary": req.l1_summary, "l2_map": req.l2_map, "critical": req.critical, "sensitive": req.sensitive, "profile": req.profile,
                                      "profile_review": req.profile_review, "duty": req.duty, "duty_reason": req.duty_reason, "task_done": req.task_done,
-                                     "query": req.query, "cube_created": bool(_cube_info and _cube_info.get("cube_id"))}, _dctx)
+                                     "query": req.query, "cube_created": bool((_cube_info and _cube_info.get("cube_id")) or (_tc or {}).get("experience"))}, _dctx)
                 _dres = _dr.on_turn(req.user_id, req.session_id, done=_dsig[0], dismissed=_dsig[1], events=_dsig[2], applicable=_dsig[3])
                 _sdd = _out.get("summary_due")
                 if _dres and isinstance(_sdd, dict) and _sdd.get("l1"):   # one L1 ask: summary_due / l1_overdue already carries it

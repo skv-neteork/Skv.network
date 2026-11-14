@@ -24,7 +24,7 @@ PRIVATE = [
     ("cube_duty_state", "user_id"), ("cube_suggest_seen", "user_id"), ("cube_consent", "user_id"),
     ("cube_consent_log", "user_id"), ("cube_fixes", "user_id"), ("event_lines", "user_id"),
     ("summary_lines", "user_id"), ("profile_flags", "user_id"), ("agent_inbox", "user_id"),
-    ("agent_reputation", "user_id"), ("solution_confirms", "user_id"), ("feedback_reports", "user_id"),
+    ("agent_reputation", "user_id"), ("solution_confirms", "user_id"), ("task_cubes", "user_id"), ("task_notified", "user_id"), ("feedback_reports", "user_id"),
     ("sys_grants", "owner"), ("sys_audit", "user_id"), ("court_judges", "user_id"),
     ("jp_members", "user_id"), ("jp_events", "user_id"), ("project_members", "user_id"),
 ]

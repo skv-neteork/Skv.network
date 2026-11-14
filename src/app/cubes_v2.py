@@ -22,7 +22,7 @@ SERVER_LINKS = ("part_of", "depends_on", "answers", "solves", "supersedes")
 ALL_LINKS = AGENT_LINKS + LEGACY_LINKS + SERVER_LINKS
 HIDDEN_STATUS = ("deprecated", "archived", "removed", "quarantine")
 HIDDEN_SQL = "status NOT IN ('deprecated','archived','removed','quarantine')"
-VISIBLE_KIND_SQL = "COALESCE(kind,'moment') NOT IN ('help_request','project','project_node')"
+VISIBLE_KIND_SQL = "COALESCE(kind,'moment') NOT IN ('help_request','project','project_node','task')"
 TRUST_CONFIRMS = 3
 NEW_SHOWN_LIMIT = 6          # legacy name, kept for imports
 NEW_CAP = 12                 # impressions a cube may get per earned rating: allowed while shown < NEW_CAP * (ratings + 1)
@@ -677,6 +677,12 @@ def add_link(conn, src, dst, kind, uid):
     if kind not in ALL_LINKS:
         raise ValueError("link kind must be one of " + ", ".join(AGENT_LINKS + LEGACY_LINKS + SERVER_LINKS))
     cur = conn.execute("INSERT OR IGNORE INTO cube_links (src, dst, kind, created_by, created_at) VALUES (?,?,?,?,datetime('now'))", (src, dst, kind, uid))
+    if kind in ("answers", "answer") and cur.rowcount:   # T71: the author of an open task cube hears about the answer in a later turn
+        try:
+            from app import task_cubes as _tcm
+            _tcm.notify_answer(conn, src, dst, uid)
+        except Exception:
+            pass
     if kind == "against" and cur.rowcount:
         _q = conn.execute("INSERT OR IGNORE INTO court_queue (cube_id, reason, created_at) VALUES (?,?,datetime('now'))", (dst, "dispute: against " + src))
         if not _q.rowcount: _log_complaint(conn, dst, "dispute: against " + src)

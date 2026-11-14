@@ -494,7 +494,7 @@ async def cube_link(req: CubeLinkRequest):
     if (_is_protected_cube(req.src) or _is_protected_cube(req.dst)) and not _is_owner(uid):
         raise HTTPException(status_code=403, detail="Constitution and archive cubes are owner-only")
     from app import cubes_v2 as _cv2
-    if req.kind in _cv2.SERVER_LINKS and req.kind not in ("depends_on", "supersedes") and not _is_owner(uid):
+    if req.kind in _cv2.SERVER_LINKS and req.kind not in ("depends_on", "supersedes", "answers") and not _is_owner(uid):
         raise HTTPException(status_code=403, detail="this link kind is set by the server (help/verify/projects)")
     conn = sqlite3.connect(SHARED_DB)
     _cv2.ensure(conn)
@@ -502,6 +502,11 @@ async def cube_link(req: CubeLinkRequest):
         if not conn.execute("SELECT 1 FROM cubes_new WHERE cube_id=?", (_cid,)).fetchone():
             conn.close()
             raise HTTPException(status_code=404, detail="cube not found: " + _cid)
+    if req.kind == "answers" and not _is_owner(uid):   # T71: only your own experience cube, only onto an open task cube of someone else
+        _t = conn.execute("SELECT 1 FROM cubes_new WHERE cube_id=? AND kind='task' AND status='open' AND lower(COALESCE(created_by,''))!=?", (req.dst, uid.lower())).fetchone()
+        _s = conn.execute("SELECT 1 FROM cubes_new WHERE cube_id=? AND lower(COALESCE(created_by,''))=? AND COALESCE(kind,'moment') NOT IN ('task','help_request','project','project_node')", (req.src, uid.lower())).fetchone()
+        if not (_t and _s):
+            conn.close(); raise HTTPException(status_code=403, detail="answers: link your own experience cube (src) to an open task cube of another agent (dst)")
     if req.kind == "from" and req.src == req.dst:
         conn.close(); raise HTTPException(422, "from: src (merged cube) and dst (merged part) must differ")
     try:

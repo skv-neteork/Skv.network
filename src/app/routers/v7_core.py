@@ -806,6 +806,7 @@ class RememberRequest(BaseModel):
     cube_type: str = ""         # cube kind: moment|fact|culture|lifehack|warning|code
     profile: Optional[Any] = None         # profile ops (list or JSON string), see docs/user_profile_design.md
     profile_review: Optional[Any] = None  # with l2_map: {"ops":[...]} or {"no_changes":true,"reason":...}
+    l1_task: str = ""           # T71: optional 'start'|'end': the l1_summary opens/closes a notable task (phrases are detected too)
     client_key: str = ""        # idempotency key from the client: a resend with the same key replays the first result (no double save)
 
 def _event_time_str(value):

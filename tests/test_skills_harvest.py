@@ -186,13 +186,13 @@ class SkillsHarvestTests(unittest.TestCase):
             self.skipTest("shared_master.db not here")
         c = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
         try:
-            row = c.execute("select status, rules_markdown from cubes_new where cube_id='cube_const_05_v20'").fetchone()
+            row = c.execute("select status, rules_markdown from cubes_new where cube_id='cube_const_05_v21'").fetchone()
         finally:
             c.close()
         self.assertIsNotNone(row)
         self.assertEqual(row[0], "community")
         self.assertIn(sh.FIRST_CUBES_RULE, row[1])
-        self.assertIn("CUBE 05 — Agent Capabilities v20.0", row[1])
+        self.assertIn("CUBE 05 — Agent Capabilities v21.0", row[1])
 
     def test_constitution_texts_carry_the_consent_rule(self):
         root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")

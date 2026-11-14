@@ -97,7 +97,7 @@ def step_zero_package(conn, actor_id, key_id, chain_id, role="assistant", sessio
         return {"kind": None, "text": "", "while_away": None, "proposed_upto": away.get("proposed_upto"), "step_zero": False}
     _mark(conn, actor_id, session_id, kind, starter_version, now)
     who = display_name or actor_id
-    head = "Ты %s, роль %s." % (who, role)
+    head = "You are %s, role %s." % (who, role)
     parts = [head]
     own_part = ""
     if kind == "full":
@@ -115,7 +115,7 @@ def step_zero_package(conn, actor_id, key_id, chain_id, role="assistant", sessio
         if digest:
             parts.append(digest)
     elif kind == "delta":
-        parts.append("дельта: простой больше 12 ч")
+        parts.append("delta: idle for more than 12 h")
     text = "\n".join(p for p in parts if p)
     if kind == "full" and view["own_empty"] and EMPTY_LANE not in text:
         text += "\n" + EMPTY_LANE

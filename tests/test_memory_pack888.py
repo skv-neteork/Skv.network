@@ -261,7 +261,7 @@ class StepZeroPagesTest(unittest.TestCase):
         self.assertGreaterEqual(len(pages), 5)
         self.assertEqual(join_pack_pages(pages), doc)
         for p in pages[:-1]:
-            self.assertGreaterEqual(len(p), 12000)
+            self.assertGreaterEqual(len(p), STEP_ZERO_PAGE_TEXT - 50)
             self.assertLessEqual(len(p), STEP_ZERO_PAGE_TEXT)
             self.assertLessEqual(step_zero_envelope_len(p), STEP_ZERO_MAX_JSON)
         self.assertLessEqual(len(pages[-1]), STEP_ZERO_PAGE_TEXT)

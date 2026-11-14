@@ -20,21 +20,22 @@ from app.room.step_zero import step_zero_package
 # MCP gate refuses the first call without a token (IDENTIFY_REQUIRED, nothing written).
 # REST keeps the save and only adds this hint.
 REST_IDENTIFY_HINT = (
-    "На этом ключе уже есть агенты. Вызови identify(name) и передавай agent_token. Этот ход сохранён."
+    "This key already has agents. Call identify(name) and pass agent_token. "
+    "Then step_zero(page=1) until done=true, then turn on every user message. This turn was saved."
 )
-REST_BAD_TOKEN_HINT = "agent_token не подошёл. Вызови identify ещё раз. Этот ход сохранён."
+REST_BAD_TOKEN_HINT = "agent_token was not accepted. Call identify(name) again. This turn was saved."
 # Any agent, even the only one on a key, introduces itself: the memory then shows which agent led which part.
 SOFT_IDENTIFY_HINT = (
-    "Представься: identify(name) и передавай agent_token в каждом вызове — тогда в памяти видно, какой агент "
-    "(Claude, Grok и т.д.) вёл эту часть диалога. Этот ход сохранён."
+    "Call identify(name) and pass agent_token on every call, even if you are the only agent. "
+    "Then step_zero(page=1) until done=true, then turn on every user message. This turn was saved."
 )
 STEP_ZERO_NEXT = (
-    "теперь вызови step_zero(agent_token) и прочитай все страницы page=1..N до done=true "
-    "(now call step_zero(agent_token) and read all pages until done=true)"
+    "Now call step_zero(agent_token, page=1) and read every page until done=true. "
+    "Then turn(agent_token) on every user message."
 )
 STEP_ZERO_REMINDER = (
-    "ты ещё не вызывал step_zero(agent_token): вызови его и прочитай все страницы page=1..N до done=true, "
-    "потом продолжай с turn (step_zero not called yet for this agent)"
+    "step_zero was not called yet for this agent. Call step_zero(agent_token, page=1) and read every page "
+    "until done=true, then turn on every user message."
 )
 _NUDGE = {}
 
@@ -134,7 +135,8 @@ def gate(info, conn, agent_token="", session_id="", client_hint="", soft=False):
                     "role": "assistant", "name": info.get("key_name") or "agent", "multi": True,
                     "key_id": info["key_id"], "chain_id": info["chain_id"]}
         return {"error": "IDENTIFY_REQUIRED", "hint": who.get("hint") or "", "saved": False,
-                "next": "call identify(name), then pass agent_token on every call"}
+                "next_action": "identify(name), then step_zero(page=1) until done=true, then turn on every user message.",
+                "next": "identify(name), then step_zero(page=1) until done=true, then turn on every user message."}
     return who
 
 
@@ -316,7 +318,7 @@ def do_identify(info, conn, name, role="", client_hint="", session_id=""):
         # a fresh session: the real step_zero is due again, so turn keeps reminding until it is called
         conn.execute("DELETE FROM agent_pack_seen WHERE key_id=? AND actor_id=?", (info["key_id"], out["agent_id"]))
         conn.commit()
-    nxt = STEP_ZERO_NEXT if first else "продолжай с turn(agent_token) на каждое сообщение пользователя"
+    nxt = STEP_ZERO_NEXT if first else "Call turn(agent_token) on every user message."
     room_text = pack.get("text") or ""
     if first:
         room_text = (nxt + "\n" + room_text).strip()

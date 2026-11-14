@@ -813,14 +813,18 @@ def load_document(user_id: str, user_db: str = "", shared_db: str = "") -> str:
     return document
 
 
-# A public MCP page is about 14 KB of text, returned whole (_dumps_step_zero).
-# The JSON cap is that text plus the small service envelope. Quote-heavy text
-# stops at the JSON cap so one uncompressed page does not grow past it.
-# REST joins these slices and cuts again on its own limits.
-STEP_ZERO_PAGE_TEXT = 14000
-STEP_ZERO_MAX_JSON = 16000
+# One step_zero page stays under the uncompressed HTTPS stall (~15.7 KB).
+# The tool JSON cap is ~12 KB so the JSON-RPC wrapper still fits under ~15 KB.
+# REST may join these slices and cut again on its own limits.
+STEP_ZERO_PAGE_TEXT = 11000
+STEP_ZERO_MAX_JSON = 12000
 _PACK_MARK = "=== PACK888 %03d/%03d concatenate the text after this line, in order ===\n"
 _PACK_MARK_RE = re.compile(r"^=== PACK888 (\d{3})/(\d{3}) concatenate the text after this line, in order ===\n")
+
+
+def separate_pack_marks(text: str) -> str:
+    """Keep each PACK888 header on its own line. A joined page must not glue it to the previous character."""
+    return re.sub(r"(?<=\S)(=== PACK888 )", "\n\\1", text or "")
 
 
 def _page_mark(i: int, n: int, body: str) -> str:
@@ -851,7 +855,7 @@ def _page_fits(body: str, max_json: int, max_text: int) -> bool:
 def split_document(text: str, max_json: int = STEP_ZERO_MAX_JSON, max_text: int = STEP_ZERO_PAGE_TEXT) -> List[str]:
     """Split one document into step_zero pages that join back to the same text.
 
-    A full page is about 14 KB of text. A page ends on a record boundary when
+    A full page stays under STEP_ZERO_PAGE_TEXT. A page ends on a record boundary when
     that still fits. A record longer than one response is split, and the next
     page continues it. Nothing is dropped.
     """

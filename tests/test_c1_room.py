@@ -84,7 +84,7 @@ class C1Tests(unittest.TestCase):
     def test_identify_says_to_call_step_zero_and_turn_reminds_until_it_is_called(self):
         self.assertTrue(self.a["step_zero"])
         self.assertEqual(self.a["next"], STEP_ZERO_NEXT)
-        self.assertIn("step_zero(agent_token)", self.a["room_text"])
+        self.assertIn("step_zero(agent_token, page=1)", self.a["room_text"])
         wa = _who(self.c, self.a["agent_token"], "sa")
         r1 = finish_turn(self.c, INFO, wa, {"saved": True, "event_id": "e1", "session_id": "sa"})
         self.assertIn("step_zero", r1["step_zero_reminder"])

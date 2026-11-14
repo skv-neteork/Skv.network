@@ -96,8 +96,9 @@ def build_pages(user_id, user_db="", shared_db=""):
         if not any((p or "").strip() for p in pack_pages):
             return {"ok": False, "pages": [], "error": "empty memory pack"}
         intro = (
-            "HOW TO WORK: every agent, even a single one, first calls identify(name) and passes agent_token on every call "
-            "(this step_zero too); read every page until done=true before you answer. "
+            "HOW TO WORK: one start order: constitution_install(user_confirmed=true) if not installed, "
+            "then identify(name), then read every step_zero page until done=true, then turn on every user message. "
+            "Pass agent_token on every call after identify. "
             "The pages marked PACK888 are the memory pack 8/8/8. "
             "Order: constitution, profile, L2, L1, raw records, open_items, access counter. "
             "Critical marks are CRITICAL: heading lines inside L2/L1; open_items lists open board items only. "
@@ -171,7 +172,8 @@ def group_pages(pages, transport="plain") -> list:
     gzip sizes the same text by the compressed body, about 14 KB on the wire.
     Nothing is dropped.
     """
-    whole = "".join(raw or "" for raw in (pages or []))
+    from app.memory_pack888 import separate_pack_marks
+    whole = separate_pack_marks("".join(raw or "" for raw in (pages or [])))
     if not whole.strip():
         return []
     fits = _page_fits_gzip if transport == "gzip" else _page_fits

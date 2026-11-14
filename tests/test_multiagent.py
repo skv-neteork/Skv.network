@@ -28,7 +28,7 @@ from app.room import (
 )
 from app.room.claims import ClaimConflict
 from app.room.clock import as_dt, iso
-from app.room.copy import EMPTY_LANE, LEGACY_HEADER, OTHERS_HEADER
+from app.room.copy import CHECK_REREAD, EMPTY_LANE, LEGACY_HEADER, OTHERS_HEADER
 from app.room.files import FileConflict
 from app.room.schema import ensure
 
@@ -213,7 +213,7 @@ class RoomTests(unittest.TestCase):
         self.assertEqual(cm.exception.owner, me["agent_id"])
         bad = file_check(self.c, "ch", "src/app/board.py", "zzz", now=T0)
         self.assertFalse(bad["ok"])
-        self.assertEqual(bad["message"], "перечитай и слей, не перезаписывай")
+        self.assertEqual(bad["message"], CHECK_REREAD)
         rel = file_release(self.c, "ch", "src/app/board.py", me["agent_id"], "def", key_id="k", now=T0, minus=1, plus=2, old_hash="abc")
         seen = build_while_away(self.c, other["agent_id"], "k", "ch", "assistant", T0)
         self.assertIn(rel["event_id"], seen["text"])

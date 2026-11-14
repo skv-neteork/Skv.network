@@ -126,19 +126,22 @@ class RemoteClientTests(unittest.TestCase):
         self.assertEqual(out["text"], "")
         self.assertFalse(out["done"])
 
-    def test_constitution_install_uses_rest_pages(self):
+    def test_constitution_install_is_a_short_pointer(self):
         m._CV.clear()
         out = json.loads(m.constitution_install(user_confirmed=True))
         self.assertTrue(out["install"]["installed"])
-        self.assertIn("PACK888", out["step_zero"]["text"])
-        self.assertGreater(out["step_zero"]["pages"], 1)
-        self.assertTrue(any(c[1] == "/agent/step_zero" for c in self.calls))
+        self.assertNotIn("step_zero", out)
+        self.assertIn("identify", out["next_action"])
+        self.assertIn("step_zero", out["next_action"])
+        self.assertLess(len(json.dumps(out)), 2500)
+        self.assertFalse(any(c[1] == "/agent/step_zero" for c in self.calls))
 
-    def test_constitution_install_reports_a_missing_pack(self):
+    def test_constitution_install_does_not_fetch_a_missing_pack(self):
         self.payload = {"ok": False, "pages": [], "error": "user database not found"}
         out = json.loads(m.constitution_install(user_confirmed=True))
-        self.assertFalse(out["step_zero"]["ok"])
-        self.assertIn("not found", out["step_zero"]["warning"])
+        self.assertTrue(out["install"]["installed"])
+        self.assertNotIn("step_zero", out)
+        self.assertFalse(any(c[1] == "/agent/step_zero" for c in self.calls))
 
     def test_memory_search_agents_all_uses_rest(self):
         out = json.loads(m.memory_search("hello pack", agents="all", agent_token="tok-b"))
@@ -154,9 +157,11 @@ class RemoteClientTests(unittest.TestCase):
         self.assertEqual(out["text"], whole)
         self.assertNotIn("trimmed", out["text"])
         installed = json.loads(m.constitution_install(user_confirmed=True))
-        self.assertEqual(installed["step_zero"]["text"], whole)
+        self.assertNotIn("step_zero", installed)
+        self.assertTrue(installed["install"]["installed"])
+        self.assertNotIn(whole[:20], json.dumps(installed))
 
-    def test_step_zero_read_is_gzip_and_retried(self):
+    def test_step_zero_read_is_identity_and_retried(self):
         import httpx
 
         class Resp:
@@ -197,7 +202,7 @@ class RemoteClientTests(unittest.TestCase):
                 m._HTTP_CLIENTS["*"] = old
         self.assertEqual(out.get("text"), "hi")
         self.assertEqual(client.n, 3)
-        self.assertEqual(client.headers[0].get("Accept-Encoding"), "gzip")
+        self.assertEqual(client.headers[0].get("Accept-Encoding"), "identity")
         self.assertGreaterEqual(float(client.timeouts[0].read), 60)
 
     def test_file_check_is_a_visible_rest_tool(self):

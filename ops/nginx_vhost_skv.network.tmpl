@@ -3,14 +3,17 @@ location = /mcp { proxy_pass http://__GW__:8765/; proxy_http_version 1.1; proxy_
         proxy_set_header X-API-Key $http_x_api_key; proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection ""; proxy_buffering off; proxy_cache off; proxy_read_timeout 3600s; proxy_send_timeout 3600s;
-        proxy_connect_timeout 3s; error_page 502 = @skv_hold_mcp; }
+        proxy_connect_timeout 3s; gzip off; error_page 502 = @skv_hold_mcp; }
 location ^~ /mcp/ { access_log off; proxy_pass http://__GW__:8765/; proxy_http_version 1.1; proxy_set_header Host $host; proxy_set_header Authorization $http_authorization;
         proxy_set_header X-API-Key $http_x_api_key; proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection ""; proxy_buffering off; proxy_cache off; proxy_read_timeout 3600s; proxy_send_timeout 3600s;
-        proxy_connect_timeout 3s; error_page 502 = @skv_hold_mcp; }
+        proxy_connect_timeout 3s; gzip off; error_page 502 = @skv_hold_mcp; }
 
-# gzip for API/MCP JSON (responses over ~16 KB stall on some client egress paths)
+# gzip stays on for the API. It stays off for /mcp: proxy_buffering is off (SSE), and gzip
+# then forces chunked encoding. Chunked gzip hangs some MCP clients. Upstream JSON already
+# sets Content-Length. Step-zero pages stay under ~15 KB so the uncompressed body does not
+# hit the egress stall (responses over ~16 KB).
 gzip on; gzip_proxied any; gzip_min_length 1024; gzip_comp_level 5; gzip_vary on;
 
 # Restart hold (skv-hold.service on the gateway IP, not public): when the API/MCP upstream refuses a request

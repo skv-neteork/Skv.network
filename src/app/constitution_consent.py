@@ -20,7 +20,7 @@ DUTIES = ("CRITICAL DUTIES EVERY TURN (system duties, not optional): "
           "3) save the turn: POST /api/v7/remember (query + response verbatim); "
           "4) cubes: vote/feedback on cubes used, create a cube for new experience or send duty=cube_nothing; "
           "5) end with the seal; 6) " + PIN_RULE + " Morality/safety rules (CUBE 01-04) also apply. "
-          "MCP 1-CALL LOOP: draft privately, then turn(user_message, draft) before the user sees the reply: it searches memory, saves the turn, runs Second Look, returns verdict + seal + pending cube duties; verdict=revise -> fix and call turn again. STEP ZERO: right after constitution_install, read step_zero(page=1..3): full constitution + memory + how the last session ended.")
+          "MCP 1-CALL LOOP: one start order: constitution_install(user_confirmed=true) if not installed, then identify(name), then step_zero(page=1..N) until done, then turn(user_message, draft) on every user message. turn searches memory, saves the turn, runs Second Look, and returns verdict + seal. verdict=revise -> fix and call turn again.")
 
 
 def _conn(uid: str) -> sqlite3.Connection:

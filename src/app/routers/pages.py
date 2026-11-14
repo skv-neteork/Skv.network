@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, JSONResponse
+import json
 import os
 
 router = APIRouter()
@@ -542,7 +543,62 @@ async def mcp_registry_auth():
     with open(os.path.join(os.path.dirname(__file__), "..", "downloads", "mcp-registry-auth")) as f:
         return PlainTextResponse(f.read().strip())
 
+def _mcp_visible_names():
+    """Public MCP tool names. Prefer the shared list under src/app (API container
+    cannot see mcp/mcp_skv.py). Fall back to parsing the MCP server source."""
+    try:
+        from app.mcp_public_tools import VISIBLE
+        return sorted(VISIBLE)
+    except Exception:
+        pass
+    import ast
+    for pth in (
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "mcp", "mcp_skv.py")),
+        "/root/skv-core/mcp/mcp_skv.py",
+    ):
+        if not os.path.isfile(pth):
+            continue
+        tree = ast.parse(open(pth, encoding="utf-8").read())
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for tgt in node.targets:
+                    if isinstance(tgt, ast.Name) and tgt.id == "VISIBLE":
+                        return sorted(ast.literal_eval(node.value))
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "VISIBLE":
+                return sorted(ast.literal_eval(node.value))
+    raise RuntimeError("VISIBLE not found")
+
+
+def _mcp_server_card_doc():
+    path = os.path.join(os.path.dirname(__file__), "..", "downloads", "mcp-server-card.json")
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        data = {"serverInfo": {"name": "SKV Network", "version": "8.3"}, "tools": []}
+    names = _mcp_visible_names()
+    by = {t.get("name"): t for t in (data.get("tools") or []) if isinstance(t, dict) and t.get("name")}
+    tools = []
+    for n in names:
+        if n in by:
+            tools.append(by[n])
+        else:
+            tools.append({"name": n, "description": n, "inputSchema": {"type": "object"}})
+    data["tools"] = tools
+    auth = data.get("authentication") if isinstance(data.get("authentication"), dict) else {}
+    desc = auth.get("description") or ""
+    if "MCP tools" in desc:
+        import re as _re
+        auth["description"] = _re.sub(r"\d+ MCP tools", "%d MCP tools" % len(names), desc)
+        data["authentication"] = auth
+    return data
+
+
 @router.get("/.well-known/mcp/server-card.json")
 async def mcp_server_card():
-    # Static MCP server card (SEP-1649) for directories such as Smithery
-    return FileResponse(os.path.join(os.path.dirname(__file__), "..", "downloads", "mcp-server-card.json"), media_type="application/json")
+    # Generated from the live VISIBLE tools list so the card cannot drift
+    return JSONResponse(_mcp_server_card_doc())
+
+
+@router.get("/mcp-server-card.json")
+async def mcp_server_card_alias():
+    return RedirectResponse(url="/.well-known/mcp/server-card.json", status_code=301)

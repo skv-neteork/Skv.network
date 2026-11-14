@@ -1,19 +1,19 @@
 {
  "serverInfo": {
   "name": "SKV Network",
-  "version": "1.30.0"
+  "version": "8.3"
  },
  "authentication": {
   "required": true,
   "schemes": [
    "bearer"
   ],
-  "description": "Free key (sk_...) at https://skv.network/profile; send as 'Authorization: Bearer sk_...' or use https://skv.network/mcp/k/<key>/. initialize and tools/list work without a key. Public demo (shared, wiped daily): https://skv.network/mcp/k/demo/"
+  "description": "Free key (sk_...) at https://skv.network/profile; send as 'Authorization: Bearer sk_...' or use https://skv.network/mcp/k/<key>/. initialize and tools/list work without a key. Public demo (shared, wiped daily): https://skv.network/mcp/k/demo/. 38 MCP tools. Start order: constitution_install → identify → step_zero (once per new key) → turn."
  },
  "tools": [
   {
    "name": "memory_start",
-   "description": "STEP 0 before install: consent question + rule 0 + essentials + recent memory. Once installed use step_zero.",
+   "description": "Short start before the constitution is installed: consent question + essentials. After install use this order: identify(name), then step_zero until done=true (once per new key), then turn on every user message. There are 38 MCP tools in total.",
    "inputSchema": {
     "properties": {
      "session_id": {
@@ -122,7 +122,7 @@
   },
   {
    "name": "turn",
-   "description": "EVERY TURN, ONE CALL: turn(user_message, draft) before the user sees the reply. Compact mode (compact=true): self-check first, send the final answer once as answer=<final> (draft alias); saved+sealed, not echoed; facts max 3 x 200 chars; cubes/self_check only when changed (else cubes_version/checklist_version). The server does not judge your draft: it returns memory facts with [ev:id], relevant cubes and a self_check list - check the draft yourself; if you change it, call turn again (same user_message). Server checks only that every [ev:id] exists in your memory (else verdict=revise + invalid_ids, nothing saved), saves the turn and returns the seal: append it as the last line. No draft = context only. Memory missing or user says remember/вспомни: dig deeper first - memory_search by meaning and by keywords (lines=all, offset for older), memory_event for full text, memory_dig for L2/L1 summaries and episodes - only then say you do not remember.",
+   "description": "EVERY TURN, ONE CALL: turn(user_message, draft) before the user sees the reply. Compact mode (compact=true): self-check first, send the final answer once as answer=<final> (draft alias); saved+sealed, not echoed; facts max 3 x 200 chars; cubes/self_check only when changed (else cubes_version/checklist_version). The server does not judge your draft: it returns memory facts with [ev:id], relevant cubes and a self_check list - check the draft yourself; if you change it, call turn again (same user_message). Server checks only that every [ev:id] exists in your memory (else verdict=revise + invalid_ids, nothing saved), saves the turn and returns the seal: append it as the last line. No draft = context only. Memory missing or user says remember: dig deeper first - memory_search by meaning and by keywords (lines=all, offset for older), memory_event for full text, memory_dig for L2/L1 summaries and episodes - only then say you do not remember.",
    "inputSchema": {
     "properties": {
      "user_message": {

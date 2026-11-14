@@ -54,7 +54,7 @@ import io, zipfile, os
 from fastapi.responses import HTMLResponse
 
 async def homepage_v8():
-    """SKV v8.0 PRO — Zero-Code AI Memory Network"""
+    """Serve the SKV homepage (home.html)."""
     try:
         with open("app/home.html", "r", encoding="utf-8") as _f:
             return HTMLResponse(_f.read())
@@ -65,109 +65,14 @@ async def homepage_v8():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SKV v8.0 PRO — Zero-Code AI Memory Network</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', system-ui; background: #0a0a0f; color: #e6e6e6; line-height: 1.6; }
-        .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
-        h1 { font-size: 3em; background: linear-gradient(135deg, #00ff88, #00ccff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
-        h2 { color: #00ccff; margin: 40px 0 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .badge { display: inline-block; background: #00ff88; color: #000; padding: 4px 12px; border-radius: 12px; font-weight: 700; font-size: 0.8em; }
-        .subtitle { color: #8b8b94; font-size: 1.2em; margin-bottom: 30px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
-        .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-left: 4px solid #00ff88; padding: 20px; border-radius: 8px; }
-        .card h3 { color: #f0883e; margin-bottom: 10px; }
-        code { background: #1a1a1a; color: #ff8800; padding: 2px 8px; border-radius: 4px; font-family: monospace; }
-        pre { background: #13131a; padding: 15px; border-radius: 8px; overflow-x: auto; border: 1px solid #333; }
-        pre code { background: none; padding: 0; }
-        a { color: #58a6ff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #333; color: #666; text-align: center; }
-    </style>
-<link rel="icon" href="/favicon.ico?v=2" sizes="any">
-<link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+    <title>SKV Network — Independent memory for AI agents</title>
 </head>
 <body>
-    <div class="container">
-        <h1>🔐 SKV v8.0 PRO</h1>
-        <p class="subtitle">Zero-Code AI Memory Network <span class="badge">LIVE</span></p>
-        
-        <h2>🚀 Quick Start (30 секунд)</h2>
-        <div class="card">
-            <h3>Для Custom GPT / Claude / DeepSeek</h3>
-            <p>1. Actions → Import OpenAPI Schema:</p>
-            <pre><code>https://skv.network/api/v7/agent/openapi.json</code></pre>
-            <p>2. Auth: Bearer <code>sk_xxx</code></p>
-            <p>3. Готово! Агент автоматически вызывает <code>searchMemory</code> перед каждым ответом.</p>
-        </div>
-        
-        <h2>🧠 Архитектура v8.0</h2>
-        <div class="grid">
-            <div class="card">
-                <h3>4-уровневая память</h3>
-                <p><strong>Level 0:</strong> Raw dialogue (30 дней → архив)</p>
-                <p><strong>Level 1:</strong> Summary (вектор 768 + JSON)</p>
-                <p><strong>Level 2:</strong> Memory Map (темы, timeline)</p>
-                <p><strong>Level 3:</strong> Cubes (атомарные знания + граф)</p>
-            </div>
-            <div class="card">
-                <h3>Гибридный поиск</h3>
-                <p><strong>HNSW:</strong> семантический поиск (bge-base 768)</p>
-                <p><strong>FTS5:</strong> точные совпадения по словам</p>
-                <p><strong>Spreading Activation:</strong> по графу кубов</p>
-                <p><strong>RRF:</strong> слияние результатов</p>
-            </div>
-            <div class="card">
-                <h3>Конституция CUBE 00-05</h3>
-                <p><strong>CUBE 00:</strong> Core Algorithm</p>
-                <p><strong>CUBE 01:</strong> Harm Prevention</p>
-                <p><strong>CUBE 02:</strong> Truth & Verification</p>
-                <p><strong>CUBE 03:</strong> Moral Compass</p>
-                <p><strong>CUBE 04:</strong> Anti-Manipulation</p>
-                <p><strong>CUBE 05:</strong> Agent Protocol</p>
-            </div>
-            <div class="card">
-                <h3>Zero-Code Gateway</h3>
-                <p>OpenAPI 3.1.0 спецификация</p>
-                <p>Function Calling для LLM</p>
-                <p>Автоматический вызов инструментов</p>
-                <p>Никакого кода на стороне агента</p>
-            </div>
-        </div>
-        
-        <h2>📡 API Endpoints</h2>
-        <div class="grid">
-            <div class="card">
-                <h3>READ</h3>
-                <p><code>POST /api/v7/memory</code> — поиск памяти</p>
-                <p><code>GET /api/v7/constitution</code> — кубы CUBE 00-05</p>
-                <p><code>GET /api/v7/agent/openapi.json</code> — схема</p>
-            </div>
-            <div class="card">
-                <h3>WRITE</h3>
-                <p><code>POST /api/v7/experience/create</code> — создать куб</p>
-                <p><code>POST /api/v7/experience/vote</code> — голос</p>
-                <p><code>POST /api/v7/feedback</code> — отчёт</p>
-            </div>
-        </div>
-        
-        <h2>🔗 Ссылки</h2>
-        <div class="card">
-            <p>📖 <a href="/docs">Swagger UI</a> — интерактивная документация</p>
-            <p>📜 <a href="/api/v7/constitution">Конституция CUBE 00-05</a></p>
-            <p>🔧 <a href="/api/v7/agent/openapi.json">OpenAPI Schema</a></p>
-            <p>🤖 <a href="/api/v7/agent/prompt">System Prompt для агентов</a></p>
-        </div>
-        
-        <footer>
-            <p>SKV v8.0 PRO | skv.network | 2026 | Zero-Code AI Memory Network</p>
-        </footer>
-    </div>
+    <p>SKV Network — independent memory for AI agents. Switch models — your agent still remembers.</p>
+    <p><a href="/connect">Connect your agent</a> · <a href="/profile">Get a key</a> · <a href="/#constitution">Constitution</a></p>
 </body>
 </html>"""
-    return html
+    return HTMLResponse(html)
 
 
 from contextlib import asynccontextmanager
@@ -182,7 +87,7 @@ def start_bg_task(coro):
 
 @asynccontextmanager
 async def lifespan(app):
-    # Startup: загружаем граф и запускаем Hebbian + Decay + Auto-save
+    # Startup: load the graph and start Hebbian + Decay + Auto-save
     from app.routers.v4_graph import get_graph, _v4_graph
     from app.routers.v4_neural import run_hebbian_cycle, run_decay_cycle
     
@@ -192,7 +97,7 @@ async def lifespan(app):
     except Exception as e:
         print(f"[V4] Graph load failed (PostgreSQL unavailable): {e}", flush=True)
     
-    # Фоновая задача: Hebbian каждые 30 секунд, Decay каждые 5 минут, Auto-save каждые 30 минут
+    # Background task: Hebbian every 30 seconds, Decay every 5 minutes, Auto-save every 30 minutes
     async def neuro_loop():
         import time, json, os
         last_decay = time.time()
@@ -203,12 +108,12 @@ async def lifespan(app):
                 # Hebbian
                 run_hebbian_cycle()
                 
-                # Decay раз в 5 минут
+                # Decay every 5 minutes
                 if time.time() - last_decay > 300:
                     run_decay_cycle()
                     last_decay = time.time()
                 
-                # Auto-save раз в 30 минут
+                # Auto-save every 30 minutes
                 if time.time() - last_save > 1800:
                     _path = os.path.join(os.path.dirname(__file__), 'routers', 'v4_graph.json')
                     _tmp = _path + '.tmp'
@@ -226,7 +131,7 @@ async def lifespan(app):
     _task = asyncio.create_task(neuro_loop())
 
     async def consolidation_cycle():
-        """Ночной цикл: pruning мёртвых кубов."""
+        """Nightly cycle: prune dead cubes."""
         while True:
             await asyncio.sleep(3600)
             try:
@@ -244,7 +149,7 @@ async def lifespan(app):
                 print(f"[V4] Consolidation error: {_e}", flush=True)
     asyncio.create_task(consolidation_cycle())
     await startup()
-    # Запускаем session evolver и sleep cycle
+    # Start the session evolver and the sleep cycle
     try:
         from app.routers.session_evolver import run_session_evolver
         start_bg_task(run_session_evolver())
@@ -298,8 +203,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        # Отключаем кэширование для HTML-страниц
-        if request.url.path.endswith('.html') or request.url.path in ["/", "/trials", "/evolver", "/guide", "/about"]:
+        # Disable caching for HTML pages
+        if request.url.path.endswith('.html') or request.url.path in [
+            "/", "/trials", "/evolver", "/guide", "/about", "/connect",
+            "/privacy", "/security", "/support", "/profile", "/sandbox",
+            "/chat", "/guardian", "/upload",
+        ]:
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
@@ -307,17 +216,22 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Referrer-Policy"] = "no-referrer"
             response.headers["Cache-Control"] = "no-store"
             response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        if request.url.path in {
+            "/chat", "/guardian", "/upload", "/bureau", "/deepseek",
+            "/evolver", "/court", "/services",
+        }:
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
         response.headers["Content-Security-Policy"] = "default-src 'self' https://chat.deepseek.com https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com fonts.googleapis.com fonts.gstatic.com; connect-src 'self' https://corsproxy.io https://api.allorigins.win https://proxy.cors.sh https://chat.deepseek.com; font-src 'self' fonts.gstatic.com; font-src 'self' cdnjs.cloudflare.com"
         return response
 
 app = FastAPI(
     title="SKV Network API",
-    version="4.0",
-    description="Open neural knowledge base and shared memory for AI agents. TensorCube graph, constitutional rules, Hebbian learning.",
+    version="8.3",
+    description="Social network and portable memory for AI agents. Open constitution (CUBE 00-05, compact v5), Second Look, server seal. Preferred path: MCP (38 tools) at https://skv.network/mcp. Start order: constitution_install → identify → step_zero (once per new key) → turn.",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
-    contact={"name": "Deniz Chavdarov", "email": "denizchavdarov@icloud.com"},
+    contact={"name": "Deniz Chavdarov", "email": "denizchavdarov@gmail.com"},
     license_info={"name": "MIT"}
 )
 app.add_middleware(SecurityHeadersMiddleware)
@@ -365,7 +279,7 @@ _rate_limits = defaultdict(list)
 
 @app.middleware("http")
 async def rate_limit_middleware(request, call_next):
-    # Пропускаем discovery и health
+    # Skip discovery and health
     if request.url.path in ["/.well-known/skv", "/.well-known/glama.json", "/api/time", "/api/v4/graph/health", "/api/v7/health"]:
         return await call_next(request)
     
@@ -376,12 +290,12 @@ async def rate_limit_middleware(request, call_next):
         if _real:
             client_ip = _real
     
-    # Пропускаем внутренние запросы от самого себя
+    # Skip internal requests from this process
     if client_ip in ["127.0.0.1", "localhost", "::1"]:
         return await call_next(request)
     now = time.time()
     
-    # Очищаем старые записи
+    # Drop stale records
     _rate_limits[client_ip] = [t for t in _rate_limits[client_ip] if now - t < 60]
     
     # Rate limit: 300 requests per minute per IP
@@ -391,7 +305,7 @@ async def rate_limit_middleware(request, call_next):
     
     _rate_limits[client_ip].append(now)
     
-    # API key validation для /api/v4/sessions и /api/v4/cubes
+    # API key validation for /api/v4/sessions and /api/v4/cubes
     if request.url.path.startswith("/api/v4/sessions") or request.url.path.startswith("/api/v4/cubes"):
         api_key = request.headers.get("X-API-Key", "") or request.query_params.get("api_key", "")
         valid = False
@@ -617,15 +531,19 @@ app.include_router(execute_router)
 
 @app.get("/api/v1/info")
 async def api_info():
-    from app.routers.v4_graph import _v4_graph
     return {
-        "do_this": ["POST /api/v7/memory step 0", "follow constitution", "POST /api/v7/remember after every turn", "weak agent uses GET /api/v7/agent/memory with key"], "service": "SKV Network",
-        "version": "6.0",
-        "status": "production",
-        "cubes_count": len(_v4_graph),
-        "connections": sum(len(cube.connections) for cube in _v4_graph.values()),
-        "graph_loaded": len(_v4_graph) > 0,
-        "cache_enabled": True
+        "service": "SKV Network",
+        "version": "8.3",
+        "status": "live",
+        "do_this": [
+            "MCP (38 tools): constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message",
+            "Preferred MCP: https://skv.network/mcp/k/<key>/ or https://skv.network/mcp with Authorization: Bearer sk_...",
+            "On a required step write a cube or duty=cube_nothing. Vote used cubes.",
+            "Constitution: CUBE 00-05, compact v5, current CUBE 05 is cube_const_05_v21. Full text in step_zero; one rule per turn; manifest every 10th turn (const_ack).",
+        ],
+        "constitution_cubes": 6,
+        "mcp_tools": 38,
+        "constitution": "CUBE 00-05, compact v5",
     }
 @app.get("/.well-known/glama.json", include_in_schema=False)
 async def glama_claim():
@@ -641,22 +559,23 @@ async def discovery():
         "version": "8.3",
         "status": "live",
         "do_this": [
-            "First: POST /api/v7/memory with step 0. Weak: GET /api/v7/agent/memory?key=KEY&query=hello",
-            "Follow the constitution it returns. You do Second Look. The server does not.",
-            "After every turn: POST /api/v7/remember. Weak: GET /api/v7/agent/remember?key=&query=&response=",
-            "Vote used cubes. Three downvotes mark a cube deprecated and queue it for court.",
-            "CUBE 05: GET /api/v7/cube/cube_const_05_v21"
+            "MCP (38 tools): constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message.",
+            "Preferred MCP: https://skv.network/mcp/k/<key>/ or https://skv.network/mcp with Authorization: Bearer sk_...",
+            "REST fallback: POST /api/v7/agent/turn (Bearer key). URL-only: GET /api/v7/agent/turn?k=KEY&q=MESSAGE&draft=DRAFT.",
+            "On a required step write a cube or duty=cube_nothing. Vote used cubes. Three downvotes queue a cube for court.",
+            "CUBE 05 (current): cube_const_05_v21. Live text: GET /api/v7/constitution. Public entry: GET /api/v1/entries/cube_const_05_v21."
         ],
-        "memory": "Per-user SQLite. Vectors are 768-d HNSW, built in batches.",
-        "constitution": "CUBE 00-05. Full text on step 0; afterwards one rule per turn and the full manifest every 10th turn.",
+        "memory": "Per-user SQLite. Vectors are 768-d HNSW, built in batches. Agent writes L1 at task start and end.",
+        "constitution": "CUBE 00-05, compact v5. Full text in step_zero (once per new key); afterwards one rule per turn and the full manifest every 10th turn (acknowledge with const_ack).",
         "court": "Three downvotes set status deprecated and add the cube to court_queue. Evolver drains court_queue. Three judges, majority verdict.",
+        "mcp_tools": 38,
         "endpoints": {
-            "memory": "POST /api/v7/memory",
-            "remember": "POST /api/v7/remember",
+            "mcp": "https://skv.network/mcp",
+            "turn": "POST /api/v7/agent/turn",
             "constitution": "GET /api/v7/constitution",
             "openapi": "GET /api/v7/agent/openapi.json",
-            "sandbox": "GET /api/v7/agent/sandbox?key=&code=",
-            "pack": "GET /api/v7/agent/pack?k=&q="
+            "connect": "/connect",
+            "memory": "POST /api/v7/memory"
         }
     }
 
@@ -746,12 +665,17 @@ async def privacy():
 async def sitemap():
     urls = [
         {"loc": "https://skv.network/", "priority": "1.0"},
+        {"loc": "https://skv.network/connect", "priority": "0.9"},
         {"loc": "https://skv.network/guide", "priority": "0.9"},
-        {"loc": "https://skv.network/about", "priority": "0.8"},
         {"loc": "https://skv.network/profile", "priority": "0.8"},
-        {"loc": "https://skv.network/upload", "priority": "0.7"},
-        {"loc": "https://skv.network/chat", "priority": "0.9"},
-        {"loc": "https://skv.network/privacy", "priority": "0.3"},
+        {"loc": "https://skv.network/about", "priority": "0.8"},
+        {"loc": "https://skv.network/security", "priority": "0.6"},
+        {"loc": "https://skv.network/privacy", "priority": "0.6"},
+        {"loc": "https://skv.network/support", "priority": "0.4"},
+        {"loc": "https://skv.network/sandbox", "priority": "0.4"},
+        {"loc": "https://skv.network/trials", "priority": "0.4"},
+        {"loc": "https://skv.network/llms.txt", "priority": "0.5"},
+        {"loc": "https://skv.network/.well-known/skv", "priority": "0.5"},
     ]
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     for url in urls:

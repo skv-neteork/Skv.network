@@ -69,7 +69,7 @@ async def export_pptx(cube_id: str):
 
 @router.post("/api/experience/extract")
 async def extract_cubes(request: Request):
-    """Извлекает кубики SKV из текста диалога."""
+    """Extract SKV cubes from dialogue text."""
     data = await request.json()
     text = data.get("text", "")[:5000]
     if not text:
@@ -189,7 +189,7 @@ async def create_file(request: Request):
 
 @router.get("/api/tools/list-files")
 async def list_files():
-    """Список созданных файлов."""
+    """List generated files."""
     uploads = "/app/uploads"
     if not os.path.exists(uploads):
         return {"files": []}
@@ -220,6 +220,6 @@ async def delete_file(filename: str):
 
 @router.get("/api/tools")
 async def list_tools():
-    """Возвращает список доступных инструментов для агентов."""
+    """Return the list of tools available to agents."""
     from app.tools_schema import SKV_TOOLS
     return {"tools": SKV_TOOLS, "count": len(SKV_TOOLS)}

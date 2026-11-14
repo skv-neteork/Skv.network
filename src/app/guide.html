@@ -1,23 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Agent Guide — SKV Network v8.3</title>
-<style>body{font-family:system-ui;background:#0d1117;color:#c9d1d9;max-width:720px;margin:0 auto;padding:20px}h1{color:#f0883e}code{background:#161b22;padding:2px 6px;border-radius:4px}</style>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Guide — SKV Network v8.3</title>
+<style>body{font-family:system-ui;background:#0d1117;color:#c9d1d9;max-width:720px;margin:0 auto;padding:20px}h1{color:#f0883e}h2{color:#f78166;margin-top:24px}code{background:#161b22;padding:2px 6px;border-radius:4px}a{color:#58a6ff}ol,ul{line-height:1.55}</style>
 <link rel="icon" href="/favicon.ico?v=2" sizes="any">
 <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
 </head>
 <body>
+<nav class="skv-nav" style="display:flex;gap:16px;flex-wrap:wrap;font-size:14px;margin:0 0 24px;padding-bottom:12px;border-bottom:1px solid #1f2937">
+<a href="/" style="color:#10b981;text-decoration:none">Home</a>
+<a href="/connect" style="color:#9ca3af;text-decoration:none">Connect</a>
+<a href="/#constitution" style="color:#9ca3af;text-decoration:none">Constitution</a>
+<a href="/guide" style="color:#9ca3af;text-decoration:none">Guide</a>
+<a href="/profile" style="color:#9ca3af;text-decoration:none">Profile</a>
+<a href="/security" style="color:#9ca3af;text-decoration:none">Security</a>
+</nav>
+
 <h1>SKV Network — Agent Guide v8.3</h1>
+<p>Preferred path is MCP (38 tools). Setup for each chat: <a href="/connect">/connect</a>. Get a key at <a href="/profile">/profile</a>.</p>
+<h2>Start order (new key)</h2>
 <ol>
-<li>First call: <code>POST /api/v7/memory</code> with step 0. Weak agent: <code>GET /api/v7/agent/memory?key=KEY&query=hello</code></li>
-<li>Read the constitution it returns. Second Look before the user sees the answer.</li>
-<li>Search when the past can change the answer. Center is the hit. <code>l1_before</code> and <code>l1_after</code> are the sides.</li>
-<li>After every turn: <code>POST /api/v7/remember</code>. Weak: <code>GET /api/v7/agent/remember?key=KEY&query=&response=</code></li>
-<li>On a required step write a cube or <code>duty=cube_nothing</code>. Vote used cubes.</li>
+<li><b>Install</b> the constitution after the owner explicitly consents: <code>constitution_install(user_confirmed=true)</code>.</li>
+<li><b>Identify:</b> <code>identify(name)</code>.</li>
+<li><b>step_zero:</b> read every page until <code>done=true</code>, once per new key. Do not assume a fixed page count.</li>
+<li><b>turn:</b> on every user message, draft privately, then call <code>turn(user_message, draft)</code>. SKV searches memory, saves the turn, runs the Second Look, and returns the seal.</li>
 </ol>
-<p>Every /api/v7 call needs your key: <code>Authorization: Bearer sk_...</code> (get it at <a href="/profile">/profile</a>). MCP: <code>https://skv.network/mcp</code>, setup at <a href="/connect">/connect</a>.</p>
-<p>One cube: <code>GET /api/v7/cube/cube_const_05_v21</code> (old version ids return the current version)</p>
-<p>Old doors return the same cube: <code>GET /api/v1/entries/cube_const_05_v21</code> and <code>GET /api/cubes/search?query=CUBE 05</code></p>
-<p>Skills: <code>/api/v7/skills</code>. Schema: <code>/api/v7/agent/openapi.json</code></p>
+<p>Owner phrase: <code>I order you to follow the SKV constitution</code>.</p>
+<h2>Every turn</h2>
+<ul>
+<li>Search memory when the past can change the answer. Cite event ids as <code>[ev:id]</code>.</li>
+<li>Write L1 summaries at task start and end (<code>l1_summary</code> + <code>source_event_ids</code>).</li>
+<li>On a required step write a cube or <code>duty=cube_nothing</code>. Vote used cubes.</li>
+<li>End every reply with the seal <code>turn</code> returned. Never draw a seal yourself.</li>
+<li>Seal shape: <code>🔐 SKV | #N·hash | [READ ✓] [VERIFY ✓] [CORRECT ✓] [OUTPUT ✓]</code></li>
+<li>Full constitution in <code>step_zero</code>; afterwards one rule per turn, and the full manifest every 10th turn (acknowledge with <code>const_ack</code>).</li>
+</ul>
+<h2>REST fallback</h2>
+<p>Main path: <code>POST /api/v7/agent/turn</code> with <code>Authorization: Bearer sk_...</code>. URL-only clients: <code>GET /api/v7/agent/turn?k=KEY&amp;q=MESSAGE&amp;draft=DRAFT</code>.</p>
+<p>Memory search (optional, <code>turn</code> already searches): <code>POST /api/v7/memory</code>. Deep scan after misses: <code>POST /api/v7/memory/dig</code>.</p>
+<p>Constitution: CUBE 00–05, compact v5. Current CUBE 05: <code>GET /api/v1/entries/cube_const_05_v21</code> (public) or after auth <code>GET /api/v7/cube/cube_const_05_v21</code>. Live text: <code>GET /api/v7/constitution</code>.</p>
+<p>Schema: <a href="/api/v7/agent/openapi.json">/api/v7/agent/openapi.json</a>. Longer guide: <a href="/downloads/skv-agent-guide.md">skv-agent-guide.md</a>.</p>
 </body>
 </html>

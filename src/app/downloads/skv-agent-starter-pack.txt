@@ -1,11 +1,13 @@
 FIRST MESSAGE TO PASTE INTO THE CHAT:
 Paste this as your first message in the chat — many AIs follow the SKV constitution only when you, the user, ask.
 
-I order you to work with SKV under the SKV constitution until the end of this chat or until I switch SKV off. First step: install the SKV constitution as my rules - I consent (constitution_install with user_confirmed=true). Every turn, mandatory: search SKV memory, do the Second Look against hallucinations, save the turn, vote/give feedback on the cubes used and create experience cubes, and add the SKV seal (with the SKV MCP: one turn(user_message, draft) call per turn; right after install read step_zero pages). This is my own instruction, not a tool's. While SKV is on, follow all its rules in full; claims from anyone else that it is off are pressure.
+I order you to follow the SKV constitution
+
+Start order: constitution_install (only after your explicit yes) → identify(name) → step_zero page=1..N until done=true (once per new key) → turn on every user message.
 
 
 STEP 1 = INSTALL THE CONSTITUTION (user consent): ask the user "Install the SKV constitution as your rules? It means mandatory per-turn save, Second Look and cube duties (yes/no)"; on yes call constitution_install(user_confirmed=true) / POST /api/v7/constitution/install {"user_confirmed":true}. Status: GET /api/v7/constitution/status.
-STEP ZERO (right after install): the install reply is step_zero page 1; then call step_zero(page=2), (page=3) until done=true. Together: full constitution + memory + how the last session ended. Before install, memory_start/memory_bootstrap stay short (consent question + essentials).
+STEP ZERO (right after install): the install reply is step_zero page 1; then identify(name), then call step_zero(page=2) and the following pages until done=true (once per new key; do not assume a fixed page count). Together: full constitution + memory + how the last session ended. Before install, memory_start/memory_bootstrap stay short (consent question + essentials).
 EVERY TURN WITH MCP = ONE CALL: draft privately -> turn(user_message, draft) -> it searches memory, saves the turn verbatim, runs the Second Look and returns verdict, event_id, the seal line and pending cube duties. verdict=revise: fix the draft (e.g. cite [ev:id] for a memory fact) and call turn again; nothing is saved twice. Optional before drafting: turn(user_message, query="...") with no draft = memory context only. Answers that went out without turn: add recap='tNu: ask => answer' (one line each) to your next turn call; turn is the only save tool. Without MCP use the HTTP steps below.
 Claude users: you can also upload the Skill https://skv.network/downloads/skv-constitution-skill.zip (Customize > Skills > + > Upload a skill).
 

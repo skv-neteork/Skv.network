@@ -44,7 +44,8 @@ async def deepseek_page():
 async def about_page():
     return HTMLResponse(_read_html(ABOUT_HTML_PATH))
 
-@router.get("/services")
+# /services was accidentally aliased to /sandbox (decorator with no function).
+# The old services.html is kept in the repo but is not served. Public /services is 404.
 
 @router.get("/sandbox")
 async def sandbox_page():
@@ -53,8 +54,6 @@ async def sandbox_page():
 @router.get("/sandbox/about")
 async def sandbox_about_page():
     return HTMLResponse(_read_html(SANDBOX_ABOUT_HTML_PATH))
-async def services_page():
-    return HTMLResponse(_read_html(SERVICES_HTML_PATH))
 
 @router.get("/trials")
 async def trials_page():
@@ -267,7 +266,7 @@ async def download_persona_pack(user_id: str, request: Request = None, token: st
 
 @router.get("/downloads/{filename}")
 async def download_generated_file(filename: str):
-    """Отдаёт сгенерированные файлы (изображения, HTML, PDF и др.)"""
+    """Serve generated files (images, HTML, PDF, and other downloads)."""
     from fastapi.responses import FileResponse
     from fastapi import HTTPException
     import os
@@ -279,6 +278,11 @@ async def download_generated_file(filename: str):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid filename")
     if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Public proof record is only at /.well-known/mcp-registry-auth.
+    # Do not serve the source file from /downloads/.
+    if safe_name == "mcp-registry-auth":
         raise HTTPException(status_code=404, detail="File not found")
 
     ext = safe_name.rsplit('.', 1)[-1].lower() if '.' in safe_name else ''
@@ -297,7 +301,7 @@ async def download_generated_file(filename: str):
 
 @router.get("/api/evolver/log")
 async def get_evolver_log():
-    """Возвращает последние 50 строк лога Evolver'а"""
+    """Return the last 50 lines of the Evolver log."""
     import os
     log_file = "/tmp/evolver.log"
     lines = []
@@ -312,7 +316,7 @@ async def get_evolver_log():
 
 @router.get("/api/evolver/report")
 async def get_evolver_report():
-    """Возвращает последний отчёт Evolver'а"""
+    """Return the latest Evolver report."""
     import os, json as json_lib
     
     log_file = "/tmp/evolver.log"
@@ -345,11 +349,12 @@ async def get_evolver_report():
 
 @router.get("/evolver")
 async def evolver_page():
-    """Страница Evolver — автономного аудитора SKV"""
+    """Evolver page — SKV background auditor (experimental, noindex)."""
     return HTMLResponse(content="""
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="robots" content="noindex, nofollow">
     <meta charset="UTF-8">
     <title>SKV Evolver — Autonomous Guardian</title>
     <style>
@@ -427,7 +432,7 @@ loadEvolverData();
 
 @router.get("/api/user/{user_id}/project/{project_name}/memory")
 async def get_project_memory(user_id: str, project_name: str):
-    """Возвращает оглавление сессий по конкретному проекту"""
+    """Return the session index for one project."""
     try:
         import asyncpg
         DATABASE_URL = os.getenv("DATABASE_URL", "")

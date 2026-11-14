@@ -1,3 +1,11 @@
 User-agent: *
 Allow: /
+Disallow: /chat
+Disallow: /guardian
+Disallow: /upload
+Disallow: /bureau
+Disallow: /deepseek
+Disallow: /evolver
+Disallow: /court
+Disallow: /services
 Sitemap: https://skv.network/sitemap.xml

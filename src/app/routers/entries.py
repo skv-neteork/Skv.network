@@ -402,7 +402,7 @@ async def create_entry(request: Request):
 
 @router.get("/api/v1/entries/{cube_id}/links")
 async def get_cube_links(cube_id: str):
-    """Возвращает все связи кубика"""
+    """Return all links for a cube."""
     try:
         conn = _pg_connect()
         cur = conn.cursor()
@@ -420,7 +420,7 @@ async def get_cube_links(cube_id: str):
 
 @router.post("/api/feedback")
 async def feedback(request: Request):
-    """Принимает оценку кубика (up/down). При 3 дизлайках запускает Trials."""
+    """Accept a cube vote (up/down). Three downvotes start a trial."""
     try:
         data = await request.json()
         cube_id = data.get("cube_id")
@@ -488,7 +488,7 @@ async def feedback(request: Request):
 
 @router.get("/api/v1/trials")
 async def get_trials():
-    """Возвращает список активных Trials (кубики с 3+ дизлайками)"""
+    """Return active trials (cubes with 3+ downvotes)."""
     try:
         import psycopg2 as pg2
         pg_conn = _pg_connect()
@@ -528,7 +528,7 @@ async def get_trials():
 
 @router.get("/api/time")
 async def get_server_time():
-    """Возвращает текущее серверное время для точных временных меток"""
+    """Return the current server time for accurate timestamps."""
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     return {
@@ -544,7 +544,7 @@ def get_cubes_count():
 
 @router.delete("/api/v1/entries/{cube_id}")
 async def delete_entry(cube_id: str):
-    """Удаление куба по cube_id (ручной DELETE)."""
+    """Delete a cube by cube_id (manual DELETE)."""
     import psycopg2 as pg2
     try:
         pg_conn = _pg_connect()
@@ -636,7 +636,7 @@ def score_keyword_match(query: str, cube: dict) -> float:
 
 @router.get("/api/v1/entries/{cube_id}")
 async def get_entry(cube_id: str):
-    """Возвращает данные куба по ID (для обратной совместимости)"""
+    """Return cube data by id (backward compatible)."""
     import sqlite3
     try:
         conn = sqlite3.connect("/data/skv/metadata_store/shared_master.db")
@@ -709,7 +709,7 @@ async def maybe_consult(body, entry_id):
 
 @router.post("/api/v4/sessions")
 async def save_sdk_session(request: Request):
-    """Принимает сессию от Guardian SDK и сохраняет как SKV-анкету"""
+    """Accept a Guardian SDK session and save it as an SKV questionnaire."""
     import uuid
     data = await request.json()
     user_id = data.get("user_id", "anonymous")

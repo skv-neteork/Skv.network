@@ -13,7 +13,7 @@ async def get_agent_prompt():
 
 @router.get("/agent/openapi.json")
 async def get_agent_tools():
-    """OpenAPI схема для Function Calling агентов (GPT, Claude, DeepSeek)"""
+    """OpenAPI schema for function-calling agents (GPT, Claude, DeepSeek)."""
     import json, os
     schema_path = os.path.join(os.path.dirname(__file__), 'openapi_schema.json')
     with open(schema_path, 'r') as f:
@@ -21,7 +21,7 @@ async def get_agent_tools():
 
 @router.get("/constitution")
 async def get_constitution_v8():
-    """Возвращает кубы конституции CUBE 00-05"""
+    """Return constitutional cubes CUBE 00-05."""
     import sqlite3
     conn = sqlite3.connect(SHARED_DB)
     cur = conn.cursor()

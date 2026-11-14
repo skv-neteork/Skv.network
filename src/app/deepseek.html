@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="robots" content="noindex, nofollow">
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SKV Assistant</title>
@@ -58,7 +60,7 @@
             </div>
             <div class="chat-box" id="chat"></div>
             <div class="input-row">
-                <textarea id="userInput" placeholder="Что делаем?" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+                <textarea id="userInput" placeholder="What should we do?" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
                 <button onclick="sendMessage()">Send</button>
             </div>
             <div class="status" id="status">Press Start to begin.</div>
@@ -136,7 +138,7 @@
         }
         
         async function execCmd(cmd) {
-            // Конвертируем curl в python3
+            // Convert curl to python3
             if (cmd.trim().startsWith('curl')) {
                 const url = cmd.trim().split(' ').pop().replace(/['"]/g, '');
                 cmd = 'docker exec skv_api python3 -c "import urllib.request; print(urllib.request.urlopen(\'' + url + '\').read().decode())"';
@@ -205,12 +207,12 @@
                 const answer = data.answer || 'No response';
                 addMsg(answer, "ai");
                 
-                // Извлекаем команду
+                // Extract the command
                 const cmdMatch = answer.match(/CMD:\s*(.+)/);
                 if (cmdMatch) {
                     let cmd = cmdMatch[1].trim().replace(/^[`**\s]+/, '').replace(/[`**\s]+$/, '').split(' — ')[0].trim();
                     addMsg("Click to execute: " + cmd, "cmd");
-                    // Сохраняем команду для выполнения по клику
+                    // Save the command to run on click
                     document.getElementById('cmdInput').value = cmd;
                 }
                 document.getElementById('status').textContent = 'Ready.';
@@ -220,7 +222,7 @@
             }
         }
         
-        // Клик по команде — выполняем
+        // Click a command to run it
         document.getElementById('chat').addEventListener('click', function(e) {
             if (e.target.classList.contains('cmd')) {
                 const cmd = e.target.textContent.replace('Click to execute: ', '').trim();

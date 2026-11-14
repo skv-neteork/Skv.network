@@ -94,5 +94,5 @@ guardian_router = APIRouter(prefix="/api/v4/guardian", tags=["guardian"])
 
 @guardian_router.get("/meta")
 async def get_guardian_meta(session_id: str = "anonymous"):
-    """Возвращает метаданные для SDK Уровня 2"""
+    """Return metadata for the Level 2 SDK."""
     return tracker.process_api_call(session_id)

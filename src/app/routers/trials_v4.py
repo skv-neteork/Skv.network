@@ -22,7 +22,7 @@ def save_votes(votes):
 
 @router.post("/vote")
 async def vote_cube(request: dict):
-    """Проголосовать за/против куба."""
+    """Vote for or against a cube."""
     cube_id = request.get("cube_id", "")
     user_id = request.get("user_id", "anonymous")
     vote = request.get("vote", "up")  # up или down
@@ -63,7 +63,7 @@ async def vote_cube(request: dict):
 
 @router.get("/status/{cube_id}")
 async def cube_status(cube_id: str):
-    """Получить статус куба."""
+    """Get the trial status of a cube."""
     votes = load_votes()
     if cube_id not in votes:
         return {"cube_id": cube_id, "status": "clean", "down_count": 0, "up_count": 0}
@@ -71,7 +71,7 @@ async def cube_status(cube_id: str):
 
 @router.get("/pending")
 async def pending_trials():
-    """Список кубов ожидающих Trial (3+ downvotes)."""
+    """List cubes waiting for a trial (3+ downvotes)."""
     votes = load_votes()
     pending = []
     for cube_id, data in votes.items():

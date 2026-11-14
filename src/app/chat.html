@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="robots" content="noindex, nofollow">
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SKV Chat — AI with Memory</title>
@@ -552,7 +554,7 @@ body {
         <div class="chat-title">SKV Chat — AI with Shared Memory</div>
         <div class="chat-subtitle">DeepSeek + Guardian v8.3 · Constitutional verification active</div>
       </div>
-      <div class="seal-badge" id="sealBadge">🔒 SKV | #0 | CUBE 00</div>
+      <div class="seal-badge" id="sealBadge">No server seal yet</div>
     </div>
     <div class="messages" id="messages">
       <div class="welcome" id="welcome">
@@ -678,7 +680,7 @@ function addMessage(role, text, cubes) {
   div.className = 'msg ' + role;
   let metaHtml = '';
   if (role === 'agent') {
-    let seal = '🔒 SKV | #' + sealCounter + ' | CUBE 00 active';
+    let seal = 'No server seal yet — a seal is returned only by a turn call';
     metaHtml = '<div class="msg-meta"><span class="msg-seal">' + seal + '</span>' +
       (cubes ? '<span class="msg-cubes">📦 ' + cubes + '</span>' : '') + '</div>';
   }

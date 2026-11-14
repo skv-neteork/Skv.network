@@ -162,7 +162,7 @@ MODELS = {
 
 @router.get("/api/consult")
 async def consult_get(query: str = "", model: str = "deepseek"):
-    """Быстрый тестовый запрос через GET (удобно для браузера)"""
+    """Quick test request via GET (convenient in a browser)."""
     if not query:
         return {"error": "Please provide ?query=... parameter"}
     
@@ -523,7 +523,7 @@ async def exec_command(request: Request):
 
 @router.post("/api/deepseek")
 async def deepseek_chat(request: Request):
-    """Прямой доступ к DeepSeek API."""
+    """Direct access to the DeepSeek API."""
     import json, urllib.request as req
     body = await request.json()
     user_id = (body.get("user_id") or "").strip() or "anonymous"  # guardian_meta needs it (was NameError)
@@ -564,7 +564,7 @@ async def generate_anketa(request: Request):
         return {"status": "error", "raw": answer[:500]}
 @router.post("/api/v4/mark_important")
 async def mark_important(request: Request):
-    """Сохранить PII в SessionCube с изоляцией"""
+    """Store PII in a SessionCube, isolated."""
     try:
         data = await request.json()
         _ku = (getattr(request.state, "user_id", None) or "").strip()   # a valid key wins over body user_id
@@ -620,7 +620,7 @@ async def mark_important(request: Request):
         return {"status": "error", "reason": str(e)}
 @router.post("/api/v4/search_memory")
 async def search_memory(request: Request):
-    """Векторный поиск по PII и сессиям в графе"""
+    """Vector search over PII and sessions in the graph."""
     data = await request.json()
     user_id = data.get("user_id", "unknown")
     query = data.get("query", "")

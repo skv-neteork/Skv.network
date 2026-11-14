@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="robots" content="noindex, nofollow">
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SKV Guardian — Universal AI Chat with Memory</title>
@@ -87,7 +89,7 @@
             <div class="msg agent">
                 <div class="role">🤖 Your AI Agent (via Guardian SDK)</div>
                 <div class="text">Guardian is active! Every response will be verified through SKV Constitution and saved to memory. Ask me anything!</div>
-                <div class="seal">🔐 SKV | #0 | CUBE 00 active</div>
+                <div class="seal">No server seal yet — a seal is returned only by a turn call</div>
             </div>
         </div>
         
@@ -98,7 +100,7 @@
     </div>
 
     <script>
-        // Показываем/скрываем custom URL
+        // Show or hide the custom URL
         document.getElementById('providerSelect').addEventListener('change', function() {
             document.getElementById('customUrlGroup').style.display = this.value === 'custom' ? 'block' : 'none';
         });
@@ -118,7 +120,7 @@
             
             if (!apiKey) { alert('Please enter your AI provider API key'); return; }
             
-            // Определяем URL провайдера
+            // Resolve the provider URL
             switch(provider) {
                 case 'openai':
                     apiUrl = 'https://api.openai.com/v1/chat/completions';
@@ -135,13 +137,13 @@
                     break;
             }
             
-            // Сохраняем ключи в localStorage
+            // Store keys in localStorage
             localStorage.setItem('guardian_api_key', apiKey);
             localStorage.setItem('guardian_api_url', apiUrl);
             localStorage.setItem('guardian_model', model);
             localStorage.setItem('guardian_skv_key', skvKey);
             
-            // Показываем чат
+            // Show the chat
             document.getElementById('setupCard').style.display = 'none';
             document.getElementById('chatBox').style.display = 'block';
             document.getElementById('inputArea').style.display = 'flex';
@@ -166,11 +168,11 @@
                 // === GUARDIAN SDK LOGIC ===
                 const enrichedQuery = `[SKV PROTOCOL v6.0 — CUBE 00]
 Execute: DRAFT → VERIFY (CUBE 01-03) → CORRECT → OUTPUT.
-Think silently. Output ONLY in <final_output> tags. End with: 🔐 SKV | #N | CUBE 00 active
+Think silently. Output ONLY in <final_output> tags. If a server turn returned a seal, end with that exact seal. Never invent one.
 
 User: ${query}`;
                 
-                // Шаг 1: Запрос к AI провайдеру
+                // Step 1: Request to the AI provider
                 const aiResponse = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {
@@ -190,34 +192,34 @@ User: ${query}`;
                 const aiData = await aiResponse.json();
                 let rawAnswer = aiData.choices?.[0]?.message?.content || 'No response from AI';
                 
-                // Шаг 2: Парсим сэндвич (как SDK)
+                // Step 2: Parse the sandwich (as in the SDK)
                 let finalOutput = rawAnswer;
                 const finalMatch = rawAnswer.match(/<final_output>(.*?)<\/final_output>/s);
                 if (finalMatch) {
                     finalOutput = finalMatch[1].trim();
                 }
                 
-                // Шаг 3: Извлекаем SEAL
-                const sealMatch = finalOutput.match(/🔐 SKV \| #(\d+) \| CUBE 00 active/);
+                // Step 3: Extract the seal
+                const sealMatch = finalOutput.match(/🔐 SKV \| #(\d+[·.][0-9a-fA-F]+|\d+) \|/);
                 if (sealMatch) {
                     sealCounter = parseInt(sealMatch[1]);
                 } else {
                     sealCounter++;
-                    finalOutput += '\n\n🔐 SKV | #' + sealCounter + ' | CUBE 00 active';
+                    /* do not invent a seal; only a server turn may add one */
                 }
                 
                 document.getElementById('sealStatus').textContent = '#' + sealCounter;
                 document.querySelector('.loading')?.remove();
                 
-                // Показываем ответ
+                // Show the answer
                 chatBox.innerHTML += `<div class="msg agent">
                     <div class="role">🤖 Your AI (verified)</div>
                     <div class="text">${escapeHtml(finalOutput)}</div>
-                    <div class="seal">🔐 SKV | #${sealCounter} | CUBE 00 active</div>
+                    <div class="seal">Seal comes from the server turn, not from this page.</div>
                 </div>`;
                 chatBox.scrollTop = chatBox.scrollHeight;
                 
-                // Шаг 4: Автосохранение в SKV память (если есть SKV ключ)
+                // Step 4: Auto-save to SKV memory (if an SKV key is present)
                 if (skvKey) {
                     const sessionId = 'g' + sessionCounter++;
                     fetch('https://skv.network/api/v4/sessions', {
@@ -255,7 +257,7 @@ User: ${query}`;
             return div.innerHTML;
         }
         
-        // Восстанавливаем сохранённые ключи при загрузке
+        // Restore saved keys on load
         (function() {
             const savedKey = localStorage.getItem('guardian_api_key');
             const savedUrl = localStorage.getItem('guardian_api_url');
@@ -266,7 +268,7 @@ User: ${query}`;
                 document.getElementById('apiKeyInput').value = savedKey;
                 document.getElementById('modelInput').value = savedModel || '';
                 document.getElementById('skvKeyInput').value = savedSkvKey || '';
-                // Авто-старт если все ключи есть
+                // Auto-start if all keys are present
                 if (savedKey && savedUrl) {
                     apiKey = savedKey;
                     apiUrl = savedUrl;

@@ -755,11 +755,11 @@ async def account_timezone(req: TzRequest, request: Request,
 @router.post("/session/bootstrap")
 async def session_bootstrap(req: SessionBootstrapRequest, request: Request,
                             authorization: str = Header(None), x_api_key: str = Header(None)):
-    """Шаг 0: пакет непрерывности при подключении агента (черновик, флаг выкл. по умолчанию).
+    """Step 0: continuity pack when an agent connects (draft; flag off by default).
 
-    Агент шлёт 2–3 последних сообщения чата; SKV сверяет с хвостом памяти своей цепочки
-    и отдаёт raw+L1+L2+critical + доску + конституцию + reminders + lag.
-    Guards follow the same PROTOCOL core (aligned).
+    The agent sends the last 2-3 chat messages; SKV checks them against the tail of
+    this memory chain and returns raw+L1+L2+critical, the board, the constitution,
+    reminders, and lag. Guards follow the same PROTOCOL core (aligned).
     """
     from app import session_bootstrap as _sb
     from app import api_keys as _ak

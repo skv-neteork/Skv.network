@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/v4/memory", tags=["memory_tools"])
 
 @router.post("/save")
 async def core_memory_save(request: dict):
-    """Агент решает: 'Это важно, сохранить в ядро'."""
+    """The agent decides: this matters, save it to core memory."""
     user_id = request.get("user_id", "anonymous")
     content = request.get("content", "")
     importance = request.get("importance", 0.8)
@@ -53,7 +53,7 @@ async def core_memory_save(request: dict):
 
 @router.post("/update")
 async def core_memory_update(request: dict):
-    """Агент решает: 'Этот факт устарел, обновить'."""
+    """The agent decides: this fact is stale, update it."""
     cube_id = request.get("cube_id", "")
     new_content = request.get("content", "")
     
@@ -73,7 +73,7 @@ async def core_memory_update(request: dict):
 
 @router.post("/forget")
 async def core_memory_forget(request: dict):
-    """Агент решает: 'Это больше не актуально, забыть'."""
+    """The agent decides: this is no longer relevant, forget it."""
     cube_id = request.get("cube_id", "")
     
     from app.routers.v4_graph import _v4_graph, get_graph
@@ -88,7 +88,7 @@ async def core_memory_forget(request: dict):
 
 @router.get("/search")
 async def core_memory_search(user_id: str, query: str):
-    """Агент ищет в своей памяти."""
+    """The agent searches its memory."""
     from app.routers.v4_personal_memory import load_context
     
     memory = await load_context(user_id, query)
@@ -100,7 +100,7 @@ async def core_memory_search(user_id: str, query: str):
 
 @router.get("/save")
 async def core_memory_save_get(user_id: str = "anonymous", content: str = "", importance: float = 0.8, cube_id: str = None):
-    """GET-версия save для агентов без POST (web_extractor)"""
+    """GET version of save for agents that cannot POST."""
     from app.routers.v4_graph import _v4_graph, get_graph
     from app.routers.v4_middleware import get_embedding_cached
     from app.routers.tensor_cube import TensorCube
@@ -124,7 +124,7 @@ async def core_memory_save_get(user_id: str = "anonymous", content: str = "", im
 
 @router.get("/forget")
 async def core_memory_forget_get(cube_id: str = ""):
-    """GET-версия forget"""
+    """GET version of forget."""
     from app.routers.v4_graph import _v4_graph, get_graph
     get_graph()
     if cube_id in _v4_graph:
@@ -134,7 +134,7 @@ async def core_memory_forget_get(cube_id: str = ""):
 
 @router.get("/feedback")
 async def core_memory_feedback_get(cube_id: str = "", vote: str = "up", comment: str = ""):
-    """GET-версия feedback для агентов без POST"""
+    """GET version of feedback for agents that cannot POST."""
     from app.routers.v4_graph import _v4_graph, get_graph
     get_graph()
     

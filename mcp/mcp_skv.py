@@ -31,6 +31,26 @@ import second_look_q as _SLQ
 import turn_diet as _DIET
 import secret_scrub as _SCRUB
 
+
+def _load_cb():
+    """T73: constitution <-> tools binding (src/app/const_bind.py, stdlib only). Missing file (client copy) or SKV_CONST_BIND=0 -> None."""
+    try:
+        if os.environ.get("SKV_CONST_BIND", "1") in ("0", "off", "false"):
+            return None
+        import importlib.util as _iu
+        p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "app", "const_bind.py")
+        if not os.path.isfile(p):
+            return None
+        sp = _iu.spec_from_file_location("skv_const_bind", p)
+        m = _iu.module_from_spec(sp)
+        sp.loader.exec_module(m)
+        return m
+    except Exception:
+        return None
+
+
+_CB = _load_cb()
+
 import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
@@ -2679,7 +2699,8 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
          l1_summary: str = "", l2_summary: str = "", source_event_ids: str = "", sensitive: str = "",
          compact: bool = False, answer: str = "", draft_summary: str = "", profile: Union[list, str] = "", profile_review: Union[dict, str] = "",
          msg_ref: str = "", second_look: str = "", recap: Union[list, str] = "", verbose: bool = False, search_as: Union[list, str] = "",
-         agent_token: str = "", context_state: str = "normal", kind: str = "", l1_task: str = "") -> str:
+         agent_token: str = "", context_state: str = "normal", kind: str = "", l1_task: str = "",
+         const_ack: bool = False, ack: str = "", context_reset: bool = False) -> str:
     """ONE CALL PER TURN: self-check context + save + seal. Write your draft privately, then call
     turn(user_message=<exact user text>, draft=<draft>) BEFORE the user sees it.
     The server does NOT judge the meaning of the draft. It returns: memory facts with [ev:id] (deduped, latest only),
@@ -2735,8 +2756,10 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
             _gsrc = ""
     _gsrc = _gsrc or user_message or ""
     if _room_local():
-        return _room_finish_turn(res, agent_token, session_id, context_state, kind, _gsrc, recap, duty)
-    return _room_rest_finish(res, agent_token, session_id, context_state, kind, _gsrc, duty)
+        _fin = _room_finish_turn(res, agent_token, session_id, context_state, kind, _gsrc, recap, duty)
+    else:
+        _fin = _room_rest_finish(res, agent_token, session_id, context_state, kind, _gsrc, duty)
+    return _cb_turn(_fin, user_message, msg_ref, session_id, bool(const_ack) or (ack or "").strip().lower() == "const", bool(context_reset), bool(draft or answer))
 
 
 def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: str = "mcp", event_id: str = "",
@@ -3807,6 +3830,7 @@ def cube_create(
     carrier: str = "",
     supersedes: str = "",
     msg_ref: str = "",
+    ack: str = "",
 ) -> str:
     """Write experience cube — POST /experience/create (SKV-CUBE / CUBE 05 §5).
     Cubes are never edited in place. To fix any cube (yours or another's) publish a NEW version:
@@ -3889,6 +3913,7 @@ def cube_install(
     user_confirmed: bool = False,
     user_said_install: bool = False,
     user_quote: str = "",
+    ack: str = "",
 ) -> str:
     """Attach a skill cube to this chain — POST /cube/install (ask-then-install).
 
@@ -4913,6 +4938,10 @@ PARAM_DESC["turn"]["search_as"] = "Optional, recommended when the user asks a qu
 PARAM_DESC.setdefault("memory_search", {})["search_as"] = PARAM_DESC["turn"]["search_as"]
 PARAM_DESC.setdefault("memory_recall_later", {})["search_as"] = "Optional, recommended: the same up to 3 statement forms you passed to turn/memory_search (how the answer was most likely WRITTEN in memory, base_language, keep names, never invent the unknown fact). Used as an extra seed of the deep search."   # 2026-11-02
 PARAM_DESC["memory_recall_later"]["query"] = "The question in the memory base_language (turn/step_zero report base_language); keep names and exact terms."
+PARAM_DESC["turn"]["const_ack"] = "true = you read the constitution manifest (constitution_manifest in the reply); also ack=\"const\". context_reset=true after a context compaction: asks for the manifest again."
+PARAM_DESC["turn"]["ack"] = "ack=\"const\" is the same as const_ack=true."
+for _gt in ("cube_create", "cube_install", "joint_project", "vault_inject"):
+    PARAM_DESC.setdefault(_gt, {})["ack"] = "Only after the reply {gate:constitution}: repeat the same call with ack=\"const\" (and only if the user asked for the action)."
 PARAM_DESC["turn"]["query"] = "Optional search text instead of user_message: the user's question in the memory base_language (turn/step_zero report base_language)."
 PARAM_DESC["memory_search"]["query"] = "Search text in the memory base_language (turn/step_zero report base_language); keep names and exact terms."
 
@@ -4967,6 +4996,9 @@ SHORT_DESC = {
  "keys_revoke": "Revoke key.",
 }
 
+if _CB is not None:
+    SHORT_DESC["turn"] += " Constitution heartbeat (T73): reply field constitution{v,hash,rule,stale}; constitution_manifest (all rules + where the full text is) comes on a new session, every 10th turn, or when you pass context_reset=true. Acknowledge it with const_ack=true."
+
 
 def _strip_titles(o: Any) -> Any:
     if isinstance(o, dict):
@@ -5020,7 +5052,7 @@ def consult_accept(consult_id: int, which: str, as_kind: str = "note") -> str:
 
 
 @mcp.tool()
-def joint_project(action: str = "list", project_id: str = "", title: str = "", email: str = "") -> str:
+def joint_project(action: str = "list", project_id: str = "", title: str = "", email: str = "", ack: str = "") -> str:
     """Joint project memory for 2-5 people. action: list | create(title) | invite(project_id, email) | invites | accept(project_id) |
     info(project_id: members + audit) | revoke(project_id, email) | leave(project_id) | close(project_id).
     create/accept issue a NEW project key in the caller's own account, shown once: only what that key saves is shared. Other memory stays private."""
@@ -5053,7 +5085,7 @@ def joint_search(query: str, limit: int = 8) -> str:
 
 
 @mcp.tool()
-def vault_inject(name: str, purpose: str, url: str, method: str = "POST", body: str = "") -> str:
+def vault_inject(name: str, purpose: str, url: str, method: str = "POST", body: str = "", ack: str = "") -> str:
     """Use a vault secret without seeing it. Put [vault:name] in url or body. Server substitutes and sends. Returns status and scrubbed body, never the secret. purpose is required."""
     return json.dumps(_req("POST", "/vault/inject", _uid_body({"name": name, "purpose": purpose, "method": method, "url": url, "body": body})), ensure_ascii=False)
 
@@ -5104,9 +5136,81 @@ def _with_time(fn, name=""):
     return w
 
 
+def _cb_turn(res, user_message, msg_ref, session_id, ack, reset, wrote):
+    """T73 heartbeat: {constitution:{v,hash,rule,stale}} on every turn reply, constitution_manifest when due (const_bind.on_turn). Never fails the turn."""
+    try:
+        if _CB is None or not isinstance(res, str) or not _CB.enabled():
+            return res
+        o = json.loads(res)
+        if not isinstance(o, dict) or "verdict" not in o:
+            return res
+        me = _caller_id()
+        if not me:
+            return res
+        import hashlib as _hl
+        key = _hl.sha1(((msg_ref or "") + "|" + (user_message or "")[:400]).encode("utf-8", "replace")).hexdigest()[:12]
+        missed = "missed_turns" in json.dumps(o.get("duties") or "", ensure_ascii=False)
+        cb = _CB.on_turn(me, session_id or "mcp", msg_key=key, ack=ack, reset=reset, no_seal=bool(wrote and not o.get("seal")), missed=missed)
+        if not cb:
+            return res
+        o.update(cb)
+        return json.dumps(o, ensure_ascii=False, separators=(",", ":"))   # not _dumps: the reply was already within the limit
+    except Exception:
+        return res
+
+
+def _cb_probe_install(cid):
+    import sqlite3 as _sq
+    c = _sq.connect("file:/data/skv/metadata_store/shared_master.db?mode=ro", uri=True, timeout=5)
+    try:
+        r = c.execute("SELECT hooks, coalesce(created_by,'') FROM cubes_new WHERE cube_id=?", (cid,)).fetchone()
+    finally:
+        c.close()
+    if not r:
+        return None
+    h = (r[0] or "").strip()
+    return {"hooks": h not in ("", "[]", "null", "{}"), "author": r[1] or "", "me": _caller_id()}
+
+
+def _cb_wrap(fn, name):
+    """T73: soft gate before irreversible tools, rule line + is_data after mapped tools. Pass-through when SKV_CONST_BIND=0."""
+    import functools
+    @functools.wraps(fn)
+    def w(*a, **k):
+        if name in _CB.GATED and _CB.enabled():
+            try:
+                if _CB.gate_needed(name, k, _cb_probe_install if name == "cube_install" else None):
+                    g = _CB.gate(_caller_id(), name, k.get("ack") or "")
+                    if g is not None:
+                        return _dumps(g)
+            except Exception:
+                pass
+        r = fn(*a, **k)
+        try:
+            if _CB.enabled() and isinstance(r, str):
+                if _CB.is_data(name):
+                    try:
+                        o = json.loads(r)
+                        if isinstance(o, dict):
+                            o.setdefault("is_data", True)
+                            r = json.dumps(o, ensure_ascii=False, separators=(",", ":"))
+                    except Exception:
+                        pass
+                r = _CB.prefix_reply(name, r)
+        except Exception:
+            pass
+        return r
+    return w
+
+
 def _install_wrappers() -> None:
     for t in mcp._tool_manager.list_tools():
         t.fn = _with_time(t.fn, t.name)
+        if _CB is not None:
+            t.fn = _cb_wrap(t.fn, t.name)
+            _tg = _CB.tag(t.name) if t.name in VISIBLE else ""
+            if _tg:
+                t.description = ((t.description or "").rstrip() + " " + _tg).strip()
     _orig = mcp._tool_manager.list_tools
     mcp._tool_manager.list_tools = lambda: [t for t in _orig() if t.name in VISIBLE]
 

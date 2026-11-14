@@ -593,6 +593,8 @@ app.include_router(consult_pool_router)
 app.include_router(import_router)
 app.include_router(drive_http_router)
 app.include_router(drive_callback_router)
+from app.routers.const_http import router as const_http_router   # T73: GET /api/v7/const/metrics
+app.include_router(const_http_router)
 try:
     from app.drive_files import load_oauth_env as _load_drive_oauth
     _load_drive_oauth()

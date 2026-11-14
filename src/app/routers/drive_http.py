@@ -103,7 +103,15 @@ def drive_put(request: Request, body: dict = Body(default={})):
     uid, chain_id, chain_name = _who(request)
     from app import drive_files as drive
     payload = body or {}
-    data = _bytes(payload.get("content_b64") or "", payload.get("path") or "", payload.get("text") or "")
+    try:
+        data = _bytes(payload.get("content_b64") or "", payload.get("path") or "", payload.get("text") or "")
+    except (HTTPException, OSError):
+        try:   # T73 metric: a path the server never returned / outside staging and tmp
+            from app import const_bind as _cb
+            _cb.bump(uid, "drive_put_invalid_path")
+        except Exception:
+            pass
+        raise
     return drive.place(
         uid, chain_id, chain_name, data, payload.get("name") or "file", payload.get("description") or "",
         mime=payload.get("mime") or "application/octet-stream", client=_client(uid), tag_line=True,

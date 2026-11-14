@@ -253,6 +253,29 @@ def usage(user_id, key, days=7):
 
 
 # ---------------- per-account store (back-compat) ----------------
+_LIVE = set()               # consult ids running in THIS process (a restart empties it: those rows are interrupted)
+_STUCK_S, _DEAD_S = 900, 120
+
+
+def _interrupted(user_id, cid, created_at):
+    """T73: a row still 'running' whose worker thread is gone (restart) or that is older than 15 min becomes status='error'
+    ('interrupted (server restart)') instead of 'running' forever. True when it was just closed."""
+    try:
+        age = time.time() - time.mktime(time.strptime(created_at, "%Y-%m-%d %H:%M:%S"))
+    except Exception:
+        age = 0
+    if not ((cid not in _LIVE and age > _DEAD_S) or age > _STUCK_S):
+        return False
+    c = _db(user_id)
+    try:
+        c.execute("UPDATE consult_pool SET status='error', usage_json=? WHERE id=? AND status='running'",
+                  (json.dumps({"models": {}, "total": None, "stopped": "interrupted (server restart)"}), cid))
+        c.commit()
+    finally:
+        c.close()
+    return True
+
+
 def _db(user_id):
     from app.account_memory import account_db_name, ensure_user_db
     ensure_user_db(user_id)
@@ -528,9 +551,22 @@ def ask(user_id, task, tried="", failed="", consent=False, key=None, mode=None, 
     box = {}
     ev = threading.Event()
 
+    _LIVE.add(cid)
+
     def work():
         try:
-            box["res"] = _execute(user_id, key, cid, mode, task, tried, failed, context, premium)
+            try:
+                from app import inflight as _inf     # safe_restart.sh waits while a consult runs
+                _trk = _inf.track("consult")
+            except Exception:
+                _trk = None
+            if _trk is not None:
+                _trk.__enter__()
+            try:
+                box["res"] = _execute(user_id, key, cid, mode, task, tried, failed, context, premium)
+            finally:
+                if _trk is not None:
+                    _trk.__exit__(None, None, None)
         except Exception as e:
             box["err"] = type(e).__name__
             try:
@@ -538,6 +574,7 @@ def ask(user_id, task, tried="", failed="", consent=False, key=None, mode=None, 
             except Exception:
                 pass
         finally:
+            _LIVE.discard(cid)
             ev.set()
 
     threading.Thread(target=work, daemon=True, name="consult-%s" % cid).start()
@@ -562,11 +599,13 @@ def result(user_id, consult_id):
         c.close()
     if not r:
         return {"status": "error", "reason": "not found"}
+    if r[3] == "running" and _interrupted(user_id, consult_id, r[8]):
+        r = list(r); r[3] = "error"; r[4] = json.dumps({"stopped": "interrupted (server restart)"})
     if r[3] == "running":
         age = time.time() - time.mktime(time.strptime(r[8], "%Y-%m-%d %H:%M:%S"))
-        if age > 900:
-            return {"status": "error", "id": consult_id, "reason": "consult did not finish (server restart?); start a new one"}
         return {"status": "running", "id": consult_id, "seconds": int(age), "next": "try again in a minute"}
+    if r[3] == "error":
+        return {"status": "error", "id": consult_id, "reason": (json.loads(r[4] or "{}").get("stopped") or "interrupted (server restart)") + "; start a new one"}
     u = json.loads(r[4] or "{}")
     res = {"answers": {"claude": r[1] or "", "gpt": r[2] or ""}, "usage": u.get("models") or {}, "total": u.get("total"),
            "reviews": json.loads(r[5] or "{}"), "synthesis": r[6] or "", "stopped": u.get("stopped")}
@@ -604,9 +643,11 @@ def accept(user_id, consult_id, which, as_kind="note", key=None):
         return {"status": "error", "reason": "id required"}
     c = _db(user_id)
     try:
-        row = c.execute("SELECT task, claude, gpt, status, synthesis FROM consult_pool WHERE id=?", (consult_id,)).fetchone()
+        row = c.execute("SELECT task, claude, gpt, status, synthesis, created_at FROM consult_pool WHERE id=?", (consult_id,)).fetchone()
         if not row:
             return {"status": "error", "reason": "not found"}
+        if row[3] == "running" and _interrupted(user_id, consult_id, row[5]):
+            return {"status": "error", "reason": "interrupted (server restart); start a new consult"}
         if row[3] == "running":
             return {"status": "error", "reason": "still running; fetch it with consult(consult_id=%d)" % consult_id}
         if row[3] != "open":

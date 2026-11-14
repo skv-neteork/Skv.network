@@ -42,13 +42,17 @@ class Mcp:
         if "data:" in b and not b.lstrip().startswith("{"):
             b = "\n".join(l[5:].strip() for l in b.splitlines() if l.startswith("data:"))
         return json.loads(b)
-    def call(self, name, args):
+    def call(self, name, args, autoack=True):
         j = self.rpc("tools/call", {"name": name, "arguments": args})
         t = "".join(c.get("text", "") for c in j.get("result", {}).get("content", []))
-        try: return json.loads(t)
+        if t.startswith("[C:") and "\n" in t: t = t.split("\n", 1)[1]   # T73: one-line rule before the JSON
+        try: d = json.loads(t)
         except Exception:
             if os.environ.get("SMOKE_DEBUG"): print("RAW", name, json.dumps(j)[:400])
             return {"_text": t}
+        if autoack and isinstance(d, dict) and d.get("gate") == "constitution" and not args.get("ack"):
+            return self.call(name, dict(args, ack="const"), autoack=False)   # T73: like a real client: read the manifest, repeat with ack=const
+        return d
 
 def seal_no(d):
     m = re.search(r"#(\d+)·([0-9a-f]+)", json.dumps(d, ensure_ascii=False)); return int(m.group(1)) if m else None
@@ -448,6 +452,39 @@ def consent_checks(m, tag):
              "c.execute(\"DELETE FROM cubes_new WHERE subject_action_object LIKE ?\",('%%%s%%',));c.commit()" % (tok, tok, tok, tok))
 
 
+def const_checks(m, tag):
+    """T73: constitution <-> tools: tags, rule line, heartbeat + manifest, soft gate (cube_create with an EMPTY cube: never publishes), metrics."""
+    sid = "t73-" + tag[-8:]
+    tl = m.rpc("tools/list", {}).get("result", {}).get("tools", [])
+    rec("T73a tools/list: every description has the [C v..] tag", len(tl) > 30 and all("[C v" in (t.get("description") or "") for t in tl), "%d tools, %d bytes" % (len(tl), len(json.dumps(tl))))
+    j = m.rpc("tools/call", {"name": "memory_search", "arguments": {"query": "smoke " + tag}})
+    txt = "".join(c.get("text", "") for c in j.get("result", {}).get("content", []))
+    first = txt.split("\n", 1)[0]
+    rec("T73b memory_search: rule line (<=80) before the JSON, is_data", first.startswith("[C:H,R02]") and len(first) <= 80 and '"is_data":true' in txt, first[:80])
+    def tn(i, **kw):
+        return m.call("turn", dict({"user_message": "t73 smoke %s %d" % (tag, i), "answer": "ok t73 %d" % i, "compact": True, "session_id": sid}, **kw))
+    t1, t2 = tn(1), tn(2)
+    b = t1.get("constitution") or {}
+    rec("T73c turn 1: heartbeat block <=120 + manifest <=650; turn 2: no manifest", set(b) == {"v", "hash", "rule", "stale"} and len(json.dumps(b, separators=(",", ":"))) <= 120
+        and 100 < len(t1.get("constitution_manifest") or "") <= 650 and "constitution_manifest" not in t2 and t2.get("constitution", {}).get("rule") != b.get("rule"), json.dumps(b)[:100])
+    ts = [tn(i) for i in range(3, 12)]
+    t11 = ts[-1]
+    rec("T73d turn 11 without ack: manifest again, stale=true", bool(t11.get("constitution_manifest")) and t11.get("constitution", {}).get("stale") is True, json.dumps(t11.get("constitution"))[:100])
+    bad = {"topic": "t73 gate probe", "essence": "", "rules": ""}   # empty cube: validation error, nothing is published
+    g = m.call("cube_create", bad, autoack=False)
+    rec("T73e stale: cube_create is held {gate:constitution, manifest, retry_with:ack=const}", g.get("gate") == "constitution" and g.get("retry_with") == "ack=const" and 100 < len(g.get("manifest") or "") <= 650, json.dumps(g)[:100])
+    g2 = m.call("cube_create", dict(bad, ack="const"), autoack=False)
+    rec("T73f ack=const: the call executes (reaches the cube checks), no cube made", "gate" not in g2 and not g2.get("cube_id"), json.dumps(g2)[:100])
+    g3 = m.call("cube_create", bad, autoack=False)
+    rec("T73g after the ack the constitution is fresh: no gate", "gate" not in g3, json.dumps(g3)[:100])
+    t12 = tn(12, const_ack=True)
+    rec("T73h turn const_ack=true: stale=false, no manifest", t12.get("constitution", {}).get("stale") is False and "constitution_manifest" not in t12, json.dumps(t12.get("constitution"))[:100])
+    s_, b_, _ = http(REST + "/const/metrics?days=1", headers={"X-API-Key": KEY})
+    try: mj = json.loads(b_); d0 = list((mj.get("days") or {}).values())[0]
+    except Exception: mj, d0 = {}, {}
+    rec("T73i /const/metrics: turns, manifests, gate counters", s_ == 200 and d0.get("turns", 0) >= 12 and d0.get("manifest_shown", 0) >= 2 and d0.get("gate_triggers", 0) >= 1 and d0.get("gate_acks", 0) >= 1, json.dumps(d0)[:110])
+
+
 def main():
     tag = "smoke%d" % int(time.time())
     consent_allow(KEY)
@@ -639,6 +676,8 @@ print(json.dumps({'eid': eid, 'before': before, 'after': after, 'z': list(z or [
     except Exception as e: rec("profile checks ran", False, repr(e))
     try: skills_checks(tag)
     except Exception as e: rec("skills checks ran", False, repr(e))
+    try: const_checks(m, tag)
+    except Exception as e: rec("T73 const checks ran", False, repr(e)[:120])
     # CL: close this run's test-account court cases (no judge calls): withdraw pending fixes, drop their queue rows
     _cl = _dex("import sqlite3;c=sqlite3.connect('/data/skv/metadata_store/shared_master.db',timeout=30);"
                "w=\"status='pending' AND (lower(user_id)='denizchavdarov+skvext@gmail.com' OR lower(user_id) LIKE '%.invalid')\";"

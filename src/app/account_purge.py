@@ -40,7 +40,9 @@ SIDE = [("rest_turn.db", "st"), ("compact_state_rest.db", "cst"), ("compact_stat
         ("cube_harvest.db", "h"),
         # turn_diet / duty_rules state (T72, T72b); all keyed by "user"
         ("compact_state_mcp.db", "diet_sess"), ("compact_state_mcp.db", "diet_user"), ("compact_state_rest.db", "sl_last"),
-        ("duty_rules.db", "dr_scope"), ("duty_rules.db", "dr_duty")]
+        ("duty_rules.db", "dr_scope"), ("duty_rules.db", "dr_duty"),
+        # T73 constitution binding state and metrics, keyed by "user"
+        ("const_bind.db", "cb_scope"), ("const_bind.db", "cb_metrics")]
 OAUTH_STATE_DB = "/data/skv/drive_oauth_state.db"   # pending Drive OAuth states: (token, user_id, ...)
 
 

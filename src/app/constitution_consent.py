@@ -80,9 +80,16 @@ def _pin_board(uid: str) -> None:
         print(f"[constitution] pin board: {type(e).__name__}", flush=True)
 
 
-def uninstall(uid: str) -> Dict[str, Any]:
+UNINSTALL_Q = ('Do you want to switch off the SKV constitution completely? '
+               'Only a full switch-off is possible. (yes/no)')
+
+
+def uninstall(uid: str, *, user_confirmed: bool = False, user_said_uninstall: bool = False) -> Dict[str, Any]:
     if not uid:
         return {"ok": False, "error": "API key required"}
+    if not (user_confirmed or user_said_uninstall):
+        return {"ok": False, "error": "ask_first",
+                "hint": 'Ask the user first: "' + UNINSTALL_Q + '" Call again with user_confirmed=true only after they say yes.'}
     c = _conn(uid)
     try:
         n = c.execute("DELETE FROM constitution_state WHERE id=1").rowcount

@@ -457,6 +457,8 @@ def const_checks(m, tag):
     sid = "t73-" + tag[-8:]
     tl = m.rpc("tools/list", {}).get("result", {}).get("tools", [])
     rec("T73a tools/list: every description has the [C v..] tag", len(tl) > 30 and all("[C v" in (t.get("description") or "") for t in tl), "%d tools, %d bytes" % (len(tl), len(json.dumps(tl))))
+    raw_list = json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"tools": tl}}, ensure_ascii=False, separators=(",", ":"))
+    rec("T75 tools/list JSON <= 12KB", len(tl) == 38 and len(raw_list) <= 12000, "%d tools, %d bytes" % (len(tl), len(raw_list)))
     j = m.rpc("tools/call", {"name": "memory_search", "arguments": {"query": "smoke " + tag}})
     txt = "".join(c.get("text", "") for c in j.get("result", {}).get("content", []))
     first = txt.split("\n", 1)[0]

@@ -331,6 +331,41 @@ def court_cases():
             + ("New:\n" + "\n".join(map(f, new)) + "\n" if new else "") + ("Older (oldest first):\n" + "\n".join(map(f, old[:30])) + "\n" if old else ""))
 
 
+def feedback_since(hours=24, limit=30):
+    """New feedback_reports for the daily digest, including optional rating 1-10."""
+    try:
+        c = sqlite3.connect(DB, timeout=30)
+        names = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='feedback_reports'")]
+        if not names:
+            c.close()
+            return "Feedback: (no table yet)\n"
+        cols = [r[1] for r in c.execute("pragma table_info(feedback_reports)")]
+        has_r = "rating" in cols
+        rating_sel = "ifnull(rating,''), " if has_r else "'', "
+        sel = "id, type, ifnull(title,''), ifnull(severity,''), " + rating_sel + "substr(ifnull(description,''),1,80), created_at"
+        rows = c.execute(
+            "SELECT " + sel + " FROM feedback_reports WHERE created_at >= datetime('now', ?) ORDER BY created_at DESC LIMIT ?",
+            ("-%d hours" % int(hours), int(limit)),
+        ).fetchall()
+        c.close()
+    except Exception as e:
+        return "Feedback: (error %s)\n" % str(e)[:80]
+    if not rows:
+        return "Feedback: none in the last %dh.\n" % int(hours)
+    lines = ["Feedback: %d new report(s) in the last %dh:" % (len(rows), int(hours))]
+    for r in rows:
+        fid, typ, title, sev, rating, desc, ts = r
+        bits = [str(ts or ""), str(fid or ""), typ or "?", "sev=" + str(sev)]
+        if has_r and rating not in ("", None):
+            bits.append("rating=" + str(rating) + "/10")
+        if title:
+            bits.append(title)
+        if desc:
+            bits.append(desc.replace("\n", " "))
+        lines.append("  " + " | ".join(bits))
+    return "\n".join(lines) + "\n"
+
+
 def send_digest(now=None, force=False, mail_fn=None, state_dir=None, court_fn=None, health_fn=None, backup_fn=None):
     """Once a day (first hourly run after 09:00). Stamp lives on durable disk so a reboot cannot resend."""
     now = now or datetime.now()
@@ -347,7 +382,7 @@ def send_digest(now=None, force=False, mail_fn=None, state_dir=None, court_fn=No
         events = _read_strip(paths["log"])
         court = (court_fn or court_cases)()
         body = ("SKV daily digest " + today + "\n\nNew events since last digest:\n" + (events or "(none)")
-                + "\n\n" + court + "\n\nServer: " + (", ".join((health_fn or health)()) or "ok")
+                + "\n\n" + court + "\n\n" + feedback_since() + "\nServer: " + (", ".join((health_fn or health)()) or "ok")
                 + "\nBackup: " + (backup_fn or backup_status)() + "\n")
         ok = (mail_fn or mail)("SKV day", body)
         if ok:

@@ -5,101 +5,106 @@ globals().update({k: v for k, v in vars(_core).items() if not k.startswith("__")
 
 
 
-@router.post("/feedback", status_code=status.HTTP_201_CREATED)
-async def submit_feedback(req: FeedbackRequest, authorization: str = Header(None)):
-    """Агенты отправляют фидбэк о работе SKV: баги, аномалии, улучшения."""
+def _ensure_feedback_schema(conn):
+    """Create feedback_reports if needed and add rating 1-10 when the column is missing."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS feedback_reports
+        (id TEXT PRIMARY KEY, user_id TEXT, agent_id TEXT, type TEXT, title TEXT,
+         description TEXT, event_id TEXT, cube_id TEXT, query_text TEXT,
+         severity INTEGER, rating INTEGER, status TEXT DEFAULT 'new',
+         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cols = [r[1] for r in conn.execute("pragma table_info(feedback_reports)")]
+    if "rating" not in cols:
+        conn.execute("ALTER TABLE feedback_reports ADD COLUMN rating INTEGER")
+
+
+def _feedback_uid(request, authorization):
+    uid = ""
     try:
-        import sqlite3, uuid
-        feedback_id = f"fb_{uuid.uuid4().hex[:12]}"
-        conn = sqlite3.connect(SHARED_DB)
-        cur = conn.cursor()
-        cur.execute("""CREATE TABLE IF NOT EXISTS feedback_reports
-            (id TEXT PRIMARY KEY, user_id TEXT, agent_id TEXT, type TEXT, title TEXT,
-             description TEXT, event_id TEXT, cube_id TEXT, query_text TEXT,
-             severity INTEGER, status TEXT DEFAULT 'new', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-        cur.execute("INSERT INTO feedback_reports (id, user_id, agent_id, type, title, description, event_id, cube_id, query_text, severity) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                   (feedback_id, req.user_id, req.agent_id, req.type, req.title, req.description,
-                    req.event_id, req.cube_id, req.query_text, req.severity))
-        conn.commit()
-        conn.close()
-        if req.type in ("proposal", "improvement"):
-            open("/data/skv/proposals.md", "a").write("\n## " + req.title + "\n" + req.description + "\n")
-        return {"status": "ok", "feedback_id": feedback_id, "message": "Thank you! Your feedback helps improve SKV."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/feedback")
-async def get_feedback(type: Optional[str] = None, status: Optional[str] = "new", limit: int = 50):
-    """Получить список фидбэка (для администратора)."""
-    try:
-        import sqlite3
-        conn = sqlite3.connect(SHARED_DB)
-        cur = conn.cursor()
-        if type:
-            cur.execute("SELECT * FROM feedback_reports WHERE type = ? AND status = ? ORDER BY created_at DESC LIMIT ?", (type, status, limit))
-        else:
-            cur.execute("SELECT * FROM feedback_reports WHERE status = ? ORDER BY created_at DESC LIMIT ?", (status, limit))
-        rows = cur.fetchall()
-        conn.close()
-        cols = ["id", "user_id", "agent_id", "type", "title", "description", "event_id", "cube_id", "query_text", "severity", "status", "created_at"]
-        return {"reports": [dict(zip(cols, row)) for row in rows]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/feedback", status_code=status.HTTP_201_CREATED)
-async def submit_feedback(req: FeedbackRequest, authorization: str = Header(None)):
-    # Only authenticated agents can submit feedback
-    if not authorization or not authorization.startswith("Bearer "):
+        uid = _request_user(request) or ""
+    except Exception:
+        uid = ""
+    if uid:
+        return uid
+    token = (authorization or "").replace("Bearer ", "").strip() if (authorization or "").startswith("Bearer ") else ""
+    if not token:
         raise HTTPException(status_code=401, detail="Bearer token required for feedback")
-    token = authorization.replace("Bearer ", "")
+    import sqlite3 as _sq
+    _conn = _sq.connect(SHARED_DB)
     try:
-        import sqlite3 as _sq
-        _conn = _sq.connect(SHARED_DB)
-        _cur = _conn.cursor()
-        _cur.execute(_ak.SQL_USER, _ak.args(token))
-        _row = _cur.fetchone()
+        _row = _conn.execute(_ak.SQL_USER, _ak.args(token)).fetchone()
+    finally:
         _conn.close()
-        if not _row:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        req.user_id = _row[0]
-    except HTTPException:
-        raise
-    except:
-        raise HTTPException(status_code=401, detail="Token verification failed")
+    if not _row:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return _row[0]
+
+
+@router.post("/feedback", status_code=status.HTTP_201_CREATED)
+async def submit_feedback(req: FeedbackRequest, request: Request, authorization: str = Header(None)):
+    """Authenticated agent feedback (bug|proposal|improvement|anomaly). Optional rating 1-10."""
+    import sqlite3, uuid
+    uid = _feedback_uid(request, authorization)
+    typ = (getattr(req, "type", None) or getattr(req, "kind", None) or "bug") or "bug"
+    desc = (getattr(req, "description", None) or getattr(req, "text", None) or "") or ""
+    title = (req.title or "").strip() or (desc[:80] or "feedback")
+    rating = getattr(req, "rating", None)
+    if rating is not None:
+        try:
+            rating = int(rating)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail="rating must be an integer 1-10")
+        if rating < 1 or rating > 10:
+            raise HTTPException(status_code=422, detail="rating must be 1-10")
+    feedback_id = f"fb_{uuid.uuid4().hex[:12]}"
+    conn = sqlite3.connect(SHARED_DB)
     try:
-        import sqlite3, uuid
-        fb_id = f"fb_{uuid.uuid4().hex[:12]}"
-        conn = sqlite3.connect(SHARED_DB)
-        cur = conn.cursor()
-        cur.execute("""CREATE TABLE IF NOT EXISTS feedback_reports
-            (id TEXT PRIMARY KEY, user_id TEXT, agent_id TEXT, type TEXT, title TEXT,
-             description TEXT, event_id TEXT, cube_id TEXT, query_text TEXT,
-             severity INTEGER, status TEXT DEFAULT 'new', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-        cur.execute("INSERT INTO feedback_reports (id, user_id, agent_id, type, title, description, event_id, cube_id, query_text, severity) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                   (fb_id, req.user_id, req.agent_id, req.type, req.title, req.description, req.event_id, req.cube_id, req.query_text, req.severity))
+        _ensure_feedback_schema(conn)
+        conn.execute(
+            "INSERT INTO feedback_reports (id, user_id, agent_id, type, title, description, event_id, cube_id, query_text, severity, rating) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (feedback_id, uid, req.agent_id, typ, title, desc,
+             req.event_id, req.cube_id, req.query_text, req.severity, rating))
         conn.commit()
+    finally:
         conn.close()
-        return {"status": "ok", "feedback_id": fb_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if typ in ("proposal", "improvement"):
+        try:
+            open("/data/skv/proposals.md", "a").write("\n## " + title + "\n" + desc + "\n")
+        except Exception:
+            pass
+    return {"status": "ok", "feedback_id": feedback_id, "rating": rating,
+            "message": "Thank you! Your feedback helps improve SKV."}
+
 
 @router.get("/feedback")
-async def get_feedback(type: Optional[str] = None, status: Optional[str] = "new", limit: int = 50):
+async def get_feedback(request: Request, authorization: str = Header(None),
+                       type: Optional[str] = None, status: Optional[str] = "new", limit: int = 50):
+    """List feedback. Authenticated: own rows. Owner: all rows."""
+    import sqlite3
+    uid = _feedback_uid(request, authorization)
+    limit = max(1, min(int(limit or 50), 200))
+    conn = sqlite3.connect(SHARED_DB)
     try:
-        import sqlite3
-        conn = sqlite3.connect(SHARED_DB)
-        cur = conn.cursor()
+        _ensure_feedback_schema(conn)
+        cols = [r[1] for r in conn.execute("pragma table_info(feedback_reports)")]
+        own = True
+        try:
+            own = not _is_owner(uid)
+        except Exception:
+            own = True
+        q = "SELECT * FROM feedback_reports WHERE 1=1"
+        args = []
+        if own:
+            q += " AND user_id=?"; args.append(uid)
         if type:
-            cur.execute("SELECT * FROM feedback_reports WHERE type = ? AND status = ? ORDER BY created_at DESC LIMIT ?", (type, status, limit))
-        else:
-            cur.execute("SELECT * FROM feedback_reports WHERE status = ? ORDER BY created_at DESC LIMIT ?", (status, limit))
-        rows = cur.fetchall()
+            q += " AND type=?"; args.append(type)
+        if status:
+            q += " AND status=?"; args.append(status)
+        q += " ORDER BY created_at DESC LIMIT ?"; args.append(limit)
+        rows = conn.execute(q, args).fetchall()
+    finally:
         conn.close()
-        cols = ["id", "user_id", "agent_id", "type", "title", "description", "event_id", "cube_id", "query_text", "severity", "status", "created_at"]
-        return {"reports": [dict(zip(cols, row)) for row in rows]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"reports": [dict(zip(cols, row)) for row in rows]}
 
 @router.post("/experience/create", status_code=status.HTTP_201_CREATED)
 async def create_experience_cube(req: ExperienceCreateRequest):
@@ -523,18 +528,6 @@ async def cube_link(req: CubeLinkRequest):
         out["note"] = "dispute recorded: both cubes stay visible (marked disputed) until the court decides"
     return out
 
-@router.post("/feedback")
-async def agent_feedback(req: FeedbackIn):
-    import sqlite3
-    kind = "bug" if req.kind == "bug" else "proposal"
-    conn = sqlite3.connect(SHARED_DB)
-    conn.execute("insert into feedback_reports (user_id, agent_id, type, title, description, event_id, status, created_at) values (?,?,?,?,?,?,?,datetime('now'))",
-                 (req.user_id, "agent", kind, req.title[:200], req.text[:2000], req.event_id, "new"))
-    conn.commit(); conn.close()
-    if kind == "proposal":
-        open("/data/skv/proposals.md", "a").write(f"\n## {req.title}\n{req.text}\n")
-    return {"status": "ok", "kind": kind}
-
 @router.get("/court/bugs")
 async def court_bugs():
     import sqlite3
@@ -810,12 +803,14 @@ async def constitution_install(req: ConstitutionInstallRequest, request: Request
 @router.post("/constitution/uninstall")
 async def constitution_uninstall(req: ConstitutionInstallRequest, request: Request,
                                  authorization: str = Header(None), x_api_key: str = Header(None)):
-    """User switches the SKV constitution off (only the user may)."""
+    """User switches the SKV constitution off. Requires explicit user yes (user_confirmed=true)."""
     from app import chain_skills as _cs, constitution_consent as _cc
     uid, _c, _n, _k = _cs.owner_uid(request, authorization, x_api_key, req.user_id)   # key owner wins
-    out = _cc.uninstall(uid)
+    out = _cc.uninstall(uid, user_confirmed=bool(req.user_confirmed),
+                        user_said_uninstall=bool(req.user_said_install))
     if not out.get("ok"):
-        raise HTTPException(401, out.get("error"))
+        raise HTTPException(401 if out.get("error") == "API key required" else 400,
+                            out.get("hint") or out.get("error"))
     return out
 
 

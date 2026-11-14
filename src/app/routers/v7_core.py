@@ -117,12 +117,15 @@ class FeedbackRequest(BaseModel):
     user_id: Optional[str] = None
     agent_id: Optional[str] = None
     type: str = "bug"
-    title: str
-    description: str
+    title: Optional[str] = None
+    description: Optional[str] = None
     event_id: Optional[str] = None
     cube_id: Optional[str] = None
     query_text: Optional[str] = None
     severity: int = 1
+    rating: Optional[int] = None  # optional overall 1-10
+    kind: Optional[str] = None    # alias of type (legacy FeedbackIn)
+    text: Optional[str] = None    # alias of description
 
 class MemoryRequest(BaseModel):
     query_vector: Optional[List[float]] = None

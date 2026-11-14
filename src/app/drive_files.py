@@ -23,9 +23,11 @@ import logging
 import math
 import os
 import re
+import secrets
 import sqlite3
 import time
 import urllib.parse
+import urllib.request
 from typing import Any, Optional
 
 log = logging.getLogger("skv.drive")
@@ -38,6 +40,16 @@ SKV_FOLDER = "SKV"
 VAULT_NAME = "drive_oauth"
 SCOPE = "https://www.googleapis.com/auth/drive"
 CONNECT_HINT = "подключи Drive"
+# Agent-facing next step. CONNECT_HINT stays the short marker import routing already stores.
+FLOW_HINT = "Open auth_url from GET /drive/connect. Google returns to /drive/callback."
+STATE_TTL_S = 600
+_OAUTH_KEYS = ("SKV_DRIVE_OAUTH_CLIENT_ID", "SKV_DRIVE_OAUTH_CLIENT_SECRET", "SKV_DRIVE_OAUTH_REDIRECT")
+_OAUTH_FILES = ("/root/skv_drive/oauth.env", "/data/skv/drive_oauth.env")
+_STATE_DB = "/data/skv/drive_oauth_state.db"
+_OK_TEXT = "Google Drive connected. You can close this tab."
+_BAD_STATE = "This Drive link is invalid or expired. Start again from Connect."
+_BAD_GRANT = "Google did not grant Drive access. Start again from Connect."
+_BAD_EXCHANGE = "Google Drive could not be connected. Start again from Connect."
 META_BASE = "/data/skv/metadata_store"
 CALL_CHAIN: contextvars.ContextVar = contextvars.ContextVar("skv_drive_chain", default=None)
 
@@ -96,6 +108,213 @@ def auth_url(client_id: str, redirect_uri: str, state: str) -> str:
         "state": state or "",
     })
     return "https://accounts.google.com/o/oauth2/v2/auth?" + q
+
+
+def load_oauth_env(files=None) -> None:
+    """Set missing Drive OAuth env from the server file. Does not override values already set."""
+    if all((os.environ.get(k) or "").strip() for k in _OAUTH_KEYS):
+        return
+    paths = []
+    custom = (os.environ.get("SKV_DRIVE_OAUTH_FILE") or "").strip()
+    if custom:
+        paths.append(custom)
+    paths.extend(list(files) if files is not None else list(_OAUTH_FILES))
+    found = {}
+    for path in paths:
+        if not path or not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                text = handle.read()
+        except OSError:
+            continue
+        for line in text.splitlines():
+            raw = line.strip()
+            if not raw or raw.startswith("#") or "=" not in raw:
+                continue
+            key, value = raw.split("=", 1)
+            key = key.strip()
+            if key in _OAUTH_KEYS and key not in found:
+                found[key] = value.strip().strip('"').strip("'")
+        if all(found.get(k) for k in _OAUTH_KEYS):
+            break
+    for key in _OAUTH_KEYS:
+        if (os.environ.get(key) or "").strip():
+            continue
+        if found.get(key):
+            os.environ[key] = found[key]
+
+
+def _html_page(text: str) -> str:
+    safe = (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return (
+        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Google Drive</title></head>"
+        "<body><p>%s</p></body></html>" % safe
+    )
+
+
+def _page(ok: bool, status: int, text: str) -> dict:
+    return {"ok": ok, "status": status, "text": text, "html": _html_page(text)}
+
+
+class MemState:
+    """Test double. One row per random state, deleted on read."""
+
+    def __init__(self):
+        self.rows = {}
+
+    def put(self, token: str, user_id: str, chain_id: str, chain_name: str, exp: float) -> None:
+        self.rows[token] = (user_id, chain_id or "main", chain_name or "", float(exp))
+
+    def take(self, token: str, now: float):
+        row = self.rows.pop((token or "").strip(), None)
+        if not row:
+            return None
+        if float(row[3]) < float(now):
+            return None
+        return {"user_id": row[0], "chain_id": row[1], "chain_name": row[2]}
+
+
+class SqliteState:
+    def __init__(self, path: str):
+        self.path = path
+
+    def _conn(self) -> sqlite3.Connection:
+        parent = os.path.dirname(self.path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        conn = sqlite3.connect(self.path, timeout=10)
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS oauth_state (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                chain_id TEXT NOT NULL,
+                chain_name TEXT NOT NULL,
+                exp REAL NOT NULL
+            )"""
+        )
+        return conn
+
+    def put(self, token: str, user_id: str, chain_id: str, chain_name: str, exp: float) -> None:
+        conn = self._conn()
+        try:
+            conn.execute("DELETE FROM oauth_state WHERE exp < ?", (time.time(),))
+            conn.execute(
+                "INSERT OR REPLACE INTO oauth_state (token, user_id, chain_id, chain_name, exp) VALUES (?,?,?,?,?)",
+                (token, user_id, chain_id or "main", chain_name or "", float(exp)),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def take(self, token: str, now: float):
+        key = (token or "").strip()
+        if not key:
+            return None
+        conn = self._conn()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT user_id, chain_id, chain_name, exp FROM oauth_state WHERE token=?", (key,)
+            ).fetchone()
+            if row:
+                conn.execute("DELETE FROM oauth_state WHERE token=?", (key,))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        if not row or float(row[3]) < float(now):
+            return None
+        return {"user_id": row[0], "chain_id": row[1], "chain_name": row[2]}
+
+
+def state_store():
+    path = (os.environ.get("SKV_DRIVE_OAUTH_STATE_DB") or _STATE_DB).strip()
+    return SqliteState(path)
+
+
+def issue_state(user_id: str, chain_id: str, chain_name: str, store, now: Optional[float] = None,
+                ttl: int = STATE_TTL_S) -> str:
+    user_id = (user_id or "").strip()
+    if not user_id:
+        raise ValueError("user required")
+    now = time.time() if now is None else float(now)
+    token = secrets.token_urlsafe(32)
+    store.put(token, user_id, chain_id or "main", chain_name or "", now + int(ttl))
+    return token
+
+
+def start_connect(user_id: str, chain_id: str = "", chain_name: str = "", store=None,
+                  now: Optional[float] = None) -> dict:
+    """Auth URL for this user. State is a stored random token, not the user id."""
+    load_oauth_env()
+    client_id = (os.environ.get("SKV_DRIVE_OAUTH_CLIENT_ID") or "").strip()
+    redirect = (os.environ.get("SKV_DRIVE_OAUTH_REDIRECT") or "").strip()
+    if not client_id or not redirect:
+        return oauth_start("")
+    store = store if store is not None else state_store()
+    state = issue_state(user_id, chain_id or "main", chain_name or "", store, now=now)
+    return oauth_start(state)
+
+
+def exchange_code(code: str):
+    """Token request used by POST /drive/connect. None means the OAuth client is not configured."""
+    load_oauth_env()
+    client_id = (os.environ.get("SKV_DRIVE_OAUTH_CLIENT_ID") or "").strip()
+    secret = (os.environ.get("SKV_DRIVE_OAUTH_CLIENT_SECRET") or "").strip()
+    redirect = (os.environ.get("SKV_DRIVE_OAUTH_REDIRECT") or "").strip()
+    if not client_id or not secret or not redirect:
+        return None
+    form = urllib.parse.urlencode({
+        "code": code,
+        "client_id": client_id,
+        "client_secret": secret,
+        "redirect_uri": redirect,
+        "grant_type": "authorization_code",
+    }).encode()
+    try:
+        request_token = urllib.request.Request("https://oauth2.googleapis.com/token", data=form)
+        with urllib.request.urlopen(request_token, timeout=30) as response:
+            token = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return {"ok": False, "error": "oauth_exchange_failed", "hint": CONNECT_HINT}
+    return {"ok": True, "token": token}
+
+
+def complete_oauth(user_id: str, chain_id: str, chain_name: str, code: str) -> dict:
+    exchanged = exchange_code(code)
+    if exchanged is None:
+        return oauth_start()
+    if not exchanged.get("ok"):
+        return {"ok": False, "error": exchanged.get("error") or "oauth_exchange_failed", "hint": CONNECT_HINT}
+    token = exchanged["token"]
+    access = token.get("access_token") or ""
+    return connect_token(
+        user_id, chain_id, chain_name, json.dumps(token), VaultTokens(), GoogleDrive(access), tag_line=True,
+    )
+
+
+def handle_callback(code: str = "", state: str = "", error: str = "", store=None, now: Optional[float] = None,
+                    complete=None) -> dict:
+    """Map state to the user who started connect, then exchange the code the same way as POST."""
+    if (error or "").strip() or not (code or "").strip():
+        return _page(False, 400, _BAD_GRANT)
+    store = store if store is not None else state_store()
+    now = time.time() if now is None else float(now)
+    binding = store.take((state or "").strip(), now)
+    if not binding:
+        return _page(False, 400, _BAD_STATE)
+    fn = complete if complete is not None else complete_oauth
+    try:
+        result = fn(binding["user_id"], binding["chain_id"], binding["chain_name"], code)
+    except Exception:
+        log.info("drive callback failed")
+        return _page(False, 200, _BAD_EXCHANGE)
+    if not isinstance(result, dict) or not result.get("ok"):
+        return _page(False, 200, _BAD_EXCHANGE)
+    return _page(True, 200, _OK_TEXT)
 
 
 def public(obj: Any) -> Any:
@@ -584,7 +803,7 @@ def sync(user_id: str, chain_id: str, chain_name: str, client, conn: Optional[sq
     try:
         if not connected(user_id, conn):
             return {"ok": False, "error": "connect_drive", "hint": CONNECT_HINT,
-                    "message": "Connect Drive to store files over 1 MB. " + CONNECT_HINT}
+                    "message": "Connect Drive to store files over 1 MB. " + CONNECT_HINT + ". " + FLOW_HINT}
         line = conn.execute("SELECT last_sync FROM drive_lines WHERE chain_id=?", (chain_id,)).fetchone()
         if line and not force and (now - int(line[0] or 0)) < DAY_S:
             return {"ok": True, "skipped": True, "reason": "fresh", "chain_id": chain_id}
@@ -646,7 +865,7 @@ def place(user_id: str, chain_id: str, chain_name: str, content: bytes, name: st
     try:
         if client is None or not connected(user_id, conn):
             return {"ok": False, "error": "connect_drive", "hint": CONNECT_HINT,
-                    "message": "This file is over 1 MB. Connect Drive to store it. " + CONNECT_HINT,
+                    "message": "This file is over 1 MB. Connect Drive to store it. " + CONNECT_HINT + ". " + FLOW_HINT,
                     "stored_in_db": False}
         maybe = sync(user_id, chain_id, chain_name, client, conn=conn, embedder=embedder, board_fn=False,
                      tag_line=tag_line, force=False, now=now)
@@ -783,6 +1002,7 @@ def list_files(user_id: str, chain_id: str, conn: Optional[sqlite3.Connection] =
 
 
 def oauth_start(state: str = "") -> dict:
+    load_oauth_env()
     client_id = (os.environ.get("SKV_DRIVE_OAUTH_CLIENT_ID") or "").strip()
     redirect = (os.environ.get("SKV_DRIVE_OAUTH_REDIRECT") or "").strip()
     if not client_id or not redirect:
@@ -798,7 +1018,8 @@ def oauth_start(state: str = "") -> dict:
                 "Consent for scope " + SCOPE + " (the SKV folder only, enforced in code)",
             ],
         }
-    return {"ok": True, "url": auth_url(client_id, redirect, state), "scope": SCOPE, "vault": "[vault:%s]" % VAULT_NAME}
+    url = auth_url(client_id, redirect, state)
+    return {"ok": True, "auth_url": url, "url": url, "scope": SCOPE, "vault": "[vault:%s]" % VAULT_NAME}
 
 
 def dump_text(conn: sqlite3.Connection) -> str:

@@ -4392,8 +4392,10 @@ def memory_import_text(text: str, source: str = "text_import") -> str:
 
 @mcp.tool()
 def drive_connect(code: str = "") -> str:
-    """Start Google Drive connect, or finish it with a one-time code.
-    The refresh token is stored as [vault:drive_oauth]. This tool never returns the token."""
+    """Start Google Drive connect for this user.
+    With no code, returns auth_url (state, access_type=offline, prompt=consent). Open that URL.
+    Google redirects to /drive/callback and the refresh token is stored as [vault:drive_oauth].
+    Pass a code only when you already have one. This tool never returns the token or the client secret."""
     if code:
         return _dumps(_req("POST", "/drive/connect", _uid_body({"code": code})))
     return _dumps(_req("GET", "/drive/connect"))

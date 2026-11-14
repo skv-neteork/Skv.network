@@ -38,7 +38,7 @@ from app.routers.v4_auth_middleware import AuthMiddleware
 from app.routers.consult import router as consult_router
 from app.routers.consult_pool import router as consult_pool_router
 from app.routers.import_dialogs import router as import_router
-from app.routers.drive_http import router as drive_http_router
+from app.routers.drive_http import router as drive_http_router, callback_router as drive_callback_router
 from app.routers.v7_router import router as v7_router
 from app.routers.v7_batch import router as v7_batch_router   # memory v3: POST /api/v7/remember/batch
 from app.routers.room_http import router as room_http_router
@@ -592,6 +592,12 @@ app.include_router(consult_router)
 app.include_router(consult_pool_router)
 app.include_router(import_router)
 app.include_router(drive_http_router)
+app.include_router(drive_callback_router)
+try:
+    from app.drive_files import load_oauth_env as _load_drive_oauth
+    _load_drive_oauth()
+except Exception:
+    pass
 app.include_router(v7_router)
 app.include_router(v7_batch_router)
 app.include_router(room_http_router)

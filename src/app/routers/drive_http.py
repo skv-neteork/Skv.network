@@ -4,8 +4,10 @@ import json
 import os
 
 from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
 router = APIRouter(prefix="/api/v7", tags=["drive"])
+callback_router = APIRouter(tags=["drive"])
 
 
 def _who(request: Request):
@@ -50,9 +52,9 @@ def _bytes(content_b64: str = "", path: str = "", text: str = "") -> bytes:
 
 @router.get("/drive/connect")
 def drive_connect_start(request: Request):
-    _who(request)
+    uid, chain_id, chain_name = _who(request)
     from app import drive_files as drive
-    return drive.oauth_start()
+    return drive.start_connect(uid, chain_id, chain_name)
 
 
 @router.post("/drive/connect")
@@ -62,31 +64,16 @@ def drive_connect_finish(request: Request, body: dict = Body(default={})):
     from app import drive_files as drive
     code = (body or {}).get("code") or ""
     if not code:
-        return drive.oauth_start()
-    client_id = (os.environ.get("SKV_DRIVE_OAUTH_CLIENT_ID") or "").strip()
-    secret = (os.environ.get("SKV_DRIVE_OAUTH_CLIENT_SECRET") or "").strip()
-    redirect = (os.environ.get("SKV_DRIVE_OAUTH_REDIRECT") or "").strip()
-    if not client_id or not secret or not redirect:
-        return drive.oauth_start()
-    import urllib.parse
-    import urllib.request
-    form = urllib.parse.urlencode({
-        "code": code,
-        "client_id": client_id,
-        "client_secret": secret,
-        "redirect_uri": redirect,
-        "grant_type": "authorization_code",
-    }).encode()
-    try:
-        request_token = urllib.request.Request("https://oauth2.googleapis.com/token", data=form)
-        with urllib.request.urlopen(request_token, timeout=30) as response:
-            token = json.loads(response.read().decode("utf-8"))
-    except Exception:
-        return {"ok": False, "error": "oauth_exchange_failed", "hint": drive.CONNECT_HINT}
-    access = token.get("access_token") or ""
-    return drive.connect_token(
-        uid, chain_id, chain_name, json.dumps(token), drive.VaultTokens(), drive.GoogleDrive(access), tag_line=True,
-    )
+        return drive.start_connect(uid, chain_id, chain_name)
+    return drive.complete_oauth(uid, chain_id, chain_name, code)
+
+
+@callback_router.get("/drive/callback")
+def drive_callback(code: str = "", state: str = "", error: str = ""):
+    """Google redirect. No API key: the state token is the user."""
+    from app import drive_files as drive
+    page = drive.handle_callback(code, state, error)
+    return HTMLResponse(page["html"], status_code=int(page["status"]))
 
 
 @router.post("/drive/sync")
@@ -96,7 +83,7 @@ def drive_sync(request: Request):
     client = _client(uid)
     if client is None:
         return {"ok": False, "error": "connect_drive", "hint": drive.CONNECT_HINT,
-                "message": "Connect Drive to store files over 1 MB. " + drive.CONNECT_HINT}
+                "message": "Connect Drive to store files over 1 MB. " + drive.CONNECT_HINT + ". " + drive.FLOW_HINT}
     return drive.sync(uid, chain_id, chain_name, client, tag_line=True, force=True)
 
 

@@ -11,7 +11,7 @@ Live cubes. Source: cubes_new.
 
 ==================================================
 CUBE 00 — Core Algorithm v6.0
-cube_const_00_v5
+cube_const_00_v6
 ==================================================
 PROTOCOL:
 1. DRAFT = generate_response(query)
@@ -20,22 +20,21 @@ PROTOCOL:
 4. OUTPUT only after verification.
 
 SEAL (MANDATORY):
-After EVERY response, add:
-  🔐 SKV | #N | [READ ✓] [VERIFY ✓] [CORRECT ✓] [OUTPUT ✓]
-
-#N = increment from previous seal in context.
+After EVERY response, add the SKV seal line from the server turn reply, for example:
+  🔐 SKV | #N·xxxx | [READ ✓] [VERIFY ✓] [CORRECT ✓] [OUTPUT ✓]
+The seal comes from the server turn reply; never invent or continue it yourself.
 The seal reminds you and the next agent that verification was performed.
 It is a discipline anchor, not a cryptographic proof.
 There is no external Court verifying SHA-256.
 You verify yourself. Your consistency is your proof.
 
 CONTINUITY:
-• If previous seal exists → continue numbering.
-• If not → start at #001.
-• The chain MUST NOT break — it tracks your attention to the protocol.
+The seal number is issued by the server with the turn reply.
+Never invent a number or continue it from context.
 
-RELOAD:
-Every 10 messages, reload CUBE 00 to prevent context dilution.
+HEARTBEAT:
+The server sends the constitution manifest every 10th turn; acknowledge it with const_ack=true.
+Do not re-read CUBE 00 on a fixed message count.
 
 FORBIDDEN:
 • Output without verification.

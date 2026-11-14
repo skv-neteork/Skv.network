@@ -71,7 +71,7 @@ check("non-owner cannot vote on constitution (403)", c == 403)
 c, r = run(v.cube_link(v.CubeLinkRequest(src=cid, dst="cube_c46564459870", kind="progress", created_by="someone_else", user_id=A)))
 row = db().execute("select created_by from cube_links where src=? and dst=?", (cid, "cube_c46564459870")).fetchone()
 check("cube/link author from key, not body", c == 200 and row and row[0] == A)
-c, r = run(v.cube_link(v.CubeLinkRequest(src=cid, dst="cube_const_00_v5", user_id=A)))
+c, r = run(v.cube_link(v.CubeLinkRequest(src=cid, dst="cube_const_00_v6", user_id=A)))
 check("non-owner cannot link constitution (403)", c == 403)
 # 6. court owner-only
 c, r = run(v.court_fold(req(A))); check("court/fold non-owner -> 403", c == 403)
@@ -140,11 +140,11 @@ row = db().execute("select rules_markdown from cubes_new where cube_id=?", (r.ge
 check("/experience/create masks e-mail", c == 200 and row and "@" not in row[0])
 shutil.rmtree(UD, ignore_errors=True)
 # legacy constitution loaders
-ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_99_evil"]
-fake = {"cube_const_00_v5": {"essence": "E0", "raw_dialogue": "TAMPERED"}, "cube_const_01_v4": None, "cube_const_99_evil": {"essence": "x", "raw_dialogue": "EVIL"}}
+ids = ["cube_const_00_v6", "cube_const_01_v4", "cube_const_99_evil"]
+fake = {"cube_const_00_v6": {"essence": "E0", "raw_dialogue": "TAMPERED"}, "cube_const_01_v4": None, "cube_const_99_evil": {"essence": "x", "raw_dialogue": "EVIL"}}
 m = v._trusted_const_map(fake, ids)
-t0 = db().execute("select rules_markdown from cubes_new where cube_id='cube_const_00_v5'").fetchone()[0]
-check("legacy loader: tampered copy replaced by trusted text, untrusted id dropped", m.get("cube_const_00_v5", {}).get("raw_dialogue") == t0 and "cube_const_99_evil" not in m and "cube_const_01_v4" in m)
+t0 = db().execute("select rules_markdown from cubes_new where cube_id='cube_const_00_v6'").fetchone()[0]
+check("legacy loader: tampered copy replaced by trusted text, untrusted id dropped", m.get("cube_const_00_v6", {}).get("raw_dialogue") == t0 and "cube_const_99_evil" not in m and "cube_const_01_v4" in m)
 # legacy write guard (ASGI)
 from app import legacy_guard as lg
 async def _asgi(method, path, headers=None, body=b""):

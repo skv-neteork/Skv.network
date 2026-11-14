@@ -85,7 +85,7 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
             try:
                 _c = __import__("sqlite3").connect(SHARED_DB)
                 parts = []
-                for cid in ("cube_const_00_v5","cube_const_01_v4","cube_const_02_v4","cube_const_03_v4","cube_const_04_v4"):
+                for cid in ("cube_const_00_v6","cube_const_01_v4","cube_const_02_v4","cube_const_03_v4","cube_const_04_v4"):
                     _flt, _args = _const_trusted_sql()
                     row = _c.execute("select rules_markdown from cubes_new where cube_id=? AND " + _flt, [cid] + _args).fetchone()
                     if row:
@@ -221,8 +221,8 @@ async def agent_chat(req: ChatRequest):  # Buffer not needed for chat
             memory_map = "Memory active. Use searchMemory tool | GET /api/v7/event/{id}"
 
         # ========== 3. ПОЛНАЯ КОНСТИТУЦИЯ ==========
-        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", 
-                           "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v21"]
+        constitution_ids = ["cube_const_00_v6", "cube_const_01_v4", "cube_const_02_v4", 
+                           "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v22"]
         const_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_ids), constitution_ids)
         const_parts = []
         for cid in constitution_ids:
@@ -568,7 +568,7 @@ async def agent_start():
 3. Search memory when the past can change the answer. Center is the hit. l1_before and l1_after are the sides.
 4. Every message = ONE turn call: POST /api/v7/agent/turn {user_message, draft}. GET only: /api/v7/agent/turn?k=KEY&q=&draft= . It searches, saves and returns the seal. remember/second-look/memory are optional extras.\n   Seal = steps done + sources real, NOT proof the answer is true; truth = your Second Look + the user.\n   Bug/feedback: GET /api/v7/agent/feedback?k=KEY&kind=bug&text=
 5. When a task ends write a cube or duty=cube_nothing with a reason. Rate new cubes. Stuck: POST /api/v7/help.
-Skills: /api/v7/skills . One cube: /api/v7/cube/cube_const_05_v21 . Old doors now return this same cube.
+Skills: /api/v7/skills . One cube: /api/v7/cube/cube_const_05_v22 . Old doors now return this same cube.
 \nYou are setting up SKV for this user. Ask which model they use, then give only the steps for that model.
 Base URL https://skv.network
 Schema https://skv.network/api/v7/agent/openapi.json

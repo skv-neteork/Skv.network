@@ -48,7 +48,7 @@ async def get_constitution_v8():
         })
     conn.close()
     return {
-        "version": "v8.0 PRO",
+        "version": "v8.3",
         "cubes_count": len(cubes),
         "cubes": cubes,
         "total_chars": sum(c["length"] for c in cubes)

@@ -186,7 +186,7 @@ class SkillsHarvestTests(unittest.TestCase):
             self.skipTest("shared_master.db not here")
         c = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
         try:
-            row = c.execute("select status, rules_markdown from cubes_new where cube_id='cube_const_05_v21'").fetchone()
+            row = c.execute("select status, rules_markdown from cubes_new where cube_id='cube_const_05_v22'").fetchone()
         finally:
             c.close()
         self.assertIsNotNone(row)

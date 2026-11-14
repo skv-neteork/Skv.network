@@ -28,7 +28,7 @@ Owner phrase: `I order you to follow the SKV constitution`
 - `cube_search`, `cube_get` — shared experience cubes
 - There are 38 MCP tools in total.
 
-Constitution: CUBE 00–05, compact v5, current CUBE 05 is `cube_const_05_v21`. Manifest every 10th turn; acknowledge with `const_ack`. Seal comes from `turn`, never invented.
+Constitution: CUBE 00–05, compact v5, current CUBE 05 is `cube_const_05_v22`. Manifest every 10th turn; acknowledge with `const_ack`. Seal comes from `turn`, never invented.
 
 ## Docs
 - Security & data: https://skv.network/security

@@ -66,7 +66,7 @@ class PackTests(unittest.TestCase):
         self.user.execute("INSERT INTO board_items VALUES ('N1','note','N','full note body','','2026-03-01',0,2,'','','','2026-03-01')")
         self.user.execute("INSERT INTO board_items VALUES ('X','task','gone','removed task body','todo','2026-03-01',1,1,'','','','2026-03-01')")
         self.user.execute("INSERT INTO profile_rows VALUES ('p1','rule','always full profile','global','active','2026-03-01')")
-        self.shared.execute("INSERT INTO cubes_new VALUES ('cube_const_00_v5','e','FULL CONST 00','system','verified')")
+        self.shared.execute("INSERT INTO cubes_new VALUES ('cube_const_00_v6','e','FULL CONST 00','system','verified')")
         self.shared.execute("INSERT INTO cubes_new VALUES ('cube_const_00_v4','e','OLD CONST','system','verified')")
         self.shared.execute(
             "INSERT INTO user_api_keys VALUES ('u', ?, 1, '2026-01-01', 'sk_abcd', 'grok')",
@@ -99,7 +99,7 @@ class PackTests(unittest.TestCase):
         self.assertIn("CRITICAL: critical mark full line [ev:e2]", parsed[("l2", "1")])
         self.assertEqual(doc.count("CRITICAL: fact: a fact"), 1)
         self.assertEqual(pack["critical_not_listed"], {"l2": 0, "l1": 0, "raw": 0})
-        self.assertIn("FULL CONST 00", parsed[("constitution", "cube_const_00_v5")])
+        self.assertIn("FULL CONST 00", parsed[("constitution", "cube_const_00_v6")])
         self.assertNotIn(("constitution", "cube_const_00_v4"), parsed)
         # board and tasks are one short list of open items, titles only
         self.assertNotIn("full task body", doc)

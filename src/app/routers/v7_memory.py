@@ -293,7 +293,7 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
         memory_text = "=== ПАМЯТЬ SKV: совпадений не найдено ===\n"
     
     # Load constitutional cubes from SQLite (shared_master.db)
-    constitution_cube_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v21"]
+    constitution_cube_ids = ["cube_const_00_v6", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v22"]
     constitution_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_cube_ids), constitution_cube_ids)
     
     # Build constitution text from loaded cubes
@@ -920,7 +920,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                 memory_map += f"Shared knowledge cubes: {buffer.shared_current_size}\n"
             memory_map += "Use memory search to explore specific topics.\n"
         
-        constitution_ids = ["cube_const_00_v5", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v21"]
+        constitution_ids = ["cube_const_00_v6", "cube_const_01_v4", "cube_const_02_v4", "cube_const_03_v4", "cube_const_04_v4", "cube_const_05_v22"]
         const_map = _trusted_const_map(metadata_store.batch_get_metadata("shared_master", constitution_ids), constitution_ids)
         const_parts = []
         for cid in constitution_ids:
@@ -1390,6 +1390,16 @@ _REM_IDEM = {}   # (user_id, client_key) -> [t, result or None while running]; o
 _REM_IDEM_TTL = 600
 
 
+
+def _fallback_mask(text: str) -> str:
+    """Same masking as secret_scrub.scrub — used when vault is unavailable."""
+    try:
+        from app.secret_scrub import scrub as _scrub
+    except Exception:
+        from secret_scrub import scrub as _scrub
+    return _scrub(text)
+
+
 @router.post("/remember")
 async def remember_route(req: RememberRequest):
     """/remember with an optional client_key: a client that lost the response (network) resends the same key and gets
@@ -1475,17 +1485,13 @@ async def remember(req: RememberRequest):
                 for _x in sorted(_refs, key=len, reverse=True):
                     _v = _v.replace(_x, _refs[_x])
                 setattr(req, _f, _v)
-    # server fallback: a value the user/agent tagged with a [SECRET] marker, or "token/key/password is <value>",
-    # is masked even when the agent forgot sensitive=
-    _fb_rx = [re.compile(r"(?<![\[\w:])([A-Za-z0-9][\w\-.@/+=]{3,})(\s*)\[SECRET\]"),
-              re.compile(r"(?i)((?:secret|token|api[ _-]?key|password|passcode|пароль|токен|ключ)\s*(?:is|=|:|—|-|это)\s*[\"«']?)(?=[^\s\"«']*\d)([A-Za-z0-9][\w\-.@/+=]{5,})")]
+    # server fallback: reuse secret_scrub patterns (not a weaker copy), even when the vault is down
+    # and the agent forgot sensitive=. Masks e.g. "My test key is sk-test-1234567890abcdef".
     _fb_n = 0
     for _f in ("query", "response", "critical", "l1_summary", "l2_map", "topic"):
         _v = getattr(req, _f, None)
         if isinstance(_v, str) and _v:
-            _v2 = _fb_rx[0].sub(lambda m: "[SECRET]" if m.group(1) not in ("SECRET",) else m.group(0), _v)
-            _v2 = _fb_rx[1].sub(lambda m: m.group(1) + "[SECRET]", _v2)
-            _v2 = _v2.replace("[SECRET] [SECRET]", "[SECRET]")
+            _v2 = _fallback_mask(_v)
             if _v2 != _v:
                 _fb_n += 1; setattr(req, _f, _v2)
     _crit_lines = [c.strip() for c in re.split(r"\n| \| ", req.critical or "") if c.strip()]

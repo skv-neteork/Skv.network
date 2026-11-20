@@ -51,6 +51,25 @@ def _load_cb():
 
 _CB = _load_cb()
 
+
+def _load_tc():
+    """B18: turn fact context (src/app/turn_context.py). Missing file -> old turn behaviour."""
+    try:
+        import importlib.util as _iu
+        p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "app", "turn_context.py")
+        if not os.path.isfile(p):
+            return None
+        sp = _iu.spec_from_file_location("skv_turn_context", p)
+        m = _iu.module_from_spec(sp)
+        sp.loader.exec_module(m)
+        return m
+    except Exception as exc:
+        print("[turn] turn_context load failed: %s" % type(exc).__name__, flush=True)
+        return None
+
+
+_TC = _load_tc()
+
 import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
@@ -1037,12 +1056,65 @@ def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = Fals
         if (not _turn_rel_ok(query, summ)) if turn_context else _rel(query, summ) < 0.5:
             continue                            # lexical relevance: unrelated questions get no memory_check
         seen.add(key)
-        out.append({"event_id": r.get("event_id"), "score": round(sc, 4), "summary": _fact_text(_norm_seal(summ)), "source": r.get("source")})
+        meta = r.get("metadata") or {}
+        out.append({"event_id": r.get("event_id"), "score": round(sc, 4), "summary": _fact_text(_norm_seal(summ)),
+                    "source": r.get("source"), "time": meta.get("time_str") or r.get("time") or ""})
         if len(out) >= top_k:
             break
     _mark_conflicts(out)
     t = _tr(); t["hits"] = [h["event_id"] for h in out if h.get("event_id")]; t["t"] = _time.time()
     return out
+
+
+def _turn_hits(user_message, query, search_as, lines, sensitive_list):
+    """One /search, then rank decisions, critical, L1/L2 above recent self echoes. No extra search_as forms."""
+    q = _SCRUB.scrub((query or user_message or "")[:500], sensitive_list)
+    if _is_low(user_message) and not query and not search_as:
+        return q, []
+    tc = _TC
+    conn = None
+    echoes = set()
+    multi = False
+    try:
+        if tc is not None:
+            try:
+                multi = bool(tc.is_multi(user_message or ""))
+                conn = _udb()
+                recent = []
+                if conn is not None:
+                    recent, echoes = tc.recent_from_conn(conn, user_message or "")
+                seed = query if query and not tc.is_short(user_message or "") else (user_message or query or "")
+                q2, sa2 = tc.build_search(seed, search_as, recent)
+                q = _SCRUB.scrub((q2 or q)[:500], sensitive_list)
+                search_as = sa2
+            except Exception as exc:
+                print("[turn] context expand skipped: %s" % type(exc).__name__, flush=True)
+        hits = _hits(q, 8, lines, turn_context=True, search_as=search_as)
+        if tc is not None:
+            try:
+                topic = q if tc.is_short(user_message or "") else (user_message or q)
+                layers = tc.layer_from_conn(conn, topic) if conn is not None else []
+                extra = []
+                if multi and conn is not None:
+                    best = ""
+                    for h in hits:
+                        eid = h.get("event_id") or ""
+                        sid = str(eid).split("::")[-1]
+                        if eid not in echoes and sid not in echoes:
+                            best = eid
+                            break
+                    if best:
+                        extra = tc.neighbours(conn, best, topic)
+                hits = tc.rank(list(hits) + layers + extra, topic, echoes, multi, limit=5)
+            except Exception as exc:
+                print("[turn] context rank skipped: %s" % type(exc).__name__, flush=True)
+        return q, hits
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def _tool_text() -> str:
@@ -1990,7 +2062,7 @@ def _compact_facts(hits, own, rel=0.7, n=3, chars=300):
         if _sid(h.get("event_id")) == own: continue
         if top and h.get("score") is not None and float(h.get("score") or 0) < rel * top: continue
         s = re.sub(r"\s+", " ", str(h.get("summary") or "")).strip()
-        out.append({"ev": _sid(h.get("event_id")), "time": _ev_time(h.get("event_id") or ""), "fact": (_trim_words(s, chars) if len(s) > chars + 20 else s) + " [ev:%s]" % _sid(h.get("event_id"))})
+        out.append({"ev": _sid(h.get("event_id")), "time": h.get("time") or _ev_time(h.get("event_id") or ""), "fact": (_trim_words(s, chars) if len(s) > chars + 20 else s) + " [ev:%s]" % _sid(h.get("event_id"))})
         if len(out) >= n: break
     return out
 def _compact_gate(user, session, cubes, checklist, db):
@@ -2791,11 +2863,10 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         draft = answer
     t = _tr()
     t["last_msg"] = user_message or ""; t["last_msg_t"] = _time.time()
-    q = _SCRUB.scrub((query or user_message or "")[:500], [x.strip() for x in (sensitive or "").split("|")])
     if not draft and event_id:
         return _dumps({"mode": "event", "event": _req("GET", f"/event/{_full_eid(event_id)}", params={"lines": "all"})})
     same = t["last_user"] == user_message and _time.time() - t["saved_t"] < 900 and t["last_eid"]
-    hits = [] if _is_low(user_message) and not query and not search_as else _hits(q, 5, lines, turn_context=True, search_as=search_as)
+    q, hits = _turn_hits(user_message, query, search_as, lines, [x.strip() for x in (sensitive or "").split("|")])
     own = _sid(t.get("last_eid") or "") if same else ""
     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _fact_text(h["summary"])} for h in hits if _sid(h["event_id"]) != own]
     cubes = []

@@ -57,8 +57,8 @@ def _words(s, n):
     return " ".join(w[:n]) + (" …" if len(w) > n else "")
 
 
-def _hits(key, q, search_as=None):
-    _b = {"query_text": q, "top_k": 5, "pack": True, "budget_tokens": 1800}
+def _hits(key, q, search_as=None, keep=8):
+    _b = {"query_text": q, "top_k": keep, "pack": True, "budget_tokens": 1800}
     if search_as:
         _b["search_as"] = [str(x)[:160] for x in (search_as if isinstance(search_as, list) else [search_as])][:3]
     d = _req(key, "POST", "/search", _b)
@@ -73,10 +73,66 @@ def _hits(key, q, search_as=None):
         if k in seen:
             continue
         seen.add(k)
-        out.append({"event_id": r.get("event_id"), "time": r.get("time"), "score": float(r.get("score") or 0), "summary": s})
-        if len(out) >= 5:
+        meta = r.get("metadata") or {}
+        out.append({"event_id": r.get("event_id"), "time": meta.get("time_str") or r.get("time") or "",
+                    "score": float(r.get("score") or 0), "summary": s, "source": r.get("source") or ""})
+        if len(out) >= keep:
             break
     return out
+
+
+def _turn_hits(key, user, user_message, query, search_as, sensitive):
+    """One /search, then rank durable layers above recent self echoes. Does not invent search_as."""
+    from app.secret_scrub import scrub as _scrub
+    q = _scrub((query or user_message or "")[:500], sensitive)
+    if _is_low(user_message) and not query and not search_as:
+        return q, []
+    conn = None
+    try:
+        from app import turn_context as tc
+        from app.search_v2 import _db as _db_path
+    except Exception as exc:
+        print("[rest_turn] turn_context unavailable: %s" % type(exc).__name__, flush=True)
+        return q, _hits(key, q, search_as)
+    echoes, multi = set(), False
+    try:
+        try:
+            multi = bool(tc.is_multi(user_message or ""))
+            conn = tc.open_ro(_db_path(user))
+            recent = []
+            if conn is not None:
+                recent, echoes = tc.recent_from_conn(conn, user_message or "")
+            seed = query if query and not tc.is_short(user_message or "") else (user_message or query or "")
+            q2, sa2 = tc.build_search(seed, search_as, recent)
+            q = _scrub((q2 or q)[:500], sensitive)
+            search_as = sa2
+        except Exception as exc:
+            print("[rest_turn] context expand skipped: %s" % type(exc).__name__, flush=True)
+        hits = _hits(key, q, search_as)
+        try:
+            topic = q if tc.is_short(user_message or "") else (user_message or q)
+            layers = tc.layer_from_conn(conn, topic) if conn is not None else []
+            extra = []
+            if multi and conn is not None:
+                best = ""
+                for h in hits:
+                    eid = h.get("event_id") or ""
+                    sid = str(eid).split("::")[-1]
+                    if eid not in echoes and sid not in echoes:
+                        best = eid
+                        break
+                if best:
+                    extra = tc.neighbours(conn, best, topic)
+            hits = tc.rank(list(hits) + layers + extra, topic, echoes, multi, limit=5)
+        except Exception as exc:
+            print("[rest_turn] context rank skipped: %s" % type(exc).__name__, flush=True)
+        return q, hits
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 SEAL_CTR_DB = "/data/skv/metadata_store/seal_counter.db"
@@ -119,7 +175,7 @@ def _compact_facts(hits, own, rel=0.7, n=3, chars=200):
         if _sid(h.get("event_id")) == own: continue
         if top and h.get("score") is not None and float(h.get("score") or 0) < rel * top: continue
         s = re.sub(r"\s+", " ", str(h.get("summary") or "")).strip()
-        out.append({"ev": _sid(h.get("event_id")), "fact": (s[:chars].rstrip() + " [cut]" if len(s) > chars else s) + " [ev:%s]" % _sid(h.get("event_id"))})
+        out.append({"ev": _sid(h.get("event_id")), "time": h.get("time") or "", "fact": (s[:chars].rstrip() + " [cut]" if len(s) > chars else s) + " [ev:%s]" % _sid(h.get("event_id"))})
         if len(out) >= n: break
     return out
 def _compact_gate(user, session, cubes, checklist, db):
@@ -296,13 +352,11 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     row = c.execute("select last_user, saved_t, eid, seal, final, verdict from st where user=?", (user,)).fetchone() or (None, 0, "", None, "", "")
     last_user, saved_t, last_eid, last_seal, last_final, last_verdict = row
     now = time.time()
-    from app.secret_scrub import scrub as _scrub
     ext_src = str(source or "").startswith(("guard2_ext", "ext", "hook"))
     # ext/hook: the same prompt on another site (or sent again in a new reply) is a NEW turn, not a revision -> hash includes the source
     _um_h = "h:" + hashlib.sha256(((user_message or "") + (("|" + str(source)) if ext_src else "")).encode()).hexdigest()  # state keeps a hash, never the raw text
     same = bool(last_user in (_um_h, user_message) and now - (saved_t or 0) < 900 and last_eid)
-    q = _scrub((query or user_message or "")[:500], sensitive)
-    hits = [] if (_is_low(user_message) and not query and not search_as) else _hits(key, q, search_as)
+    q, hits = _turn_hits(key, user, user_message, query, search_as, sensitive)
     own = _sid(last_eid) if same else ""
     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _words(h["summary"], 60)} for h in hits if _sid(h["event_id"]) != own]
     cubes = []

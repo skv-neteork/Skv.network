@@ -6,6 +6,11 @@ try:
     from app import qdrant_guard as _qg; _qg.install()
 except Exception as _e:
     print(f"[qdrant_guard] skipped: {_e}", flush=True)
+try:
+    from app.keepalive_align import install as _keepalive_install
+    _keepalive_install()
+except Exception as _e:
+    print(f"[keepalive] align skipped: {_e}", flush=True)
 
 def graceful_shutdown(signum, frame):
     try:

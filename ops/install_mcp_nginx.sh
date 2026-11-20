@@ -28,5 +28,6 @@ if [ "$CHG" = 1 ] || [ "${FORCE:-0}" = 1 ]; then
 else
   echo "nginx config unchanged: no reload"
 fi
+bash /root/skv-core/ops/align_upstream_keepalive.sh
 KC=$(curl -s -m 15 -o /dev/null -w %{http_code} --resolve skv.network:443:127.0.0.1 https://skv.network/mcp/k/sk_routecheck000000/ || true)
 echo "MCP nginx OK -> ${GW}:8765 via vhost.d (bad-key check: ${KC}, expect 401)"

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "skv",
+  "description": "Hosted memory for AI agents: recall across chats with event ids and a server-issued seal. Add as an MCP server in Cursor. Free key at https://skv.network/profile.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Deniz Chavdarov"
+  },
+  "homepage": "https://skv.network",
+  "repository": "https://github.com/skv-neteork/Skv.network",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "memory",
+    "agents"
+  ],
+  "logo": "assets/logo.png"
+}

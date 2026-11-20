@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "skv": {
+      "type": "http",
+      "url": "https://skv.network/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SKV_API_KEY}"
+      }
+    }
+  }
+}

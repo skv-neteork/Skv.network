@@ -562,12 +562,12 @@ async def discovery():
             "MCP (38 tools): constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message.",
             "Preferred MCP: https://skv.network/mcp/k/<key>/ or https://skv.network/mcp with Authorization: Bearer sk_...",
             "REST fallback: POST /api/v7/agent/turn (Bearer key). URL-only: GET /api/v7/agent/turn?k=KEY&q=MESSAGE&draft=DRAFT.",
-            "On a required step write a cube or duty=cube_nothing. Vote used cubes. Three downvotes queue a cube for court.",
+            "On a required step write a cube or duty=cube_nothing. Vote used cubes. Three downvotes from different clients set status disputed and queue the cube for court.",
             "CUBE 05 (current): cube_const_05_v22. Live text: GET /api/v7/constitution. Public entry: GET /api/v1/entries/cube_const_05_v22."
         ],
-        "memory": "Per-user SQLite. Vectors are 768-d HNSW, built in batches. Agent writes L1 at task start and end.",
+        "memory": "Per-user SQLite. Live search vectors are 384-d HNSW (mml12, paraphrase-multilingual-MiniLM-L12-v2), built in batches. The English bge 768-d index is frozen and is not what live search reads. Agent writes L1 at task start and end.",
         "constitution": "CUBE 00-05, compact v5. Full text in step_zero (once per new key); afterwards one rule per turn and the full manifest every 10th turn (acknowledge with const_ack).",
-        "court": "Three downvotes set status deprecated and add the cube to court_queue. Evolver drains court_queue. Three judges, majority verdict.",
+        "court": "Three downvotes from different clients (the same user or the same IP counts as one) set status disputed and add the cube to court_queue. The cube stays visible. A downvote does not set deprecated. ops/evolver.py drains the queue nightly: one judge, a second only if the first verdict is remove, a third only if that second reply does not parse. The cube is archived, never hard-deleted, only when two judges both say remove. A proposed fix keeps the old text until every judge who was asked says fix.",
         "mcp_tools": 38,
         "endpoints": {
             "mcp": "https://skv.network/mcp",

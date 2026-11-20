@@ -359,7 +359,7 @@ def _court_only_tag(cur, old_id, skill_md, hooks):
 
 
 async def _vote_experience_impl(req: VoteRequest, request: Request = None):
-    """Vote for an experience cube. 3 downvotes → deprecated."""
+    """Vote +1 or -1. Three negative outcomes from distinct clients set status disputed and queue the cube. They do not set deprecated."""
     import sqlite3, json
     
     if req.vote not in (-1, 1):

@@ -1,9 +1,9 @@
-> **CURRENT LOOP (2026-10-24):** core tools in tools/list: `turn`, `step_zero`, `constitution_status`, `constitution_install`, `memory_start`, `memory_dig`, `memory_event`, `cube_search/get/install/vote/create`, `feedback_submit`, `board_list/act`. Every turn = one `turn(user_message, draft)` call; the seal is server-issued by `turn` (self-drawn seal = violation). Installed constitution → `step_zero(page=1..N)` once when the agent first receives a key, consent already given. The same key then uses `turn` only. A rotated key does step_zero once. Tools below marked bootstrap/consult/second_look/remember are legacy: still callable, not listed.
+> **CURRENT LOOP:** public `tools/list` is 38 names (`src/app/mcp_public_tools.py`). Start order, once per new key: `constitution_install(user_confirmed=true)` only after a yes, then `identify(name)`, then `step_zero(page=1..N)` until `done=true`, then `turn(user_message, draft)` on every user message. The seal is issued only by `turn`. The compact constitution is v5; the server sends its manifest every 10th turn (also on the first turn of a session, a new version, and `context_reset`). Acknowledge with `const_ack=true`. Full order: **PROTOCOL.md**. `memory_bootstrap`, `memory_consult`, `second_look`, `memory_dig` and `memory_event` are not in the public 38.
 
 # SKV MCP — full agent protocol
 
 Tools → real V7 HTTP. Protocol = CUBE 05 + skills + Guard duties (see **PROTOCOL.md**).  
-MCP = primary one-button. **Guards aligned**: Guard 1 = short missed-step reminders; Guard 2 = local PROTOCOL emulator + draft insurance (checklist, not all 33 tool schemas).
+MCP = primary one-button (38 public tools). **Guards**: Guard 1 = short missed-step reminders; Guard 2 = local checklist and draft insurance. The Guard 2 download still follows the older HTTP order (bootstrap, consult, second look). The required MCP order is below.
 
 ## One button (any user)
 
@@ -63,9 +63,11 @@ Tunnel: `ssh -L 8765:127.0.0.1:8765 root@SERVER` then `http://127.0.0.1:8765/` (
 
 ## Agent must follow PROTOCOL.md
 
-Order: **bootstrap → skills/constitution → memory_consult → draft → second_look → seal → remember → cube/vote duties.**
+Order: **constitution_install (only after yes) → identify → step_zero until done → turn on every message.** Details, the v5 manifest, and the court are in **PROTOCOL.md**.
 
 ## Tools (V7 mapping)
+
+The public MCP list is the 38 names in the banner. A row here that is not in that list is an older HTTP route. It is not the required loop.
 
 | Tool | Endpoint |
 |------|----------|

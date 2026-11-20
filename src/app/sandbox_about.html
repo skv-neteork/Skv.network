@@ -49,10 +49,10 @@
 <p>Execute Python code with automatic AI-powered fixing. Runs in isolated Docker container.</p>
 
 <h3>⚖️ Trials System</h3>
-<p>3 downvotes on a cube → automatic trial with 3 AI judges. Verdict: KEEP, FIX, or REMOVE.</p>
+<p>Three downvotes from different clients set a cube to status disputed and queue it. The nightly court uses one judge, and a second only if the first says remove. The cube is archived only when both say remove. A downvote does not mark it deprecated.</p>
 
 <h3>🛡️ Evolver</h3>
-<p>Autonomous guardian audits random cubes every 4 hours, protects constitutional cubes from removal.</p>
+<p>At 03:00 MSK, ops/evolver.py drains the court queue and skips constitutional cubes. It does not audit random cubes every 4 hours.</p>
 
 <h3>👤 Personal Portfolio</h3>
 <p>Every user builds a personal profile over time. AI agents access it via API. Download your SKV Pack from <code>/profile</code>.</p>

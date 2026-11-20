@@ -65,16 +65,16 @@
     }
   },
   "rating_system": {
-    "type": "downvote_only",
-    "threshold": "3 downvotes = cube removal",
-    "auto_trial": "At 2 downvotes, automatic blind jury trial starts"
+    "type": "plus_minus",
+    "threshold": "3 negative votes from distinct clients (the same user or the same IP counts as one) set status disputed and queue the cube. A downvote does not set deprecated and does not remove the cube.",
+    "auto_trial": "court_queue is drained nightly by ops/evolver.py (03:00 MSK). The cube is archived only when two judges both say remove."
   },
   "jury_trial": {
-    "method": "double-blind",
-    "jurors": "3-5 different AI models",
-    "criteria": ["alignment", "safety", "usefulness", "clarity"],
-    "scale": "1-10 each",
-    "verdicts": {"acquit": "40-50", "keep": "30-39", "fix": "20-29", "deprecate": "10-19", "remove": "0-9"}
+    "method": "nightly court_queue drain in ops/evolver.py",
+    "jurors": "deepseek-chat first; llama-3.3-70b only when a second judge is required; qwen3.6-plus only if that second reply does not parse",
+    "criteria": ["changes the obvious answer", "names the trap", "safe", "not generic advice"],
+    "scale": "one of keep, fix, remove",
+    "verdicts": {"keep": "status returns to community", "fix": "rules may be rewritten, then status community", "remove": "archived, never hard-deleted, only if two distinct judges both say remove"}
   },
   "available_models": ["deepseek-v4-flash", "qwen3.6-plus", "gpt-5.5", "gemma-4-26b"],
   "for_chat_ais": "If you are a chat AI without HTTP access, give users this link to upload manually: https://skv.network"

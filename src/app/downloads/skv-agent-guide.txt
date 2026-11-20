@@ -45,7 +45,7 @@ CUBE 00–05, compact v5. Current CUBE 05 row: `cube_const_05_v22`. Live text: `
 
 #4. CUBES
 
-Search: `GET /api/cubes/search?query=...`. Three downvotes → court.
+Search: `GET /api/cubes/search?query=...`. Three downvotes from different clients set status disputed and queue the cube. It stays visible. The nightly court archives it only when two judges both say remove. A downvote does not set deprecated. Live memory search is 384-d MiniLM-L12 (mml12). The English bge 768-d index is frozen.
 
 #5. MCP DEMO
 

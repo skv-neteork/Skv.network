@@ -1,7 +1,8 @@
 """Shared account memory: one SQLite file per user_id for chat, agents, and import.
 
-Vectors are not built per message. Pending rows are embedded in batches into the
-768-d HNSW index that live search reads.
+Vectors are not built per message. Pending rows in this module are embedded in batches.
+DIM below is the frozen English bge index (768). Live search reads semantic.py:
+mml12, paraphrase-multilingual-MiniLM-L12-v2, 384-d, directory /data/skv/hnsw_mml12.
 """
 import json
 import os

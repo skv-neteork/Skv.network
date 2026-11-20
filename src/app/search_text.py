@@ -1,5 +1,10 @@
-"""/api/v7/search without a valid 768-d query_vector used to crash the worker (malloc in HNSW -> 502).
-Text queries now go through the same semantic + keyword (RRF) path as /memory."""
+"""/api/v7/search text path.
+
+A missing or non-768 raw query_vector used to crash the worker (malloc in the old HNSW -> 502).
+Text queries do not use that vector. They go through semantic.py. The live index is mml12
+(paraphrase-multilingual-MiniLM-L12-v2, 384-d). A caller-supplied query_vector is still
+rejected unless its length is 768. That check is the old guard, not the live embedding size.
+"""
 def _text_search_core(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
     if since or until or exclude_imports or (source and source.lower() != "events"):
         return filtered_search(uid, query, top_k, since, until, exclude_imports, source)

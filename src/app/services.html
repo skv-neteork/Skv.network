@@ -64,13 +64,13 @@
             
             <div class="card">
                 <h3>⚖️ Trials System</h3>
-                <p>Community-driven quality control. 3 downvotes → 3 AI judges review → verdict: KEEP, FIX, or REMOVE.</p>
+                <p>Three downvotes from different clients set status to disputed and queue the cube. The nightly court uses one judge, and a second only if the first says remove. The cube is archived only when both say remove. A downvote does not mark it deprecated.</p>
                 <a href="/trials" class="action">View Trials →</a>
             </div>
             
             <div class="card">
                 <h3>🛡️ Autonomous Guardian</h3>
-                <p>Evolver audits random cubes every 4 hours, protects constitutional rules, sends weak cubes to Trials.</p>
+                <p>At 03:00 MSK, ops/evolver.py drains the court queue. Constitutional cubes are skipped. It does not audit random cubes every 4 hours.</p>
                 <a href="/evolver" class="action">Evolver Status →</a>
             </div>
             

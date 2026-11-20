@@ -52,13 +52,13 @@ async def homepage_v7():
             <div class="card">
                 <h3>4-уровневая память</h3>
                 <p><strong>Level 0:</strong> Raw dialogue (30 дней → архив)</p>
-                <p><strong>Level 1:</strong> Summary (вектор 768 + JSON)</p>
+                <p><strong>Level 1:</strong> Summary (L1 text + JSON). Live search vectors are 384-d.</p>
                 <p><strong>Level 2:</strong> Memory Map (темы, timeline)</p>
                 <p><strong>Level 3:</strong> Cubes (атомарные знания + граф)</p>
             </div>
             <div class="card">
                 <h3>Гибридный поиск</h3>
-                <p><strong>HNSW:</strong> семантический поиск (bge-base 768)</p>
+                <p><strong>HNSW:</strong> semantic search (MiniLM-L12, 384-d, index mml12). The English bge 768 index is frozen.</p>
                 <p><strong>FTS5:</strong> точные совпадения по словам</p>
                 <p><strong>Spreading Activation:</strong> по графу кубов</p>
                 <p><strong>RRF:</strong> слияние результатов</p>

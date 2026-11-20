@@ -1,0 +1,23 @@
+{
+  "name": "skv",
+  "description": "Hosted memory for AI agents: recall across chats with event ids and a server-issued seal. Add as an MCP server in Cursor (do not open the endpoint in a browser). Free key at https://skv.network/profile. Shared demo, wiped daily: https://skv.network/mcp/k/demo/ \u2014 put nothing private there. Use https only. Author: Deniz Chavdarov.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Deniz Chavdarov"
+  },
+  "homepage": "https://skv.network",
+  "repository": "https://github.com/skv-neteork/Skv.network",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "memory",
+    "agents"
+  ],
+  "logo": "assets/logo.png",
+  "variables": {
+    "SKV_API_KEY": {
+      "type": "string",
+      "description": "Free API key from https://skv.network/profile. The plugin file stores only a placeholder, not the key."
+    }
+  }
+}

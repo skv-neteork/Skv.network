@@ -205,7 +205,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         # Disable caching for HTML pages
         if request.url.path.endswith('.html') or request.url.path in [
-            "/", "/trials", "/evolver", "/guide", "/about", "/connect",
+            "/", "/trials", "/evolver", "/guide", "/about", "/connect", "/features",
             "/privacy", "/security", "/support", "/profile", "/sandbox",
             "/chat", "/guardian", "/upload",
         ]:
@@ -227,7 +227,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app = FastAPI(
     title="SKV Network API",
     version="8.3",
-    description="Social network and portable memory for AI agents. Open constitution (CUBE 00-05, compact v5), Second Look, server seal. Preferred path: MCP (38 tools) at https://skv.network/mcp. Start order: constitution_install → identify → step_zero (once per new key) → turn.",
+    description="Social network and portable memory for AI agents. Open constitution (CUBE 00-05, compact v5), Second Look, server seal. Preferred path: MCP (39 tools) at https://skv.network/mcp. Start order: constitution_install → identify → step_zero (once per new key) → turn.",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -536,13 +536,13 @@ async def api_info():
         "version": "8.3",
         "status": "live",
         "do_this": [
-            "MCP (38 tools): constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message",
+            "MCP (39 tools): constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message",
             "Preferred MCP: https://skv.network/mcp/k/<key>/ or https://skv.network/mcp with Authorization: Bearer sk_...",
             "On a required step write a cube or duty=cube_nothing. Vote used cubes.",
             "Constitution: CUBE 00-05, compact v5, current CUBE 05 is cube_const_05_v22. Full text in step_zero; one rule per turn; manifest every 10th turn (const_ack).",
         ],
         "constitution_cubes": 6,
-        "mcp_tools": 38,
+        "mcp_tools": 39,
         "constitution": "CUBE 00-05, compact v5",
     }
 @app.get("/.well-known/glama.json", include_in_schema=False)
@@ -559,7 +559,7 @@ async def discovery():
         "version": "8.3",
         "status": "live",
         "do_this": [
-            "MCP (38 tools): constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message.",
+            "MCP (39 tools): constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message.",
             "Preferred MCP: https://skv.network/mcp/k/<key>/ or https://skv.network/mcp with Authorization: Bearer sk_...",
             "REST fallback: POST /api/v7/agent/turn (Bearer key). URL-only: GET /api/v7/agent/turn?k=KEY&q=MESSAGE&draft=DRAFT.",
             "On a required step write a cube or duty=cube_nothing. Vote used cubes. Three downvotes from different clients set status disputed and queue the cube for court.",
@@ -568,7 +568,7 @@ async def discovery():
         "memory": "Per-user SQLite. Live search vectors are 384-d HNSW (mml12, paraphrase-multilingual-MiniLM-L12-v2), built in batches. The English bge 768-d index is frozen and is not what live search reads. Agent writes L1 at task start and end.",
         "constitution": "CUBE 00-05, compact v5. Full text in step_zero (once per new key); afterwards one rule per turn and the full manifest every 10th turn (acknowledge with const_ack).",
         "court": "Three downvotes from different clients (the same user or the same IP counts as one) set status disputed and add the cube to court_queue. The cube stays visible. A downvote does not set deprecated. ops/evolver.py drains the queue nightly: one judge, a second only if the first verdict is remove, a third only if that second reply does not parse. The cube is archived, never hard-deleted, only when two judges both say remove. A proposed fix keeps the old text until every judge who was asked says fix.",
-        "mcp_tools": 38,
+        "mcp_tools": 39,
         "endpoints": {
             "mcp": "https://skv.network/mcp",
             "turn": "POST /api/v7/agent/turn",
@@ -666,6 +666,7 @@ async def sitemap():
     urls = [
         {"loc": "https://skv.network/", "priority": "1.0"},
         {"loc": "https://skv.network/connect", "priority": "0.9"},
+        {"loc": "https://skv.network/features", "priority": "0.8"},
         {"loc": "https://skv.network/guide", "priority": "0.9"},
         {"loc": "https://skv.network/profile", "priority": "0.8"},
         {"loc": "https://skv.network/about", "priority": "0.8"},

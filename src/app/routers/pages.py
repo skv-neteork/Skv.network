@@ -508,6 +508,10 @@ CONNECT_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "connect.html"
 async def connect_page():
     return HTMLResponse(_read_html(CONNECT_HTML_PATH))
 
+@router.get("/features")
+async def features_page():
+    return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "features.html")))
+
 
 # --- SKV local-agent installer (files: /root/skv-core/installer -> downloads/installer via installer/deploy.sh)
 _INST = {"install.sh": "text/plain; charset=utf-8", "install.ps1": "text/plain; charset=utf-8",

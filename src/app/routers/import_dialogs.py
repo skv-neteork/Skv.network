@@ -576,15 +576,158 @@ def to_pairs(payload):
     msgs = _walk_messages(blob)
     return _zip_pairs(msgs)
 
+def _text_of(content):
+    """String text from a Claude content list, a ChatGPT parts list, or a plain string."""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, dict):
+        if isinstance(content.get("text"), str):
+            return content["text"].strip()
+        parts = content.get("parts")
+        if isinstance(parts, list):
+            return " ".join(p for p in parts if isinstance(p, str)).strip()
+        return ""
+    if isinstance(content, list):
+        bits = []
+        for item in content:
+            if isinstance(item, str):
+                if item.strip():
+                    bits.append(item.strip())
+            elif isinstance(item, dict):
+                bit = item.get("text") if isinstance(item.get("text"), str) else ""
+                if not bit and item.get("content") not in (None, ""):
+                    bit = _text_of(item.get("content"))
+                if bit:
+                    bits.append(bit)
+        return " ".join(bits).strip()
+    return ""
+
+
+_MAX_B64 = 40_000_000
+_MAX_ZIP = 32 * 1024 * 1024
+_MAX_UNCOMP = 48 * 1024 * 1024
+_MAX_JSON = 20
+_TOO_BIG = "Upload conversations.json from inside the zip, or split the chat."
+
+
+def _has_key(obj, key, depth=0):
+    if depth > 4:
+        return False
+    if isinstance(obj, dict):
+        if key in obj:
+            return True
+        return any(_has_key(v, key, depth + 1) for v in list(obj.values())[:20])
+    if isinstance(obj, list):
+        return any(_has_key(v, key, depth + 1) for v in obj[:8])
+    return False
+
+
+def _guess_source(payload, filename):
+    name = (filename or "").lower()
+    if "claude" in name or _has_key(payload, "chat_messages"):
+        return "claude"
+    if "chatgpt" in name or name.endswith("conversations.json") or _has_key(payload, "mapping"):
+        return "chatgpt"
+    return ""
+
+
+def _decode_export_bytes(raw):
+    text = raw.decode("utf-8", errors="replace")
+    try:
+        return json.loads(text)
+    except Exception:
+        return text
+
+
+def _payload_from_zip(raw):
+    import io
+    import zipfile
+    if len(raw) > _MAX_ZIP:
+        raise ValueError(_TOO_BIG)
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile as exc:
+        raise ValueError("not a zip file") from exc
+    infos = [i for i in zf.infolist() if not i.is_dir()]
+    if len(infos) > 200:
+        raise ValueError(_TOO_BIG)
+    total = 0
+    jsonish = []
+    for info in infos:
+        total += max(0, info.file_size)
+        if total > _MAX_UNCOMP:
+            raise ValueError(_TOO_BIG)
+        name = info.filename.replace("\\", "/")
+        if name.startswith("/") or ".." in name.split("/"):
+            continue
+        low = name.lower()
+        if low.endswith(".json") or low.endswith(".txt") or low.endswith(".md"):
+            jsonish.append(info)
+    preferred = [i for i in jsonish if i.filename.replace("\\", "/").lower().endswith("conversations.json")]
+    chosen = preferred or jsonish[:_MAX_JSON]
+    if not chosen:
+        raise ValueError("zip has no json or text chat export")
+    parsed, texts = [], []
+    for info in chosen[:_MAX_JSON]:
+        blob = zf.read(info)
+        if len(blob) > _MAX_UNCOMP:
+            raise ValueError(_TOO_BIG)
+        obj = _decode_export_bytes(blob)
+        if isinstance(obj, (dict, list)):
+            parsed.append(obj)
+        elif str(obj).strip():
+            texts.append(str(obj))
+    if len(parsed) == 1 and not texts:
+        return parsed[0]
+    merged = []
+    for obj in parsed:
+        if isinstance(obj, list):
+            merged.extend(obj)
+        elif isinstance(obj, dict):
+            merged.append(obj)
+    if merged:
+        return {"conversations": merged}
+    if texts:
+        return "\n\n".join(texts)
+    raise ValueError("zip has no json or text chat export")
+
+
+def payload_from_upload(data):
+    """Return (payload, source_hint) for /import/file. Raises ValueError on a bad upload."""
+    import base64
+    if not isinstance(data, dict):
+        return data, ""
+    filename = str(data.get("filename") or "")
+    b64 = data.get("content_b64")
+    if isinstance(b64, str) and b64.strip():
+        if len(b64) > _MAX_B64:
+            raise ValueError(_TOO_BIG)
+        try:
+            raw = base64.b64decode(b64, validate=False)
+        except Exception as exc:
+            raise ValueError("content_b64 is not valid base64") from exc
+        if raw[:2] == b"PK" or filename.lower().endswith(".zip"):
+            payload = _payload_from_zip(raw)
+        else:
+            payload = _decode_export_bytes(raw)
+        return payload, _guess_source(payload, filename)
+    if "payload" in data:
+        payload = data.get("payload")
+        return payload, _guess_source(payload, filename)
+    payload = data.get("text", "")
+    return payload, _guess_source(payload, filename)
+
+
 def _walk_messages(node):
     found = []
     if isinstance(node, dict):
         role = node.get("role") or node.get("sender") or ""
-        content = node.get("content") or node.get("text") or ""
-        if isinstance(content, list):
-            content = " ".join(str(x) for x in content)
-        if role in ("user", "human", "assistant", "model") and content:
-            found.append({"role": "user" if role in ("user", "human") else "assistant", "content": str(content)})
+        content = node.get("content")
+        if content in (None, ""):
+            content = node.get("text") or ""
+        text = _text_of(content)
+        if role in ("user", "human", "assistant", "model") and text:
+            found.append({"role": "user" if role in ("user", "human") else "assistant", "content": text})
         for value in node.values():
             found.extend(_walk_messages(value))
     elif isinstance(node, list):
@@ -618,10 +761,19 @@ async def import_file(data: dict):
     user_id = data.get("user_id", "")
     if not user_id:
         return {"status": "error", "detail": "user_id required"}
-    pairs = to_pairs(data.get("payload") if "payload" in data else data.get("text", ""))
-    source = data.get("source", "import")
+    try:
+        payload, hint = payload_from_upload(data)
+    except ValueError as exc:
+        return {"status": "error", "detail": str(exc), "imported": 0}
+    pairs = to_pairs(payload)
+    source = (data.get("source") or "").strip()
+    if source in ("", "import", "profile", "profile_file"):
+        source = hint or "profile_file"
+    if not pairs:
+        return {"status": "ok", "imported": 0, "cycle": "none", "source": source,
+                "note": "No user/assistant pairs found. Use User: and Assistant: lines, or a ChatGPT or Claude export."}
     saved = save_pairs(user_id, pairs, source, True)
-    return {"status": "ok", "imported": saved, "cycle": "started" if saved else "none"}
+    return {"status": "ok", "imported": saved, "cycle": "started" if saved else "none", "source": source}
 
 import json, os, sqlite3, threading, urllib.request
 

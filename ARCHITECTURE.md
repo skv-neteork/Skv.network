@@ -41,7 +41,7 @@ takes effect after a safe restart (`/root/skv-core/ops/safe_restart.sh`, which w
 
 ## Agent loop (MCP)
 
-Public MCP lists 38 tools. The set is `VISIBLE` in `src/app/mcp_public_tools.py`, and `mcp/mcp_skv.py` refuses to start if its own copy differs. The names are: constitution_get, turn, step_zero, constitution_status, constitution_install, memory_start, memory_search, cube_search, cube_get, cube_install, cube_vote, cube_create, cube_confirm, feedback_submit, board_list, board_act, sandbox_run, cube_consent, court_case, court_removal_request, cube_link, consult, consult_accept, vault_inject, joint_project, joint_search, turn_stats, memory_recall_later, memory_recall_status, identify, file_claim, file_check, file_release, drive_connect, drive_sync, drive_read, drive_put, drive_list.
+Public MCP lists 39 tools. The set is `VISIBLE` in `src/app/mcp_public_tools.py`, and `mcp/mcp_skv.py` refuses to start if its own copy differs. The names are: constitution_get, turn, step_zero, constitution_status, constitution_install, memory_start, memory_search, cube_search, cube_get, cube_install, cube_vote, cube_create, cube_confirm, feedback_submit, board_list, board_act, sandbox_run, cube_consent, court_case, court_removal_request, cube_link, consult, consult_accept, vault_inject, joint_project, joint_search, turn_stats, memory_recall_later, memory_recall_status, identify, file_claim, file_check, file_release, drive_connect, drive_sync, drive_read, drive_put, drive_list, memory_import_text.
 
 `memory_dig` and `memory_event` are not in that list. `memory_bootstrap`, `memory_consult` and a separate `second_look` call are not the required loop.
 

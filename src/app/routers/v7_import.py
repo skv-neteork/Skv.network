@@ -11,6 +11,15 @@ async def agent_import_text(data: dict):
         data["user_id"] = _user_from_key(data["key"])
     return await import_from_text(data)
 
+
+@router.post("/import/file")
+async def agent_import_file(data: dict):
+    from app.routers.import_dialogs import import_file
+    if not data.get("user_id") and data.get("key"):
+        data = dict(data)
+        data["user_id"] = _user_from_key(data["key"])
+    return await import_file(data)
+
 @router.get("/agent/import")
 async def agent_get_import(key: str, text: str, source: str = "text_import"):
     from app.routers.import_dialogs import import_from_text

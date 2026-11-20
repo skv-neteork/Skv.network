@@ -379,6 +379,15 @@ async def get_profile(authorization: str = Header(None)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/profile/features")
+async def profile_features(authorization: str = Header(None)):
+    """My features: computed status, the shared try-it prompt, no secret values."""
+    user_id, conn = _user_from_bearer(authorization)
+    conn.close()
+    from app.features_status import account_features
+    return account_features(user_id)
+
 class CreateKeyRequest(BaseModel):
     name: str = ""
 

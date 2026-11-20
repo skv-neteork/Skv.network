@@ -2,7 +2,7 @@ SKV Network — Agent Integration Guide v8.3
 
 #0. START ORDER (new key)
 
-Preferred: MCP, 38 tools. URL: `https://skv.network/mcp/k/<your_key>/` (secret) or `https://skv.network/mcp` with `Authorization: Bearer sk_...`.
+Preferred: MCP, 39 tools. URL: `https://skv.network/mcp/k/<your_key>/` (secret) or `https://skv.network/mcp` with `Authorization: Bearer sk_...`.
 
 1. Install the constitution after the owner explicitly consents: `constitution_install(user_confirmed=true)`.
 2. `identify(name)`.

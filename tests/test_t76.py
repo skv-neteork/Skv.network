@@ -144,7 +144,8 @@ def _card_doc():
 class ServerCardTests(unittest.TestCase):
     def test_card_lists_exactly_visible_tools(self):
         names = _visible_names()
-        self.assertEqual(len(names), 38, names)
+        self.assertEqual(len(names), 39, names)
+        self.assertIn("memory_import_text", names)
         ns = {}
         exec(open(_src("src", "app", "mcp_public_tools.py"), encoding="utf-8").read(), ns)
         self.assertEqual(sorted(ns["VISIBLE"]), names)

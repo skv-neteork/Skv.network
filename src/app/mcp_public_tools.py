@@ -1,4 +1,4 @@
-"""Canonical public MCP tool names (38). Imported by the server card and mcp_skv.
+"""Canonical public MCP tool names (39). Imported by the server card and mcp_skv.
 
 Lives under src/app so the API container (which mounts only this tree) can list
 the same tools as the MCP server without reading mcp/mcp_skv.py.
@@ -9,4 +9,5 @@ VISIBLE = {
     "cube_consent", "court_case", "court_removal_request", "cube_link", "consult", "consult_accept", "vault_inject", "joint_project", "joint_search", "turn_stats", "memory_recall_later", "memory_recall_status",
     "identify", "file_claim", "file_check", "file_release",
     "drive_connect", "drive_sync", "drive_read", "drive_put", "drive_list",
+    "memory_import_text",
 }

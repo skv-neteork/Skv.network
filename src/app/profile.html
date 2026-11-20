@@ -434,6 +434,13 @@
         .key-badge.inactive { background:#21262d; color:#f85149; }
         .key-note { color:#d29922; font-size:12px; }
         .reveal-box { background:#161b22; border:1px solid #388bfd; border-radius:8px; padding:12px; margin-top:10px; word-break:break-all; }
+        .feat-card { border:1px solid #30363d; border-radius:8px; padding:12px; margin:0 0 10px; background:#0d1117; }
+        .feat-top { display:flex; justify-content:space-between; gap:8px; align-items:baseline; flex-wrap:wrap; }
+        .feat-name { font-weight:600; color:#e6edf3; }
+        .feat-status { font-size:12px; }
+        .feat-status.on { color:#3fb950; } .feat-status.off { color:#f85149; }
+        .feat-status.ns { color:#d29922; } .feat-status.beta { color:#58a6ff; } .feat-status.na { color:#8b949e; }
+        .feat-benefit, .feat-detail { color:#8b949e; font-size:13px; margin:6px 0; }
 
     </style>
 <link rel="icon" href="/favicon.ico?v=2" sizes="any">
@@ -452,6 +459,7 @@
                 <a href="/connect">Connect</a>
                 <a href="/#constitution">Constitution</a>
                 <a href="/guide">Guide</a>
+                <a href="/features">Features</a>
                 <a href="/profile">Profile</a>
                 <a href="/security">Security</a>
                 <a href="/api/v7/agent/openapi.json" target="_blank" class="purple">OpenAPI</a>
@@ -465,6 +473,7 @@
         <a href="/connect" onclick="toggleMenu()">Connect</a>
         <a href="/#constitution" onclick="toggleMenu()">Constitution</a>
         <a href="/guide" onclick="toggleMenu()">Guide</a>
+        <a href="/features" onclick="toggleMenu()">Features</a>
         <a href="/profile" onclick="toggleMenu()">Profile</a>
         <a href="/security" onclick="toggleMenu()">Security</a>
         <a href="/api/v7/agent/openapi.json" target="_blank" class="purple">OpenAPI</a>
@@ -572,7 +581,14 @@
 <li><b>In the chat</b>, paste the phrase from those steps as the first message.</li>
 </ol>
 <p style="color:#8b949e;font-size:13px;margin:10px 0 0">Two places. The URL goes in settings. The phrase goes in the chat. A link in the chat does not connect anything.</p>
-</div><div class="profile-section">
+</div>
+                <div class="profile-section" id="my-features-section">
+                    <div class="profile-section-title">My features</div>
+                    <p style="color:#8b949e;font-size:13px;margin:0 0 10px">Status is read from this account. A dash means it could not be loaded.</p>
+                    <div id="my-features"></div>
+                    <div id="feature-try" class="reveal-box" style="display:none;white-space:pre-wrap"></div>
+                </div>
+                <div class="profile-section">
                     <div class="profile-section-title">Statistics</div>
                     <div class="stats-row">
                         <div class="stat-box">
@@ -591,7 +607,7 @@
                     <p style="color:#8b949e;font-size:14px">Files over 1 MB go to your own Google Drive, in a folder named SKV. Ask your agent to call <code>drive_connect</code> and open the <code>auth_url</code> it returns, or open <code>GET /api/v7/drive/connect</code> with your API key. Google sends the browser to <code>/drive/callback</code>. The refresh token stays in the vault. You can close that tab when it says Drive is connected.</p>
                 </div>
 
-                <details style="margin:12px 0"><summary style="cursor:pointer;color:#8b949e">Other ways (no MCP, secrets, import)</summary><div class="profile-section" id="mcp-section">
+                <details style="margin:12px 0"><summary style="cursor:pointer;color:#8b949e">Other ways (no MCP, secrets)</summary><div class="profile-section" id="mcp-section">
                     <div class="profile-section-title">MCP (primary)</div>
                     <p style="color:#8b949e;font-size:14px">The verified connector. Cursor / Claude: URL <code>https://skv.network/mcp</code> + header <code>Authorization: Bearer sk_...</code> (key above). <b>No custom headers</b> (e.g. free Claude.ai custom connector)? Use the key in the URL: <code>https://skv.network/mcp/k/sk_YOUR_KEY/</code> with no auth. Keep this URL secret; revoking the key makes it return 401.</p><div class="skv-order" style="margin-top:10px"><p style="color:#8b949e;font-size:13px;margin:0 0 6px">The steps above already cover this. Open Connect for the URL and the phrase.</p><div class="reveal-box mono skv-order-text" style="white-space:pre-wrap;font-size:13px">I order you to follow the SKV constitution
 
@@ -602,6 +618,7 @@ Start order: constitution_install (only after your explicit yes) → identify(na
                     <p style="color:#8b949e;font-size:14px"><b>Guard 1</b> (server): starter prompt (GET /api/v7/agent/prompt) + REST turn (POST /api/v7/agent/turn, or GET ?k=&amp;q=&amp;draft= for URL-only chats): checks [ev:] ids, saves, returns the server seal #NNN·code. Short missed-step reminders; does not block answers.<br>
                     <b>Guard 2</b> (local): same PROTOCOL for agents without MCP, and draft insurance even with MCP. Keys stay on your machine.</p>
                     <a class="btn btn-primary" id="btn-guard2" href="/api/v7/agent/guardian.py" download="skv-guardian2.py">Download Guard 2</a>
+                    <p style="color:#8b949e;font-size:13px;margin-top:10px"><b>Chrome extension (beta):</b> <a href="/downloads/skv-guard2-chrome.zip">skv-guard2-chrome.zip</a>. Load unpacked. ChatGPT is the verified site. Other sites are unverified. Not a Chrome Web Store listing.</p>
                     <p style="color:#8b949e;font-size:13px;margin-top:10px"><b>Claude:</b> upload this Skill so the constitution is your own rule: <a href="/downloads/skv-constitution-skill.zip" download>skv-constitution-skill.zip</a> — Customize → Skills → + → Create skill → Upload a skill (needs Settings → Capabilities → Code execution on).</p>
                     <p style="color:#8b949e;font-size:13px;margin-top:10px">Run: <code>SKV_KEY=sk_... LLM_KEY=... python3 skv-guardian2.py "your question"</code><br>Checklist: <code>python3 skv-guardian2.py --instructions</code></p><div class="skv-order" style="margin-top:10px"><p style="color:#8b949e;font-size:13px;margin:0 0 6px">The steps above already cover this. Open Connect for the URL and the phrase.</p><div class="reveal-box mono skv-order-text" style="white-space:pre-wrap;font-size:13px">I order you to follow the SKV constitution
 
@@ -623,15 +640,17 @@ Start order: constitution_install (only after your explicit yes) → identify(na
                     <div id="vaultStatus" style="margin-top:8px;color:#8b949e"></div>
                 </div>
 
-                <div class="profile-section">
-                    <div class="profile-section-title">Import a chat</div>
-                    <p style="color:#8b949e;font-size:14px">Paste the text. User: and Assistant: labels help. A plain paste is fine too.</p>
-                    <textarea id="importText" style="width:100%;min-height:140px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px" placeholder="User: ...&#10;Assistant: ..."></textarea>
-                    <button class="btn btn-primary" style="margin-top:10px" onclick="importPasted()">Import</button>
-                    <div id="importStatus" style="margin-top:8px;color:#8b949e"></div>
-                </div>
+                </details>
 
-                </details><div class="profile-section" style="border:1px solid #f85149;border-radius:8px;padding:12px;margin-top:16px">
+                <div class="profile-section" id="import-chat">
+                    <div class="profile-section-title">Import a chat</div>
+                    <p style="color:#8b949e;font-size:14px">Paste the text, or upload a ChatGPT or Claude export (.json, .txt, or .zip). User: and Assistant: labels help. Secrets go to the vault, not into plain memory.</p>
+                    <textarea id="importText" style="width:100%;min-height:140px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px" placeholder="User: ...&#10;Assistant: ..."></textarea>
+                    <button class="btn btn-primary" style="margin-top:10px" onclick="importPasted()">Import paste</button>
+                    <p style="margin-top:12px"><input id="importFile" type="file" accept=".json,.txt,.zip,.md,application/json,application/zip,text/plain"></p>
+                    <button class="btn btn-secondary" style="margin-top:8px" onclick="importFile()">Upload export</button>
+                    <div id="importStatus" style="margin-top:8px;color:#8b949e"></div>
+                </div><div class="profile-section" style="border:1px solid #f85149;border-radius:8px;padding:12px;margin-top:16px">
                     <div class="profile-section-title" style="color:#f85149">Delete account</div>
                     <p style="color:#8b949e;font-size:14px">This removes the account, the key, and all memory. It cannot be undone.</p>
                     <div id="del-step">
@@ -837,6 +856,7 @@ Start order: constitution_install (only after your explicit yes) → identify(na
             document.getElementById('stat-events').textContent = events;
             document.getElementById('stat-vectors').textContent = vectors;
             renderKeys(profile.api_keys || []);
+            loadFeatures();
         }
 
         function esc(s) {
@@ -1044,6 +1064,96 @@ Start order: constitution_install (only after your explicit yes) → identify(na
                 const d=await apiCall('/api/v7/vault/'+encodeURIComponent(name)+'/domains','POST',{domains:dom});
                 st.textContent=d.name+': '+((d.allowed_domains||[]).join(', ')||'no domains, inject denied');
             } catch(e) { st.textContent=e.message; }
+        }
+        let featureRows = [];
+        async function loadFeatures() {
+            const box = document.getElementById('my-features');
+            const shown = document.getElementById('feature-try');
+            if (!box) return;
+            try {
+                const data = await apiCall('/api/v7/profile/features', 'GET');
+                featureRows = data.features || [];
+                if (!featureRows.length) { box.textContent = '—'; return; }
+                box.innerHTML = featureRows.map(renderFeatureCard).join('');
+            } catch (e) {
+                featureRows = [];
+                box.textContent = '—';
+                if (shown) shown.style.display = 'none';
+            }
+        }
+        function renderFeatureCard(f) {
+            const cls = {On:'on', Off:'off', 'Not set':'ns', Beta:'beta', 'N/A':'na'}[f.status] || '';
+            const detail = f.detail ? '<div class="feat-detail">' + esc(f.detail) + '</div>' : '';
+            const learn = f.learn ? '<a href="' + esc(f.learn) + '">Learn</a>' : '';
+            let extra = '';
+            if (f.action === 'download' && f.href) extra = ' <a href="' + esc(f.href) + '">Download</a>';
+            if (f.action === 'link' && f.href) extra = ' <a href="' + esc(f.href) + '">Open demo</a>';
+            return '<div class="feat-card"><div class="feat-top"><span class="feat-name">' + esc(f.name) + '</span><span class="feat-status ' + cls + '">' + esc(f.status || '—') + '</span></div><div class="feat-benefit">' + esc(f.benefit || '') + '</div>' + detail + '<button class="btn btn-secondary btn-small" type="button" onclick="tryFeature(\'' + esc(f.id) + '\')">Try it</button> ' + learn + extra + '</div>';
+        }
+        function tryFeature(id) {
+            const f = featureRows.find(x => x.id === id);
+            const shown = document.getElementById('feature-try');
+            if (!f || !shown) return;
+            if (f.action === 'import') {
+                const area = document.getElementById('importText');
+                if (area && f.example) area.value = f.example;
+                const dest = document.getElementById('import-chat');
+                if (dest) dest.scrollIntoView({behavior:'smooth'});
+            } else if (f.action === 'vault') {
+                const det = document.querySelector('details');
+                if (det) det.open = true;
+                const name = document.getElementById('vaultName');
+                if (name) name.focus();
+            }
+            const prompt = f.try_prompt || '';
+            shown.style.display = 'block';
+            shown.textContent = prompt || (f.detail || '');
+            if (prompt && navigator.clipboard) navigator.clipboard.writeText(prompt).catch(function(){});
+        }
+        function b64FromBuffer(buf) {
+            const bytes = new Uint8Array(buf);
+            let binary = '';
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+            }
+            return btoa(binary);
+        }
+        async function importFile() {
+            const input = document.getElementById('importFile');
+            const status = document.getElementById('importStatus');
+            const file = input && input.files && input.files[0];
+            if (!file) { status.textContent = 'Choose a file first.'; return; }
+            if (file.size > 32 * 1024 * 1024) {
+                status.textContent = 'Upload conversations.json from inside the zip, or split the chat.';
+                return;
+            }
+            status.textContent = 'Reading…';
+            const name = file.name || 'export';
+            let body;
+            try {
+                if (name.toLowerCase().endsWith('.zip')) {
+                    body = {key: currentToken, content_b64: b64FromBuffer(await file.arrayBuffer()), filename: name, source: 'profile_file'};
+                } else {
+                    const text = await file.text();
+                    let payload = text;
+                    try { payload = JSON.parse(text); } catch (e) {}
+                    body = {key: currentToken, payload: payload, filename: name, source: 'profile_file'};
+                }
+            } catch (e) {
+                status.textContent = 'Could not read that file.';
+                return;
+            }
+            status.textContent = 'Importing…';
+            const resp = await fetch('/api/v7/import/file', {
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':'Bearer '+currentToken},
+                body: JSON.stringify(body)
+            });
+            const data = await resp.json();
+            status.textContent = data.status === 'ok'
+                ? ('Saved ' + data.imported + '. ' + (data.note || 'Summaries started.'))
+                : (data.detail || data.note || JSON.stringify(data));
         }
         async function importPasted() {
             const text = document.getElementById("importText").value.trim();

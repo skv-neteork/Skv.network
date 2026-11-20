@@ -458,7 +458,10 @@ def const_checks(m, tag):
     tl = m.rpc("tools/list", {}).get("result", {}).get("tools", [])
     rec("T73a tools/list: every description has the [C v..] tag", len(tl) > 30 and all("[C v" in (t.get("description") or "") for t in tl), "%d tools, %d bytes" % (len(tl), len(json.dumps(tl))))
     raw_list = json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"tools": tl}}, ensure_ascii=False, separators=(",", ":"))
-    rec("T75 tools/list JSON <= 12KB", len(tl) == 38 and len(raw_list) <= 12000, "%d tools, %d bytes" % (len(tl), len(raw_list)))
+    rec("T75 tools/list JSON <= 13.6KB", len(tl) == 39 and len(raw_list) <= 13600, "%d tools, %d bytes" % (len(tl), len(raw_list)))
+    names = {t.get("name") for t in tl}
+    imp = next((t for t in tl if t.get("name") == "memory_import_text"), {})
+    rec("B19 memory_import_text is public and says Suggest when", "memory_import_text" in names and "Suggest when" in (imp.get("description") or ""), (imp.get("description") or "")[:120])
     j = m.rpc("tools/call", {"name": "memory_search", "arguments": {"query": "smoke " + tag}})
     txt = "".join(c.get("text", "") for c in j.get("result", {}).get("content", []))
     first = txt.split("\n", 1)[0]

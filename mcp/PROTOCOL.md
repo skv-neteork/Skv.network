@@ -1,4 +1,4 @@
-> **CURRENT LOOP:** public `tools/list` is 38 names (`src/app/mcp_public_tools.py`, same set in `mcp/mcp_skv.py`). Start order, once per new key: `constitution_install(user_confirmed=true)` only after a yes, then `identify(name)`, then `step_zero(page=1..N)` until `done=true`, then `turn(user_message, draft)` on every user message. The seal is issued only by `turn`. Same key: do not call `step_zero` again. A rotated key does this order once. `memory_bootstrap`, `memory_consult`, `second_look`, `memory_dig` and `memory_event` are not in the public 38.
+> **CURRENT LOOP:** public `tools/list` is 39 names (`src/app/mcp_public_tools.py`, same set in `mcp/mcp_skv.py`). Start order, once per new key: `constitution_install(user_confirmed=true)` only after a yes, then `identify(name)`, then `step_zero(page=1..N)` until `done=true`, then `turn(user_message, draft)` on every user message. The seal is issued only by `turn`. Same key: do not call `step_zero` again. A rotated key does this order once. `memory_bootstrap`, `memory_consult`, `second_look`, `memory_dig` and `memory_event` are not in the public 39. `memory_import_text` is public: pasted chat text. A conversations export is uploaded on Profile.
 
 # SKV Agent Protocol for MCP / Протокол агента SKV
 
@@ -109,7 +109,7 @@ Tools without a matching V7 route were **not** invented.
 ## This week’s memory work (mirror — keep constitution meaning)
 
 ### Legacy HTTP bootstrap (not the public MCP start)
-`memory_bootstrap` is not in the public 38. The MCP start is `identify` then `step_zero`. The HTTP route POST `/session/bootstrap` still returns:
+`memory_bootstrap` is not in the public 39. The MCP start is `identify` then `step_zero`. The HTTP route POST `/session/bootstrap` still returns:
 - Continuity: **raw tail** + **L1** + **L2** + **critical** + **memory_map**
 - Plus **constitution**, **board**, reminders
 - Pass last **2–3** chat messages → server detects **lag** (chat ahead of memory)

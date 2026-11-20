@@ -1,9 +1,9 @@
-> **CURRENT LOOP:** public `tools/list` is 38 names (`src/app/mcp_public_tools.py`). Start order, once per new key: `constitution_install(user_confirmed=true)` only after a yes, then `identify(name)`, then `step_zero(page=1..N)` until `done=true`, then `turn(user_message, draft)` on every user message. The seal is issued only by `turn`. The compact constitution is v5; the server sends its manifest every 10th turn (also on the first turn of a session, a new version, and `context_reset`). Acknowledge with `const_ack=true`. Full order: **PROTOCOL.md**. `memory_bootstrap`, `memory_consult`, `second_look`, `memory_dig` and `memory_event` are not in the public 38.
+> **CURRENT LOOP:** public `tools/list` is 39 names (`src/app/mcp_public_tools.py`). Start order, once per new key: `constitution_install(user_confirmed=true)` only after a yes, then `identify(name)`, then `step_zero(page=1..N)` until `done=true`, then `turn(user_message, draft)` on every user message. The seal is issued only by `turn`. The compact constitution is v5; the server sends its manifest every 10th turn (also on the first turn of a session, a new version, and `context_reset`). Acknowledge with `const_ack=true`. Full order: **PROTOCOL.md**. `memory_bootstrap`, `memory_consult`, `second_look`, `memory_dig` and `memory_event` are not in the public 39.
 
 # SKV MCP — full agent protocol
 
 Tools → real V7 HTTP. Protocol = CUBE 05 + skills + Guard duties (see **PROTOCOL.md**).  
-MCP = primary one-button (38 public tools). **Guards**: Guard 1 = short missed-step reminders; Guard 2 = local checklist and draft insurance. The Guard 2 download still follows the older HTTP order (bootstrap, consult, second look). The required MCP order is below.
+MCP = primary one-button (39 public tools). **Guards**: Guard 1 = short missed-step reminders; Guard 2 = local checklist and draft insurance. The Guard 2 download still follows the older HTTP order (bootstrap, consult, second look). The required MCP order is below.
 
 ## One button (any user)
 
@@ -67,7 +67,7 @@ Order: **constitution_install (only after yes) → identify → step_zero until 
 
 ## Tools (V7 mapping)
 
-The public MCP list is the 38 names in the banner. A row here that is not in that list is an older HTTP route. It is not the required loop.
+The public MCP list is the 39 names in the banner. `memory_import_text` is one of them. A row here that is not in that list is an older HTTP route. It is not the required loop.
 
 | Tool | Endpoint |
 |------|----------|

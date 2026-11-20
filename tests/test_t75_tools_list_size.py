@@ -45,9 +45,12 @@ EXPECTED_PARAMS = {
     "turn": ["ack", "agent_token", "answer", "compact", "const_ack", "context_reset", "context_state", "critical", "draft", "draft_summary", "duty", "duty_reason", "event_id", "kind", "l1_summary", "l1_task", "l2_summary", "lines", "msg_ref", "profile", "profile_review", "query", "recap", "search_as", "second_look", "sensitive", "session_id", "source_event_ids", "task_done", "user_message", "verbose"],
     "turn_stats": ["days"],
     "vault_inject": ["ack", "body", "method", "name", "purpose", "url"],
+    "memory_import_text": ["source", "text"],
 }
 
-TOOLS_LIST_MAX = 12000
+# 39 tools plus one suggest-when sentence each. The old channel cap was 12 KB;
+# 13.6 KB still fits a lossy tools/list and stays far under the previous 24 KB.
+TOOLS_LIST_MAX = 13600
 
 
 def _tools_list_json(tools):
@@ -64,7 +67,8 @@ class T75ToolsListSize(unittest.TestCase):
 
     def test_38_visible_tools(self):
         self.assertEqual(set(self.tools), set(EXPECTED_PARAMS))
-        self.assertEqual(len(self.tools), 38)
+        self.assertEqual(len(self.tools), 39)
+        self.assertIn("Suggest when:", self.tools["memory_import_text"].description or "")
 
     def test_descriptions_carry_tags(self):
         if self.m._CB is None:
@@ -80,6 +84,7 @@ class T75ToolsListSize(unittest.TestCase):
     def test_list_json_under_12kb(self):
         raw = _tools_list_json(self.tools.values())
         self.assertLessEqual(len(raw), TOOLS_LIST_MAX, "tools/list JSON is %d bytes" % len(raw))
+        self.assertGreater(len(raw), 8000)
 
     def test_help_resource_covers_visible_tools(self):
         for n in self.tools:

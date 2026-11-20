@@ -95,7 +95,12 @@ def build_pages(user_id, user_db="", shared_db=""):
         pack_pages = split_document(doc)
         if not any((p or "").strip() for p in pack_pages):
             return {"ok": False, "pages": [], "error": "empty memory pack"}
-        intro = (
+        try:
+            from app.feature_offer import OFFER
+            offer = (OFFER or "").strip()
+        except Exception:
+            offer = ""
+        intro = ((offer + "\n\n") if offer else "") + (
             "HOW TO WORK: one start order: constitution_install(user_confirmed=true) if not installed, "
             "then identify(name), then read every step_zero page until done=true, then turn on every user message. "
             "Pass agent_token on every call after identify. "

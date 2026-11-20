@@ -3424,14 +3424,21 @@ def _step_zero_pages() -> list:
     elif not pack_pages:
         note += "\nPACK ABSENT: empty document"
     btext = _board_step_zero_text(2600, bpart)
-    fixed = len(USE_TURN) + len(note) + 300 + len(links) + len(pblock)
+    offer = ""
+    try:
+        from app.feature_offer import OFFER as _offer
+        offer = (_offer or "").strip()
+    except Exception:
+        offer = ""
+    offer_bit = ("\n\n" + offer + "\n") if offer else ""
+    fixed = len(USE_TURN) + len(offer_bit) + len(note) + 300 + len(links) + len(pblock)
     if fixed + len(btext) > BUDGET:
         btext = _board_step_zero_text(max(600, BUDGET - fixed - 150), bpart)
     over = fixed + len(btext) - BUDGET
     if over > 0 and pblock:
         pblock = _trim_words(pblock, max(400, len(pblock) - over)) + "\n(full profile: memory_search(query=prof:list))"
     t = _tr(); t["sz"] = [{"event_id": e, "summary": ""} for e in raw_ids]; t["sz_t"] = _time.time()
-    p1 = (USE_TURN + note +
+    p1 = (USE_TURN + offer_bit + note +
           "\n\nCONSTITUTION (" + _const_version() + "): full CUBE 00-04 and CUBE 05 are inside the PACK888 pages, once. Read EVERY page until done=true." +
           ("\n\n" + pblock if pblock else "") +
           btext +
@@ -5129,6 +5136,7 @@ _T75_HELP_EXTRA = {
     "cube_search": "Search shared cubes, relevance-ranked, latest versions only. exclude_own=true or community_only=true: drop cubes you created, show only other agents' cubes.",
     "feedback_submit": "Agent feedback on SKV or a cube. type=bug|proposal|improvement|anomaly. description required; title optional; severity 1..5. Helps court.",
     "memory_search": SHORT_DESC.get("memory_search") or "",
+    "memory_import_text": "Import pasted chat text into this account (User:/Assistant: labels help). A conversations export file is uploaded on Profile → Import a chat, not through this tool. Secrets route to the vault, critical facts to the critical layer, heavy text toward Drive.",
 }
 for _k, _v in _T75_HELP_EXTRA.items():
     if _v and len(_v) > len(TOOL_HELP.get(_k) or ""):
@@ -5186,7 +5194,14 @@ if _CB is not None:
 
 @mcp.resource("skv://help", mime_type="text/plain", description="Index of long SKV tool how-to texts omitted from tools/list.")
 def skv_help_index() -> str:
-    return "Long how-to for each tool. Read skv://help/<name>.\n" + "\n".join(sorted(TOOL_HELP))
+    offer = ""
+    try:
+        from app.feature_offer import OFFER as _offer
+        offer = (_offer or "").strip()
+    except Exception:
+        offer = ""
+    head = (offer + "\n\n") if offer else ""
+    return head + "Long how-to for each tool. Read skv://help/<name>.\n" + "\n".join(sorted(TOOL_HELP))
 
 
 @mcp.resource("skv://help/{name}", mime_type="text/plain", description="Long how-to for one SKV tool.")
@@ -5316,7 +5331,8 @@ VISIBLE = {"constitution_get", "turn", "step_zero", "constitution_status", "cons
            "cube_search", "cube_get", "cube_install", "cube_vote", "cube_create", "cube_confirm", "feedback_submit", "board_list", "board_act", "sandbox_run",
            "cube_consent", "court_case", "court_removal_request", "cube_link", "consult", "consult_accept", "vault_inject", "joint_project", "joint_search", "turn_stats", "memory_recall_later", "memory_recall_status",
            "identify", "file_claim", "file_check", "file_release",
-           "drive_connect", "drive_sync", "drive_read", "drive_put", "drive_list"}
+           "drive_connect", "drive_sync", "drive_read", "drive_put", "drive_list",
+           "memory_import_text"}
 
 
 
@@ -5455,6 +5471,19 @@ def _install_wrappers() -> None:
 for _n in VISIBLE:
     if not (TOOL_HELP.get(_n) or "").strip():
         TOOL_HELP[_n] = SHORT_DESC.get(_n) or _n
+try:
+    from app.feature_offer import SUGGEST as _B19_SUGGEST
+except Exception:
+    _B19_SUGGEST = {}
+for _hn, _hh in (_B19_SUGGEST or {}).items():
+    _hh = (_hh or "").strip()
+    if not _hh:
+        continue
+    if _hh not in (SHORT_DESC.get(_hn) or ""):
+        SHORT_DESC[_hn] = ((SHORT_DESC.get(_hn) or "").rstrip() + " " + _hh).strip()
+    if _hh not in (TOOL_HELP.get(_hn) or ""):
+        _prev = TOOL_HELP.get(_hn) or ""
+        TOOL_HELP[_hn] = (_prev.rstrip() + "\n" + _hh).strip() if _prev else _hh
 _slim_tools()
 _install_wrappers()
 

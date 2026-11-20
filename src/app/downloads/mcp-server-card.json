@@ -8,12 +8,12 @@
   "schemes": [
    "bearer"
   ],
-  "description": "Authentication is not required. initialize and tools/list are open. An optional free key (sk_...) from https://skv.network/profile links private memory: send 'Authorization: Bearer sk_...' or use https://skv.network/mcp/k/<key>/. Tool calls without a key are refused. Public demo (shared, wiped daily): https://skv.network/mcp/k/demo/. 38 MCP tools. Start order: constitution_install → identify → step_zero (once per new key) → turn."
+  "description": "Authentication is not required. initialize and tools/list are open. An optional free key (sk_...) from https://skv.network/profile links private memory: send 'Authorization: Bearer sk_...' or use https://skv.network/mcp/k/<key>/. Tool calls without a key are refused. Public demo (shared, wiped daily): https://skv.network/mcp/k/demo/. 39 MCP tools. Start order: constitution_install → identify → step_zero (once per new key) → turn."
  },
  "tools": [
   {
    "name": "memory_start",
-   "description": "Short start before the constitution is installed: consent question + essentials. After install use this order: identify(name), then step_zero until done=true (once per new key), then turn on every user message. There are 38 MCP tools in total.",
+   "description": "Short start before the constitution is installed: consent question + essentials. After install use this order: identify(name), then step_zero until done=true (once per new key), then turn on every user message. There are 39 MCP tools in total.",
    "inputSchema": {
     "properties": {
      "session_id": {

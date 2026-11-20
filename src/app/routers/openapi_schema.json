@@ -3,7 +3,7 @@
   "info": {
     "title": "SKV Network API v8.3",
     "version": "8.3",
-    "description": "Verified connector: MCP https://skv.network/mcp + Bearer sk_ from /profile (38 MCP tools). This OpenAPI is the non-MCP schema (Guard 1). Paste it into agent Actions. Chrome extension and Guard 2 are available as beta downloads. Start order: constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message. On a required step: cube or duty=cube_nothing; vote or vote_nothing."
+    "description": "Verified connector: MCP https://skv.network/mcp + Bearer sk_ from /profile (39 MCP tools). This OpenAPI is the non-MCP schema (Guard 1). Paste it into agent Actions. Chrome extension and Guard 2 are available as beta downloads. Start order: constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message. On a required step: cube or duty=cube_nothing; vote or vote_nothing."
   },
   "paths": {
     "/api/v7/memory": {

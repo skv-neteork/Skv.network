@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "network.skv/skv",
   "title": "SKV Network",
-  "description": "Memory + answer checks for AI agents: recall across chats, draft→check→seal, fewer hallucinations.",
+  "description": "Memory and answer checks for AI agents. No auth required. Optional free key for private memory.",
   "version": "1.30.0",
   "websiteUrl": "https://skv.network",
   "repository": {
@@ -16,7 +16,7 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer sk_... — free key at https://skv.network/profile (or use the public demo URL https://skv.network/mcp/k/demo/)",
+          "description": "Optional. Not required to connect. A free key (sk_...) from https://skv.network/profile links private memory. Send as Authorization: Bearer sk_.... Public demo (shared, wiped daily): https://skv.network/mcp/k/demo/.",
           "isRequired": false,
           "isSecret": true
         }

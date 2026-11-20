@@ -134,7 +134,7 @@ def _card_doc():
     try:
         data = json.load(open(path, encoding="utf-8"))
     except Exception:
-        data = {"serverInfo": {"name": "SKV Network", "version": "8.3"}, "tools": []}
+        data = {"serverInfo": {"name": "SKV Network", "version": "1.30.0"}, "tools": []}
     names = _visible_names()
     by = {t.get("name"): t for t in (data.get("tools") or []) if isinstance(t, dict) and t.get("name")}
     data["tools"] = [by[n] if n in by else {"name": n, "description": n, "inputSchema": {"type": "object"}} for n in names]
@@ -160,6 +160,27 @@ class ServerCardTests(unittest.TestCase):
         src = open(_src("src", "app", "routers", "pages.py"), encoding="utf-8").read()
         self.assertIn('/mcp-server-card.json', src)
         self.assertIn("RedirectResponse", src)
+
+    def test_open_auth_and_server_version(self):
+        import json
+        raw = json.load(open(_src("src", "app", "downloads", "mcp-server-card.json"), encoding="utf-8"))
+        self.assertFalse(raw["authentication"]["required"])
+        self.assertEqual(raw["serverInfo"]["version"], "1.30.0")
+        desc = raw["authentication"]["description"].lower()
+        self.assertIn("not required", desc)
+        self.assertIn("optional", desc)
+        self.assertIn("private memory", desc)
+        src = open(_src("src", "app", "routers", "pages.py"), encoding="utf-8").read()
+        self.assertIn('auth["required"] = False', src)
+        self.assertIn(r"\d+\.\d+\.\d+", src)
+        self.assertNotIn('"version": "8.3"', src)
+        reg = json.load(open(_src("server.json"), encoding="utf-8"))
+        self.assertEqual(reg["version"], raw["serverInfo"]["version"])
+        self.assertFalse(reg["remotes"][0]["headers"][0]["isRequired"])
+        self.assertIn("optional", reg["remotes"][0]["headers"][0]["description"].lower())
+        self.assertLessEqual(len(reg["description"]), 100)
+        self.assertIn("no auth required", reg["description"].lower())
+        self.assertIn("private memory", reg["description"].lower())
 
 
 def _ensure_feedback_schema(conn):

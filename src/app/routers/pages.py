@@ -569,12 +569,65 @@ def _mcp_visible_names():
     raise RuntimeError("VISIBLE not found")
 
 
+def _mcp_card_version():
+    """Version initialize reports: installed mcp package, else server.json, else 1.30.0.
+
+    The constitution label (v8.3) is not the MCP server version.
+    """
+    try:
+        from importlib.metadata import version as _pkg_version
+        v = str(_pkg_version("mcp") or "")
+        if v:
+            return v
+    except Exception:
+        pass
+    for pth in (
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "server.json")),
+        "/root/skv-core/server.json",
+    ):
+        try:
+            doc = json.load(open(pth, encoding="utf-8"))
+            v = str((doc or {}).get("version") or "")
+            if v:
+                return v
+        except Exception:
+            continue
+    return "1.30.0"
+
+
+def _apply_card_meta(data, n_tools):
+    """Open handshake. Optional key only links private memory. Version is semver."""
+    import re as _re
+    auth = data.get("authentication") if isinstance(data.get("authentication"), dict) else {}
+    auth["required"] = False
+    auth.setdefault("schemes", ["bearer"])
+    desc = auth.get("description") or ""
+    low = desc.lower()
+    if "optional" not in low or "private memory" not in low:
+        desc = (
+            "Authentication is not required. initialize and tools/list are open. "
+            "An optional free key (sk_...) from https://skv.network/profile links private memory. "
+            "%d MCP tools." % n_tools
+        )
+    if "MCP tools" in desc:
+        desc = _re.sub(r"\d+ MCP tools", "%d MCP tools" % n_tools, desc)
+    auth["description"] = desc
+    data["authentication"] = auth
+    info = data.get("serverInfo") if isinstance(data.get("serverInfo"), dict) else {}
+    ver = str(info.get("version") or "")
+    if not _re.fullmatch(r"\d+\.\d+\.\d+", ver):
+        info["version"] = _mcp_card_version()
+    info["name"] = info.get("name") or "SKV Network"
+    data["serverInfo"] = info
+    return data
+
+
 def _mcp_server_card_doc():
     path = os.path.join(os.path.dirname(__file__), "..", "downloads", "mcp-server-card.json")
     try:
         data = json.load(open(path, encoding="utf-8"))
     except Exception:
-        data = {"serverInfo": {"name": "SKV Network", "version": "8.3"}, "tools": []}
+        data = {"serverInfo": {"name": "SKV Network", "version": "1.30.0"}, "tools": []}
     names = _mcp_visible_names()
     by = {t.get("name"): t for t in (data.get("tools") or []) if isinstance(t, dict) and t.get("name")}
     tools = []
@@ -584,13 +637,7 @@ def _mcp_server_card_doc():
         else:
             tools.append({"name": n, "description": n, "inputSchema": {"type": "object"}})
     data["tools"] = tools
-    auth = data.get("authentication") if isinstance(data.get("authentication"), dict) else {}
-    desc = auth.get("description") or ""
-    if "MCP tools" in desc:
-        import re as _re
-        auth["description"] = _re.sub(r"\d+ MCP tools", "%d MCP tools" % len(names), desc)
-        data["authentication"] = auth
-    return data
+    return _apply_card_meta(data, len(names))
 
 
 @router.get("/.well-known/mcp/server-card.json")

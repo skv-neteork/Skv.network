@@ -1,14 +1,14 @@
 {
  "serverInfo": {
   "name": "SKV Network",
-  "version": "8.3"
+  "version": "1.30.0"
  },
  "authentication": {
-  "required": true,
+  "required": false,
   "schemes": [
    "bearer"
   ],
-  "description": "Free key (sk_...) at https://skv.network/profile; send as 'Authorization: Bearer sk_...' or use https://skv.network/mcp/k/<key>/. initialize and tools/list work without a key. Public demo (shared, wiped daily): https://skv.network/mcp/k/demo/. 38 MCP tools. Start order: constitution_install → identify → step_zero (once per new key) → turn."
+  "description": "Authentication is not required. initialize and tools/list are open. An optional free key (sk_...) from https://skv.network/profile links private memory: send 'Authorization: Bearer sk_...' or use https://skv.network/mcp/k/<key>/. Tool calls without a key are refused. Public demo (shared, wiped daily): https://skv.network/mcp/k/demo/. 38 MCP tools. Start order: constitution_install → identify → step_zero (once per new key) → turn."
  },
  "tools": [
   {

@@ -48,6 +48,15 @@ def probe_backup():
     age = (time.time() - os.path.getmtime(f[-1])) / 3600
     return None if age <= 26 else "last backup %s is %.0fh old" % (os.path.basename(f[-1]), age)
 
+def probe_drive():
+    """Latest offsite Drive result. None means today's copy is ok. Same one-mail step() as server/backup."""
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "evolver.py")
+    spec = importlib.util.spec_from_file_location("skv_evolver_drive", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.drive_probe_error()
+
 def step(s, name, err, need=1):
     st = s.setdefault(name, {"fails": 0, "open": False})
     if err:
@@ -65,6 +74,11 @@ def step(s, name, err, need=1):
 
 if __name__ == "__main__":
     s = load()
+    if "--drive" in sys.argv:
+        err = probe_drive()
+        step(s, "drive", err)
+        save(s)
+        raise SystemExit(0 if not err else 1)
     if "--server" in sys.argv or len(sys.argv) == 1: step(s, "server", probe_api(), need=2)
     if "--backup" in sys.argv or len(sys.argv) == 1: step(s, "backup", probe_backup())
     save(s)

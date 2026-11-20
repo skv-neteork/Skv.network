@@ -366,7 +366,75 @@ def feedback_since(hours=24, limit=30):
     return "\n".join(lines) + "\n"
 
 
-def send_digest(now=None, force=False, mail_fn=None, state_dir=None, court_fn=None, health_fn=None, backup_fn=None):
+DRIVE_SLOTS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+
+def drive_slot(now=None):
+    now = now or datetime.now()
+    return DRIVE_SLOTS[now.weekday()]
+
+
+def _drive_log_path(log_path=None):
+    return log_path or os.environ.get("SKV_OFFSITE_DRIVE_LOG", "/var/log/skv_offsite_drive.log")
+
+
+def drive_record(log_path=None):
+    """Last result line written by ops/offsite_drive.sh. None if the log has none."""
+    try:
+        with open(_drive_log_path(log_path), encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except Exception:
+        return None
+    last = None
+    for raw in text.splitlines():
+        s = raw.strip()
+        if s == "fail: no rclone conf" or s.startswith("ok ") or s.startswith("fail "):
+            last = s
+    return last
+
+
+def drive_status(log_path=None, now=None):
+    """One digest line: Drive: <slot> ok|FAIL <reason>."""
+    now = now or datetime.now()
+    slot = drive_slot(now)
+    today = now.strftime("%Y-%m-%d")
+    line = drive_record(log_path)
+    if not line:
+        return "Drive: %s FAIL no log" % slot
+    if line == "fail: no rclone conf":
+        return "Drive: %s FAIL no rclone conf" % slot
+    parts = line.split()
+    if len(parts) >= 5 and parts[0] in ("ok", "fail") and parts[2] in DRIVE_SLOTS:
+        day, got = parts[1], parts[2]
+        if day != today:
+            return "Drive: %s FAIL stale %s" % (got, day)
+        if parts[0] == "ok":
+            return "Drive: %s ok" % got
+        reason = " ".join(parts[5:]) or "fail"
+        return "Drive: %s FAIL %s" % (got, reason)
+    return "Drive: %s FAIL unreadable" % slot
+
+
+def drive_probe_error(log_path=None, now=None):
+    """None when today's Drive copy succeeded. Otherwise a short reason for deadman."""
+    now = now or datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    line = drive_record(log_path)
+    if not line:
+        return "no drive log"
+    if line == "fail: no rclone conf":
+        return "no rclone conf"
+    parts = line.split()
+    if len(parts) >= 5 and parts[0] in ("ok", "fail") and parts[2] in DRIVE_SLOTS:
+        if parts[1] != today:
+            return "stale " + parts[1]
+        if parts[0] == "ok":
+            return None
+        return " ".join(parts[5:]) or "fail"
+    return "unreadable drive log"
+
+
+def send_digest(now=None, force=False, mail_fn=None, state_dir=None, court_fn=None, health_fn=None, backup_fn=None, drive_fn=None):
     """Once a day (first hourly run after 09:00). Stamp lives on durable disk so a reboot cannot resend."""
     now = now or datetime.now()
     today = now.strftime("%Y-%m-%d")
@@ -381,9 +449,10 @@ def send_digest(now=None, force=False, mail_fn=None, state_dir=None, court_fn=No
             return False
         events = _read_strip(paths["log"])
         court = (court_fn or court_cases)()
+        drive = (drive_fn or drive_status)()
         body = ("SKV daily digest " + today + "\n\nNew events since last digest:\n" + (events or "(none)")
                 + "\n\n" + court + "\n\n" + feedback_since() + "\nServer: " + (", ".join((health_fn or health)()) or "ok")
-                + "\nBackup: " + (backup_fn or backup_status)() + "\n")
+                + "\nBackup: " + (backup_fn or backup_status)() + "\n" + drive + "\n")
         ok = (mail_fn or mail)("SKV day", body)
         if ok:
             with open(paths["log"], "w"):

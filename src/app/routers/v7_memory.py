@@ -1758,7 +1758,7 @@ async def remember(req: RememberRequest):
                 if _mx - _l1to >= 20:   # escalation wording (reminder, never a block)
                     _due["l1"] = ("L1 OVERDUE (%d turns uncovered, the server fallback will soon write it for you): in THIS turn add "
                                   "l1_summary='<stages: done / decided / outcome>' and source_event_ids=l1_source_event_ids from this field." % (_mx - _l1to))
-            _l2to = _sc.execute("SELECT MAX(to_rowid) FROM summary_l2_blocks").fetchone()[0] or 0
+            _l2to = _sc.execute("SELECT MAX(to_rowid) FROM summary_l2_blocks WHERE source IN ('agent')").fetchone()[0] or 0
             _nl1 = _sc.execute("SELECT COUNT(*) FROM summary_l1 WHERE to_rowid > ?", (_l2to,)).fetchone()[0] or 0
             _dr_ctx.update(l1_pending=_mx - _l1to, nl1=_nl1)
             if _nl1 >= 10:

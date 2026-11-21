@@ -208,7 +208,7 @@ class ExperienceCreateRequest(BaseModel):
     session_id: Optional[str] = None
     cube_id: Optional[str] = None
     user_id: Optional[str] = ""   # set by V7AuthMiddleware from the API key
-    kind: Optional[str] = "moment"          # moment|fact|culture|lifehack|warning|code
+    kind: Optional[str] = "moment"          # moment|fact|culture|lifehack|warning|code; kind=skill is an alias stored as moment with carrier=skill
     cube_publish: Optional[bool] = None     # None or true = shared. False is refused: private cubes are closed.
     skill_md: Optional[str] = ""            # optional SKILL.md-style body; same cube, not a second system
     hooks: Optional[object] = None          # when-to-fire: list[str]|list[{when,do}]|JSON string

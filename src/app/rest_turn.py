@@ -529,6 +529,11 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
                             (("SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)) if no_read else None),
             "summary_due": saved.get("summary_due") if isinstance(saved, dict) else None, "saved_parts": saved.get("saved") if isinstance(saved, dict) else None,
             "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}
+    try:
+        from app.spontaneous_recall import push_into as _sr_push
+        _sr_push(r, user, user_message, l1_new=bool((l1_summary or "").strip()))
+    except Exception:
+        pass
     _attach_hooks(r, user, _hook_events(ok, task_done, sensitive, _reset, context_state), session_id)
     return _hb(_with_room(key, r, agent_token, session_id, context_state, kind, (answer or draft), duty))
 

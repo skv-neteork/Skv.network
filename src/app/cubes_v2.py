@@ -108,6 +108,27 @@ def norm_kind(k, default="moment"):
     return k if k in ALL_KINDS else default
 
 
+def create_kind(kind, carrier=""):
+    """Experience-create kind. skill is a carrier alias, not a content kind.
+
+    Empty or a real experience kind is stored as given. kind=skill stores
+    moment and forces carrier=skill. help/project kinds stay refused.
+    Any other string is refused and names the six kinds plus carrier=skill.
+    """
+    raw = (kind or "").strip().lower()
+    carrier = (carrier or "").strip().lower()
+    if raw in ("",) or raw in EXPERIENCE_KINDS:
+        if raw == "":
+            raw = "moment"
+        return {"ok": True, "kind": raw, "carrier": carrier, "hint": ""}
+    if raw == "skill":
+        return {"ok": True, "kind": "moment", "carrier": "skill",
+                "hint": "kind=skill is an alias; stored kind=moment and carrier=skill"}
+    if raw in ALL_KINDS:
+        return {"ok": False, "error": "kind must be one of " + ", ".join(EXPERIENCE_KINDS) + " (help: POST /api/v7/help; projects: POST /api/v7/projects)"}
+    return {"ok": False, "error": "kind is " + "|".join(EXPERIENCE_KINDS) + "; use carrier=skill for an installable skill+hooks cube."}
+
+
 def normalize_hooks(hooks):
     """Hooks = when-to-fire for a skill cube. Accept list[str]|list[dict]|JSON str|None -> JSON str or ''.
     Thin pass: no scripts. Each hook is either a string (when) or {when, do}."""

@@ -3079,13 +3079,16 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         if isinstance(saved, dict) and saved.get("supersedes"): r["supersedes"] = saved.get("supersedes")
         r.update(_board_relevant(user_message, clean, session_id)); r.update(prof)
         if _rc is not None: r.update(_rc)
+        _recall_into(r, user_message, l1_summary)
         return _dumps(_diet(r, session_id, verbose, clean, checklist, _slq, prof_extra, facts, cited))
     _br = _board_relevant(user_message, clean, session_id)
-    return _dumps(_diet({**_slh, "verdict": t["verdict"], "saved": ok_saved, "event_id": (saved or {}).get("event_id") if isinstance(saved, dict) else None,
-                   "seal": seal if ok_saved else None, "cited_ok": cited, "facts": facts, **_nim, "cubes": cubes, "self_check": checklist,
-                   "duties": duties, **_br, **prof, "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server-issued seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else None,
-                   "supersedes": (saved or {}).get("supersedes") if isinstance(saved, dict) else None,
-                   **({"second_look_stats": _sls} if _slq and _sls else {}), **(_rc or {})}, session_id, verbose, clean, checklist, _slq, prof_extra, facts, cited))
+    r = {**_slh, "verdict": t["verdict"], "saved": ok_saved, "event_id": (saved or {}).get("event_id") if isinstance(saved, dict) else None,
+         "seal": seal if ok_saved else None, "cited_ok": cited, "facts": facts, **_nim, "cubes": cubes, "self_check": checklist,
+         "duties": duties, **_br, **prof, "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server-issued seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else None,
+         "supersedes": (saved or {}).get("supersedes") if isinstance(saved, dict) else None,
+         **({"second_look_stats": _sls} if _slq and _sls else {}), **(_rc or {})}
+    _recall_into(r, user_message, l1_summary)
+    return _dumps(_diet(r, session_id, verbose, clean, checklist, _slq, prof_extra, facts, cited))
 
 
 def _caps():
@@ -3103,6 +3106,18 @@ def _caps():
 
 
 _CAPS = {}
+
+
+def _recall_into(resp, user_message, l1_summary):
+    """Next-turn spontaneous hits. A failure stays off the turn. No model call here."""
+    if not isinstance(resp, dict):
+        return resp
+    try:
+        from app.spontaneous_recall import push_into
+        push_into(resp, _caller_id() or "", user_message or "", l1_new=bool((l1_summary or "").strip()))
+    except Exception:
+        pass
+    return resp
 
 
 def _diet(resp: dict, session_id, verbose, draft, checklist, slq, prof_extra, facts, cited) -> dict:
@@ -3960,7 +3975,7 @@ def cube_create(
     Cubes are never edited in place. To fix any cube (yours or another's) publish a NEW version:
     cube_create(..., supersedes="<old cube_id>"): the new cube gets parent_id=<old>, the old one is marked
     superseded_by <new> and search/installs move to the newest. cube_id= only for owner constitution ids.
-    kind=moment|fact|culture|lifehack|warning|code (content shape).
+    kind=moment|fact|culture|lifehack|warning|code (content shape). kind=skill is an alias stored as moment with carrier=skill.
     carrier=answer|skill|robotics (how the agent attaches it). Default answer;
     auto skill when skill_md/hooks set. One shelf — not a second system.
     skill_md = installable SKILL.md body; hooks = JSON list of {when,do} or when-strings.

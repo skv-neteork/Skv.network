@@ -8,6 +8,9 @@ _PHONE = re.compile(r"(?<![\w.])\+?\d[\d \-()]{8,}\d(?![\w.])")
 _CARD = re.compile(r"\b(?:\d[ -]?){13,19}\b")
 _IP = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _VREF = re.compile(r"\[vault:[^\]]+\]")
+# The phone class stops at ':'. A date-time can be matched only up to the hour.
+_ISO_WHEN = re.compile(r"\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?\Z")
+_TIME_TAIL = re.compile(r":\d{2}(:\d{2})?")
 
 
 def secret_labels(text):
@@ -70,15 +73,39 @@ def _sub_ip(text, mark):
     return _IP.sub(repl, text or ""), n
 
 
+def phone_blob(m):
+    """Phone match plus a clock tail the character class could not consume."""
+    tail = _TIME_TAIL.match(m.string[m.end():m.end() + 9])
+    return m.group(0) + (tail.group(0) if tail else "")
+
+
+def skip_phone(text):
+    """True for ISO dates, ISO datetimes, and matches with fewer than 10 digits."""
+    g = (text or "").strip()
+    if sum(ch.isdigit() for ch in g) < 10:
+        return True
+    return _ISO_WHEN.fullmatch(g) is not None
+
+
 def mask_pii(text):
     if not text:
         return text, []
     found = []
-    for name, rx, rep in (("event_id", _EVENT, "[event]"), ("email", _EMAIL, "[email]"), ("card", _CARD, "[number]"),
-                          ("phone", _PHONE, "[phone]")):
+    for name, rx, rep in (("event_id", _EVENT, "[event]"), ("email", _EMAIL, "[email]"), ("card", _CARD, "[number]")):
         text, n = rx.subn(rep, text)
         if n:
             found.append(name)
+
+    def _phone_repl(m):
+        if skip_phone(phone_blob(m)):
+            return m.group(0)
+        _phone_repl.n += 1
+        return "[phone]"
+
+    _phone_repl.n = 0
+    text = _PHONE.sub(_phone_repl, text)
+    if _phone_repl.n:
+        found.append("phone")
     text, n = _sub_ip(text, "[ip]")
     if n:
         found.append("ip")
@@ -125,7 +152,7 @@ def field_report(**fields):
         for name, rx in (("email", _EMAIL), ("card", _CARD), ("phone", _PHONE), ("ip", _IP)):
             for m in rx.finditer(t):
                 g = m.group(0)
-                if name == "phone" and (sum(ch.isdigit() for ch in g) < 10 or re.fullmatch(r"\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?", g.strip())):
+                if name == "phone" and skip_phone(phone_blob(m)):
                     continue
                 if name == "card" and sum(ch.isdigit() for ch in g) < 13:
                     continue

@@ -118,16 +118,18 @@ async def create_experience_cube(req: ExperienceCreateRequest, request: Request 
     want = (req.cube_id or "").strip()
     sup = (req.supersedes or "").strip()
     from app import cubes_v2 as _cv2
-    _kind = _cv2.norm_kind(req.kind, "moment")
-    if _kind not in _cv2.EXPERIENCE_KINDS:
-        raise HTTPException(status_code=422, detail="kind must be one of " + ", ".join(_cv2.EXPERIENCE_KINDS) + " (help: POST /api/v7/help; projects: POST /api/v7/projects)")
+    _ck = _cv2.create_kind(req.kind, req.carrier or "")
+    if not _ck["ok"]:
+        raise HTTPException(status_code=422, detail=_ck["error"])
+    _kind = _ck["kind"]
+    _kind_hint = _ck.get("hint") or ""
     # normalize optional skill fields (same cube object; not a parallel system)
     try:
         _hooks_json = _cv2.normalize_hooks(req.hooks)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     _skill_md = (req.skill_md or "").strip()
-    _carrier = _cv2.norm_carrier(req.carrier, _skill_md, _hooks_json)
+    _carrier = _cv2.norm_carrier(_ck["carrier"], _skill_md, _hooks_json)
     from app import cube_consent as _ccs
     _cons = _ccs.info(uid, getattr(req, "msg_ref", "") or "")
     if _cons.get("status") in ("notice_required", "notice_pending") and req.cube_publish is not False and not owner:
@@ -199,7 +201,10 @@ async def create_experience_cube(req: ExperienceCreateRequest, request: Request 
                                skill_md=?, hooks=?, carrier=?, updated_at=CURRENT_TIMESTAMP WHERE cube_id=?""",
                             (req.essence, req.topic, req.rules_markdown, req.evidence, _skill_md or None, _hooks_json or None, _carrier, want))
                 conn.commit(); conn.close()
-                return {"status": "updated", "cube_id": want, "carrier": _carrier, "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json)}
+                _updated = {"status": "updated", "cube_id": want, "carrier": _carrier, "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json)}
+                if _kind_hint:
+                    _updated["hint"] = _kind_hint
+                return _updated
         def _words(s):
             return set((s or "").lower().replace(".", " ").split())
         new_w = _words(req.topic) | _words(req.essence) | _words(req.rules_markdown)
@@ -341,6 +346,8 @@ async def create_experience_cube(req: ExperienceCreateRequest, request: Request 
                 print("[cube_actor] announce skipped: %s" % type(_e).__name__, flush=True)
         _out = {"status": "ok", "cube_id": cube_id, "kind": _kind, "shared": True, "carrier": _carrier,
                 "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json)}
+        if _kind_hint:
+            _out["hint"] = _kind_hint
         if sup:
             _out["supersedes"] = sup
             if _own_sup:

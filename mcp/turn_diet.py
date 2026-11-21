@@ -294,9 +294,14 @@ def apply(path, resp, ctx):
                 resp["facts"] = keep
             if cfg("drop_second_look_stats"):
                 resp.pop("second_look_stats", None)
+            kept_recalled = resp.get("recalled")
+            if kept_recalled in (None, [], {}, ""):
+                kept_recalled = None
             for k in list(cfg("omit_empty") or []) + ["profile", "profile_duties", "profile_warning"]:
                 if k in resp and resp[k] in (None, [], {}, ""):
                     resp.pop(k)
+            if kept_recalled:
+                resp["recalled"] = kept_recalled
             if not resp.get("board") and not resp.get("board_hint"):
                 resp.pop("board", None)
         elif "board" in resp and resp.get("board") is not None:

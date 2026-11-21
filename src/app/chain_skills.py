@@ -296,15 +296,20 @@ def attached_pack(
         hooks_s = _clip(json.dumps(hooks, ensure_ascii=False), HOOKS_CAP)
         cost = len(skill) + len(hooks_s) + 80
         if used + cost > skill_budget and out:
-            out.append({
+            stub = {
                 "cube_id": pack["cube_id"],
                 "topic": pack.get("topic") or meta["topic"],
                 "source": pack["source"],
                 "carrier": pack["carrier"],
                 "attached_at": meta["attached_at"],
                 "truncated": True,
+                "skill_md": "",
+                "hooks": hooks,
                 "hint": "budget; cube_get for full skill_md",
-            })
+            }
+            if pack.get("upgraded_from"):
+                stub["upgraded_from"] = pack["upgraded_from"]
+            out.append(stub)
             continue
         used += cost
         item = {

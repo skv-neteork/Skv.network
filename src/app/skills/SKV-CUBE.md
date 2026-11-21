@@ -1,6 +1,6 @@
 # SKV-CUBE
 One shelf. Two jobs (same cube object).
-1. Answer cube (`carrier=answer`, default): changes what the agent says. Kinds: moment / fact / culture / lifehack / warning / code.
+1. Answer cube (`carrier=answer`, default): changes what the agent says. Kinds: moment / fact / culture / lifehack / warning / code. On create, `kind=skill` is an alias stored as `kind=moment` with `carrier=skill`.
 2. Skill cube (`carrier=skill`): installable skill + hooks the agent plugs in (Instagram, realtor persona, later robotics with `carrier=robotics`).
 
 Moment lines: obvious / miss / instead / check.

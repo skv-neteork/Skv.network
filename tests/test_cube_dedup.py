@@ -29,7 +29,7 @@ def _skill(topic, steps, hooks, problem="the upload fails on a flaky link"):
     return parts, skill, json.dumps(hook_rows)
 
 
-def _put(c, cube_id, topic, steps, hooks, vector=None, author="author@example.invalid", kind="skill"):
+def _put(c, cube_id, topic, steps, hooks, vector=None, author="author@example.invalid", kind="moment"):
     parts, skill, hooks_json = _skill(topic, steps, hooks)
     c.execute("""INSERT INTO cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, status, created_by, kind, skill_md, hooks, carrier)
                  VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
@@ -55,7 +55,7 @@ def _draft_from(cand, **kw):
         "result": "",
         "requirements": kw.get("requirements", cand.get("requirements") or []),
     }
-    return {"kind": kw.get("kind", "skill"), "parts": parts, "steps_sha": dd.steps_sha(parts),
+    return {"kind": kw.get("kind", "moment"), "parts": parts, "steps_sha": dd.steps_sha(parts),
             "norm_text": dd.norm_text(parts), "vector": kw.get("vector", cand.get("vector"))}
 
 
@@ -118,12 +118,12 @@ class DedupTests(unittest.TestCase):
         vec = [1.0, 0.0]
         hooks_old = [{"when": "the upload returns a timeout", "do": "retry the call"}]
         hooks_new = [{"when": "the upload returns a timeout", "do": "do not retry the call"}]
-        cand = {"cube_id": "cube_canon", "kind": "skill", "status": "community", "steps_sha": "x",
+        cand = {"cube_id": "cube_canon", "kind": "moment", "status": "community", "steps_sha": "x",
                 "norm_text": "retry", "hooks": ["the upload returns a timeout"], "hook_rows": hooks_old,
                 "steps": ["call the upload endpoint", "wait and retry twice"], "requirements": [], "vector": vec}
         parts = dd.parts_from(topic="retry a flaky upload", problem="the upload fails", hooks=hooks_new,
                               steps=["call the upload endpoint", "wait and retry twice"])
-        draft = {"kind": "skill", "parts": parts, "steps_sha": dd.steps_sha(parts), "norm_text": dd.norm_text(parts), "vector": vec}
+        draft = {"kind": "moment", "parts": parts, "steps_sha": dd.steps_sha(parts), "norm_text": dd.norm_text(parts), "vector": vec}
         plan = dd.classify(draft, [cand])
         self.assertEqual(plan["result"], "conflict")
         self.assertTrue(plan["court"])

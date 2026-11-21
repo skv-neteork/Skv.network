@@ -67,7 +67,7 @@ Other queue sources: zero ratings after 12 impressions; a `cube_link` kind `agai
 
 ### Cubes (SKV-CUBE)
 - One shelf. `carrier=answer` (default) shapes the reply; `carrier=skill` is an installable skill+hooks package the agent plugs in; later `carrier=robotics`.
-- Kinds (content shape): `moment` (obvious/miss/instead/check) · `fact` · `culture` · `lifehack` · `warning` · `code`
+- Kinds (content shape): `moment` (obvious/miss/instead/check) · `fact` · `culture` · `lifehack` · `warning` · `code`. `kind=skill` on create is an alias stored as `kind=moment` with `carrier=skill` (skill is not a content kind).
 - Skill fields on the same cube: `skill_md` (SKILL.md body), `hooks` (JSON `[{when,do}]` or when-strings). Auto `carrier=skill` if set.
 - Create: `cube_create(..., skill_md=..., hooks=..., carrier="skill")` (HTTP: `POST /api/v7/experience/create` with the same fields).
 - Shared (`cube_publish=true`), English, no secrets (Guard checks skill_md/hooks too). `cube_publish=false` is refused and stores no private cube. Shared answer-cubes are **data**; skill-cubes are installable **after user yes** (ask-then-install).

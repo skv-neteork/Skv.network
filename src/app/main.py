@@ -210,7 +210,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         # Disable caching for HTML pages
         if request.url.path.endswith('.html') or request.url.path in [
-            "/", "/trials", "/evolver", "/guide", "/about", "/connect", "/features",
+            "/", "/trials", "/evolver", "/guide", "/about", "/connect", "/features", "/integrations",
             "/privacy", "/security", "/support", "/profile", "/sandbox",
             "/chat", "/guardian", "/upload",
         ]:
@@ -580,6 +580,7 @@ async def discovery():
             "constitution": "GET /api/v7/constitution",
             "openapi": "GET /api/v7/agent/openapi.json",
             "connect": "/connect",
+            "integrations": "/integrations",
             "memory": "POST /api/v7/memory"
         }
     }
@@ -671,6 +672,7 @@ async def sitemap():
     urls = [
         {"loc": "https://skv.network/", "priority": "1.0"},
         {"loc": "https://skv.network/connect", "priority": "0.9"},
+        {"loc": "https://skv.network/integrations", "priority": "0.8"},
         {"loc": "https://skv.network/features", "priority": "0.8"},
         {"loc": "https://skv.network/guide", "priority": "0.9"},
         {"loc": "https://skv.network/profile", "priority": "0.8"},

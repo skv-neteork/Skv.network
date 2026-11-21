@@ -1,0 +1,27 @@
+# SKV + LibreChat — snippet for librechat.yaml
+# Docs: https://www.librechat.ai/docs/features/mcp
+# Schema: https://www.librechat.ai/docs/configuration/librechat_yaml/object_structure/mcp_servers
+#
+# Remote servers can also be added in the UI: MCP Settings → Add MCP →
+# Transport: Streamable HTTPS, URL: https://skv.network/mcp,
+# Authentication: API Key, Header Format: Bearer, "each user provides their own key".
+# UI-created servers do not need a restart. yaml changes do.
+#
+# Do not commit real keys. Replace YOUR_SKV_KEY or let each user enter SKV_API_KEY.
+
+mcpServers:
+  skv:
+    title: SKV
+    type: streamable-http
+    url: https://skv.network/mcp
+    headers:
+      Authorization: "Bearer {{SKV_API_KEY}}"
+    customUserVars:
+      SKV_API_KEY:
+        title: SKV API key
+        description: "Create a free key at https://skv.network/profile (YOUR_SKV_KEY). Do not use the public demo for private memory."
+        sensitive: true
+    serverInstructions: >-
+      After the user explicitly agrees, install the SKV constitution, call identify,
+      read step_zero until done=true, and call turn on every user message.
+      Never invent an SKV seal.

@@ -513,6 +513,32 @@ async def features_page():
     return HTMLResponse(_read_html(os.path.join(os.path.dirname(__file__), "..", "features.html")))
 
 
+INTEGRATIONS_HTML_PATH = os.path.join(os.path.dirname(__file__), "..", "integrations.html")
+@router.get("/integrations")
+async def integrations_page():
+    return HTMLResponse(_read_html(INTEGRATIONS_HTML_PATH))
+
+_INTEGRATIONS_DOCS = {
+    "README.md": "text/markdown; charset=utf-8",
+    "langchain.py": "text/plain; charset=utf-8",
+    "crewai.py": "text/plain; charset=utf-8",
+    "n8n.md": "text/markdown; charset=utf-8",
+    "flowise.md": "text/markdown; charset=utf-8",
+    "librechat.yaml": "text/plain; charset=utf-8",
+    "openwebui.md": "text/markdown; charset=utf-8",
+}
+
+@router.get("/downloads/integrations/{name}")
+async def integrations_doc(name: str):
+    media = _INTEGRATIONS_DOCS.get(name)
+    if not media:
+        raise HTTPException(status_code=404)
+    path = os.path.join(os.path.dirname(__file__), "..", "downloads", "integrations", name)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404)
+    return FileResponse(path, media_type=media, filename=name)
+
+
 # --- SKV local-agent installer (files: /root/skv-core/installer -> downloads/installer via installer/deploy.sh)
 _INST = {"install.sh": "text/plain; charset=utf-8", "install.ps1": "text/plain; charset=utf-8",
          "skv_hook.py": "text/plain; charset=utf-8", "skv_config.py": "text/plain; charset=utf-8"}

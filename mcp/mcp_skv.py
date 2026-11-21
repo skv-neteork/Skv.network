@@ -5191,50 +5191,8 @@ for _k, _v in _T75_HELP_EXTRA.items():
             _params_tail = _old[_old.index("\n\nParameters:\n"):]
         TOOL_HELP[_k] = _v + _params_tail
 
-# Short tools/list copy. Start-order tools must contain "step_zero" and no Cyrillic (test_b12).
-# turn heartbeat is appended only when const_bind is loaded (test_t73 kill switch).
-SHORT_DESC.update({
-    "turn": "Call before every reply; end with the seal. compact=true, msg_ref, agent_token, recap.",
-    "memory_search": "Search the event, not the question (date/since/until).",
-    "memory_start": "Start order: constitution_install, identify, step_zero, then turn.",
-    "memory_recall_later": "If memory_search missed, poll memory_recall_status.",
-    "memory_recall_status": "Poll recall job; evidence, not an answer.",
-    "turn_stats": "Turn size and second_look stats.",
-    "step_zero": "Read step_zero pages until done=true, then turn only.",
-    "constitution_get": "Re-read constitution, paged.",
-    "constitution_install": "Install only after the user says yes; then identify, then step_zero.",
-    "constitution_status": "If installed: identify, step_zero once, then turn.",
-    "cube_get": "Read one cube by id.",
-    "sandbox_run": "Run python/pytest/node sandboxed (no net).",
-    "cube_search": "Search shared cubes (latest versions).",
-    "cube_create": "Cube at task end, or duty=cube_nothing.",
-    "cube_confirm": "One ok|partial|fail confirm + evidence.",
-    "cube_vote": "Vote +1/-1 on a used cube; -1 needs reason.",
-    "cube_install": "Install a cube after the user's yes.",
-    "court_case": "Court case; fix_id=0 lists pending.",
-    "court_removal_request": "Ask court to remove a published cube.",
-    "cube_consent": "Publish consent only when status=allowed.",
-    "cube_link": "Link two cubes (progress|next|from|against).",
-    "feedback_submit": "Feedback or bug on SKV or a cube.",
-    "board_list": "List board items; optional status/history.",
-    "board_act": "Board add/start/done/claim/release.",
-    "identify": "Name this agent, get agent_token, then call step_zero.",
-    "file_claim": "Claim a path before editing (409 if held).",
-    "file_release": "Release a file claim; record the change.",
-    "file_check": "Check claimed file matches base hash.",
-    "drive_connect": "Drive connect; omit code for auth_url.",
-    "drive_sync": "Scan this line's SKV Drive folder.",
-    "drive_read": "Read a Drive file; large files paged.",
-    "drive_put": "Store a file; over 1 MB goes to Drive.",
-    "drive_list": "List Drive files on this line.",
-    "consult": "Paid second opinion after user says yes.",
-    "consult_accept": "Save a consult answer to memory or a cube.",
-    "joint_project": "Shared memory for 2-5 people.",
-    "joint_search": "Search joint-project memory; cite [pj:id].",
-    "vault_inject": "Use [vault:name] in url/body; never shown.",
-})
-if _CB is not None:
-    SHORT_DESC["turn"] += " Constitution heartbeat: const_ack=true on constitution_manifest."
+# Short tools/list copy lives in app.mcp_public_tools.SHORT (one source with the
+# server card). Applied after src/ is on the path, before _slim_tools.
 
 
 @mcp.resource("skv://help", mime_type="text/plain", description="Index of long SKV tool how-to texts omitted from tools/list.")
@@ -5305,6 +5263,24 @@ def _slim_tools() -> None:
             t.description = SHORT_DESC[t.name]
         t.parameters = _compact_schema(_strip_titles(t.parameters))
         # T75: long per-param help lives in TOOL_HELP / skv://help/<name>, not in the schema
+
+
+def _apply_public_meta() -> None:
+    """Title and annotations from app.mcp_public_tools, the same source as the server card."""
+    try:
+        from mcp.types import ToolAnnotations
+        from app.mcp_public_tools import META, annotations as _ann
+    except Exception:
+        return
+    for t in mcp._tool_manager.list_tools():
+        if t.name not in META:
+            continue
+        hints = _ann(t.name)
+        t.title = hints["title"]
+        try:
+            t.annotations = ToolAnnotations(**hints)
+        except Exception:
+            t.annotations = hints
 
 
 
@@ -5386,11 +5362,17 @@ try:
     _src = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "..", "src"))
     if _src not in _sys.path:
         _sys.path.insert(0, _src)
-    from app.mcp_public_tools import VISIBLE as _VISIBLE_SHARED
+    from app.mcp_public_tools import VISIBLE as _VISIBLE_SHARED, SHORT as _PUBLIC_SHORT, TURN_HEARTBEAT as _TURN_HEARTBEAT
     if set(_VISIBLE_SHARED) != set(VISIBLE):
         raise RuntimeError("mcp_public_tools.VISIBLE drifted from mcp_skv.VISIBLE: %s" % (set(_VISIBLE_SHARED) ^ set(VISIBLE)))
+    missing = set(VISIBLE) - set(_PUBLIC_SHORT)
+    if missing:
+        raise RuntimeError("mcp_public_tools.SHORT missing %s" % sorted(missing))
+    SHORT_DESC.update(_PUBLIC_SHORT)
+    if _CB is not None and _TURN_HEARTBEAT.strip() not in (SHORT_DESC.get("turn") or ""):
+        SHORT_DESC["turn"] += _TURN_HEARTBEAT
 except Exception as _e:
-    if "drifted" in str(_e):
+    if "drifted" in str(_e) or "missing" in str(_e):
         raise
     pass
 
@@ -5530,6 +5512,7 @@ for _hn, _hh in (_B19_SUGGEST or {}).items():
         _prev = TOOL_HELP.get(_hn) or ""
         TOOL_HELP[_hn] = (_prev.rstrip() + "\n" + _hh).strip() if _prev else _hh
 _slim_tools()
+_apply_public_meta()
 _install_wrappers()
 
 

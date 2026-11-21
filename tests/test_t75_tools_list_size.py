@@ -48,13 +48,35 @@ EXPECTED_PARAMS = {
     "memory_import_text": ["source", "text"],
 }
 
-# 39 tools plus one suggest-when sentence each. The old channel cap was 12 KB;
-# 13.6 KB still fits a lossy tools/list and stays far under the previous 24 KB.
-TOOLS_LIST_MAX = 13600
+# 39 tools, each with a title and four annotation hints, plus one suggest-when
+# sentence. Measured tools/list JSON is 20657 bytes. 22 KB stays under the
+# previous 24 KB ceiling. It is past the ~15 KB lossy-channel note: the hints
+# are required, so the cap moves instead of dropping them.
+TOOLS_LIST_MAX = 22000
+
+
+def _ann(t):
+    raw = getattr(t, "annotations", None)
+    if raw is None:
+        return {}
+    if hasattr(raw, "model_dump"):
+        return raw.model_dump(exclude_none=True)
+    if isinstance(raw, dict):
+        return raw
+    return {}
 
 
 def _tools_list_json(tools):
-    arr = [{"name": t.name, "description": t.description or "", "inputSchema": t.parameters or {}} for t in tools]
+    arr = []
+    for t in tools:
+        item = {"name": t.name, "description": t.description or "", "inputSchema": t.parameters or {}}
+        title = getattr(t, "title", None)
+        if title:
+            item["title"] = title
+        ann = _ann(t)
+        if ann:
+            item["annotations"] = ann
+        arr.append(item)
     return json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"tools": arr}}, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -100,6 +122,20 @@ class T75ToolsListSize(unittest.TestCase):
             self.assertIn("const_ack", d)
         else:
             self.assertNotIn("heartbeat", d)
+
+    def test_titles_and_annotations(self):
+        for n, t in self.tools.items():
+            self.assertTrue((getattr(t, "title", None) or "").strip(), n)
+            ann = _ann(t)
+            self.assertIs(type(ann.get("readOnlyHint")), bool, n)
+            self.assertIs(type(ann.get("destructiveHint")), bool, n)
+            self.assertIs(type(ann.get("idempotentHint")), bool, n)
+            self.assertIs(type(ann.get("openWorldHint")), bool, n)
+            desc = (t.description or "").strip()
+            self.assertNotEqual(desc, n, n)
+            self.assertGreater(len(desc), len(n), n)
+            if ann["readOnlyHint"]:
+                self.assertFalse(ann["destructiveHint"], n)
 
     def test_start_order_tools_mention_step_zero(self):
         for n in ("identify", "constitution_install", "step_zero", "memory_start"):

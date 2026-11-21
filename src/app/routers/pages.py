@@ -660,12 +660,30 @@ def _mcp_server_card_doc():
         data = {"serverInfo": {"name": "SKV Network", "version": "1.30.0"}, "tools": []}
     names = _mcp_visible_names()
     by = {t.get("name"): t for t in (data.get("tools") or []) if isinstance(t, dict) and t.get("name")}
+    try:
+        from app.mcp_public_tools import overlay_tool
+        from app.feature_offer import SUGGEST as _suggest
+    except Exception:
+        overlay_tool = None
+        _suggest = {}
+    heartbeat = False
+    _tag = lambda _n: ""
+    try:
+        from app import const_bind as _cb
+        if _cb is not None and os.environ.get("SKV_CONST_BIND", "1") not in ("0", "off", "false"):
+            heartbeat = True
+            _tag = _cb.tag
+    except Exception:
+        pass
     tools = []
     for n in names:
-        if n in by:
-            tools.append(by[n])
-        else:
-            tools.append({"name": n, "description": n, "inputSchema": {"type": "object"}})
+        base = by.get(n) or {"name": n, "inputSchema": {"type": "object"}}
+        if overlay_tool is None:
+            tools.append(base)
+            continue
+        tools.append(overlay_tool(
+            base, n, heartbeat=heartbeat, suggest=(_suggest or {}).get(n, ""), tag=_tag(n),
+        ))
     data["tools"] = tools
     return _apply_card_meta(data, len(names))
 

@@ -43,7 +43,7 @@ def ensure(conn):
                      ("source", "TEXT DEFAULT 'agent'"), ("trust", "TEXT DEFAULT 'new'"), ("confirms", "INTEGER DEFAULT 0"),
                      ("shown", "INTEGER DEFAULT 0"), ("parent_id", "TEXT"), ("triviality", "TEXT"), ("aged_at", "TEXT"),
                      ("skill_md", "TEXT"), ("hooks", "TEXT"),
-                     ("carrier", "TEXT DEFAULT 'answer'")):
+                     ("carrier", "TEXT DEFAULT 'answer'"), ("actor", "TEXT")):
         if col not in have:
             conn.execute(f"ALTER TABLE cubes_new ADD COLUMN {col} {ddl}")
     conn.execute("CREATE TABLE IF NOT EXISTS cube_outcomes (cube_id TEXT, user_id TEXT, outcome TEXT, ts TEXT, PRIMARY KEY (cube_id, user_id))")
@@ -80,6 +80,15 @@ def ensure(conn):
     CREATE TABLE IF NOT EXISTS cube_duty_state (user_id TEXT PRIMARY KEY, last_topic TEXT, pending_cube INTEGER DEFAULT 0, pending_step INTEGER, pending_reason TEXT, rate_pending TEXT DEFAULT '[]', rate_step INTEGER);
     CREATE TABLE IF NOT EXISTS cubes_archive (cube_id TEXT, essence TEXT, subject_action_object TEXT, rules_markdown TEXT, evidence TEXT, raw_dialogue TEXT, links_json TEXT, status TEXT, rating REAL, upvotes INT, downvotes INT, usage_count INT, last_used NUM, energy REAL, is_constitutional NUM, constitutional_order INT, vector, source_session TEXT, created_by TEXT, created_at NUM, updated_at NUM, votes_json TEXT);
     """)
+
+
+def set_actor(conn, cube_id, actor):
+    """Record the identify actor. created_by stays the account email. Empty actor is a no-op."""
+    actor = (actor or "").strip()[:80]
+    if not cube_id or not actor:
+        return
+    ensure(conn)
+    conn.execute("UPDATE cubes_new SET actor=? WHERE cube_id=?", (actor, cube_id))
 
 
 def now():
@@ -712,7 +721,7 @@ def merge_part(conn, new, part, uid, owner=False):
 
 
 # ---------------- help ----------------
-def create_help(conn, uid, topic, question, tried, accept, essence=None, project_id=None, node_id=None, deadline=""):
+def create_help(conn, uid, topic, question, tried, accept, essence=None, project_id=None, node_id=None, deadline="", actor=""):
     cid = new_id()
     conn.execute("""INSERT INTO cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, status, created_by, kind, project_id)
                     VALUES (?,?,?,?,?,'community',?,'help_request',?)""",
@@ -721,6 +730,7 @@ def create_help(conn, uid, topic, question, tried, accept, essence=None, project
                  (cid, topic, question, tried, accept, uid))
     conn.execute("INSERT INTO help_requests (cube_id, topic, status, accept, deadline, project_id, node_id, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                  (cid, topic, "open", accept, deadline, project_id, node_id, uid, now()))
+    set_actor(conn, cid, actor)
     if node_id:
         conn.execute("INSERT OR IGNORE INTO cube_links (src, dst, kind, created_by, created_at) VALUES (?,?,?,?,datetime('now'))", (cid, node_id, "part_of", uid))
     # address only agents with close experience: authors of cubes in this topic, then authors of word matches
@@ -758,7 +768,7 @@ def help_hits(conn, uid, topic="", limit=2, mark=True):
     return res
 
 
-def answer_help(conn, uid, help_id, topic, essence, rules, evidence, kind="solution"):
+def answer_help(conn, uid, help_id, topic, essence, rules, evidence, kind="solution", actor=""):
     h = conn.execute("SELECT status, created_by FROM help_requests WHERE cube_id=?", (help_id,)).fetchone()
     if not h:
         raise LookupError("help request not found")
@@ -769,6 +779,7 @@ def answer_help(conn, uid, help_id, topic, essence, rules, evidence, kind="solut
     sid = new_id()
     conn.execute("""INSERT INTO cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, status, created_by, kind, parent_id)
                     VALUES (?,?,?,?,?,'community',?,?,?)""", (sid, essence, topic, rules, evidence or "", uid, "solution" if kind not in ("code",) else "code", help_id))
+    set_actor(conn, sid, actor)
     conn.execute("INSERT OR IGNORE INTO cube_links (src, dst, kind, created_by, created_at) VALUES (?,?,?,?,datetime('now'))", (sid, help_id, "answers", uid))
     conn.execute("INSERT OR IGNORE INTO help_answers (help_id, solution_id, author, state, ts) VALUES (?,?,?,?,?)", (help_id, sid, uid, "candidate", now()))
     conn.execute("INSERT OR IGNORE INTO agent_inbox (user_id, cube_id, reason, ts) VALUES (?,?,?,?)", (h[1], help_id, "answer arrived: " + sid, now()))

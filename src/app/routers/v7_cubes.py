@@ -107,7 +107,7 @@ async def get_feedback(request: Request, authorization: str = Header(None),
     return {"reports": [dict(zip(cols, row)) for row in rows]}
 
 @router.post("/experience/create", status_code=status.HTTP_201_CREATED)
-async def create_experience_cube(req: ExperienceCreateRequest):
+async def create_experience_cube(req: ExperienceCreateRequest, request: Request = None):
     """Create a shared cube. The server assigns cube_id. A client cube_id is only an update of
     a cube the caller wrote; constitution/archive ids are owner-only. Votes are never reset."""
     import sqlite3, uuid, json
@@ -320,8 +320,25 @@ async def create_experience_cube(req: ExperienceCreateRequest):
             cur.execute("INSERT INTO agent_duty (user_id, step, duty, reason, created_at) VALUES (?,?,?,?,datetime('now'))", (uid, _duty_step(uid), "cube", cube_id))
         except Exception as _e:
             print(f"[cubes_v2] create duty skipped: {_e}", flush=True)
+        _actor, _akey = "", ""
+        try:
+            from app import cube_actor as _ca
+            if request is not None:
+                _akey = getattr(getattr(request, "state", None), "api_key", "") or ""
+            _actor = _ca.resolve_actor(_akey, getattr(req, "agent_token", "") or "", req.session_id or "")
+            if _actor:
+                _cv2.set_actor(conn, cube_id, _actor)
+        except Exception as _e:
+            print("[cube_actor] stamp skipped: %s" % type(_e).__name__, flush=True)
+            _actor = ""
         conn.commit()
         conn.close()
+        if _actor:
+            try:
+                from app import cube_actor as _ca
+                _ca.announce(_akey, cube_id, _actor, req.session_id or "", req.topic or "")
+            except Exception as _e:
+                print("[cube_actor] announce skipped: %s" % type(_e).__name__, flush=True)
         _out = {"status": "ok", "cube_id": cube_id, "kind": _kind, "shared": True, "carrier": _carrier,
                 "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json)}
         if sup:
@@ -614,7 +631,7 @@ async def cube_installed(request: Request, chain_id: str = "", full: int = 0,
 
 
 @router.get("/cube/{cube_id}")
-async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
+async def get_cube(cube_id: str, user_id: str = "", request: Request = None, page: int = 1):
     """Read shared cubes_new OR the caller's private experience_cubes (skill packages)."""
     import sqlite3, os
     from app import cubes_v2 as _cv2
@@ -622,7 +639,7 @@ async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
     uid = ((_request_user(request) if request is not None else "") or "").strip() or (user_id or "").strip()
     conn = sqlite3.connect(SHARED_DB)
     _cv2.ensure(conn)
-    row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier, coalesce(created_by,'') from cubes_new where cube_id=?", (cube_id,)).fetchone()
+    row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier, coalesce(created_by,''), coalesce(actor,'') from cubes_new where cube_id=?", (cube_id,)).fetchone()
     if row and uid and not cube_id.startswith("cube_const_"):
         try:
             _cv2.record_impression(conn, uid, cube_id, "read"); conn.commit()
@@ -631,7 +648,7 @@ async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
     if not row and cube_id.startswith("cube_const_") and cube_id.count("_") >= 3:
         # old version link -> current version of the same constitution cube
         prefix = "_".join(cube_id.split("_")[:3]) + "_v%"
-        row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier, coalesce(created_by,'') from cubes_new where cube_id like ? order by (coalesce(status,'') in ('archived','rejected','removed','deleted')) asc, cast(substr(cube_id, ?) as integer) desc limit 1", (prefix, len(prefix))).fetchone()
+        row = conn.execute("select cube_id, essence, rules_markdown, status, kind, skill_md, hooks, carrier, coalesce(created_by,''), coalesce(actor,'') from cubes_new where cube_id like ? order by (coalesce(status,'') in ('archived','rejected','removed','deleted')) asc, cast(substr(cube_id, ?) as integer) desc limit 1", (prefix, len(prefix))).fetchone()
     conn.close()
     shared = True
     if not row and uid:
@@ -665,17 +682,22 @@ async def get_cube(cube_id: str, user_id: str = "", request: Request = None):
     carrier = _cv2.norm_carrier(row[7] if len(row) > 7 else "", skill_md, row[6] if len(row) > 6 else "")
     out["carrier"] = carrier
     if skill_md:
-        out["skill_md"] = skill_md
+        from app.skill_pages import page_skill
+        try:
+            _pg = int(page or 1)
+        except (TypeError, ValueError):
+            _pg = 1
+        out.update(page_skill(skill_md, _pg))
     if hooks:
         out["hooks"] = hooks
     if carrier == "skill" or skill_md or hooks:
         out["has_skill"] = True
     from app.cube_dedup import public_author
-    _agent = ""
+    _agent = (row[9] if len(row) > 9 else "") or ""
     _who = row[8] if len(row) > 8 else ""
     if not _who and not shared:
         _who = uid
-    if shared and _who:
+    if not _agent and shared and _who:
         try:
             _ac = sqlite3.connect(SHARED_DB)
             _ag = _ac.execute("SELECT agent_id FROM cube_contributions WHERE cube_id=? AND agent_id!='' ORDER BY id DESC LIMIT 1", (out["cube_id"],)).fetchone()

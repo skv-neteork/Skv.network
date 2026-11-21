@@ -372,6 +372,20 @@ def search_checks(m, tag):
         m2.call("cube_uninstall", {"cube_id": A})
     except Exception as e:
         rec("MS search checks crashed", False, repr(e)[:160])
+    finally:
+        try:
+            _dex("import sys,sqlite3,os;sys.path.insert(0,'/app');"
+                 "c=sqlite3.connect('/data/skv/metadata_store/shared_master.db');"
+                 "c.execute(\"DELETE FROM cube_links WHERE src IN (select cube_id from cubes_new where subject_action_object LIKE ?) OR dst IN (select cube_id from cubes_new where subject_action_object LIKE ?)\",('%%%s%%','%%%s%%'));"
+                 "c.execute(\"DELETE FROM cube_fixes WHERE cube_id IN (select cube_id from cubes_new where subject_action_object LIKE ?)\",('%%%s%%',));"
+                 "c.execute(\"DELETE FROM court_queue WHERE cube_id IN (select cube_id from cubes_new where subject_action_object LIKE ?)\",('%%%s%%',));"
+                 "c.execute(\"DELETE FROM cubes_new WHERE subject_action_object LIKE ?\",('%%%s%%',));c.commit();"
+                 "from app.memory_v2 import db_path;p=db_path(%r);"
+                 "a=sqlite3.connect(p) if os.path.isfile(p) else None;"
+                 "a and a.execute(\"DELETE FROM event_metadata WHERE instr(coalesce(raw_dialogue,''), ?)>0\",(%r,));"
+                 "a and a.commit()" % (tok, tok, tok, tok, tok, u2, tok))
+        except Exception:
+            pass
 
 
 def consent_checks(m, tag):

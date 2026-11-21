@@ -17,8 +17,8 @@ EMPTY_LANE = "you have no turns yet"
 CHECK_REREAD = "reread and merge, do not overwrite"
 STARTER_VERSION = "v16"
 
-CODER_KINDS = frozenset({"brief", "decision", "human_directive", "handoff", "claim", "file_change"})
-SUPER_KINDS = frozenset({"result", "handoff", "blocked", "claim", "file_change"})
+CODER_KINDS = frozenset({"brief", "decision", "human_directive", "handoff", "claim", "file_change", "cube_write"})
+SUPER_KINDS = frozenset({"result", "handoff", "blocked", "claim", "file_change", "cube_write"})
 VISIBLE = {
     "coder": CODER_KINDS,
     "assistant": CODER_KINDS,

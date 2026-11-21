@@ -34,6 +34,7 @@
 <li>Write L1 summaries at task start and end (<code>l1_summary</code> + <code>source_event_ids</code>).</li>
 <li>On a required step write a cube or <code>duty=cube_nothing</code>. Vote used cubes.</li>
 <li>End every reply with the seal <code>turn</code> returned. Never draw a seal yourself.</li>
+<li>Call <code>turn</code> after each meaningful step of a task, not only at the end, so the other agent on the same account sees the work in while_away.</li>
 <li>Seal shape: <code>🔐 SKV | #N·hash | [READ ✓] [VERIFY ✓] [CORRECT ✓] [OUTPUT ✓]</code></li>
 <li>Full constitution in <code>step_zero</code>; afterwards one rule per turn, and the full manifest every 10th turn (acknowledge with <code>const_ack</code>).</li>
 </ul>

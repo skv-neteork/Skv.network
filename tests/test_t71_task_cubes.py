@@ -1,4 +1,4 @@
-"""T71: task L1 start -> draft task cube (or suggestion), end -> experience, scrub, answer notification."""
+"""T71: task L1 start -> draft task cube (or suggestion). End keeps that cube and asks for a real experience cube."""
 import os
 import sqlite3
 import sys
@@ -57,24 +57,30 @@ class TaskCubeTests(unittest.TestCase):
         note = TC.turn_note(self.c, "a@x.invalid", "", r)
         self.assertIn("cube_exp1", note); self.assertLess(len(note), 290)
 
-    def test_end_turns_same_cube_into_experience(self):
+    def test_end_keeps_the_task_cube_and_asks_for_a_real_one(self):
         cid = self.proc(START)["task_cube"]
         r = self.proc("finished, solution: moved to a queue worker with exponential retries and a dead-letter queue")
-        self.assertEqual(r["experience"], cid)
-        row = self.c.execute("select kind,status,rules_markdown,essence from cubes_new where cube_id=?", (cid,)).fetchone()
-        self.assertEqual(row[:2], ("moment", "community"))
-        self.assertIn("SOLUTION: moved to a queue worker", row[2]); self.assertIn("PROBLEM:", row[2])
-        self.assertEqual(self.c.execute("select state, experience_id from task_cubes").fetchone(), ("solved", cid))
-        self.assertEqual(self.proc("finished, solution: again something else here")  , {})   # nothing open any more
+        self.assertTrue(r.get("remind_cube"))
+        self.assertNotIn("experience", r)
+        self.assertEqual(r.get("task_cube"), cid)
+        row = self.c.execute("select kind,status from cubes_new where cube_id=?", (cid,)).fetchone()
+        self.assertEqual(row, ("task", "open"))
+        self.assertEqual(self.c.execute("select state, experience_id from task_cubes").fetchone(), ("closed", None))
+        note = TC.turn_note(self.c, "a@x.invalid", "", r)
+        self.assertIn("cube_nothing", note)
+        self.assertNotIn("is now an experience cube", note)
+        self.assertEqual(self.proc("finished, solution: again something else here"), {})
 
-    def test_end_after_match_makes_new_experience_linked_from_match(self):
+    def test_end_after_match_does_not_write_a_moment(self):
         self.c.execute("insert into cubes_new (cube_id,essence,subject_action_object,rules_markdown,evidence,status,created_by,kind) values "
                        "('cube_exp1','migrate billing cron systemd timers to queue worker','billing cron migration','Use a queue worker with retries','e','community','b@x.invalid','lifehack')")
         self.proc(START)
         r = self.proc("finished, solution: used a queue worker, retries via backoff and a scheduler lock")
-        eid = r["experience"]
-        self.assertNotEqual(eid, "cube_exp1")
-        self.assertEqual(self.c.execute("select dst from cube_links where src=? and kind='from'", (eid,)).fetchone()[0], "cube_exp1")
+        self.assertTrue(r.get("remind_cube"))
+        self.assertNotIn("experience", r)
+        self.assertEqual(self.c.execute("select count(*) from cubes_new where kind='moment'").fetchone()[0], 0)
+        self.assertEqual(self.c.execute("select count(*) from cube_links").fetchone()[0], 0)
+        self.assertEqual(self.c.execute("select cube_id from cubes_new").fetchone()[0], "cube_exp1")
 
     def test_scrub_removes_email_keys_code_ip_path(self):
         dirty = ("started task: fix the mailer for deniz@example.com using key " + "sk_" + "live_abcdefghijklmnopqrstuvwx" + " on 10.1.2.3 ```python\n"
@@ -89,6 +95,12 @@ class TaskCubeTests(unittest.TestCase):
         fake = "api_" + "key=" + "".join(["ABCDEF12", "34567890", "ABCDEF12", "34567890"])
         t = TC.scrub_text("password is hunter22 " + fake + " call +1 415 555 0100", ["hunter22"])
         self.assertNotIn("hunter22", t); self.assertNotIn("ABCDEF1234567890", t); self.assertNotIn("415 555", t)
+        kept = TC.scrub_text("bind 127.0.0.1 and localhost while closing B20 T81 and T_BUILD_NOTE")
+        self.assertIn("127.0.0.1", kept)
+        self.assertIn("localhost", kept)
+        self.assertNotIn("B20", kept)
+        self.assertNotIn("T81", kept)
+        self.assertNotIn("T_BUILD_NOTE", kept)
 
     def test_not_english_is_translated_or_skipped(self):
         r = TC.process(self.c, "a@x.invalid", "s1", "начал задачу: перенести cron биллинга на очередь", translate=lambda t: "migrate the billing cron to a queue")
@@ -113,7 +125,7 @@ class TaskCubeTests(unittest.TestCase):
         note = TC.turn_note(self.c, "a@x.invalid", "unrelated message", {})
         self.assertIn("cube_ans", note); self.assertIn("cube_vote", note)
         self.assertEqual(TC.turn_note(self.c, "a@x.invalid", "unrelated message", {}), "")   # seen
-        # still works after the task was solved (cube became experience)
+        # still works after the task tracking row closes (the task cube stays)
         self.proc("finished, solution: queue worker with retries and locking")
         TC.notify_answer(self.c, "cube_ans", cid, "b@x.invalid")
         self.assertIn("cube_ans", TC.turn_note(self.c, "a@x.invalid", "", {}))

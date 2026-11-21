@@ -218,6 +218,7 @@ class ExperienceCreateRequest(BaseModel):
     requirements: Optional[list] = None      # [{kind,name,constraint_text,optional}]
     applied_where: Optional[str] = ""        # where a skill was actually used
     applied_times: Optional[int] = 0         # how many times it was actually used
+    agent_token: Optional[str] = ""          # identify token; the server resolves the actor, a client name is ignored
 
 class EventWriteRequest(BaseModel):
     event_id: str
@@ -811,6 +812,7 @@ class RememberRequest(BaseModel):
     profile_review: Optional[Any] = None  # with l2_map: {"ops":[...]} or {"no_changes":true,"reason":...}
     l1_task: str = ""           # T71: optional 'start'|'end': the l1_summary opens/closes a notable task (phrases are detected too)
     client_key: str = ""        # idempotency key from the client: a resend with the same key replays the first result (no double save)
+    agent_token: str = ""       # identify token; stamps actor on a cube this call writes
 
 def _event_time_str(value):
     """ISO 8601 time -> stored time_str ('YYYY-MM-DD HH:MM', UTC like the server clock). Naive values are taken as UTC.

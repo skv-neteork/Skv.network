@@ -191,7 +191,7 @@ def build_while_away(conn, actor_id, key_id, chain_id, role="assistant", now=Non
             results.append(e)
         elif e.get("ev_kind") in ("claim", "file_change"):
             changes.append(e)
-        elif e.get("ev_kind") == "turn":
+        elif e.get("ev_kind") in ("turn", "cube_write"):
             raws.append(e)
     # a conflict is not also listed in its plain bucket
     conflict_ids = {e["id"] for e in conflicts}

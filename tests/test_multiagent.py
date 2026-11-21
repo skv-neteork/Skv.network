@@ -104,18 +104,20 @@ class RoomTests(unittest.TestCase):
         lane = facts_for(self.c, r2["actor_id"], "k", "ch", "assistant")
         self.assertTrue(any(f["ev"] == "u1" and f["is_self"] for f in lane["facts"]))
 
-    def test_04_name_in_use_and_idle_return(self):
+    def test_04_same_name_reuses_the_row_and_rotates_the_token(self):
         a = self._id("grok-build", "win-1", T0)
         held = hash_of(self.c, "k", a["agent_id"])
         busy = identify(self.c, "k", "ch", "grok-build", session_id="win-2", now=T0 + timedelta(minutes=5))
-        self.assertEqual(busy["error"], "NAME_IN_USE")
-        self.assertIn("-2", busy["suggestion"])
-        self.assertEqual(hash_of(self.c, "k", a["agent_id"]), held)
-        again = identify(self.c, "k", "ch", "grok-build", session_id="win-3", now=T0 + timedelta(minutes=31))
-        self.assertEqual(again["agent_id"], a["agent_id"])
+        self.assertEqual(busy.get("agent_id"), "grok-build")
+        self.assertNotIn("error", busy)
         self.assertNotEqual(hash_of(self.c, "k", a["agent_id"]), held)
-        same = identify(self.c, "k", "ch", "grok-build", session_id="win-3", now=T0 + timedelta(minutes=32))
-        self.assertEqual(same["agent_id"], a["agent_id"])
+        n = self.c.execute("SELECT COUNT(*) FROM agents").fetchone()[0]
+        window = identify(self.c, "k", "ch", "b20-keepalive", role="build", session_id="win-9", now=T0 + timedelta(minutes=6))
+        self.assertEqual(window["agent_id"], "grok-build")
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM agents").fetchone()[0], n)
+        bot = identify(self.c, "k", "ch", "grok-bot", session_id="bot-1", now=T0 + timedelta(minutes=7))
+        self.assertEqual(bot["agent_id"], "grok-bot")
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM agents").fetchone()[0], n + 1)
 
     def test_05_one_full_pack_lost_and_force(self):
         a = self._id("grok-build", "s1", T0)

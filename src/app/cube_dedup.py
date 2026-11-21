@@ -121,11 +121,20 @@ def _steps_from(skill_md, rules):
     return lines
 
 
+def _sub_ip(text, mark):
+    from app.cube_guard import replace_ip
+
+    def repl(m):
+        return replace_ip(m.group(0), mark)
+
+    return _IP.sub(repl, text or "")
+
+
 def _clean_piece(text):
     t = text or ""
     t = _EV.sub(" ", t)
     t = _EMAIL.sub(" ", t)
-    t = _IP.sub(" ", t)
+    t = _sub_ip(t, " ")
     t = _CHAIN.sub(" ", t)
     t = _REPO.sub(" ", t)
     t = _PATH.sub(" ", t)
@@ -211,7 +220,10 @@ def scrub_skill(fields):
         t = v
         t = repl("event", _EV, "[event]", t)
         t = repl("email", _EMAIL, "[email]", t)
-        t = repl("ip", _IP, "[ip]", t)
+        ip_out = _sub_ip(t, "[ip]")
+        if ip_out != t:
+            placeholders.append("ip")
+        t = ip_out
         t = repl("chain", _CHAIN, "[chain]", t)
         t = repl("repo", _REPO, "[repo]", t)
         t = repl("path", _PATH, "[path]", t)

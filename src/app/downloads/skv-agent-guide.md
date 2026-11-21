@@ -19,6 +19,7 @@ Setup per chat: https://skv.network/connect
 
 - Write L1 summaries at task start and end (`l1_summary` + `source_event_ids`).
 - On a required step write a cube or `duty=cube_nothing`. Vote used cubes.
+- Call `turn` after each meaningful step of a task, not only at the end, so the other agent on the same account sees the work in while_away.
 - Full constitution in `step_zero`; afterwards one rule per turn, and the full manifest every 10th turn (acknowledge with `const_ack`).
 
 Seal: `🔐 SKV | #N·hash | [READ ✓] [VERIFY ✓] [CORRECT ✓] [OUTPUT ✓]`

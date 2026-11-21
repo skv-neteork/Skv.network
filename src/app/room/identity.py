@@ -52,7 +52,9 @@ def explicit_count(conn, key_id):
 
 
 def identify(conn, key_id, chain_id, name, role="assistant", client_hint="", session_id="", now=None, display_name=""):
-    """Return a fresh token, or NAME_IN_USE. Does not replace another session's token hash."""
+    """Return a fresh token. The same name is one actor across sessions.
+    A second session reuses the row and rotates the token.
+    A Build window (role build, or the name grok-build) is always the actor grok-build."""
     ensure(conn)
     name = check_name(name)
     # role and client_hint are optional. An unknown role is kept in client_hint and the agent is an assistant.
@@ -62,19 +64,12 @@ def identify(conn, key_id, chain_id, name, role="assistant", client_hint="", ses
         client_hint = ("role=%s %s" % (role_in[:40], client_hint or "")).strip()
         role = "assistant"
     client_hint = str(client_hint or "")
+    if (role_in.lower() == "build" or "role=build" in client_hint.lower()
+            or name == "grok-build" or "grok-build" in client_hint.lower()):
+        name = "grok-build"
     session_id = (session_id or "").strip() or secrets.token_hex(8)
     now_dt = as_dt(now)
     cur = _row(conn, key_id, name)
-    if cur:
-        seen = parse_iso(cur["last_seen_at"])
-        busy = seen and (now_dt - seen).total_seconds() < 30 * 60 and (cur["session_id"] or "") != session_id
-        if busy:
-            return {
-                "error": "NAME_IN_USE",
-                "suggestion": _suggestion(conn, key_id, name),
-                "agent_id": cur["id"],
-                "saved": False,
-            }
     token = secrets.token_urlsafe(32)
     th = token_hash(token)
     stamp = iso(now_dt)

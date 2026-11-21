@@ -29,15 +29,59 @@ def secret_labels(text):
     return sorted(set(out))
 
 
+def _valid_ipv4(token):
+    parts = (token or "").split(".")
+    if len(parts) != 4:
+        return False
+    for p in parts:
+        if not p.isdigit() or int(p) > 255:
+            return False
+    return True
+
+
+def _loopback_ip(token):
+    """127.0.0.0/8, plus the names localhost and ::1. An invalid quad is not loopback."""
+    t = (token or "").strip().lower()
+    if t in ("localhost", "::1"):
+        return True
+    if not _valid_ipv4(t):
+        return False
+    return int(t.split(".")[0]) == 127
+
+
+def replace_ip(token, mark):
+    """A public IPv4 becomes mark. Loopback, localhost, ::1, and invalid quads stay."""
+    if _loopback_ip(token) or not _valid_ipv4(token):
+        return token
+    return mark
+
+
+def _sub_ip(text, mark):
+    n = 0
+
+    def repl(m):
+        nonlocal n
+        g = m.group(0)
+        out = replace_ip(g, mark)
+        if out != g:
+            n += 1
+        return out
+
+    return _IP.sub(repl, text or ""), n
+
+
 def mask_pii(text):
     if not text:
         return text, []
     found = []
     for name, rx, rep in (("event_id", _EVENT, "[event]"), ("email", _EMAIL, "[email]"), ("card", _CARD, "[number]"),
-                          ("phone", _PHONE, "[phone]"), ("ip", _IP, "[ip]")):
+                          ("phone", _PHONE, "[phone]")):
         text, n = rx.subn(rep, text)
         if n:
             found.append(name)
+    text, n = _sub_ip(text, "[ip]")
+    if n:
+        found.append("ip")
     return text, found
 
 
@@ -84,6 +128,8 @@ def field_report(**fields):
                 if name == "phone" and (sum(ch.isdigit() for ch in g) < 10 or re.fullmatch(r"\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?", g.strip())):
                     continue
                 if name == "card" and sum(ch.isdigit() for ch in g) < 13:
+                    continue
+                if name == "ip" and replace_ip(g, "[ip]") == g:
                     continue
                 out.append({"field": k, "reason": name})
                 break

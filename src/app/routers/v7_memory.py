@@ -1401,13 +1401,13 @@ def _fallback_mask(text: str) -> str:
 
 
 @router.post("/remember")
-async def remember_route(req: RememberRequest):
+async def remember_route(req: RememberRequest, request: Request = None):
     """/remember with an optional client_key: a client that lost the response (network) resends the same key and gets
     the first result back instead of a second saved event. A resend during the first run waits for it."""
     import asyncio, time as _t
     ck = (req.client_key or "").strip()[:80]
     if not ck:
-        return await remember(req)
+        return await remember(req, request)
     now = _t.time()
     for _k in [k for k, v in _REM_IDEM.items() if now - v[0] > _REM_IDEM_TTL]:
         _REM_IDEM.pop(_k, None)
@@ -1424,7 +1424,7 @@ async def remember_route(req: RememberRequest):
             return {"ok": False, "status": 504, "error": "first request with this client_key is still running"}
     _REM_IDEM[key] = [now, None]
     try:
-        res = await remember(req)
+        res = await remember(req, request)
     except BaseException:
         _REM_IDEM.pop(key, None)
         raise
@@ -1432,7 +1432,7 @@ async def remember_route(req: RememberRequest):
     return res
 
 
-async def remember(req: RememberRequest):
+async def remember(req: RememberRequest, request: Request = None):
     import sqlite3, json, time
     from app.account_memory import queue_turn, account_db_name
     saved = []
@@ -1596,6 +1596,14 @@ async def remember(req: RememberRequest):
             except Exception as _e:
                 print(f"[source_links] agent sources skipped: {_e}", flush=True)
     _cube_info = None
+    _actor, _akey = "", ""
+    try:
+        from app import cube_actor as _ca
+        if request is not None:
+            _akey = getattr(getattr(request, "state", None), "api_key", "") or ""
+        _actor = _ca.resolve_actor(_akey, getattr(req, "agent_token", "") or "", req.session_id or "")
+    except Exception:
+        _actor = ""
     if req.cube_topic and req.cube_rules:
         import uuid
         from app import cube_guard as _cg
@@ -1631,7 +1639,15 @@ async def remember(req: RememberRequest):
                 "INSERT INTO cubes_new (cube_id, essence, subject_action_object, rules_markdown, evidence, source_session, status, created_by, kind, skill_md, hooks, carrier) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (cube_id, _fields["essence"], _fields["topic"], _fields["rules"], _fields["evidence"], req.session_id, "community", req.user_id, _ctype, _skill_md or None, _hooks_json or None, _carrier),
             )
+            if _actor:
+                _cv2.set_actor(conn, cube_id, _actor)
             conn.commit(); conn.close()
+            if _actor:
+                try:
+                    from app import cube_actor as _ca
+                    _ca.announce(_akey, cube_id, _actor, req.session_id or "", _fields.get("topic") or "")
+                except Exception:
+                    pass
             _cube_info = {"cube_id": cube_id, "shared": True, "carrier": _carrier,
                           "has_skill": _carrier == "skill" or bool(_skill_md or _hooks_json),
                           "why_private": [], "pii_masked": _pii}
@@ -1689,7 +1705,7 @@ async def remember(req: RememberRequest):
             try:
                 _tcm.ensure(_tcc)
                 if req.l1_summary or req.l1_task:
-                    _tc = _tcm.process(_tcc, req.user_id, req.session_id, req.l1_summary, req.l1_task, req.sensitive)
+                    _tc = _tcm.process(_tcc, req.user_id, req.session_id, req.l1_summary, req.l1_task, req.sensitive, actor=_actor)
                 if _real_turn or _tc:
                     _tc_note = _tcm.turn_note(_tcc, req.user_id, req.query if _real_turn else "", _tc)
                 _tcc.commit()
@@ -1697,18 +1713,24 @@ async def remember(req: RememberRequest):
                 _tcc.close()
     except Exception as _e:
         print(f"[task_cubes] skipped: {type(_e).__name__}", flush=True)
+    if _actor and (_tc or {}).get("task_cube") and not (_tc or {}).get("remind_cube"):
+        try:
+            from app import cube_actor as _ca
+            _ca.announce(_akey, _tc["task_cube"], _actor, req.session_id or "", "task")
+        except Exception:
+            pass
     _duty_notes = []
     _rate_missed = None
     try:
         from app import cubes_v2 as _cv2
         _dc = sqlite3.connect(SHARED_DB, timeout=30)
         _cv2.ensure(_dc)
-        _tc_exp = (_tc or {}).get("experience") or ""
-        _wrote = bool(_cube_info and _cube_info.get("cube_id")) or bool(_tc_exp)
+        _l1_end = bool((_tc or {}).get("remind_cube"))
+        _wrote = bool(_cube_info and _cube_info.get("cube_id"))
         if _wrote:
-            _dc.execute("INSERT INTO agent_duty (user_id, step, duty, reason, created_at) VALUES (?,?,?,?,datetime('now'))", (req.user_id, _duty_step(req.user_id), "cube", (_cube_info or {}).get("cube_id") or _tc_exp))
+            _dc.execute("INSERT INTO agent_duty (user_id, step, duty, reason, created_at) VALUES (?,?,?,?,datetime('now'))", (req.user_id, _duty_step(req.user_id), "cube", (_cube_info or {}).get("cube_id") or ""))
         _duty_notes = _cv2.on_remember(_dc, req.user_id, _duty_step(req.user_id), topic=req.topic or req.cube_topic if not _wrote else req.topic,
-                                       task_done=req.task_done, wrote_cube=_wrote, duty=req.duty, duty_reason=req.duty_reason, turn=bool(req.query or req.response))
+                                       task_done=bool(req.task_done) or _l1_end or bool(req.l2_map), wrote_cube=_wrote, duty=req.duty, duty_reason=req.duty_reason, turn=bool(req.query or req.response))
         _duty_notes += [h for h in _cv2.duty_hints(_dc, req.user_id) if h.startswith("• RATE")]
         _rate_missed = _cv2.rate_missed_duty(_dc, req.user_id)
         _dc.commit(); _dc.close()
@@ -1781,7 +1803,8 @@ async def remember(req: RememberRequest):
                              profile_open=bool(_out.get("profile_duties")))
                 _dsig = _dr.signals({"l1_summary": req.l1_summary, "l2_map": req.l2_map, "critical": req.critical, "sensitive": req.sensitive, "profile": req.profile,
                                      "profile_review": req.profile_review, "duty": req.duty, "duty_reason": req.duty_reason, "task_done": req.task_done,
-                                     "query": req.query, "cube_created": bool((_cube_info and _cube_info.get("cube_id")) or (_tc or {}).get("experience"))}, _dctx)
+                                     "query": req.query, "cube_created": bool(_cube_info and _cube_info.get("cube_id")),
+                                     "l1_end": bool((_tc or {}).get("remind_cube"))}, _dctx)
                 _dres = _dr.on_turn(req.user_id, req.session_id, done=_dsig[0], dismissed=_dsig[1], events=_dsig[2], applicable=_dsig[3])
                 _sdd = _out.get("summary_due")
                 if _dres and isinstance(_sdd, dict) and _sdd.get("l1"):   # one L1 ask: summary_due / l1_overdue already carries it

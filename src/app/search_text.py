@@ -14,10 +14,12 @@ def _text_search_core(uid, query, top_k=20, since=None, until=None, exclude_impo
         # question -> reformulate: name exact, narrative vector
         from app import q2s as _q2s
         qt = _q2s.qtype(query)
+        fetch = max(int(top_k or 20) * 4, 40)
         if qt in ("when", "what", "where", "who", "how", "which", "how_many"):
-            fused, _rare = _v2.name_and_meaning(uid, query, top_k=top_k)
+            fused, _rare = _v2.name_and_meaning(uid, query, top_k=fetch)
         else:
-            fused, _rare = _v2.hybrid(uid, query, top_k=top_k)
+            fused, _rare = _v2.hybrid(uid, query, top_k=fetch)
+        fused = _blend_fused(uid, query, fused, top_k)
         out = _arch(uid, query, _out(uid, fused))
         if len(out) < 3 and len(_v2.query_terms(query)) > 1:   # any-term + morphology fallback for multi-word queries
             have = {o["event_id"] for o in out}
@@ -104,6 +106,65 @@ def _age_h(ts):
         return max(0.0, (_time.time() - (_time.mktime(_time.strptime(ts[:16], "%Y-%m-%d %H:%M")) - _time.timezone)) / 3600)
     except Exception:
         return 1e6
+
+
+def topic_cover(query, text):
+    """Fraction of query stems present in the event text. No stems -> 1.0."""
+    stems = _stems(query)
+    if not stems:
+        return 1.0
+    return _match(stems, query or "", text or "")
+
+
+def blend_score(relevance, age_hours, cover):
+    """Fresh on-topic text beats an old off-topic hit. An old on-topic hit still beats a fresh off-topic one.
+    Off-topic (cover near 0) cannot spend a high semantic score to win."""
+    try:
+        rel = float(relevance)
+    except (TypeError, ValueError):
+        rel = 0.0
+    try:
+        age = float(age_hours)
+    except (TypeError, ValueError):
+        age = 1e6
+    try:
+        cov = float(cover)
+    except (TypeError, ValueError):
+        cov = 0.0
+    if cov < 0.0:
+        cov = 0.0
+    if cov > 1.0:
+        cov = 1.0
+    if age < 0.0:
+        age = 0.0
+    return rel * (0.15 + 0.85 * cov) * (0.45 + 0.55 * _math.exp(-age / 168.0))
+
+
+def _blend_fused(uid, query, fused, top_k, times=None):
+    """Re-rank (event_id, score) on the full raw row, before the 300-character clip."""
+    pairs = []
+    for item in fused or []:
+        if isinstance(item, (list, tuple)) and len(item) >= 2:
+            pairs.append((item[0], item[1]))
+    if not pairs:
+        return []
+    rows = {}
+    try:
+        from app.recall_polish import _rows
+        rows = _rows(uid, [e for e, _ in pairs]) or {}
+    except Exception as e:
+        print("[search_text] blend rows skipped: %s" % type(e).__name__, flush=True)
+        rows = {}
+    times = times or {}
+    ranked = []
+    for eid, sc in pairs:
+        row = rows.get(eid) or {}
+        text = row.get("raw") or ""
+        ts = row.get("time_str") or times.get(eid) or ""
+        cover = topic_cover(query, text) if text else 1.0
+        ranked.append((eid, blend_score(sc, _age_h(ts), cover)))
+    ranked.sort(key=lambda x: -x[1])
+    return ranked[:max(1, int(top_k or 20))]
 
 
 def _expr(terms):
@@ -193,10 +254,8 @@ def filtered_search(uid, query, top_k=20, since=None, until=None, exclude_import
         sem = [(e, s) for e, s in s0 if e in meta][:80]
     except Exception as e:
         print(f"[search_text] filtered semantic skipped: {e}", flush=True)
-    fused = dict(_v2.wrrf(sem, fts, 1.0, 1.2))
-    for eid in list(fused):
-        fused[eid] *= 1 + 0.6 * _math.exp(-_age_h(meta.get(eid, "")) / 72)   # relevance x recency (3-day half scale)
-    ranked = sorted(fused.items(), key=lambda x: -x[1])[:top_k]
+    fused = list(_v2.wrrf(sem, fts, 1.0, 1.2))
+    ranked = _blend_fused(uid, query, fused, top_k, times=meta)
     out = _out(uid, ranked)
     if src == "all":
         out = sorted(out + _board(uid, query, max(3, top_k // 3)), key=lambda x: -x["score"])[:top_k]

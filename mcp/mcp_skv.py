@@ -140,6 +140,7 @@ _TW_STALE_MIN = float(os.environ.get("SKV_TURN_STALE_MIN", "10"))
 _TW_BURST_GAP = float(os.environ.get("SKV_TURN_BURST_GAP_S", "90"))   # a pause this long between tool calls = a new answer
 _TW_EXEMPT = {"turn", "constitution_status", "constitution_install", "constitution_get", "step_zero", "memory_bootstrap", "memory_start", "identify"}
 _tw_depth: contextvars.ContextVar[int] = contextvars.ContextVar("skv_tw_depth", default=0)
+_actor_call: contextvars.ContextVar = contextvars.ContextVar("skv_actor_call", default=None)
 # 2026-11-02 (Deniz, t883u): reminders/duties in single-call mode + single-call wording of the turn hints.
 # Rollback: SKV_TURN_RECAP_REMINDERS=0 (flag turn_recap_reminders): old hint texts, recap-sealed turns return no duties.
 _RECAP_REM_ON = os.environ.get("SKV_TURN_RECAP_REMINDERS", "1") != "0"
@@ -530,9 +531,14 @@ def _tw_wrap(fn):
         top = _tw_depth.get() == 0
         gated, first = _tg_check(name) if top else (False, False)
         tok = _tw_depth.set(_tw_depth.get() + 1)
+        prev_actor = _actor_call.set({
+            "agent_token": kw.get("agent_token") or "",
+            "session_id": kw.get("session_id") or "",
+        })
         try:
             r = fn(*a, **kw)
         finally:
+            _actor_call.reset(prev_actor)
             _tw_depth.reset(tok)
         if _tw_depth.get() > 0:
             return r
@@ -698,6 +704,30 @@ PAGE_CHARS = 8000
 def _dumps_step_zero(obj: Any) -> str:
     """A step_zero page is already one transport page. Do not cut its text down to RESP_LIMIT."""
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+
+def _dumps_skill(obj: Any) -> str:
+    """Fit a cube page. Never put a trim marker inside skill_md. Shrink the other fields first."""
+    if not isinstance(obj, dict):
+        return _dumps(obj)
+    s = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+    if len(s) <= RESP_LIMIT:
+        return s
+    skill = obj.get("skill_md")
+    rest = {k: v for k, v in obj.items() if k != "skill_md"}
+    cap = 2000
+    while cap >= 80:
+        trial = dict(_shrink(rest, cap))
+        if skill is not None:
+            trial["skill_md"] = skill
+        s = json.dumps(trial, ensure_ascii=False, separators=(",", ":"))
+        if len(s) <= RESP_LIMIT:
+            return s
+        cap //= 2
+    trial = dict(_shrink(rest, 80))
+    if skill is not None:
+        trial["skill_md"] = skill
+    return json.dumps(trial, ensure_ascii=False, separators=(",", ":"))
 
 
 def _dumps(obj: Any, limit: int = RESP_LIMIT) -> str:
@@ -3742,12 +3772,18 @@ def skills_get(name: str) -> str:
 # ─── Cubes / feedback ───────────────────────────────────────────────
 
 @mcp.tool()
-def cube_get(cube_id: str) -> str:
-    """Read one cube — GET /cube/{id}. e.g. cube_const_05_v13 (CUBE 05 Agent)."""
+def cube_get(cube_id: str, page: int = 1) -> str:
+    """Read one cube — GET /cube/{id}. A long skill_md is one page. Walk page=1..skill_pages and concatenate. Never trimmed inside skill_md."""
     cid = (cube_id or "").strip()
     if not cid:
         return _dumps({"ok": False, "error": "cube_id required"})
-    return _dumps(_req("GET", f"/cube/{cid}"))
+    try:
+        pg = int(page or 1)
+    except (TypeError, ValueError):
+        pg = 1
+    if pg < 1:
+        pg = 1
+    return _dumps_skill(_req("GET", f"/cube/{cid}", params={"page": pg}))
 
 
 _SB_RATE = {}
@@ -3917,6 +3953,8 @@ def cube_create(
     supersedes: str = "",
     msg_ref: str = "",
     ack: str = "",
+    agent_token: str = "",
+    session_id: str = "",
 ) -> str:
     """Write experience cube — POST /experience/create (SKV-CUBE / CUBE 05 §5).
     Cubes are never edited in place. To fix any cube (yours or another's) publish a NEW version:
@@ -3944,6 +3982,13 @@ def cube_create(
         body["cube_id"] = cube_id
     if supersedes:
         body["supersedes"] = supersedes.strip()
+    ctx = _actor_call.get() or {}
+    tok = (agent_token or ctx.get("agent_token") or "").strip()
+    sid = (session_id or ctx.get("session_id") or "").strip()
+    if tok:
+        body["agent_token"] = tok
+    if sid:
+        body["session_id"] = sid
     return _dumps(_req("POST", "/experience/create", body))
 
 
@@ -4194,7 +4239,7 @@ def identify(name: str, role: str = "", client_hint: str = "", session_id: str =
     """Step 2 of the start order, after constitution_install. Name this agent, even the only one on a key.
     Short reply: agent_id, agent_token (shown once), session_id, next=step_zero. No nested pages.
     role and client_hint are optional. Then call step_zero(page=1) and read every page, and pass agent_token on every later call.
-    The token is never written into memory. NAME_IN_USE: use the suggested name."""
+    The token is never written into memory. The same name is one actor across sessions. A Build window reuses grok-build."""
     if not _room_local():
         return _dumps(_req("POST", "/agent/identify", {
             "name": name, "role": role or "assistant", "client_hint": client_hint or "", "session_id": session_id or "",
@@ -5049,7 +5094,7 @@ SHORT_DESC = {
  "second_look": "Legacy (use turn): checks only that every [ev:id] in the draft exists in your memory.",
  "turn": "EVERY TURN, ONE CALL. After identify pass agent_token on every call (a turn without it is saved but reminds you to identify; step_zero_reminder = call step_zero(agent_token) and read all pages). [ev:id] is yours; [ev:id@agent] is another agent. Lost context: context_state=lost. kind=result when done, kind=handoff if you stop midway. Single-call mode (fewest calls): turn(user_message=<new user text>, msg_ref=<id>, recap=[{ref,user,answer=<your PREVIOUS answer exactly as sent>}]) with no draft: saves+seals the previous turn and returns the context for the new message (facts, cubes, self_check) + seal: end your new reply with that seal (one-step lag; your current reply goes in the next call's recap). Classic mode: turn(user_message, draft) before the user sees the reply. Compact mode (compact=true): self-check first, send the final answer once as answer=<final> (draft alias); saved+sealed, not echoed; missed_turns duty -> add recap=[{ref,user,answer}] to your next turn; facts max 3 x 200 chars; cubes/self_check only when changed (else cubes_version/checklist_version). Memory is searched in its base_language (returned as base_language + search_language_rule): when the user writes in another language pass query=<the question in base_language> and search_as in it. The server does not judge your draft: it returns memory facts with [ev:id], relevant cubes and a self_check list - check the draft yourself; if you change it, call turn again (same user_message). Server checks only that every [ev:id] exists in your memory (else verdict=revise + invalid_ids, nothing saved), saves the turn and returns the seal: append it as the last line. No draft = context only. Memory missing or user says remember/вспомни: dig deeper first - memory_search by meaning and by keywords (lines=all); memory_search(focus_event_id=) for a wider episode; still nothing -> memory_recall_later(query, search_as=<same statement forms>) deep search (~10-30 s), poll memory_recall_status - only then say you do not remember.",
  "step_zero": "Step 3 of the start order, after constitution_install and identify: memory pack 8/8/8 plus full CUBE 00-04 and CUBE 05, once. page=1..N until done=true. Pass agent_token. Same key after that: turn only. A rotated key does this once. Lost context: step_zero(force=true), at most once per 10 minutes.",
- "identify": "Step 2 of the start order, after constitution_install: identify(name, role?, client_hint?). Short reply with agent_token once and next=step_zero. No nested pages. Pass agent_token on every later call. NAME_IN_USE: take the suggested -2 name. An idle name keeps the same agent_id.",
+ "identify": "Step 2 of the start order, after constitution_install: identify(name, role?, client_hint?). Short reply with agent_token once and next=step_zero. No nested pages. Pass agent_token on every later call. The same name is one actor across sessions. A Build window reuses grok-build; do not invent a per-window name. Call turn after each meaningful step so the other agent sees the work in while_away.",
  "file_claim": "Claim a relative path before editing. 409 if another agent holds it. Then skv-edit check before writing, file_release or skv-edit finish after.",
  "file_check": "Check a claimed file still matches base_hash before writing. Pair with skv-edit check.",
  "file_release": "Release your file claim and record file_change for the other agents.",
@@ -5058,7 +5103,7 @@ SHORT_DESC = {
  "constitution_status": "Installed? If not, next is constitution_install. If yes, next is identify, then step_zero once, then turn. Same key after step_zero: turn only.",
  "skills_list": "List SKV skills.",
  "skills_get": "Read one skill by name.",
- "cube_get": "Open one cube by id.",
+ "cube_get": "Open one cube by id. Long skill_md is paged: read page=1..skill_pages and concatenate. skill_md is never trimmed.",
  "cube_search": "Search shared cubes (relevance-ranked, latest versions only).",
  "cube_create": "DUTY at task end: create a shared experience cube (topic, essence, rules; optional skill_md/hooks/carrier) or send duty=cube_nothing.",
  "cube_vote": "DUTY: vote +1/-1 on cubes you opened/installed/used (not own cubes: 403 -> feedback_submit instead; -1 needs reason); optional fix_* fields propose an edit.",

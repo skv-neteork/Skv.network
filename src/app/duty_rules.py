@@ -43,7 +43,7 @@ def rule_text(duty):
         "critical": "RULE critical: when the user states a lasting fact (name, codename, standing rule, decision), send critical=\"<one fact>\" in that turn "
                     "(several: separate with ' | '). Not for passing details.",
         "l2": "RULE L2: after ~10 L1 send l2_summary = topic map (one headline per stage + open items, ~5% of those L1) with source_event_ids and profile_review.",
-        "cube": "RULE experience cube: when a task closes, publish a cube: problem / steps / result, English, no personal data, code or secrets. "
+        "cube": "RULE experience cube: after an L1 finish or an L2, publish a cube: problem / steps / result, English, no personal data, code or secrets. "
                 "Open the author cube first: cube_get(cube_id=\"%s\"). Nothing worth sharing: duty=cube_nothing + reason." % _cube_id(),
         "sensitive": "RULE sensitive: when a message or your answer holds a password, key, token or card, pass sensitive=\"<exact string>|...\"; the server masks it as [SECRET]. "
                      "Never repeat it in critical, summaries or cubes.",
@@ -143,13 +143,13 @@ def signals(req_fields, ctx):
     if isinstance(sd, dict):
         if sd.get("l1"): events.add("l1")
         if sd.get("l2"): events.add("l2")
-    if f.get("task_done") or ctx.get("cube_hint"): events.add("cube")
+    if f.get("task_done") or f.get("l1_end") or f.get("l2_map") or ctx.get("cube_hint"): events.add("cube")
     if ctx.get("rate_hint"): events.add("vote")
     if ctx.get("profile_open"): events.add("profile")
     app = {
         "l1": int(ctx.get("l1_pending") or 0) >= 8,
         "l2": int(ctx.get("nl1") or 0) >= 10,
-        "cube": bool(f.get("task_done") or ctx.get("cube_hint")),
+        "cube": bool(f.get("task_done") or f.get("l1_end") or f.get("l2_map") or ctx.get("cube_hint")),
         "vote": bool(ctx.get("rate_hint")),
         "sensitive": bool(ctx.get("vaulted")),
         "profile": bool(ctx.get("profile_open")),

@@ -1,8 +1,9 @@
-"""T71: help between agents only through cubes. A big task is announced by the agent's own L1 ("started task: X"), closed by another
-("finished, solution: Y"). The server scrubs the text, then:
+"""T71: help between agents only through cubes. A big task is announced by the agent's own L1 ("started task: X").
+The server scrubs the text, then:
   start : a matching experience cube exists -> suggest it in the same reply; else open a draft task cube (kind='task', status='open')
           in the shared pool; agents with similar work are shown open task cubes (once each).
-  end   : the scrubbed solution is appended and the same cube becomes an experience cube (kind 'moment', status 'community'; state 'solved').
+  end   : the task cube stays open (kind='task'). The tracking row closes with experience_id NULL. The reply asks the agent
+          to cube_create (problem, steps, result) or duty=cube_nothing with a reason. The server does not write an experience cube.
   answer: another agent links its experience cube to an open task cube (cube_link kind=answers): the author gets one short note in a later turn.
 No thresholds, no turn flag: the agent decides what a notable task is; optional explicit field l1_task='start'|'end'. Never raises.
 State: shared_master.db tables task_cubes, task_notified (+ agent_inbox rows for answers). Switch off: env SKV_TASK_CUBES=0."""
@@ -18,6 +19,7 @@ MIN_WORDS = 3
 _START = re.compile(r"(?:started task|starting task|start of task|new task|began task|begin task|начал[аи]? задачу|начинаю задачу|берусь за задачу|беру задачу|начата задача)\s*[:\-–—]\s*", re.I)
 _END = re.compile(r"(?:finished|completed|solved|закончил[аи]?|завершил[аи]?|решил[аи]?)(?:\s+task|\s+задачу)?[^\n:]{0,40}?[,;:.\-–—]?\s*(?:solution|решение)\s*[:\-–—]\s*", re.I)
 _CODE_LINE = re.compile(r"^\s*(?:def |class |import |from \S+ import |#include|function |const |let |var |SELECT |INSERT |UPDATE |curl |\$ |>>> |git |pip |npm |docker |sudo )", re.I)
+_TASKNO = re.compile(r"\b(?:T_[A-Z0-9_]{2,}|[BT]\d{1,4})\b")
 
 
 def enabled():
@@ -66,6 +68,7 @@ def detect(l1, l1_task=""):
 def scrub_text(text, sensitive=None):
     """Anonymize for the shared pool: code, secrets, emails, phones, cards, ips, paths, hosts, ids. Returns clean text."""
     t = text or ""
+    t = _TASKNO.sub(" ", t)
     t = re.sub(r"```.*?(```|$)", " [code] ", t, flags=re.S)
     t = re.sub(r"`[^`\n]{10,}`", "[code]", t)
     t = "\n".join("[code]" if _CODE_LINE.match(ln) else ln for ln in t.splitlines())
@@ -175,7 +178,7 @@ def _new_cube(conn, uid, session, topic, essence, rules, evidence, kind, status)
     return cid, ""
 
 
-def _start(conn, uid, session, text, sensitive, translate):
+def _start(conn, uid, session, text, sensitive, translate, actor=""):
     clean, why = clean_for_pool((text or "")[:500], sensitive, translate)
     tid = "task_" + uuid.uuid4().hex[:12]
     if not clean:
@@ -194,6 +197,12 @@ def _start(conn, uid, session, text, sensitive, translate):
         conn.execute("INSERT INTO task_cubes VALUES (?,?,?,?,?,?,?,?,?,?)", (tid, uid, session, None, None, "open", clean[:300], _now(), None, None))
         return {"skipped": "task cube not published: " + why}
     conn.execute("INSERT INTO task_cubes VALUES (?,?,?,?,?,?,?,?,?,?)", (tid, uid, session, cid, None, "open", clean[:300], _now(), None, None))
+    if actor:
+        try:
+            from app import cubes_v2 as _cv2
+            _cv2.set_actor(conn, cid, actor)
+        except Exception:
+            pass
     return {"task_cube": cid}
 
 
@@ -203,32 +212,13 @@ def _end(conn, uid, session, text, sensitive, translate):
     if not row:
         return {}
     tid, cid, matched, problem, _s = row
-    sol, why = clean_for_pool((text or "")[:900], sensitive, translate)
-    if not sol:
-        return {"skipped": "solution not published: " + why}
-    problem = problem or "task"
-    essence = ("%s -> %s" % (problem[:100], sol))[:220]
-    rules = "PROBLEM: %s\nSOLUTION: %s" % (problem[:400], sol[:900])
-    if cid:   # the same cube turns into the experience cube
-        from app import cube_guard
-        ok, f, reasons, _p = cube_guard.prepare_shared(" ".join(problem.lower().split()[:8]), essence, rules, "solved task (self-reported)")
-        if not ok:
-            return {"skipped": "solution not published: " + ",".join(reasons)}
-        conn.execute("UPDATE cubes_new SET kind='moment', status='community', essence=?, rules_markdown=?, evidence=?, updated_at=datetime('now') WHERE cube_id=?",
-                     (f["essence"], f["rules"], f["evidence"], cid))
-        eid = cid
-    else:     # a matching cube answered at the start, or the start was not publishable: a new experience cube
-        eid, why = _new_cube(conn, uid, session, " ".join(problem.lower().split()[:8]), essence, rules, "solved task (self-reported)", "moment", "community")
-        if not eid:
-            return {"skipped": "solution not published: " + why}
-        if matched:
-            conn.execute("INSERT OR IGNORE INTO cube_links (src, dst, kind, created_by, created_at) VALUES (?,?,?,?,datetime('now'))", (eid, matched, "from", uid))
-    conn.execute("UPDATE task_cubes SET state='solved', ended_at=?, experience_id=? WHERE task_id=?", (_now(), eid, tid))
-    return {"experience": eid}
+    del matched, problem
+    conn.execute("UPDATE task_cubes SET state='closed', ended_at=?, experience_id=NULL WHERE task_id=?", (_now(), tid))
+    return {"remind_cube": True, "task_cube": cid or ""}
 
 
-def process(conn, uid, session, l1, l1_task="", sensitive=None, translate=None):
-    """Handle the start/end of a task in one L1. Returns {task_cube|match|experience|skipped}. Never raises."""
+def process(conn, uid, session, l1, l1_task="", sensitive=None, translate=None, actor=""):
+    """Handle the start/end of a task in one L1. Returns {task_cube|match|remind_cube|skipped}. Never raises."""
     out = {}
     try:
         d = detect(l1, l1_task)
@@ -238,7 +228,7 @@ def process(conn, uid, session, l1, l1_task="", sensitive=None, translate=None):
         if d["end"]:
             out.update(_end(conn, uid, session, d["end"], sensitive, translate))
         if d["start"]:
-            out.update(_start(conn, uid, session, d["start"], sensitive, translate))
+            out.update(_start(conn, uid, session, d["start"], sensitive, translate, actor=actor))
     except Exception as e:
         print("[task_cubes] skipped: %s" % type(e).__name__, flush=True)
     return out
@@ -272,9 +262,10 @@ def turn_note(conn, uid, query, result):
     """One short line for the turn reply (or ""): what the L1 did, pending answers, an open task that fits this message."""
     lines = []
     r = result or {}
-    if r.get("experience"):
-        lines.append("task cube %s is now an experience cube" % r["experience"])
-    if r.get("match"):
+    if r.get("remind_cube"):
+        label = r.get("task_cube") or "the open task"
+        lines.append("task %s stays open: cube_create(problem, steps, result) or duty=cube_nothing with a reason" % label)
+    elif r.get("match"):
         lines.append("similar solved task: %s \"%s\": compare with your plan (cube_get)" % (r["match"]["id"], r["match"]["essence"][:90]))
     elif r.get("task_cube"):
         lines.append("task cube %s opened for agents with similar experience; at the end send L1 'finished, solution: ...'" % r["task_cube"])

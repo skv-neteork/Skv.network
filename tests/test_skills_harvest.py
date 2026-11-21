@@ -61,7 +61,7 @@ class SkillsHarvestTests(unittest.TestCase):
     def test_agent_without_state_is_asked_once(self):
         first = self.note(self.t0)
         self.assertIn("first time", first)
-        self.assertIn(sh.AUTHOR_CUBE_ID, first)
+        self.assertIn(sh.meta_cube_id() or sh.AUTHOR_CUBE_ID, first)
         self.assertIn("DUTY cube_harvest", first)
         self.assertEqual(self.note(self.t0 + 10 * H), "")
 
@@ -186,13 +186,13 @@ class SkillsHarvestTests(unittest.TestCase):
             self.skipTest("shared_master.db not here")
         c = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
         try:
-            row = c.execute("select status, rules_markdown from cubes_new where cube_id='cube_const_05_v22'").fetchone()
+            row = c.execute("select status, rules_markdown from cubes_new where cube_id='cube_const_05_v23'").fetchone()
         finally:
             c.close()
         self.assertIsNotNone(row)
-        self.assertEqual(row[0], "community")
+        self.assertEqual(row[0], "verified")
         self.assertIn(sh.FIRST_CUBES_RULE, row[1])
-        self.assertIn("CUBE 05 — Agent Capabilities v21.0", row[1])
+        self.assertIn("CUBE 05 — Agent Capabilities v23.0", row[1])
 
     def test_constitution_texts_carry_the_consent_rule(self):
         root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")

@@ -52,7 +52,7 @@ Start order, once per new key (`cube_const_05_mcp_v20`):
 3. `step_zero(page=1..N)` until `done=true`. PACK888 pages are the memory pack (constitution, profile, L2, L1, raw, open items, access counter) plus full CUBE 00–04 and CUBE 05, once. Critical marks are headings inside L2 and L1. Each page stays under 15 KB.
 4. After that, `turn(user_message, draft)` on every user message. The same key does not call `step_zero` again. A rotated key does this order once.
 
-The compact constitution summary is v5 (`src/app/constitution_compact_v2.md`). Live cube rows are newer: CUBE 00 is `cube_const_00_v6`, CUBE 05 is `cube_const_05_v22`, and the MCP how-to is `cube_const_05_mcp_v20`.
+The compact constitution summary is v5 (`src/app/constitution_compact_v2.md`). Live cube rows are newer: CUBE 00 is `cube_const_00_v6`, CUBE 05 is `cube_const_05_v23`, and the MCP how-to is `cube_const_05_mcp_v20`.
 
 Heartbeat is `src/app/const_bind.py`. Every turn reply carries `constitution` with version, hash, one rule, and whether it is stale. The full manifest goes out on the first turn of a session, on a new version, on `context_reset`, and every 10th turn. After four ignored manifests it goes out every turn until the agent sends `const_ack=true` (or `ack="const"`). The agent does not re-read CUBE 00 on a fixed message count. The seal comes only from `turn`.
 

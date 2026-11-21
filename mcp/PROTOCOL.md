@@ -39,7 +39,7 @@ MCP tools call real V7 endpoints only. MCP is the primary connector. Guard 1 sen
 `turn` returns facts, cubes and a self-check. The server does not judge the meaning of the draft. `verdict=revise` only when an `[ev:id]` in the draft is not in memory.
 
 ### Constitution heartbeat
-The compact summary is v5: `src/app/constitution_compact_v2.md`. Live cube rows are `cube_const_00_v6`, CUBE 01–04 at v4, CUBE 05 `cube_const_05_v22`, MCP how-to `cube_const_05_mcp_v20`.
+The compact summary is v5: `src/app/constitution_compact_v2.md`. Live cube rows are `cube_const_00_v6`, CUBE 01–04 at v4, CUBE 05 `cube_const_05_v23`, MCP how-to `cube_const_05_mcp_v20`.
 
 `src/app/const_bind.py` puts `constitution` (version, hash, one rule, stale) on every turn reply. The full manifest is sent on the first turn of a session, on a new version, on `context_reset=true`, and every 10th turn (`MANIFEST_EVERY = 10`). After four ignored manifests it is sent every turn until `const_ack=true`. Do not re-read CUBE 00 on a fixed message count. One rule per other turn.
 

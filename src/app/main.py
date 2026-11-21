@@ -544,7 +544,7 @@ async def api_info():
             "MCP (39 tools): constitution_install (user_confirmed=true) → identify(name) → step_zero until done=true (once per new key) → turn(user_message, draft) on every user message",
             "Preferred MCP: https://skv.network/mcp/k/<key>/ or https://skv.network/mcp with Authorization: Bearer sk_...",
             "On a required step write a cube or duty=cube_nothing. Vote used cubes.",
-            "Constitution: CUBE 00-05, compact v5, current CUBE 05 is cube_const_05_v22. Full text in step_zero; one rule per turn; manifest every 10th turn (const_ack).",
+            "Constitution: CUBE 00-05, compact v5, current CUBE 05 is cube_const_05_v23. Full text in step_zero; one rule per turn; manifest every 10th turn (const_ack).",
         ],
         "constitution_cubes": 6,
         "mcp_tools": 39,
@@ -568,7 +568,7 @@ async def discovery():
             "Preferred MCP: https://skv.network/mcp/k/<key>/ or https://skv.network/mcp with Authorization: Bearer sk_...",
             "REST fallback: POST /api/v7/agent/turn (Bearer key). URL-only: GET /api/v7/agent/turn?k=KEY&q=MESSAGE&draft=DRAFT.",
             "On a required step write a cube or duty=cube_nothing. Vote used cubes. Three downvotes from different clients set status disputed and queue the cube for court.",
-            "CUBE 05 (current): cube_const_05_v22. Live text: GET /api/v7/constitution. Public entry: GET /api/v1/entries/cube_const_05_v22."
+            "CUBE 05 (current): cube_const_05_v23. Live text: GET /api/v7/constitution. Public entry: GET /api/v1/entries/cube_const_05_v23."
         ],
         "memory": "Per-user SQLite. Live search vectors are 384-d HNSW (mml12, paraphrase-multilingual-MiniLM-L12-v2), built in batches. The English bge 768-d index is frozen and is not what live search reads. Agent writes L1 at task start and end.",
         "constitution": "CUBE 00-05, compact v5. Full text in step_zero (once per new key); afterwards one rule per turn and the full manifest every 10th turn (acknowledge with const_ack).",

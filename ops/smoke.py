@@ -98,7 +98,7 @@ def skills_checks(tag):
     s1, b1, _ = http(REST + "/agent/identify", {"name": "smoke-sh-" + tag[-6:], "session_id": "sh-" + tag[-6:]}, h)
     try: d1 = json.loads(b1)
     except Exception: d1 = {}
-    rec("SH1 identify reply carries step 3 (publish skills/hooks as cubes)", s1 == 200 and "cube_3de96286fc73" in str(d1.get("skills_step")) and "skills_none" in str(d1.get("skills_step")) and d1.get("skills_step") in str(d1.get("room_text")), str({k: v for k, v in d1.items() if k not in ("agent_token", "room_text")})[:100])
+    rec("SH1 identify reply carries step 3 (publish skills/hooks as cubes)", s1 == 200 and "cube_8ca30802c689" in str(d1.get("skills_step")) and "skills_none" in str(d1.get("skills_step")) and d1.get("skills_step") in str(d1.get("room_text")), str({k: v for k, v in d1.items() if k not in ("agent_token", "room_text")})[:100])
     s2, b2, _ = http(REST + "/agent/identify", {"name": "smoke-sh-" + tag[-6:], "session_id": "sh-" + tag[-6:]}, h)
     try: d2 = json.loads(b2)
     except Exception: d2 = {"raw": b2[:80]}
@@ -571,7 +571,7 @@ def main():
     facts = r.get("facts") or r.get("memory") or r.get("hits") or []
     rec("RU query -> facts in turn", len(facts) > 0, "n=%d" % len(facts))
     # Live community cube. cube_688c0ebbb3be and cube_9ff3f12ce0ba are superseded.
-    _harvest = "cube_3de96286fc73"
+    _harvest = "cube_8ca30802c689"
     cs1 = m.call("cube_search", {"query": "how to create a cube"})
     rec("CS1 'how to create a cube' -> current harvest cube", _harvest in json.dumps(cs1), json.dumps([x.get("cube_id") for x in cs1.get("results") or []])[:120])
     _sec = "zq9smk" + tag.replace("_", "")[-6:]

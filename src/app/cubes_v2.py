@@ -268,7 +268,7 @@ def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, du
                     _mc = _lc()
                 except Exception:
                     _mc = "cube_688c0ebbb3be"
-                notes.append(CUBE_NUDGE % (_t, _mc))
+                notes.append(_with_author_core(CUBE_NUDGE % (_t, _mc), uid))
     return notes
 
 
@@ -277,6 +277,15 @@ def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, du
 # cube_nothing the turn gets one soft note. Reminder only: sets no duty, no duty_errors, seal unaffected.
 # Flag: env SKV_CUBE_NUDGE_TURNS or memory_config.json "cube_nudge_turns" (default 25; 0 = off).
 # Rollback: set it to 0, or cp src/app/cubes_v2.py.bak.20261102nudge + docker restart skv_api.
+def _with_author_core(note, uid):
+    """First cube reminder of an episode carries the author CORE. A failure leaves the note."""
+    try:
+        from app.cube_reminder_core import decorate
+        return decorate(note, uid)
+    except Exception:
+        return note
+
+
 CUBE_NUDGE = ("• CUBE NUDGE: %d turns since your last cube/cube_nothing. Reusable procedure, fix or user correction in this "
               "chain? cube_get(cube_id=\"%s\") (cube author) and follow it, then task_done=true; else duty=cube_nothing "
               "+ duty_reason. Reminder only.")
@@ -359,7 +368,7 @@ def duty_hints(conn, uid):
     s = _state(conn, uid)
     h = []
     if s["pending_cube"]:
-        h.append("• CUBE DUTY: the task ended. Write a cube only if it changes the answer (code, lifehack, warning, fact); otherwise remember duty=cube_nothing with a reason. Silence is the only error.")
+        h.append(_with_author_core("• CUBE DUTY: the task ended. Write a cube only if it changes the answer (code, lifehack, warning, fact); otherwise remember duty=cube_nothing with a reason. Silence is the only error.", uid))
     own = _author_of(conn, s["rate_pending"], uid)
     if own:
         s["rate_pending"] = [c for c in s["rate_pending"] if c not in own]

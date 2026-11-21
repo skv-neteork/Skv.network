@@ -1816,7 +1816,13 @@ async def remember(req: RememberRequest, request: Request = None):
                             _keep.append(_r)
                     _dres = dict(_dres, rules=_keep) if _keep else {}
                 if _dres:
-                    _out["duty_rules"] = _dres
+                    try:
+                        from app.cube_reminder_core import decorate_rules as _decorate_rules
+                        _dres = dict(_dres, rules=_decorate_rules(_dres.get("rules") or [], req.user_id))
+                    except Exception:
+                        pass
+                    if _dres.get("rules"):
+                        _out["duty_rules"] = _dres
     except Exception as _e:
         print(f"[duty_rules] skipped: {type(_e).__name__}", flush=True)
     return _out

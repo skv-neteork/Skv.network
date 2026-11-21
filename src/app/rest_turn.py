@@ -32,6 +32,14 @@ def _db():
     return c
 
 
+def _clip_duty(d, cap=300):
+    """Short duty lines stay capped. An author-cube CORE block on a cube reminder stays whole."""
+    s = d if isinstance(d, str) else str(d)
+    if "AUTHOR CUBE CORE (" in s:
+        return s
+    return s[:cap]
+
+
 def _req(key, method, path, body=None, params=None, base=BASE):
     with httpx.Client(timeout=90.0) as c:
         r = c.request(method, base + path, headers={"Authorization": "Bearer " + key, "User-Agent": "skv-rest-turn"}, json=body, params=params)
@@ -515,7 +523,7 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     if compact:
         if ok: cg_commit()
         r = {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "compact": True, "event_id": eid or None, "seal": seal if ok else None,
-             "cited_ok": cited, "facts": facts, **(cg if ok else {"cubes": cubes, "self_check": checklist}), "duties": [str(d)[:300] for d in duties]}
+             "cited_ok": cited, "facts": facts, **(cg if ok else {"cubes": cubes, "self_check": checklist}), "duties": [_clip_duty(d) for d in duties]}
         if isinstance(saved, dict) and saved.get("summary_due"): r["summary_due"] = saved.get("summary_due")
         if ext: r["summary_mode"] = "server"
         if drawn: r["seal_warning"] = "self-written seal in your answer ignored; only this seal field is valid"
@@ -524,7 +532,7 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
         r.update(_board_rel(user, user_message, clean)); r.update(prof)
     else:
         r = {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "event_id": eid or None, "seal": seal if ok else None,
-            "cited_ok": cited, "facts": facts, "cubes": cubes, "self_check": checklist, "duties": [str(d)[:300] for d in duties], **_board_rel(user, user_message, clean), **prof,
+            "cited_ok": cited, "facts": facts, "cubes": cubes, "self_check": checklist, "duties": [_clip_duty(d) for d in duties], **_board_rel(user, user_message, clean), **prof,
             "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else
                             (("SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)) if no_read else None),
             "summary_due": saved.get("summary_due") if isinstance(saved, dict) else None, "saved_parts": saved.get("saved") if isinstance(saved, dict) else None,

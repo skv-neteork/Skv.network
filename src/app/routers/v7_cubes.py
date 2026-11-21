@@ -338,6 +338,11 @@ async def create_experience_cube(req: ExperienceCreateRequest, request: Request 
             _actor = ""
         conn.commit()
         conn.close()
+        try:
+            from app import duty_rules as _dr
+            _dr.note_cube_published(uid)
+        except Exception as _e:
+            print("[duty_rules] cube publish reset skipped: %s" % type(_e).__name__, flush=True)
         if _actor:
             try:
                 from app import cube_actor as _ca

@@ -688,13 +688,27 @@ def _req(method: str, path: str, body: Any = None, params: Optional[dict] = None
 
 
 def _shrink(o: Any, cap: int) -> Any:
+    # Author-cube CORE on a cube reminder is once per episode and must survive the duty cap.
     if isinstance(o, str):
-        return o if len(o) <= cap else o[:cap] + "…(trimmed)"
+        if "AUTHOR CUBE CORE (" in o or len(o) <= cap:
+            return o
+        return o[:cap] + "…(trimmed)"
     if isinstance(o, list):
         return [_shrink(x, cap) for x in o]
     if isinstance(o, dict):
         return {k: _shrink(v, cap) for k, v in o.items()}
     return o
+
+
+def _core_ceiling(obj, limit: int) -> int:
+    """A reply that carries CORE may pass the normal cap by one block. Other replies stay put."""
+    try:
+        from app.cube_reminder_core import CORE_SLACK, carries_core
+        if carries_core(obj):
+            return limit + CORE_SLACK
+    except Exception:
+        pass
+    return limit
 
 
 RESP_LIMIT = 9000  # chars; JSON-RPC escaping inflates ~10-30% -> wire stays < ~14KB (public path stalls >15-20KB)
@@ -731,14 +745,21 @@ def _dumps_skill(obj: Any) -> str:
 
 
 def _dumps(obj: Any, limit: int = RESP_LIMIT) -> str:
-    """Valid compact JSON always: over the limit, trim long strings (keeps every key)."""
+    """Valid compact JSON always: over the limit, trim long strings (keeps every key).
+
+    A cube reminder that carries AUTHOR CUBE CORE is allowed one extra block so the
+    manual is not hard-cut. Strings without that marker still shrink.
+    """
     limit = min(int(limit), RESP_LIMIT)
+    ceiling = _core_ceiling(obj, limit)
     s = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
     cap = 3000
-    while len(s) > limit and cap >= 100:
+    while len(s) > ceiling and cap >= 100:
         s = json.dumps(_shrink(obj, cap), ensure_ascii=False, separators=(",", ":"))
         cap //= 2
-    if len(s) > limit:
+    if len(s) > ceiling:
+        if ceiling > limit:
+            return s
         s = s[:limit] + "…(trimmed; use detail/page params)"
     return s
 

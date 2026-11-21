@@ -135,7 +135,11 @@ def signals(req_fields, ctx):
     if [x for x in (f.get("sensitive") or []) if x]: done.add("sensitive")
     if f.get("profile") or f.get("profile_review"): done.add("profile")
     for duty, names in DONE_ALIASES.items():
-        if d in names: done.add(duty)
+        if d in names:
+            # cube_nothing without a reason does not close the duty (same rule as cubes_v2).
+            if d == "cube_nothing" and not (f.get("duty_reason") or "").strip():
+                continue
+            done.add(duty)
     if f.get("cube_created"): done.add("cube")
     if d.startswith("rule_") and d[5:] in DUTIES and len((f.get("duty_reason") or "").strip()) >= 3:
         dismissed[d[5:]] = f.get("duty_reason").strip()[:120]
@@ -177,12 +181,20 @@ def on_turn(user, scope, done=(), dismissed=None, events=(), applicable=None, no
             x = c.execute("select shown, ignored, done_n, pending, pinned, last_shown_turn, last_shown_t, snooze_until from dr_duty where user=? and scope=? and duty=?", (user, scope, d)).fetchone()
             rows[d] = dict(zip(("shown", "ignored", "done_n", "pending", "pinned", "last_shown_turn", "last_shown_t", "snooze_until"), x)) if x else \
                 {"shown": 0, "ignored": 0, "done_n": 0, "pending": 0, "pinned": 0, "last_shown_turn": -10 ** 6, "last_shown_t": 0.0, "snooze_until": 0}
+        cube_complied = False
         for d in DUTIES:
             s = rows[d]
-            if d not in done and d in ("cube", "vote") and s["pending"] and external_done(user, d, s["last_shown_t"], shared_db):
+            # pending alone missed a publish that landed while the rule was pinned but not shown
+            # (max_pinned left it off this reply). That show then moved last_shown past the new cube,
+            # so the next turns stayed MANDATORY. A pinned cube still counts.
+            armed = s["pending"] or (d == "cube" and s["pinned"])
+            if d not in done and d in ("cube", "vote") and armed and external_done(user, d, s["last_shown_t"], shared_db):
                 done.add(d)
             if d in done:
                 s.update(ignored=0, pinned=0, pending=0, done_n=s["done_n"] + 1)
+                if d == "cube":
+                    cube_complied = True
+                    _zero_other_scopes(c, user, scope)
             elif d in dismissed:
                 s.update(ignored=0, pinned=0, pending=0, snooze_until=turn_n + snooze)
             else:
@@ -221,6 +233,8 @@ def on_turn(user, scope, done=(), dismissed=None, events=(), applicable=None, no
                       (user, scope, d, s["shown"], s["ignored"], s["done_n"], s["pending"], s["pinned"], s["last_shown_turn"], s["last_shown_t"], s["snooze_until"]))
         c.execute("insert or replace into dr_scope values(?,?,?,?)", (user, scope, turn_n, rr))
         c.execute("commit")
+        if cube_complied:
+            _episode_complied(user)
         return {"id": "duty_rules", "severity": "critical", "rules": out} if out else {}
     except Exception as e:
         try:
@@ -229,6 +243,57 @@ def on_turn(user, scope, done=(), dismissed=None, events=(), applicable=None, no
             pass
         print("[duty_rules] skipped: %s" % type(e).__name__, flush=True)
         return {}
+    finally:
+        if c is not None:
+            c.close()
+
+
+def _zero_other_scopes(c, user, scope):
+    """Compliance on one session also clears a MANDATORY pin left on the account's other sessions."""
+    for sc, done_n in c.execute("select scope, done_n from dr_duty where user=? and duty='cube' and scope!=?", (user, scope)):
+        c.execute(
+            "update dr_duty set ignored=0, pinned=0, pending=0, done_n=? where user=? and scope=? and duty='cube'",
+            (int(done_n or 0) + 1, user, sc),
+        )
+
+
+def _episode_complied(user):
+    try:
+        from app.cube_reminder_core import note_complied
+        note_complied(user)
+    except Exception:
+        return
+
+
+def note_cube_published(user, db=None):
+    """cube_create succeeded for this account. Soft-zero duty=cube on every scope.
+
+    The create request does not call on_turn and does not set cube_created. The next
+    remember only noticed the row while pending was still set, so a publish between
+    shows left MANDATORY in place. Never raises.
+    """
+    if not (user or "").strip():
+        return False
+    c = None
+    try:
+        c = _db(db)
+        c.execute("begin immediate")
+        rows = c.execute("select scope, done_n from dr_duty where user=? and duty='cube'", (user,)).fetchall()
+        for sc, done_n in rows:
+            c.execute(
+                "update dr_duty set ignored=0, pinned=0, pending=0, done_n=? where user=? and scope=? and duty='cube'",
+                (int(done_n or 0) + 1, user, sc),
+            )
+        c.execute("commit")
+        _episode_complied(user)
+        return True
+    except Exception:
+        try:
+            if c is not None:
+                c.execute("rollback")
+        except Exception:
+            pass
+        return False
     finally:
         if c is not None:
             c.close()

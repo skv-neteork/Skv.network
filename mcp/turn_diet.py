@@ -166,7 +166,21 @@ def _dkey(d):
     return "txt:" + re.sub(r"[\d\s]+", "", json.dumps(d, ensure_ascii=False))[:60]
 
 
+def _has_author_core(d):
+    """True when this duty carries the once-per-episode author-cube CORE block."""
+    if isinstance(d, str):
+        return "AUTHOR CUBE CORE (" in d
+    if isinstance(d, dict):
+        return any(_has_author_core(v) for v in d.values())
+    if isinstance(d, (list, tuple)):
+        return any(_has_author_core(v) for v in d)
+    return False
+
+
 def _critical(d):
+    # The CORE block is the manual for this reminder. Compact must not hold or drop it.
+    if _has_author_core(d):
+        return True
     cr = set(cfg("critical_duties") or [])
     if isinstance(d, dict):
         return (d.get("id") in cr) or (d.get("kind") in cr) or d.get("severity") == "critical"

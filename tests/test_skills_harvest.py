@@ -208,6 +208,7 @@ class SkillsHarvestTests(unittest.TestCase):
         self.assertIn("personal data", line)
         self.assertIn("cube_harvest", line)
         self.assertIn("cube_3de96286fc73", line)
+        self.assertIn("cube_8ca30802c689", line)
         self.assertIn("carrier=skill", line)
         self.assertIn("never copy verbatim", line.lower())
         self.assertIn('CUBE05_ID = "cube_const_05_mcp_v20"', src)

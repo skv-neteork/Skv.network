@@ -287,6 +287,42 @@ def _const_heartbeat(result, user, session_id, user_message="", msg_ref="", ack=
         return result
 
 
+def _hook_events(ok, task_done, sensitive, context_reset, context_state):
+    """Mechanical names only. User-text phrase matching stays on the suggest path."""
+    events = ["before_reply"]
+    if ok:
+        events.append("after_reply")
+    if task_done:
+        events.append("task_end")
+    if sensitive:
+        events.append("secret_in_text")
+    if context_reset or str(context_state or "") in ("lost", "new"):
+        events.append("session_start")
+    return events
+
+
+def _attach_hooks(result, uid, events, chain_id):
+    """Deliver matching do-text. A failure stays off the turn. The log stores capture pointers, not the account."""
+    if not isinstance(result, dict) or not events:
+        return result
+    try:
+        from app.hook_bus import cues_for_installed
+        from app.signal_log import append_pointer_file
+        cues = cues_for_installed(uid, events, chain_id or "session")
+        if not cues:
+            return result
+        result["hook_cues"] = cues
+        append_pointer_file(
+            "hook_fire",
+            ref=" ".join(events)[:180],
+            cube_id=" ".join(sorted({c.get("cube_id") or "" for c in cues}))[:180],
+            extra={"n": len(cues)},
+        )
+    except Exception:
+        pass
+    return result
+
+
 def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None, const_ack=False, ack="", context_reset=False):
     """msg_ref / recap are optional (turn-watch, see turn_watch_rest.py): clients that send neither get exactly the old behaviour. const_ack / ack="const" / context_reset are the T73 constitution heartbeat (same as MCP turn)."""
     if isinstance(recap, str) and not recap.strip():
@@ -486,13 +522,15 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
         elif no_read: r["seal_warning"] = "SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)
         if not ok: r["error"] = saved
         r.update(_board_rel(user, user_message, clean)); r.update(prof)
-        return _hb(_with_room(key, r, agent_token, session_id, context_state, kind, (answer or draft), duty))
-    return _hb(_with_room(key, {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "event_id": eid or None, "seal": seal if ok else None,
+    else:
+        r = {**_slh, **({"unknown_ids": unverified, "verify": "unknown ev ids in reply (not in memory); saved with [VERIFY ?]"} if unverified else {}), "verdict": "pass" if ok else "revise", "saved": ok, "event_id": eid or None, "seal": seal if ok else None,
             "cited_ok": cited, "facts": facts, "cubes": cubes, "self_check": checklist, "duties": [str(d)[:300] for d in duties], **_board_rel(user, user_message, clean), **prof,
             "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else
                             (("SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)) if no_read else None),
             "summary_due": saved.get("summary_due") if isinstance(saved, dict) else None, "saved_parts": saved.get("saved") if isinstance(saved, dict) else None,
-            "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}, agent_token, session_id, context_state, kind, (answer or draft), duty))
+            "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}
+    _attach_hooks(r, user, _hook_events(ok, task_done, sensitive, _reset, context_state), session_id)
+    return _hb(_with_room(key, r, agent_token, session_id, context_state, kind, (answer or draft), duty))
 
 
 def seal_next(key, same=False):

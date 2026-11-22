@@ -331,6 +331,62 @@ def _attach_hooks(result, uid, events, chain_id):
     return result
 
 
+def _session_window(user):
+    """Newest dialogue ids. The recall component drops these so it does not echo the current chat."""
+    ids = []
+    try:
+        from app.spontaneous_recall import recent_events
+        for ev in recent_events(user, limit=8) or []:
+            eid = (ev or {}).get("event_id") or ""
+            if eid:
+                ids.append(eid)
+    except Exception:
+        pass
+    return ids
+
+
+def _decorate(result, user, message, facts=None, launch_ok=False, l1_new=False, keyword=False):
+    """Tool duty and the once-per-hash tool map on every user-facing return.
+
+    The recall component launches only when launch_ok is true and this turn did not
+    already ask the agent to search. The keyword sidecar runs only when the component
+    is off and keyword is true (the saved return). A failure never fails the turn.
+    """
+    if not isinstance(result, dict):
+        return result
+    try:
+        from app.tool_duty import apply as _td
+        _td(result, message, facts if facts is not None else (result.get("facts") or []))
+    except Exception:
+        pass
+    try:
+        from app.tool_map import apply as _tm
+        _tm(result, user)
+    except Exception:
+        pass
+    searched = bool(result.get("tool_duty"))
+    try:
+        from app.components.recall_component import enabled as _rc_on, on_turn as _rc
+        if _rc_on():
+            _rc(
+                result, user, message,
+                l1_new=l1_new,
+                session_ids=_session_window(user),
+                searched=searched,
+                launch_ok=bool(launch_ok) and not searched,
+            )
+            return result
+    except Exception:
+        pass
+    if keyword:
+        try:
+            from app.spontaneous_recall import push_into as _sr_push
+            _sr_push(result, user, message, l1_new=l1_new)
+        except Exception:
+            pass
+    return result
+
+
 def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None, const_ack=False, ack="", context_reset=False):
     """msg_ref / recap are optional (turn-watch, see turn_watch_rest.py): clients that send neither get exactly the old behaviour. const_ack / ack="const" / context_reset are the T73 constitution heartbeat (same as MCP turn)."""
     if isinstance(recap, str) and not recap.strip():
@@ -424,11 +480,11 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
         cg, cg_commit = _compact_gate(user, session_id or "rest", cubes, checklist, COMPACT_DB)
     if not draft and compact:
         c.close(); cg_commit()
-        return {"mode": "context", "compact": True, "facts": facts, **cg, **_board_rel(user, user_message), **_prof_rel(user, user_message, "", session_id, True), "next": "self-check, then turn with answer=<final> and compact=true"}
+        return _decorate({"mode": "context", "compact": True, "facts": facts, **cg, **_board_rel(user, user_message), **_prof_rel(user, user_message, "", session_id, True), "next": "self-check, then turn with answer=<final> and compact=true"}, user, user_message, facts, launch_ok=False)
     if not draft:
         c.close()
-        return {"mode": "context", "facts": facts, "cubes": cubes, "self_check": checklist, **_board_rel(user, user_message), **_prof_rel(user, user_message, "", session_id, False),
-                "next": "write the draft, run the self_check, then call turn again with user_message and draft; the seal comes only from that call"}
+        return _decorate({"mode": "context", "facts": facts, "cubes": cubes, "self_check": checklist, **_board_rel(user, user_message), **_prof_rel(user, user_message, "", session_id, False),
+                "next": "write the draft, run the self_check, then call turn again with user_message and draft; the seal comes only from that call"}, user, user_message, facts, launch_ok=False)
     drawn = [m.group(0) for m in re.finditer(r"🔐?\s*SKV\s*\|\s*#[^\n]*", draft)]
     clean = re.sub(r"\n?🔐?\s*SKV\s*\|\s*#[^\n]*", "", draft).rstrip()
     if same and ext_src and re.sub(r"\n?🔐?\s*SKV\s*\|\s*#[^\n]*", "", last_final or "").rstrip() != clean:
@@ -436,31 +492,69 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     cited = _real_cites(clean + "\n" + (draft_summary or ""))
     known = {_sid(h["event_id"]) for h in hits}
     invalid = []
+    transient = []
     for x in cited:
         sx = _sid(x)
         if sx in known:
             continue
         if "::" in x and not x.startswith(user + "::"):
             invalid.append(x); continue
-        ev = _req(key, "GET", "/event/" + user + "::" + sx, params={"lines": "all"})
+        try:
+            ev = _req(key, "GET", "/event/" + user + "::" + sx, params={"lines": "all"})
+        except Exception:
+            transient.append(x)
+            continue
         if isinstance(ev, dict) and ev.get("ok") is not False and not ev.get("error"):
             known.add(sx)
+            continue
+        status = 0
+        if isinstance(ev, dict):
+            try:
+                status = int(ev.get("status") or 0)
+            except (TypeError, ValueError):
+                status = 0
+        if status >= 500:
+            transient.append(x)
         else:
             invalid.append(x)
-    unverified = list(invalid) if (invalid and ext_src) else []   # ext/hook: save anyway, flag [VERIFY ?]; MCP/REST agents stay strict
+    # A 5xx or a dropped lookup is not a fake id. Save the turn and mark [VERIFY ?]. A real 404 still revises.
+    unverified = list(transient)
+    if invalid and ext_src:
+        unverified.extend(invalid)   # ext/hook: save anyway, flag [VERIFY ?]; MCP/REST agents stay strict on a real miss
     if invalid and not ext_src:
         c.close()
-        return _hb({"verdict": "revise", "saved": False, "seal": None, "invalid_ids": invalid,
+        return _hb(_decorate({"verdict": "revise", "saved": False, "seal": None, "invalid_ids": invalid,
                 "fixes": ["[ev:%s] does not exist in your memory: remove it, cite a real id from facts, or say the fact is unknown" % x for x in invalid],
-                "facts": facts, "next": "nothing saved: fix the draft, call turn again with the same user_message"})
+                "facts": facts, "next": "nothing saved: fix the draft, call turn again with the same user_message"}, user, user_message, facts, launch_ok=False))
     pc = {}
+    _pw = []
     if True:   # profile check (always: also yields the [PROFILE ✗] seal mark) BEFORE the seal is reserved: a rejection burns no seal
         from app import profile as _prof
         pc = _prof.precheck(user, profile, profile_review, bool(l2_summary))
-        if pc.get("errors"):
+        if pc.get("errors") and _prof.separable(pc["errors"]):
+            _pw = list(pc["errors"])
+            if any("text must be 1.." in str(e) for e in pc["errors"]):
+                profile = _prof.drop_overlong(profile)
+            if any("profile_review required" in str(e) for e in pc["errors"]):
+                l2_summary = ""
+                profile_review = None
+            pc = _prof.precheck(user, profile, profile_review, bool(l2_summary))
+            if pc.get("errors") and not _prof.separable(pc["errors"]):
+                c.close()
+                return _hb(_decorate({"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
+                        "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}, user, user_message, facts, launch_ok=False))
+            if pc.get("errors"):
+                profile = None
+                l2_summary = ""
+                profile_review = None
+                pc = {"ok": True, "errors": [], "warnings": list(_pw), "seal_mark": ""}
+            else:
+                pc = dict(pc)
+                pc["warnings"] = list(pc.get("warnings") or []) + _pw
+        elif pc.get("errors"):
             c.close()
-            return _hb({"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
-                    "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"})
+            return _hb(_decorate({"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
+                    "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}, user, user_message, facts, launch_ok=False))
     seal_n = last_seal if (same and last_verdict == "pass" and last_seal) else _next_seal(key, user, same)
     # Web extension: the model only saw SKV memory if the user inserted the memory block (or the reply cites [ev:]).
     # Otherwise the seal must not claim READ: [READ ?] + a warning naming how many facts the model did not see.
@@ -537,11 +631,10 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
                             (("SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)) if no_read else None),
             "summary_due": saved.get("summary_due") if isinstance(saved, dict) else None, "saved_parts": saved.get("saved") if isinstance(saved, dict) else None,
             "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}
-    try:
-        from app.spontaneous_recall import push_into as _sr_push
-        _sr_push(r, user, user_message, l1_new=bool((l1_summary or "").strip()))
-    except Exception:
-        pass
+    if _pw:
+        extra = list(r.get("profile_warnings") or []) if isinstance(r.get("profile_warnings"), list) else []
+        r["profile_warnings"] = extra + [str(x) for x in _pw]
+    _decorate(r, user, user_message, facts, launch_ok=bool(ok), l1_new=bool((l1_summary or "").strip()), keyword=True)
     _attach_hooks(r, user, _hook_events(ok, task_done, sensitive, _reset, context_state), session_id)
     return _hb(_with_room(key, r, agent_token, session_id, context_state, kind, (answer or draft), duty))
 

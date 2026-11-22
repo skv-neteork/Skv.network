@@ -298,9 +298,15 @@ def _decisions(conn, topic, limit):
 
 def _critical(conn, topic, limit):
     try:
-        rows = conn.execute(
-            "SELECT kind, value, context, event_id, time_str FROM critical_auto ORDER BY time_str DESC LIMIT 80"
-        ).fetchall()
+        try:
+            rows = conn.execute(
+                "SELECT kind, value, context, event_id, time_str FROM critical_auto "
+                "WHERE coalesce(demoted,0)=0 ORDER BY time_str DESC LIMIT 80"
+            ).fetchall()
+        except Exception:
+            rows = conn.execute(
+                "SELECT kind, value, context, event_id, time_str FROM critical_auto ORDER BY time_str DESC LIMIT 80"
+            ).fetchall()
     except Exception:
         return []
 
@@ -308,6 +314,12 @@ def _critical(conn, topic, limit):
         kind, value, ctx, eid, ts = row
         if (kind or "").strip().lower() in _SECRET_KIND:
             return None
+        try:
+            from app.critical_auto import is_junk
+            if is_junk(kind, value, ctx):
+                return None
+        except Exception:
+            pass
         blob = "%s %s %s" % (kind or "", value or "", ctx or "")
         if not on_topic(topic, blob):
             return None
@@ -480,8 +492,22 @@ def _diversify(hits, limit):
     return picked
 
 
+def _yyyymmdd(time_s):
+    day = _day(time_s)
+    if not day:
+        return 0
+    try:
+        return int(day.replace("-", ""))
+    except ValueError:
+        return 0
+
+
 def rank(hits, topic, echo_ids, multi, limit=5):
-    """Layer order, then score. At most one echo, and none when three durable hits exist."""
+    """Layer order, then score, then newer day. At most one echo, and none when three durable hits exist.
+
+    An off-topic critical or decision mark is an ordinary event. It does not take the durable boost.
+    An empty topic does not demote, because on_topic is false for every row in that case.
+    """
     echo_ids = set(echo_ids or [])
     prepared = []
     for h in hits or []:
@@ -490,6 +516,11 @@ def rank(hits, topic, echo_ids, multi, limit=5):
         item = _copy_time(h)
         item["layer"] = _layer_of(item, echo_ids)
         prepared.append(item)
+    if content_words(topic):
+        for item in prepared:
+            if item["layer"] in ("critical", "decision") and not on_topic(topic, item.get("summary") or ""):
+                item["layer"] = "event"
+                item["score"] = float(item.get("score") or 0) * 0.2
     durables = [h for h in prepared if h["layer"] in _DURABLE]
     drop_echo = len(durables) >= 3
     echoes = [h for h in prepared if h["layer"] == "echo"]
@@ -498,7 +529,7 @@ def rank(hits, topic, echo_ids, multi, limit=5):
         echoes.sort(key=lambda h: -float(h.get("score") or 0))
         rest.append(echoes[0])
     order = {name: i for i, name in enumerate(_ORDER)}
-    rest.sort(key=lambda h: (order.get(h["layer"], 9), -float(h.get("score") or 0)))
+    rest.sort(key=lambda h: (order.get(h["layer"], 9), -float(h.get("score") or 0), -_yyyymmdd(h.get("time"))))
     if multi:
         rest = _diversify(rest, limit)
         for h in rest:

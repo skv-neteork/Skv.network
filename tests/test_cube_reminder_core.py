@@ -151,7 +151,15 @@ class DutyResetTests(unittest.TestCase):
         self.assertTrue(DR.note_cube_published("u@x", db=self.db))
         nxt = DR.on_turn("u@x", "s1", db=self.db, shared_db=self.nosh, events={"cube"}, applicable={"cube": True}).get("rules") or []
         self.assertFalse(any(x.startswith("MANDATORY: cube ") for x in nxt))
-        self.assertTrue(any(x.startswith("RULE experience cube") for x in nxt))
+        self.assertFalse(any(x.startswith("RULE experience cube") for x in nxt))
+        shown = False
+        for _ in range(6):
+            nxt = DR.on_turn("u@x", "s1", db=self.db, shared_db=self.nosh, events={"cube"}, applicable={"cube": True}).get("rules") or []
+            self.assertFalse(any(x.startswith("MANDATORY: cube ") for x in nxt))
+            if any(x.startswith("RULE experience cube") for x in nxt):
+                shown = True
+                break
+        self.assertTrue(shown)
         st = {r["scope"]: r for r in DR.stats("u@x", db=self.db) if r["duty"] == "cube"}
         self.assertEqual(st["s1"]["ignored"], 0)
         self.assertEqual(st["s1"]["pinned"], 0)
@@ -194,7 +202,15 @@ class DutyResetTests(unittest.TestCase):
         self.assertFalse(any(x.startswith("MANDATORY: cube ") for x in rules))
         nxt = DR.on_turn("u@x", "s1", db=self.db, shared_db=self.nosh, events={"cube"}, applicable={"cube": True}).get("rules") or []
         self.assertFalse(any(x.startswith("MANDATORY: cube ") for x in nxt))
-        self.assertTrue(any(x.startswith("RULE experience cube") for x in nxt))
+        self.assertFalse(any(x.startswith("RULE experience cube") for x in nxt))
+        shown = False
+        for _ in range(6):
+            nxt = DR.on_turn("u@x", "s1", db=self.db, shared_db=self.nosh, events={"cube"}, applicable={"cube": True}).get("rules") or []
+            self.assertFalse(any(x.startswith("MANDATORY: cube ") for x in nxt))
+            if any(x.startswith("RULE experience cube") for x in nxt):
+                shown = True
+                break
+        self.assertTrue(shown)
 
 
 class DeliveryTests(unittest.TestCase):
@@ -215,6 +231,8 @@ class DeliveryTests(unittest.TestCase):
             self.assertTrue(any("CUBE NUDGE" in n for n in notes2))
             self.assertFalse(any("NUDGECORE" in n for n in notes2))
             cv.on_remember(c, "duty-user", 3, task_done=True)
+            held = cv.duty_hints(c, "duty-user")
+            self.assertFalse(any(h.startswith("• CUBE DUTY:") for h in held))
             hints = cv.duty_hints(c, "duty-user")
             self.assertTrue(any(h.startswith("• CUBE DUTY:") and "NUDGECORE" in h for h in hints))
             again = cv.duty_hints(c, "duty-user")

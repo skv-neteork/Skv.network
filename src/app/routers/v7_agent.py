@@ -468,42 +468,16 @@ Respond with SEAL: 🔐 SKV | #N | READ ✓ | VERIFY ✓ | CORRECT ✓ | OUTPUT 
         if req.step > 0 and req.step % 30 == 0:
             triggers.append("l2_map")
             
-        # Авто-создание куба через Llama (если есть триггер)
+        # Reminder only. The server does not call a model and does not POST a cube.
         cube_result = None
         if triggers and not is_guest:
             for trigger in triggers:
                 if trigger.startswith("cube_"):
-                    try:
-                        cube_prompt = f"Create experience cube from this success:\n{answer[-500:]}\nReturn JSON: {{\"topic\":\"...\",\"essence\":\"...\",\"rules\":\"...\"}}"
-                        cube_body = json.dumps({
-                            "model": "meta-llama/llama-3.1-8b-instruct",
-                            "messages": [{"role": "user", "content": cube_prompt}],
-                            "temperature": 0.2, "max_tokens": 300
-                        }).encode()
-                        cube_req = urlreq.Request("https://api.polza.ai/v1/chat/completions",
-                            data=cube_body,
-                            headers={"Content-Type": "application/json", "Authorization": f"Bearer {polza_key}"})
-                        with urlreq.urlopen(cube_req, timeout=30) as cube_resp:
-                            cube_data = json.loads(cube_resp.read().decode())
-                            cube_text = cube_data["choices"][0]["message"]["content"]
-                            # Сохраняем куб
-                            try:
-                                cube_json = json.loads(cube_text)
-                                import requests as req_http
-                                req_http.post("http://localhost:8000/api/v7/experience/create",
-                                    json={
-                                        "topic": cube_json.get("topic", "Auto-cube"),
-                                        "essence": cube_json.get("essence", answer[:200]),
-                                        "rules_markdown": cube_json.get("rules", ""),
-                                        "evidence": f"Auto-generated from step {req.step}",
-                                        "session_id": req.session_id
-                                    }, timeout=5)
-                                cube_result = f"Cube created: {cube_json.get('topic', 'Unknown')}"
-                            except:
-                                cube_result = "Cube creation queued"
-                    except:
-                        pass
-                    break  # Один куб за раз
+                    cube_result = (
+                        "Reminder: this reply looks like a lesson. Write the cube yourself, "
+                        "or send duty=cube_nothing with a reason. The server does not create an experience cube from this chat."
+                    )
+                    break
 
                 # Strip <thinking> block from user-facing response
         import re

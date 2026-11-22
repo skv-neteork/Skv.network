@@ -114,6 +114,9 @@ async def create_experience_cube(req: ExperienceCreateRequest, request: Request 
     uid = (req.user_id or "").strip()
     if not uid:
         raise HTTPException(status_code=401, detail="API key required")
+    from app import cubes_v2 as _cv2_pool
+    if _cv2_pool.refuse_live_pool(uid, SHARED_DB):
+        raise HTTPException(status_code=403, detail="test accounts cannot publish to the shared cube pool")
     owner = _is_owner(uid)
     want = (req.cube_id or "").strip()
     sup = (req.supersedes or "").strip()

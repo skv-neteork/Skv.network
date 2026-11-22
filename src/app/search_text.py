@@ -322,6 +322,12 @@ def _critical_hits(uid, query, stems, ctx, limit=3):
     for kind, value, cx, eid, ts in rows:
         if not _visible(ctx, eid):
             continue
+        try:
+            from app.critical_auto import is_junk as _junk
+            if _junk(kind, value, cx):
+                continue
+        except Exception:
+            pass
         f = _match(stems, query, "%s %s %s" % (kind or "", value or "", cx or ""))
         if f >= _need(stems):
             out.append(((f, ts or ""), {"event_id": eid or "critical:%s" % (value or "")[:40], "score": f, "source": "critical",

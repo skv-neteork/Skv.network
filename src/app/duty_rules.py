@@ -194,7 +194,9 @@ def on_turn(user, scope, done=(), dismissed=None, events=(), applicable=None, no
                 s.update(ignored=0, pinned=0, pending=0, done_n=s["done_n"] + 1)
                 if d == "cube":
                     cube_complied = True
-                    _zero_other_scopes(c, user, scope)
+                    cool = cube_duty_cooldown()
+                    s["snooze_until"] = turn_n + cool
+                    _zero_other_scopes(c, user, scope, cool)
             elif d in dismissed:
                 s.update(ignored=0, pinned=0, pending=0, snooze_until=turn_n + snooze)
             else:
@@ -248,12 +250,30 @@ def on_turn(user, scope, done=(), dismissed=None, events=(), applicable=None, no
             c.close()
 
 
-def _zero_other_scopes(c, user, scope):
-    """Compliance on one session also clears a MANDATORY pin left on the account's other sessions."""
+def cube_duty_cooldown():
+    """Turns to keep the soft cube rule down after a real cube or cube_nothing. Default 4."""
+    try:
+        n = int(os.environ.get("SKV_CUBE_DUTY_COOLDOWN", "4") or 4)
+    except (TypeError, ValueError):
+        n = 4
+    return max(0, n)
+
+
+def _scope_turn(c, user, scope):
+    row = c.execute("select turn_n from dr_scope where user=? and scope=?", (user, scope)).fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _zero_other_scopes(c, user, scope, cool=0):
+    """Compliance on one session also clears a MANDATORY pin left on the account's other sessions.
+
+    Each other scope snoozes from its own turn counter, not from a shared far-future value.
+    """
     for sc, done_n in c.execute("select scope, done_n from dr_duty where user=? and duty='cube' and scope!=?", (user, scope)):
+        until = _scope_turn(c, user, sc) + int(cool or 0)
         c.execute(
-            "update dr_duty set ignored=0, pinned=0, pending=0, done_n=? where user=? and scope=? and duty='cube'",
-            (int(done_n or 0) + 1, user, sc),
+            "update dr_duty set ignored=0, pinned=0, pending=0, done_n=?, snooze_until=? where user=? and scope=? and duty='cube'",
+            (int(done_n or 0) + 1, until, user, sc),
         )
 
 
@@ -278,11 +298,13 @@ def note_cube_published(user, db=None):
     try:
         c = _db(db)
         c.execute("begin immediate")
+        cool = cube_duty_cooldown()
         rows = c.execute("select scope, done_n from dr_duty where user=? and duty='cube'", (user,)).fetchall()
         for sc, done_n in rows:
+            until = _scope_turn(c, user, sc) + cool
             c.execute(
-                "update dr_duty set ignored=0, pinned=0, pending=0, done_n=? where user=? and scope=? and duty='cube'",
-                (int(done_n or 0) + 1, user, sc),
+                "update dr_duty set ignored=0, pinned=0, pending=0, done_n=?, snooze_until=? where user=? and scope=? and duty='cube'",
+                (int(done_n or 0) + 1, until, user, sc),
             )
         c.execute("commit")
         _episode_complied(user)

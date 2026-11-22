@@ -394,7 +394,7 @@ def validate(c, uid, ops, cur_eid=None, author="agent"):
                 h = _head(c, pid)
                 errs.append(p + ": %s is %s; current head is %s" % (pid, r["status"], h if h != pid else "none (retracted)")); continue
             if op in ("supersede", "retract") and len(n["reason"]) < 5:
-                errs.append(p + ": %s needs reason" % op); continue
+                errs.append(p + ": %s needs reason (>=5 chars); the row is unchanged" % op); continue
             n["id"] = pid
             if op == "supersede":
                 kind = str(o.get("kind") or r["kind"]).strip().lower()
@@ -447,6 +447,56 @@ def _due_mark(c, ops):
         if cur - int(opened or 0) > cfg("candidate_resolve_turns"):
             return "[PROFILE ✗]"
     return ""
+
+
+def separable(errors):
+    """True only when every error is the length cap or the L2-review requirement.
+
+    Those two can be dropped so the turn still saves. Any other profile error rejects the turn.
+    """
+    if not errors:
+        return False
+    for e in errors:
+        s = str(e)
+        if "text must be 1.." in s and "chars (one rule per row)" in s:
+            continue
+        if "L2 rejected: profile_review required" in s:
+            continue
+        return False
+    return True
+
+
+def drop_overlong(ops):
+    """Drop add/supersede ops whose text is outside 1..profile_text_max. Other ops stay."""
+    if ops is None:
+        return None
+    raw = ops
+    was_dict = False
+    if isinstance(ops, (str, bytes)):
+        try:
+            ops = json.loads(ops or "[]")
+        except Exception:
+            return raw
+    if isinstance(ops, dict):
+        ops = [ops]
+        was_dict = True
+    if not isinstance(ops, list):
+        return raw
+    cap = cfg("profile_text_max")
+    kept = []
+    for o in ops:
+        if not isinstance(o, dict):
+            kept.append(o)
+            continue
+        op = str(o.get("op") or "").strip().lower()
+        if op in ("add", "supersede"):
+            text = re.sub(r"\s+", " ", str(o.get("text") or "")).strip()
+            if not text or len(text) > cap:
+                continue
+        kept.append(o)
+    if was_dict:
+        return kept[0] if kept else None
+    return kept or None
 
 
 def precheck(uid, ops=None, review=None, has_l2=False):

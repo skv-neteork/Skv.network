@@ -457,8 +457,10 @@ def public_author(created_by, agent_id=""):
         return None
     digest = hashlib.sha256(email.encode("utf-8")).hexdigest()[:10]
     out = {"account": "acct_" + digest}
-    if agent_id:
-        out["agent"] = str(agent_id)[:80]
+    agent = str(agent_id or "").strip()
+    # A window name such as b20-keepalive is not an agent. Do not publish it.
+    if agent and not re.match(r"^[bt]\d{1,4}-", agent, re.I):
+        out["agent"] = agent[:80]
     return out
 
 

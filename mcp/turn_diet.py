@@ -181,6 +181,8 @@ def _critical(d):
     # The CORE block is the manual for this reminder. Compact must not hold or drop it.
     if _has_author_core(d):
         return True
+    if isinstance(d, str) and d.startswith("Search yourself before answering"):
+        return True
     cr = set(cfg("critical_duties") or [])
     if isinstance(d, dict):
         return (d.get("id") in cr) or (d.get("kind") in cr) or d.get("severity") == "critical"
@@ -311,11 +313,21 @@ def apply(path, resp, ctx):
             kept_recalled = resp.get("recalled")
             if kept_recalled in (None, [], {}, ""):
                 kept_recalled = None
+            kept_tool_map = resp.get("tool_map")
+            if kept_tool_map in (None, [], {}, ""):
+                kept_tool_map = None
+            kept_tool_duty = resp.get("tool_duty")
+            if kept_tool_duty in (None, [], {}, ""):
+                kept_tool_duty = None
             for k in list(cfg("omit_empty") or []) + ["profile", "profile_duties", "profile_warning"]:
                 if k in resp and resp[k] in (None, [], {}, ""):
                     resp.pop(k)
             if kept_recalled:
                 resp["recalled"] = kept_recalled
+            if kept_tool_map:
+                resp["tool_map"] = kept_tool_map
+            if kept_tool_duty:
+                resp["tool_duty"] = kept_tool_duty
             if not resp.get("board") and not resp.get("board_hint"):
                 resp.pop("board", None)
         elif "board" in resp and resp.get("board") is not None:

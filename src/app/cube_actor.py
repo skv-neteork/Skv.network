@@ -4,6 +4,9 @@ The account email stays in created_by. actor is the identify name (grok-build,
 grok-bot), never a per-window session name. A missing or bad token leaves actor
 empty. This module does not guess the most recently seen agent.
 """
+import re
+
+_WINDOW = re.compile(r"^[bt]\d{1,4}-", re.I)
 
 
 def resolve_actor(api_key, agent_token="", session_id=""):
@@ -25,7 +28,10 @@ def resolve_actor(api_key, agent_token="", session_id=""):
             conn.close()
         if not isinstance(who, dict) or not who.get("ok") or who.get("implicit") or who.get("error"):
             return ""
-        return str(who.get("actor_id") or "")[:80]
+        actor = str(who.get("actor_id") or "")[:80]
+        if _WINDOW.match(actor):
+            return ""
+        return actor
     except Exception:
         return ""
 

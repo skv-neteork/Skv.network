@@ -18,6 +18,25 @@ _ADDR = re.compile(r"(?:\b(?:ул\.|улица|пр-т|проспект|пер\.
                    r"|\b\d{1,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Boulevard|Blvd\.?|Lane|Ln\.?|Drive|Dr\.?)\b)")
 _NAME = re.compile(r"(?i:меня зовут|зовут|его зовут|её зовут|ее зовут|по имени|my name is|named|called|i am|i'm)\s+([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+)?)")
 _STOP_NAMES = {"I", "The", "A", "Ok", "Okay"}
+_JUNK_EMAIL_HOST = {"example.com", "example.org", "example.net", "test.com", "localhost"}
+_JUNK_URL = re.compile(r"example\.com|localhost|nssurge|surge", re.I)
+_JUNK_PHONE = re.compile(r"ticket|тикет|firstvds", re.I)
+
+
+def is_junk(kind, value, context=""):
+    """Placeholder mail, ticket phones, and example or surge links are not critical facts."""
+    kind = (kind or "").strip().lower()
+    value = value or ""
+    if kind == "email":
+        local, _, host = value.lower().partition("@")
+        host = host.strip(".")
+        if local == "test" or host in _JUNK_EMAIL_HOST:
+            return True
+    if kind == "phone" and _JUNK_PHONE.search(context or ""):
+        return True
+    if kind == "link" and _JUNK_URL.search(value):
+        return True
+    return False
 
 
 def _ctx(text, m, width=40):
@@ -35,8 +54,14 @@ def extract(text):
             return
         taken.append(span)
         out.append((kind, (val or m.group(0)).strip().rstrip(".,;:"), _ctx(text, m)))
-    for m in _URL.finditer(text): add("link", m)
-    for m in _EMAIL.finditer(text): add("email", m)
+    for m in _URL.finditer(text):
+        if is_junk("link", m.group(0), _ctx(text, m)):
+            continue
+        add("link", m)
+    for m in _EMAIL.finditer(text):
+        if is_junk("email", m.group(0), _ctx(text, m)):
+            continue
+        add("email", m)
     for m in _DATE.finditer(text):   # dates alone are not facts: only block phone false-positives
         taken.append(m.span())
     for m in _PHONE.finditer(text):
@@ -44,6 +69,7 @@ def extract(text):
         if not (10 <= len(digits) <= 15): continue
         if not (raw.startswith("+") or re.search(r"[\s()-]", raw)): continue          # bare digit runs (timestamps, ids) are not phones
         if re.search(r"(?:19|20)\d{2}[01]\d[0-3]\d", digits): continue                # contains a yyyymmdd date
+        if is_junk("phone", raw, _ctx(text, m)): continue
         add("phone", m)
     for m in _ADDR.finditer(text): add("address", m)
     for m in _NAME.finditer(text):
@@ -63,6 +89,10 @@ def ensure(conn):
         key TEXT PRIMARY KEY, kind TEXT, value TEXT, context TEXT, event_id TEXT, time_str TEXT, hits INTEGER DEFAULT 1)""")
     try:
         conn.execute("ALTER TABLE critical_auto ADD COLUMN source TEXT DEFAULT 'server_fallback'")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("ALTER TABLE critical_auto ADD COLUMN demoted INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass
 
@@ -88,7 +118,41 @@ def capture(conn, event_id, time_str, text, max_per_turn=8):
 
 def lines(conn, limit=200):
     try:
-        rows = conn.execute("SELECT kind, value, context, time_str FROM critical_auto ORDER BY time_str DESC, rowid DESC LIMIT ?", (limit,)).fetchall()
+        try:
+            rows = conn.execute(
+                "SELECT kind, value, context, time_str FROM critical_auto WHERE coalesce(demoted,0)=0 ORDER BY time_str DESC, rowid DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            rows = conn.execute(
+                "SELECT kind, value, context, time_str FROM critical_auto ORDER BY time_str DESC, rowid DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
     except sqlite3.OperationalError:
         return []
-    return rows
+    return [r for r in rows if not is_junk(r[0], r[1], r[2])]
+
+
+def junk_rows(conn):
+    """Keys of live junk rows. Dry-run only: nothing is written."""
+    ensure(conn)
+    out = []
+    try:
+        rows = conn.execute(
+            "SELECT key, kind, value, context FROM critical_auto WHERE coalesce(demoted,0)=0"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return out
+    for key, kind, value, ctx in rows:
+        if is_junk(kind, value, ctx):
+            out.append((key, kind))
+    return out
+
+
+def demote_junk(conn):
+    """Mark junk rows demoted=1. Does not delete them."""
+    n = 0
+    for key, _kind in junk_rows(conn):
+        conn.execute("UPDATE critical_auto SET demoted=1 WHERE key=?", (key,))
+        n += 1
+    return n

@@ -1629,6 +1629,8 @@ async def remember(req: RememberRequest, request: Request = None):
                           "hint": "Scrub and publish to the shared catalog, or keep the lesson in memory. No private cube is stored.",
                           "pii_masked": []}
         else:
+            if _cv2.refuse_live_pool(req.user_id, SHARED_DB):
+                raise HTTPException(status_code=403, detail="test accounts cannot publish to the shared cube pool")
             _skill_md = _fields.get("skill_md", _skill_md)
             _hooks_json = _fields.get("hooks", _hooks_json)
             cube_id = "cube_" + uuid.uuid4().hex[:12]

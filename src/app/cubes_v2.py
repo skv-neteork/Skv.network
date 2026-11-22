@@ -9,7 +9,7 @@
 - help requests (on top of cube_tasks) answered by solution cubes; verify by requester; reputation after 3 confirmations;
 - projects = linked nodes (part_of), private or open, roles owner/member/helper.
 All functions take an open sqlite3 connection to shared_master.db and do not commit unless stated."""
-import json, re, time, uuid
+import json, os, re, time, uuid
 
 EXPERIENCE_KINDS = ("moment", "fact", "culture", "lifehack", "warning", "code")
 ALL_KINDS = EXPERIENCE_KINDS + ("help_request", "solution", "project", "project_node")
@@ -217,6 +217,54 @@ def _save_state(conn, uid, s):
                   json.dumps((s.get("rate_nudged") or [])[-20:]), json.dumps((s.get("rate_ignored") or [])[-20:])))
 
 
+def test_pool_account(uid):
+    """Accounts that must not write the live shared cube pool.
+
+    A temp database used by unit tests is not the live pool. Callers that
+    insert into the live file check refuse_live_pool.
+    """
+    u = (uid or "").strip().lower()
+    if os.environ.get("SKV_CUBE_POOL", "").strip().lower() == "test":
+        return True
+    if not u:
+        return False
+    if u.endswith(".invalid"):
+        return True
+    for suf in ("@example.com", "@example.org", "@example.net"):
+        if u.endswith(suf):
+            return True
+    if u.startswith("test_") or u.startswith("unittest"):
+        return True
+    return False
+
+
+def refuse_live_pool(uid, db_path):
+    """True when this write would land in the live shared pool from a test account."""
+    if os.environ.get("SKV_CUBE_POOL", "").strip().lower() == "test":
+        return True
+    if not test_pool_account(uid):
+        return False
+    live = "/data/skv/metadata_store/shared_master.db"
+    try:
+        return os.path.abspath(db_path or "") == os.path.abspath(live)
+    except Exception:
+        return False
+
+
+def _cube_cool_steps():
+    try:
+        return max(0, int(os.environ.get("SKV_CUBE_DUTY_COOLDOWN", "4") or 4))
+    except (TypeError, ValueError):
+        return 4
+
+
+def _cool_until(reason):
+    m = re.match(r"^cool:(\d+)\+(\d+)$", reason or "")
+    if not m:
+        return None
+    return int(m.group(1)) + int(m.group(2))
+
+
 def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, duty="", duty_reason="", turn=False):
     """Update the per-task cube duty. Returns a list of notes for the client."""
     notes = []
@@ -247,11 +295,17 @@ def on_remember(conn, uid, step, topic="", task_done=False, wrote_cube=False, du
     elif t and s["last_topic"] and t != s["last_topic"] and _turns(conn, uid) >= TOPIC_MIN_TURNS:
         ended = "topic_change"
     if closed:
-        s["pending_cube"], s["pending_step"], s["pending_reason"] = 0, None, ""
+        cool = _cube_cool_steps()
+        s["pending_cube"], s["pending_step"] = 0, None
+        s["pending_reason"] = ("cool:%s+%s" % (int(step or 0), cool)) if cool else ""
     elif ended:
-        if not s["pending_cube"]:
-            s["pending_cube"], s["pending_step"], s["pending_reason"] = 1, step, ended
-        notes.append("task ended (" + ended + "): write a cube that changes the answer, or remember duty=cube_nothing with a reason")
+        until = _cool_until(s.get("pending_reason") or "")
+        if until is not None and int(step or 0) < until:
+            ended = None
+        if ended and not s["pending_cube"]:
+            # hold: the CUBE DUTY line waits one hints call, so it does not land on the same turn as the close.
+            s["pending_cube"], s["pending_step"] = 1, step
+            s["pending_reason"] = "hold:" + ended
     if t:
         s["last_topic"] = t
     _save_state(conn, uid, s)
@@ -367,7 +421,12 @@ def rate_missed_duty(conn, uid):
 def duty_hints(conn, uid):
     s = _state(conn, uid)
     h = []
-    if s["pending_cube"]:
+    held = False
+    reason = s.get("pending_reason") or ""
+    if s["pending_cube"] and reason.startswith("hold:"):
+        s["pending_reason"] = reason[len("hold:"):]
+        held = True
+    elif s["pending_cube"]:
         h.append(_with_author_core("• CUBE DUTY: the task ended. Write a cube only if it changes the answer (code, lifehack, warning, fact); otherwise remember duty=cube_nothing with a reason. Silence is the only error.", uid))
     own = _author_of(conn, s["rate_pending"], uid)
     if own:
@@ -376,7 +435,7 @@ def duty_hints(conn, uid):
     if fresh:
         s["rate_nudged"] = list(s.get("rate_nudged") or []) + fresh
         h.append("• RATE: new cubes " + ", ".join(fresh[:2]) + " were opened/used by you. Vote +1/-1 or duty=vote_nothing with a reason.")
-    if own or fresh:
+    if held or own or fresh:
         _save_state(conn, uid, s)
     return h
 

@@ -1607,6 +1607,7 @@ _SEARCH_GUIDE = (
     "5) Before/after X: find X, read its date, then search a window around that date. "
     "6) Nothing found: rephrase, or widen ±3 days (the reply shows the call), and only then say you do not remember. "
     "Convert relative dates yourself from the conversation date. "
+    "Yesterday (MSK): since=until=that calendar day, e.g. memory_search(query=\"gift\", since=\"2026-11-21\", until=\"2026-11-21\"). "
     "Examples: memory_search(query=\"received a gift\", date=\"2023-03-04\"); "
     "memory_search(query=\"trip\", since=\"2023-03-01\", until=\"2023-03-07\"); "
     "memory_search(query=\"dentist\", time=\"unknown\"); "
@@ -2027,15 +2028,20 @@ def memory_critical(text: str, topic: str = "critical") -> str:
 
 
 @mcp.tool()
-def memory_recall_later(query: str, search_as: Union[list, str] = "") -> str:
+def memory_recall_later(query: str, search_as: Union[list, str] = "", since: str = "", until: str = "") -> str:
     """Deep background memory search: an on-server agent runs 5-15 search/expand steps over all memory
     (~10-30 s, ~0.1 RUB) and returns ranked evidence events (verbatim text, ids, dates, neighbour turns), not an answer.
     Use when turn/memory_search found nothing reliable, before saying you do not remember.
     Pass search_as too (the same statement forms you gave turn/memory_search, in the memory base_language): used as an extra seed.
+    Optional since/until (YYYY-MM-DD, inclusive) limit the search to that window. Yesterday (MSK): since=until=that day.
     Returns job_id at once; poll memory_recall_status(job_id) every ~10 s until status=done."""
     body = {"query": query}
     if _sa_list(search_as):
         body["search_as"] = _sa_list(search_as)
+    if since:
+        body["since"] = since
+    if until:
+        body["until"] = until
     return _dumps(_req("POST", "/memory/recall_later", _uid_body(body)))
 
 
@@ -2824,7 +2830,8 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
          compact: bool = False, answer: str = "", draft_summary: str = "", profile: Union[list, str] = "", profile_review: Union[dict, str] = "",
          msg_ref: str = "", second_look: str = "", recap: Union[list, str] = "", verbose: bool = False, search_as: Union[list, str] = "",
          agent_token: str = "", context_state: str = "normal", kind: str = "", l1_task: str = "",
-         const_ack: bool = False, ack: str = "", context_reset: bool = False) -> str:
+         const_ack: bool = False, ack: str = "", context_reset: bool = False,
+         context_compressed_at: str = "", compressed: bool = False, used_fact_ids: str = "") -> str:
     """ONE CALL PER TURN: self-check context + save + seal. Write your draft privately, then call
     turn(user_message=<exact user text>, draft=<draft>) BEFORE the user sees it.
     The server does NOT judge the meaning of the draft. It returns: memory facts with [ev:id] (deduped, latest only),
@@ -2883,7 +2890,36 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
         _fin = _room_finish_turn(res, agent_token, session_id, context_state, kind, _gsrc, recap, duty)
     else:
         _fin = _room_rest_finish(res, agent_token, session_id, context_state, kind, _gsrc, duty)
+    _fin = _t84_pack(_fin, user_message, session_id, duty, duty_reason, source_event_ids, context_compressed_at, compressed, used_fact_ids, l1_summary)
     return _cb_turn(_fin, user_message, msg_ref, session_id, bool(const_ack) or (ack or "").strip().lower() == "const", bool(context_reset), bool(draft or answer))
+
+
+def _t84_pack(res, user_message, session_id, duty, duty_reason, source_event_ids, compressed_at, compressed, used_fact_ids, l1_summary):
+    """Fact diet, window, duties, desk and next_step. After _bl_add so the language rule is visible. Never fails the turn."""
+    try:
+        o = json.loads(res) if isinstance(res, str) else res
+    except Exception:
+        return res
+    if not isinstance(o, dict):
+        return res
+    try:
+        from app import turn_pack as _tp
+        _tp.finish(o, {
+            "user": _caller_id() or "",
+            "session": session_id or "mcp",
+            "message": user_message or "",
+            "duty": duty or "",
+            "duty_reason": duty_reason or "",
+            "source_event_ids": source_event_ids or "",
+            "compressed": bool(compressed),
+            "compressed_at": str(compressed_at or ""),
+            "used_fact_ids": used_fact_ids or "",
+            "l1_just_saved": bool(str(l1_summary or "").strip()),
+        })
+    except Exception as exc:
+        print("[turn] pack skipped: %s" % type(exc).__name__, flush=True)
+        return res if isinstance(res, str) else _dumps(o)
+    return _dumps(o)
 
 
 def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: str = "mcp", event_id: str = "",
@@ -2895,6 +2931,11 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
     """turn() body; turn() adds the auto step_zero package on the first turn of a key."""
     _g = _not_installed_reply("turn")
     if _g: return _g
+    try:
+        from app.turn_pack import system_skip_refs as _ssr
+        _tw_cover(_ssr(recap))
+    except Exception:
+        pass
     _single = bool(recap) and not (draft or answer) and _RECAP_SEAL_ON
     if _single:
         _rc = _seal_recaps(recap, session_id, sensitive)
@@ -5114,6 +5155,11 @@ for _gt in ("cube_create", "cube_install", "joint_project", "vault_inject"):
     PARAM_DESC.setdefault(_gt, {})["ack"] = "Only after the reply {gate:constitution}: repeat the same call with ack=\"const\" (and only if the user asked for the action)."
 PARAM_DESC["turn"]["query"] = "Optional search text instead of user_message: the user's question in the memory base_language (turn/step_zero report base_language)."
 PARAM_DESC["memory_search"]["query"] = "Search text in the memory base_language (turn/step_zero report base_language); keep names and exact terms."
+PARAM_DESC["turn"]["context_compressed_at"] = "ISO or YYYY-MM-DD HH:MM when this session's context was compressed. Facts at or after that stamp stay out; older on-topic facts come back."
+PARAM_DESC["turn"]["compressed"] = "true after context compression with no stamp: the window was lost, so recent-session facts and the desk map are sent again."
+PARAM_DESC["turn"]["used_fact_ids"] = "Optional. Event ids from the previous turn that helped this answer. Comma-separated. Absent leaves behaviour unchanged."
+PARAM_DESC["memory_recall_later"]["since"] = "Optional YYYY-MM-DD inclusive start. Yesterday (MSK): since=until=that calendar day. Do not put yesterday in the query."
+PARAM_DESC["memory_recall_later"]["until"] = "Optional YYYY-MM-DD inclusive end. One side alone is that single day."
 
 SHORT_DESC = {
  "memory_bootstrap": "Optional compact continuity pack. The start order is install, identify, step_zero, then turn. detail=1&page=N = full pack.",

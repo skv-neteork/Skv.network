@@ -155,7 +155,18 @@ def launch(state, submit_fn=None):
         query = forms[0]
         if submit_fn is None:
             from app.recall_later import submit as submit_fn
-        jid = submit_fn(uid, query, search_as=forms, cost_cap=cap)
+        extra = {}
+        if state.get("since"):
+            extra["since"] = state.get("since")
+        if state.get("until"):
+            extra["until"] = state.get("until")
+        excluded = [x for x in (state.get("exclude") or []) if x]
+        if excluded:
+            extra["exclude_event"] = excluded[-1]
+        try:
+            jid = submit_fn(uid, query, search_as=forms, cost_cap=cap, **extra)
+        except TypeError:
+            jid = submit_fn(uid, query, search_as=forms, cost_cap=cap)
         c.execute(
             "INSERT INTO rc_job (user, job_id, created_at, exclude_json, status, reserve, delivered_at) "
             "VALUES (?,?,?,?, 'queued', ?, NULL)",
@@ -336,6 +347,14 @@ def on_turn(result, uid, message="", l1_new=False, session_ids=None, searched=Fa
                 "l1_new": bool(l1_new),
                 "exclude": list(session_ids or []),
             }
+            try:
+                from app.turn_pack import date_window
+                window = date_window(message)
+                if window:
+                    state["since"] = window["since"]
+                    state["until"] = window["until"]
+            except Exception:
+                pass
             due = should_trigger(state)
             own = {r[0] for r in c.execute("SELECT job_id FROM rc_job WHERE user=?", (user,))}
             if due and not _agent_searched(uid, own):

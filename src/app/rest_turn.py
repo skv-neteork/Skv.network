@@ -354,6 +354,7 @@ def _decorate(result, user, message, facts=None, launch_ok=False, l1_new=False, 
     """
     if not isinstance(result, dict):
         return result
+    result["_tp_user"] = user
     try:
         from app.tool_duty import apply as _td
         _td(result, message, facts if facts is not None else (result.get("facts") or []))
@@ -387,12 +388,38 @@ def _decorate(result, user, message, facts=None, launch_ok=False, l1_new=False, 
     return result
 
 
-def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None, const_ack=False, ack="", context_reset=False):
+def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compressed_at, compressed, used_fact_ids, l1_summary):
+    """T84 pack after the watch. Pops the stashed account id so it never leaves the server."""
+    if not isinstance(res, dict):
+        return res
+    user = res.pop("_tp_user", "") or ""
+    try:
+        from app import turn_pack as _tp
+        _tp.finish(res, {
+            "user": user,
+            "session": session or "rest",
+            "message": message or "",
+            "duty": duty or "",
+            "duty_reason": duty_reason or "",
+            "source_event_ids": source_event_ids or [],
+            "compressed": bool(compressed),
+            "compressed_at": str(compressed_at or ""),
+            "used_fact_ids": used_fact_ids or "",
+            "l1_just_saved": bool(str(l1_summary or "").strip()),
+        })
+    except Exception as exc:
+        print("[rest_turn] turn pack skipped: %s" % type(exc).__name__, flush=True)
+    return res
+
+
+def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None, const_ack=False, ack="", context_reset=False, context_compressed_at="", compressed=False, used_fact_ids=None):
     """msg_ref / recap are optional (turn-watch, see turn_watch_rest.py): clients that send neither get exactly the old behaviour. const_ack / ack="const" / context_reset are the T73 constitution heartbeat (same as MCP turn)."""
+    def _out(res):
+        return _pack_turn(res, user_message, session_id, duty, duty_reason, source_event_ids, context_compressed_at, compressed, used_fact_ids, l1_summary)
     if isinstance(recap, str) and not recap.strip():
         recap = None
     if not msg_ref and not recap:
-        return _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind, const_ack=const_ack, ack=ack, context_reset=context_reset, msg_ref=msg_ref)
+        return _out(_turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind, const_ack=const_ack, ack=ack, context_reset=context_reset, msg_ref=msg_ref))
     from app import turn_watch_rest as _tw
     user = ""
     try:
@@ -402,7 +429,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
     except Exception:
         user = ""
     if not user:   # no/invalid key: the inner call answers 401
-        return _turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind, const_ack=const_ack, ack=ack, context_reset=context_reset, msg_ref=msg_ref)
+        return _out(_turn_inner(key, user_message, draft, query, session_id, duty, duty_reason, task_done, critical, l1_summary, l2_summary, source_event_ids, sensitive, compact, answer, draft_summary, profile, profile_review, source, second_look, search_as, agent_token, context_state, kind, const_ack=const_ack, ack=ack, context_reset=context_reset, msg_ref=msg_ref))
     k = _tw.scope(user, agent_token or "")
     rc = {}
     if recap:
@@ -417,6 +444,11 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
     try:
         ref = _tw.span(msg_ref)
         saved_now = bool(res.get("saved")) and res.get("mode") != "context"
+        try:
+            from app.turn_pack import system_skip_refs as _skip
+            _tw.cover(k, _skip(recap))
+        except Exception:
+            pass
         missing = _tw.check(k, ref, saved_now)
         if missing:
             res["duties"] = [_tw.duty(missing)] + list(res.get("duties") or [])
@@ -431,7 +463,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
             res.update(rc)
     except Exception as exc:
         print("[rest_turn] turn-watch skipped: %s" % type(exc).__name__, flush=True)
-    return res
+    return _out(res)
 
 
 def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", const_ack=False, ack="", context_reset=False, msg_ref=""):

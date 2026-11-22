@@ -55,6 +55,9 @@ def _conn(uid):
         ("steps_n", "INTEGER"),
         ("search_as_json", "TEXT"),
         ("cost_cap", "REAL"),
+        ("since", "TEXT"),
+        ("until", "TEXT"),
+        ("exclude_event", "TEXT"),
     ):
         if col not in cols:
             c.execute(f"ALTER TABLE recall_later ADD COLUMN {col} {decl}")
@@ -291,7 +294,7 @@ def _job_cost_cap(row_cap, cap):
         return cap
 
 
-def submit(uid, query, search_as=None, cost_cap=None):
+def submit(uid, query, search_as=None, cost_cap=None, since=None, until=None, exclude_event=None):
     # mask_text misses "password is <token>". Scrub before the row is written.
     try:
         from app.spontaneous_recall import scrub
@@ -318,9 +321,16 @@ def submit(uid, query, search_as=None, cost_cap=None):
             (time.time() - 900,),
         ).fetchone()[0] >= 3:
             raise OverflowError("too many recall_later jobs running")
+        since_v = str(since or "").strip()[:10] or None
+        until_v = str(until or "").strip()[:10] or None
+        if since_v and not until_v:
+            until_v = since_v
+        if until_v and not since_v:
+            since_v = until_v
+        ex_v = str(exclude_event or "").strip()[:120] or None
         c.execute(
-            "INSERT INTO recall_later (job_id, query, status, created_at, created_n, progress, steps_n, search_as_json, cost_cap) VALUES (?,?,?,?,?,?,?,?,?)",
-            (jid, query, "queued", time.time(), _n(c), "queued", 0, json.dumps(sa, ensure_ascii=False) if sa else None, cap_v),
+            "INSERT INTO recall_later (job_id, query, status, created_at, created_n, progress, steps_n, search_as_json, cost_cap, since, until, exclude_event) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (jid, query, "queued", time.time(), _n(c), "queued", 0, json.dumps(sa, ensure_ascii=False) if sa else None, cap_v, since_v, until_v, ex_v),
         )
         c.commit()
     finally:
@@ -1039,6 +1049,9 @@ class _Pool:
         self.score, self.src, self.lists, self.fast = {}, {}, [], []
 
     def add(self, ids, w, tag, k=60):
+        allow = getattr(self, "allow", None)
+        if callable(allow):
+            ids = [e for e in ids if allow(e)]
         if tag == "recent":   # recency lists answer 'the last X': their top slots go first
             self.lists.insert(0, list(ids))
         elif tag.endswith(":q2s") or tag == "verbatim":
@@ -1128,10 +1141,92 @@ def _cap_evidence(ev, max_bytes, short_words, qt):
     return steps
 
 
+def judge_keep_direct(evidence, query, missing=""):
+    """Re-export. A direct overlap stays selected even when the model says there is no event."""
+    from app.turn_pack import judge_keep_direct as _keep
+    return _keep(evidence, query, missing)
+
+
+def _job_allow(uid, since, until, exclude_event, created_at):
+    """Ids inside since/until, minus the just-saved turn and events at or after the job.
+
+    An empty window allows nothing. A loader error returns None so the job still runs.
+    """
+    since = str(since or "").strip()[:10]
+    until = str(until or "").strip()[:10]
+    if since and not until:
+        until = since
+    if until and not since:
+        since = until
+    exclude = str(exclude_event or "").strip()
+    short = exclude.split("::")[-1] if exclude else ""
+    echo_cut = ""
+    try:
+        if created_at:
+            echo_cut = time.strftime("%Y-%m-%d %H:%M", time.gmtime(float(created_at) - 120))
+    except Exception:
+        echo_cut = ""
+    if not since and not exclude and not echo_cut:
+        return None
+    try:
+        import sqlite3
+        from app.memory_v2 import db_path
+        conn = sqlite3.connect("file:%s?mode=ro" % db_path(uid), uri=True, timeout=10)
+        try:
+            window = None
+            if since:
+                window = set()
+                for (eid,) in conn.execute(
+                    "SELECT event_id FROM event_metadata WHERE substr(coalesce(time_str,''),1,10) >= ? AND substr(coalesce(time_str,''),1,10) <= ?",
+                    (since, until),
+                ):
+                    if eid:
+                        window.add(eid)
+                        window.add(str(eid).split("::")[-1])
+            echo = set()
+            if exclude:
+                echo.add(exclude)
+                if short:
+                    echo.add(short)
+                for (eid,) in conn.execute(
+                    "SELECT event_id FROM event_metadata WHERE event_id=? OR event_id LIKE ?",
+                    (exclude, "%::" + short),
+                ):
+                    if eid:
+                        echo.add(eid)
+                        echo.add(str(eid).split("::")[-1])
+            if echo_cut:
+                for (eid,) in conn.execute(
+                    "SELECT event_id FROM event_metadata WHERE coalesce(time_str,'') >= ?",
+                    (echo_cut,),
+                ):
+                    if eid:
+                        echo.add(eid)
+                        echo.add(str(eid).split("::")[-1])
+        finally:
+            conn.close()
+    except Exception:
+        return None
+
+    def allow(e):
+        eid = str(e or "")
+        tail = eid.split("::")[-1]
+        if eid in echo or tail in echo:
+            return False
+        if window is not None and eid not in window and tail not in window:
+            return False
+        return True
+
+    return allow
+
+
 def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
     """Assemble ranked evidence: agent picks first, then pool by score; verbatim text + neighbours from the DB."""
     import sqlite3
     from app.memory_v2 import db_path, strip_critical
+    allow = getattr(pool, "allow", None)
+    if callable(allow):
+        picks = [p for p in (picks or []) if allow(p.get("id"))]
     K = max(1, min(20, int(cfg.get("recall_later_evidence_k", 18) or 18)))
     rad = max(0, min(3, int(cfg.get("recall_later_context_radius", 1) or 0)))
     order, why = [], {}
@@ -1141,6 +1236,8 @@ def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
     # v3 diversity (recall_later_div, default 3): each sub-query list keeps its top-d events, so a hit found by
     # only one wording is not buried by RRF across the other lists
     fast = list(getattr(pool, "fast", []))
+    if callable(allow):
+        fast = [e for e in fast if allow(e)]
     div = max(0, min(5, int(cfg.get("recall_later_div", 3) or 0)))
     for d in range(div):
         for lst in getattr(pool, "lists", []):
@@ -1225,6 +1322,7 @@ def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
         miss = (T[1] + (" " + miss if miss else "")).strip()
     if not ev:
         miss = (T[2] + (" " + miss if miss else "")).strip()
+    ev, miss = judge_keep_direct(ev, q, miss)
     return {
         "format": "substrate",
         "found": any(x["selected"] for x in ev),
@@ -1250,10 +1348,11 @@ def _run_substrate(uid, jid):
     cost, steps_log, observations, known_ids = 0.0, [], [], set()
     pool, picks, missing, err, model_ok = _Pool(), [], "", None, True
     c = _conn(uid)
-    q, sa_raw, job_cap = c.execute(
-        "SELECT query, search_as_json, cost_cap FROM recall_later WHERE job_id=?", (jid,)
+    q, sa_raw, job_cap, since, until, exclude_event, created_at = c.execute(
+        "SELECT query, search_as_json, cost_cap, since, until, exclude_event, created_at FROM recall_later WHERE job_id=?", (jid,)
     ).fetchone()
     cap = _job_cost_cap(job_cap, cap)
+    pool.allow = _job_allow(uid, since, until, exclude_event, created_at)
     try:
         agent_sa = json.loads(sa_raw or "[]") if _cfg_bool(cfg, "recall_later_search_as") else []
     except Exception:
@@ -1310,6 +1409,8 @@ def _run_substrate(uid, jid):
                     fl = []
                     for fq in expanded[:2]:
                         ids = [o.get("event_id") for o in _st.text_search(uid, fq, fastn) if str(o.get("event_id") or "").startswith(f"{uid}::")]
+                        if callable(getattr(pool, "allow", None)):
+                            ids = [e for e in ids if pool.allow(e)]
                         pool.add(ids, 1.0, "fast"); fl.append(ids)
                         known_ids |= set(ids)
                     for i in range(fastn):   # interleave question / translation hits, keep fastn in total

@@ -62,3 +62,7 @@ This file is the hook index that ties those duties to constitution articles.
 2. Const hooks + meta create-cubes auto-attach on bootstrap (connect=consent). Other skill cubes: offer → ask → install
 3. Keep installed hooks armed for the session; Guards still enforce the same PROTOCOL order (G1 short reminders; G2 checklist)
 4. On task match to other skill cubes: offer → wait for yes → `cube_install`
+
+## Desk and next_step (session start and after compression)
+The turn body carries a short desk once per session and again when `compressed=true` or `context_compressed_at` is set. Later turns omit it until the map changes. One line each: memory_search (yesterday is `since=until` that MSK day), memory_recall_later plus status, board start/done/close, critical inside L1/L2, cubes search/get/install/vote/`cube_nothing`, profile, vault, drive.
+`next_step` is one line. Mandatory steps are linear: save the turn, close a hanging duty with the named action, never expose secrets. Optional lines (a search window, a matching cube, "looks done, close?") are choices. MCP-only clients read the same lines in the turn body. Hooks are not required for that path.

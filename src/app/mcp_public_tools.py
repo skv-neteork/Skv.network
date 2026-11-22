@@ -23,9 +23,9 @@ TURN_HEARTBEAT = " Constitution heartbeat: const_ack=true on constitution_manife
 # tools/list copy. Start-order tools must contain "step_zero" and no Cyrillic.
 SHORT = {
     "turn": "Call before every reply; end with the seal. compact=true, msg_ref, agent_token, recap.",
-    "memory_search": "Search the event, not the question (date/since/until).",
+    "memory_search": "Search the event, not the question. date=YYYY-MM-DD (that day ±1) or since/until. Example: since=2026-11-21 until=2026-11-21.",
     "memory_start": "Start order: constitution_install, identify, step_zero, then turn.",
-    "memory_recall_later": "If memory_search missed, poll memory_recall_status.",
+    "memory_recall_later": "If memory_search missed, poll memory_recall_status. Window: since/until=YYYY-MM-DD.",
     "memory_recall_status": "Poll recall job; evidence, not an answer.",
     "turn_stats": "Turn size and second_look stats.",
     "step_zero": "Read step_zero pages until done=true, then turn only.",

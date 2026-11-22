@@ -39,6 +39,8 @@ The keyword sidecar (`spontaneous_recall`) runs only when this component is off.
 
 The tool map is not a shared-pool cube. `step_zero` has no account id on the page picker, so the map is attached on the turn, once per text hash. A later hash is delivered again. The same turn carries at most one tool duty when a past-work question is not already answered by the fast facts.
 
+The turn pack desk is a separate list. On the first turn of a session, and again after `compressed=true` or `context_compressed_at`, the turn carries one short line per SKV feature (when to use it, plus a minimal example). Later turns send a delta only when that text changes. It is not the tool map and not a step_zero page.
+
 ## Retrospective (not built)
 
 A later component could fire when a task ends, read that session, and emit

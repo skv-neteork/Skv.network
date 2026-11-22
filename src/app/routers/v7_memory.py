@@ -2346,6 +2346,9 @@ class RecallLaterRequest(BaseModel):
     user_id: str = ""
     query: str = ""
     search_as: Any = None   # optional: agent statement forms (list or "a | b"), base language; 2026-11-02
+    since: str = ""         # T84: inclusive YYYY-MM-DD; one side alone is that day
+    until: str = ""
+    exclude_event: str = ""  # T84: just-saved turn id, dropped from the evidence
 
 
 @router.post("/memory/recall_later")
@@ -2356,7 +2359,7 @@ async def recall_later_submit(req: RecallLaterRequest):
     if not req.user_id:
         raise HTTPException(401, "API key required")
     try:
-        jid = _rl.submit(req.user_id, req.query, search_as=req.search_as)
+        jid = _rl.submit(req.user_id, req.query, search_as=req.search_as, since=req.since or None, until=req.until or None, exclude_event=req.exclude_event or None)
         return {"status": "queued", "job_id": jid, "poll": f"/api/v7/memory/recall_later/{jid}"}
     except OverflowError as e:
         raise HTTPException(429, str(e))

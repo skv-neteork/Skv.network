@@ -13,3 +13,8 @@ Send interact=true on the first memory call of each user turn; extra lookups in 
 hits[0] is the center. lens.clusters are separate episodes: the first is full (before, after, L1, L2), the rest are brief. Expand one with POST /api/v7/memory/lens {"focus_event_id": "..."}; page with lens_offset=more_cursor.
 Budgets: budget_raw, budget_l1, budget_l2, budget_map, budget_hits, budget_lens (tokens; the server caps them).
 GET-only agents: GET /api/v7/memory/start?key=YOUR_KEY&session_id=... then GET /api/v7/agent/memory?key=YOUR_KEY&query=...&view=agent
+
+## Window and next_step
+Yesterday (MSK) is that calendar day: `memory_search` with `since=until=YYYY-MM-DD`. Do not put yesterday or last week in the query. A vague week is about three days either side of the approximate date.
+`memory_recall_later` takes the same `since` / `until` and searches only inside that window.
+`next_step` on a turn is one line. Mandatory: save the turn, close an open duty with the named action, never expose a secret. Optional: search with the given window, open a matching cube, or look at a board hint. A hint is a choice, not an order.

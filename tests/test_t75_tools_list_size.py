@@ -36,7 +36,7 @@ EXPECTED_PARAMS = {
     "identify": ["client_hint", "name", "role", "session_id"],
     "joint_project": ["ack", "action", "email", "project_id", "title"],
     "joint_search": ["limit", "query"],
-    "memory_recall_later": ["query", "search_as", "since", "until"],
+    "memory_recall_later": ["date", "query", "search_as", "since", "until"],
     "memory_recall_status": ["job_id", "page"],
     "memory_search": ["agent_token", "agents", "budget_tokens", "date", "exclude_imports", "focus_event_id", "limit", "lines", "mode", "offset", "query", "search_as", "session_id", "since", "source", "time", "top_k", "until"],
     "memory_start": ["detail", "page", "query", "session_id"],

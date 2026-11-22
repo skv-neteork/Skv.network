@@ -21,6 +21,9 @@ _FILLER = re.compile(r"(?i)^\s*(great|good|excellent|interesting) (question|poin
                      r"отличн|хорош|интересн|давай|сначала|конечно|понял|ок[,.!]|хорошо[,.!])")
 _QWORD = re.compile(r"(?i)^\s*(what|which|who|when|where|why|how|is|are|do|does|did|can|should|сколько|что|какой|какая|какие|кто|когда|где|почему|зачем|как|можно|есть ли|ли\b)")
 _STOP = set("the a an and or of to in on for is are was it this that with you your i me my не и в на с что как это по к за из у о от до ли а но же то".split())
+_PLAN = re.compile(
+    r"(?i)memory_search\s*\(|\bsince\s*=|\buntil\s*=|\bdate\s*=|\bI will\b|\bI'll\b|\bбуду\b|\bплан\b"
+)
 
 
 _TOK = re.compile(r"[#\w][\w.,:/#·%+-]*")
@@ -61,7 +64,15 @@ def questions(draft, user_message="", facts=None, tool_text=""):
     if not d:
         return []
     facts = facts or []
-    known = (user_message or "") + "\n" + (tool_text or "") + "\n" + "\n".join(str(f.get("fact", "")) for f in facts)
+    known = (user_message or "") + "\n" + (tool_text or "") + "\n" + "\n".join(
+        (str(f.get("fact", "")) + "\n" + str(f.get("time") or "")) for f in facts)
+    try:
+        from app.turn_pack import date_window as _dw
+        _w = _dw(user_message or "")
+        if _w:
+            known += "\n%s\n%s" % (_w.get("since") or "", _w.get("until") or "")
+    except Exception:
+        pass
     sents = [s.strip() for s in _SENT.split(d) if len(s.strip()) > 3]
     out, seen = [], set()
 
@@ -72,6 +83,8 @@ def questions(draft, user_message="", facts=None, tool_text=""):
 
     # 1. unlinked claim about the user / the past
     for s in sents:
+        if _PLAN.search(s):
+            continue
         if _PAST.search(s) and not _EV.search(s):
             add("unlinked_past", _q(s), 'You wrote "%s". Which [ev:id] is this from? If none, say it is unknown.' % _q(s)); break
     # 2. contradiction with a newer fact: cited ev vs a later fact on the same subject

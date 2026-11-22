@@ -15,6 +15,8 @@ from app import search_line as _ln
 
 CAP_CENTRE = 400
 TOK_PER_HIT = 600
+CENTRES_DEFAULT = 5
+_QUOTE = re.compile(r"цитир|цитат|\bquot(?:e|ing|ed)\b|старый ответ", re.I)
 BUDGET_DEFAULT = 3000
 BUDGET_CAP = 12000
 
@@ -159,7 +161,7 @@ def retrieve_wide(uid, query, top_k=50, since=None, until=None, exclude_imports=
         add = _fmt(uid, extra)
         out = out + [x for x in add if x.get("event_id") not in have]
     out = [o for o in out if _ln.visible(o.get("event_id"))]
-    return out[:k]
+    return derank_quotes(out[:k])
 
 
 def _rowid_map(uid, eids):
@@ -178,6 +180,87 @@ def _rowid_map(uid, eids):
                 out[eid] = {"rowid": rid, "time": ts, "raw": raw or ""}
     finally:
         conn.close()
+    return out
+
+
+def _hit_text(h):
+    if not isinstance(h, dict):
+        return ""
+    if h.get("summary"):
+        return str(h.get("summary") or "")
+    if h.get("text"):
+        return str(h.get("text") or "")
+    if h.get("content"):
+        return str(h.get("content") or "")
+    centre = h.get("centre")
+    if isinstance(centre, dict):
+        return str(centre.get("text") or "")
+    return ""
+
+
+def _hit_time(h):
+    if not isinstance(h, dict):
+        return ""
+    meta = h.get("metadata") if isinstance(h.get("metadata"), dict) else {}
+    return str(meta.get("time_str") or h.get("date") or h.get("time") or "")
+
+
+def _tokset(text):
+    return set(re.findall(r"[a-zа-яё0-9]{4,}", (text or "").lower()))
+
+
+def derank_quotes(hits, id_key="event_id"):
+    """Move a newer quote or self-echo just below the older original. Keep both."""
+    if not hits or len(hits) < 2:
+        return list(hits or [])
+    rows = []
+    for i, h in enumerate(hits):
+        if not isinstance(h, dict):
+            rows.append(None)
+            continue
+        text = _hit_text(h)
+        rows.append({
+            "t": _hit_time(h),
+            "toks": _tokset(text),
+            "quote": bool(_QUOTE.search(text)) or bool(h.get("is_self")),
+        })
+    penalty = {}
+    for i, a in enumerate(rows):
+        if not a or not a["toks"]:
+            continue
+        for j, b in enumerate(rows):
+            if not b or i == j or not b["toks"]:
+                continue
+            if not a["t"] or not b["t"] or a["t"] <= b["t"]:
+                continue
+            inter = len(a["toks"] & b["toks"])
+            cover = inter / float(len(b["toks"]))
+            own = inter / float(len(a["toks"]))
+            if inter >= 4 and cover >= 0.45 and (a["quote"] or own >= 0.55):
+                penalty[i] = j
+                break
+    order = list(range(len(hits)))
+    for qi, oi in penalty.items():
+        if order.index(qi) < order.index(oi):
+            order.remove(qi)
+            order.insert(order.index(oi) + 1, qi)
+    out = []
+    for i in order:
+        h = hits[i]
+        if not isinstance(h, dict):
+            out.append(h)
+            continue
+        item = dict(h)
+        if i in penalty:
+            orig = hits[penalty[i]] if isinstance(hits[penalty[i]], dict) else {}
+            try:
+                base = float(orig.get("score") or 0)
+            except (TypeError, ValueError):
+                base = 0.0
+            if base:
+                item["score"] = round(base * 0.5, 5)
+            item["echo_of"] = orig.get(id_key) or orig.get("ev") or orig.get("id")
+        out.append(item)
     return out
 
 
@@ -213,7 +296,7 @@ def diversify(hits, query, window=None, gap=3):
         out.append(h)
         if len(out) >= 20:
             break
-    return out
+    return derank_quotes(out)
 
 
 def _cover(conn, rowid):
@@ -266,9 +349,11 @@ def _part(eid, ts, raw, cap):
             "truncated": cut, "tokens": min(tok, cap)}
 
 
-def package(uid, hits, query, budget=None, window=None):
+def package(uid, hits, query, budget=None, window=None, centres=None):
     budget = budget_of(budget)
     n = n_hits(budget)
+    if centres is None and not (window or {}).get("window_set"):
+        n = max(n, CENTRES_DEFAULT)
     used, items, truncated = 0, [], False
     hint = "memory_search(focus_event_id=<ev>) for a wider episode; memory_recall_later for a deep search"
     if not hits:
@@ -325,9 +410,15 @@ def package(uid, hits, query, budget=None, window=None):
                     "match_reason": reason,
                     "truncated": bool(centre.get("truncated") or any(x.get("truncated") for x in neigh))}
             cost = centre.get("tokens", 0) + sum(x.get("tokens", 0) for x in neigh) + est_tokens(l1s) + est_tokens(l2s) + 50
-            if items and used + cost > budget:
+            floor = min(CENTRES_DEFAULT, len(hits)) if not (window or {}).get("window_set") else 1
+            if items and used + cost > budget and len(items) >= floor:
                 truncated = True
                 break
+            if items and used + cost > budget and len(items) < floor:
+                neigh = []
+                item["neighbours"] = []
+                item["neighbour_radius"] = 0
+                cost = centre.get("tokens", 0) + est_tokens(l1s) + est_tokens(l2s) + 50
             used += cost
             items.append(item)
             if len(items) >= n:

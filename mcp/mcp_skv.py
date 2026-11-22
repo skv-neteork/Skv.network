@@ -1542,6 +1542,73 @@ def _scrub_secret_query(out, query: str):
     return scrub(out)
 
 
+def _slim_centre(h, text_cap, drop_layers):
+    item = dict(h)
+    item["neighbours"] = []
+    centre = item.get("centre")
+    text = ""
+    if isinstance(centre, dict):
+        c = dict(centre)
+        text = str(c.get("text") or "")[:text_cap]
+        c["text"] = text
+        item["centre"] = c
+    else:
+        text = str(item.get("content") or item.get("summary") or "")[:text_cap]
+    item["content"] = text
+    item["summary"] = (text or str(item.get("summary") or ""))[:min(400, text_cap)]
+    if drop_layers:
+        item["l1"] = ""
+        item["l2"] = ""
+    return item
+
+
+def _fit_open_centres(out, pack, keep=5):
+    """No-window search: keep k centres inside RESP_LIMIT. Neighbours go before a centre does.
+
+    Returns a JSON string, or None when this path should not decide (a window, or even one slim hit does not fit).
+    """
+    windowed = bool(out.get("window_set"))
+    w = out.get("window")
+    if isinstance(w, dict) and w.get("window_set"):
+        windowed = True
+    if windowed:
+        return None
+    res = [h for h in (out.get("results") or []) if isinstance(h, dict)]
+    if len(res) < 2:
+        return None
+
+    def emit(rows):
+        cur = dict(out)
+        cur["results"] = rows
+        cur["hits"] = rows
+        cur["n"] = len(rows)
+        cur["truncated"] = True
+        cur["order"] = "k centres (default 5), neighbours dropped to fit. Cite as [ev:id]"
+        cur.setdefault("hint", "truncated:true — open one hit with memory_search(focus_event_id=<ev>)")
+        return pack(cur)
+
+    for cap in (900, 400, 180):
+        for drop in (False, True):
+            rows = [_slim_centre(h, cap, drop) for h in res]
+            while len(rows) > keep:
+                blob = emit(rows)
+                if len(blob) <= RESP_LIMIT:
+                    return blob
+                rows = rows[:-1]
+            blob = emit(rows)
+            if len(blob) <= RESP_LIMIT and len(rows) >= min(keep, len(res)):
+                return blob
+            if len(blob) <= RESP_LIMIT:
+                return blob
+    rows = [_slim_centre(h, 120, True) for h in res[:keep]]
+    while len(rows) > 1:
+        blob = emit(rows)
+        if len(blob) <= RESP_LIMIT:
+            return blob
+        rows = rows[:-1]
+    return None
+
+
 def _search_json(out: dict) -> str:
     """Valid compact JSON inside RESP_LIMIT. Keeps the first hits; drops the tail. Never slices the JSON string."""
     def pack(o):
@@ -1549,6 +1616,9 @@ def _search_json(out: dict) -> str:
     s = pack(out)
     if len(s) <= RESP_LIMIT:
         return s
+    fitted = _fit_open_centres(out, pack)
+    if fitted:
+        return fitted
     cap = 1200
     cur = out
     while cap >= 80:
@@ -1600,8 +1670,9 @@ _SEARCH_GUIDE = (
     "Search memory for the EVENT, not the user's question. "
     "1) Plain words (\"who gave me jewelry?\" -> query \"received a gift\"). "
     "2) Keep names and exact words (aunt, тётя, Airbnb). "
-    "3) Time is date=YYYY-MM-DD (that day ±1), or since/until inclusive (one side is ok). "
-    "Exact day: since=until=that day. Unknown time: time=unknown. Never guess. "
+    "3) Dates are MSK. date=YYYY-MM-DD is that day ±1. "
+    "since/until=YYYY-MM-DD is that exact MSK day (the full UTC span, 21:00 previous day through 21:00). "
+    "Exact day: since=until=that day. One side alone is that single day. Unknown time: time=unknown. Never guess. "
     "Do not put yesterday/last week/ago in query. "
     "4) Computed answers (\"how many months ago\") use the hit date; you do the arithmetic. "
     "5) Before/after X: find X, read its date, then search a window around that date. "
@@ -1722,7 +1793,7 @@ def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = 
                            "truncated": (pkg or {}).get("truncated") or data.get("truncated"),
                            "budget_tokens": (pkg or {}).get("budget_tokens"),
                            "filtered": f"{dropped} weak (<45% of best score) or duplicate hits dropped" if dropped else "",
-                           "order": "window hits are {id, date, content, score}; otherwise a mini-lens. Cite as [ev:id]"}
+                           "order": "window hits are {id, date, content, score}; otherwise k centres (default 5), each a mini-lens. Cite as [ev:id]"}
     for _k in ("total_in_window", "covered_window", "window_set", "next_offset", "has_more", "note"):
         if (pkg or {}).get(_k) is not None or _k in (pkg or {}):
             out[_k] = (pkg or {}).get(_k)
@@ -2028,20 +2099,24 @@ def memory_critical(text: str, topic: str = "critical") -> str:
 
 
 @mcp.tool()
-def memory_recall_later(query: str, search_as: Union[list, str] = "", since: str = "", until: str = "") -> str:
+def memory_recall_later(query: str, search_as: Union[list, str] = "", since: str = "", until: str = "", date: str = "") -> str:
     """Deep background memory search: an on-server agent runs 5-15 search/expand steps over all memory
     (~10-30 s, ~0.1 RUB) and returns ranked evidence events (verbatim text, ids, dates, neighbour turns), not an answer.
     Use when turn/memory_search found nothing reliable, before saying you do not remember.
     Pass search_as too (the same statement forms you gave turn/memory_search, in the memory base_language): used as an extra seed.
-    Optional since/until (YYYY-MM-DD, inclusive) limit the search to that window. Yesterday (MSK): since=until=that day.
+    Dates are MSK. date=YYYY-MM-DD is that day ±1. since/until=YYYY-MM-DD is that exact MSK day (full UTC span).
+    Example: since=2026-11-21 until=2026-11-21. date is ignored when since or until is set.
     Returns job_id at once; poll memory_recall_status(job_id) every ~10 s until status=done."""
     body = {"query": query}
     if _sa_list(search_as):
         body["search_as"] = _sa_list(search_as)
-    if since:
-        body["since"] = since
-    if until:
-        body["until"] = until
+    if date and not (since or until):
+        body["date"] = date
+    else:
+        if since:
+            body["since"] = since
+        if until:
+            body["until"] = until
     return _dumps(_req("POST", "/memory/recall_later", _uid_body(body)))
 
 
@@ -5158,8 +5233,12 @@ PARAM_DESC["memory_search"]["query"] = "Search text in the memory base_language 
 PARAM_DESC["turn"]["context_compressed_at"] = "ISO or YYYY-MM-DD HH:MM when this session's context was compressed. Facts at or after that stamp stay out; older on-topic facts come back."
 PARAM_DESC["turn"]["compressed"] = "true after context compression with no stamp: the window was lost, so recent-session facts and the desk map are sent again."
 PARAM_DESC["turn"]["used_fact_ids"] = "Optional. Event ids from the previous turn that helped this answer. Comma-separated. Absent leaves behaviour unchanged."
-PARAM_DESC["memory_recall_later"]["since"] = "Optional YYYY-MM-DD inclusive start. Yesterday (MSK): since=until=that calendar day. Do not put yesterday in the query."
-PARAM_DESC["memory_recall_later"]["until"] = "Optional YYYY-MM-DD inclusive end. One side alone is that single day."
+PARAM_DESC["memory_search"]["date"] = "YYYY-MM-DD. That MSK day ±1 (the day before through the day after). Example: date=2026-11-21. Do not combine with since/until."
+PARAM_DESC["memory_search"]["since"] = "YYYY-MM-DD. Exact MSK day, the full UTC span (from 21:00 the previous calendar day). since=until=2026-11-21 is only 21 November MSK."
+PARAM_DESC["memory_search"]["until"] = "YYYY-MM-DD. Exact MSK day end. One side alone is that single MSK day."
+PARAM_DESC["memory_recall_later"]["date"] = "YYYY-MM-DD. That MSK day ±1. Ignored when since or until is set. Example: date=2026-11-21."
+PARAM_DESC["memory_recall_later"]["since"] = "Optional YYYY-MM-DD. Exact MSK day start (full UTC span). Example: since=2026-11-21 until=2026-11-21. Do not put the relative word in the query."
+PARAM_DESC["memory_recall_later"]["until"] = "Optional YYYY-MM-DD. Exact MSK day end. One side alone is that single MSK day."
 
 SHORT_DESC = {
  "memory_bootstrap": "Optional compact continuity pack. The start order is install, identify, step_zero, then turn. detail=1&page=N = full pack.",

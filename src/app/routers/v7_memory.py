@@ -2346,8 +2346,9 @@ class RecallLaterRequest(BaseModel):
     user_id: str = ""
     query: str = ""
     search_as: Any = None   # optional: agent statement forms (list or "a | b"), base language; 2026-11-02
-    since: str = ""         # T84: inclusive YYYY-MM-DD; one side alone is that day
+    since: str = ""         # exact MSK day, YYYY-MM-DD; one side alone is that day
     until: str = ""
+    date: str = ""          # YYYY-MM-DD, that MSK day ±1; ignored when since or until is set
     exclude_event: str = ""  # T84: just-saved turn id, dropped from the evidence
 
 
@@ -2359,12 +2360,25 @@ async def recall_later_submit(req: RecallLaterRequest):
     if not req.user_id:
         raise HTTPException(401, "API key required")
     try:
-        jid = _rl.submit(req.user_id, req.query, search_as=req.search_as, since=req.since or None, until=req.until or None, exclude_event=req.exclude_event or None)
+        since = (req.since or "").strip()
+        until = (req.until or "").strip()
+        day = (req.date or "").strip()
+        if day and not since and not until:
+            from app.search_window import parse as _win_parse
+            bounds = _win_parse(date=day)
+            since = bounds.get("since") or ""
+            until = bounds.get("until") or ""
+        jid = _rl.submit(req.user_id, req.query, search_as=req.search_as, since=since or None, until=until or None, exclude_event=req.exclude_event or None)
         return {"status": "queued", "job_id": jid, "poll": f"/api/v7/memory/recall_later/{jid}"}
     except OverflowError as e:
         raise HTTPException(429, str(e))
     except ValueError as e:
         raise HTTPException(422, str(e))
+    except Exception as e:
+        from app.search_window import WindowError
+        if isinstance(e, WindowError):
+            raise HTTPException(e.status, e.detail)
+        raise
 
 
 @router.get("/memory/recall_later/{job_id}")

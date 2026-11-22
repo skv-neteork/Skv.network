@@ -217,7 +217,9 @@ class Rank(unittest.TestCase):
         pack = SW.run("u@x", "alpha beta", date="2023-03-04", budget=200, limit=5,
                       db=path, cosine_fn=lambda uid, eids, q: {}, always_rank=True)
         self.assertEqual(pack["n"], 1)
-        self.assertAlmostEqual(pack["hits"][0]["score"], round(0.15 * 1.0, 5))
+        self.assertEqual(pack["hits"][0]["id"], "u::a")
+        # No vector and no live FTS (cosine_fn is injected): the hit stays, score 0.
+        self.assertEqual(pack["hits"][0]["score"], 0.0)
 
     def test_over_cap_is_422_and_names_the_cap(self):
         path = _db([

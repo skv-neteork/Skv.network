@@ -62,6 +62,14 @@ def day_cap():
         return 1.0
 
 
+def min_gap():
+    """Seconds between recall jobs for one user. 0 disables the gap (tests)."""
+    try:
+        return float(os.environ.get("SKV_RECALL_MIN_GAP", "60") or 0)
+    except (TypeError, ValueError):
+        return 60.0
+
+
 def _path():
     return os.environ.get("SKV_RECALL_COMPONENT_DB") or _DEFAULT_DB
 
@@ -134,28 +142,50 @@ def _statements(message, topic):
 
 
 def launch(state, submit_fn=None):
-    """Queue one recall_later job. Returns the job id or None. Does not wait."""
+    """Queue one recall_later job. Returns the job id or None. Does not wait.
+
+    The day cap is reserved inside BEGIN IMMEDIATE before the job is submitted,
+    so parallel turns cannot each pass the check. A second job inside min_gap
+    seconds is not started. A failed submit refunds the reserve.
+    """
     uid = state.get("uid") or ""
     user = user_key(uid)
     if not uid or not enabled() or not _shelf_exists(uid):
         return None
     cap = job_cap()
     c = _conn()
+    rowid = None
+    forms = None
+    query = ""
+    extra = {}
     try:
+        c.execute("BEGIN IMMEDIATE")
         topic_s = _scrub(state.get("topic") or "")
-        if _spent(c, user) + cap > day_cap():
+        turns = int(state.get("turns") or 0)
+        if _spent(c, user) + cap > day_cap() + 1e-9:
             c.execute(
                 "INSERT INTO rc_state (user, turns, last_topic, last_sched, skips) VALUES (?,?,?,?,1) "
                 "ON CONFLICT(user) DO UPDATE SET skips=coalesce(rc_state.skips,0)+1",
-                (user, int(state.get("turns") or 0), topic_s, int(state.get("turns") or 0)),
+                (user, turns, topic_s, turns),
             )
             c.commit()
             return None
+        gap = min_gap()
+        if gap > 0:
+            recent = c.execute(
+                "SELECT 1 FROM rc_job WHERE user=? AND created_at>? LIMIT 1",
+                (user, time.time() - gap),
+            ).fetchone()
+            if recent:
+                c.execute(
+                    "INSERT INTO rc_state (user, turns, last_topic, last_sched, skips) VALUES (?,?,?,?,?) "
+                    "ON CONFLICT(user) DO UPDATE SET turns=excluded.turns, last_topic=excluded.last_topic",
+                    (user, turns, topic_s, int(state.get("last_sched") or 0), int(state.get("skips") or 0)),
+                )
+                c.commit()
+                return None
         forms = _statements(state.get("message"), state.get("topic"))
         query = forms[0]
-        if submit_fn is None:
-            from app.recall_later import submit as submit_fn
-        extra = {}
         if state.get("since"):
             extra["since"] = state.get("since")
         if state.get("until"):
@@ -163,22 +193,45 @@ def launch(state, submit_fn=None):
         excluded = [x for x in (state.get("exclude") or []) if x]
         if excluded:
             extra["exclude_event"] = excluded[-1]
+        c.execute(
+            "INSERT INTO rc_job (user, job_id, created_at, exclude_json, status, reserve, delivered_at) "
+            "VALUES (?,?,?,?, 'queued', ?, NULL)",
+            (user, "pending", time.time(), json.dumps(list(state.get("exclude") or [])), cap),
+        )
+        rowid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        c.execute(
+            "INSERT INTO rc_state (user, turns, last_topic, last_sched, skips) VALUES (?,?,?,?,0) "
+            "ON CONFLICT(user) DO UPDATE SET turns=excluded.turns, last_topic=excluded.last_topic, last_sched=excluded.last_sched",
+            (user, turns, topic_s, turns),
+        )
+        c.commit()
+    except Exception:
+        try:
+            c.rollback()
+        except Exception:
+            pass
+        rowid = None
+        raise
+    finally:
+        if rowid is None:
+            c.close()
+    try:
+        if submit_fn is None:
+            from app.recall_later import submit as submit_fn
         try:
             jid = submit_fn(uid, query, search_as=forms, cost_cap=cap, **extra)
         except TypeError:
             jid = submit_fn(uid, query, search_as=forms, cost_cap=cap)
-        c.execute(
-            "INSERT INTO rc_job (user, job_id, created_at, exclude_json, status, reserve, delivered_at) "
-            "VALUES (?,?,?,?, 'queued', ?, NULL)",
-            (user, jid, time.time(), json.dumps(list(state.get("exclude") or [])), cap),
-        )
-        c.execute(
-            "INSERT INTO rc_state (user, turns, last_topic, last_sched, skips) VALUES (?,?,?,?,0) "
-            "ON CONFLICT(user) DO UPDATE SET turns=excluded.turns, last_topic=excluded.last_topic, last_sched=excluded.last_sched",
-            (user, int(state.get("turns") or 0), topic_s, int(state.get("turns") or 0)),
-        )
+        c.execute("UPDATE rc_job SET job_id=? WHERE id=?", (str(jid), rowid))
         c.commit()
         return jid
+    except Exception:
+        try:
+            c.execute("UPDATE rc_job SET reserve=0, status='error' WHERE id=?", (rowid,))
+            c.commit()
+        except Exception:
+            pass
+        return None
     finally:
         c.close()
 
@@ -212,8 +265,14 @@ def judge(report, exclude, seen, topic):
     for e in exclude or []:
         ex.add(e)
         ex.add(_tail(e))
+    evidence = list((report or {}).get("evidence") or [])
+    try:
+        from app.search_pack import derank_quotes
+        evidence = derank_quotes(evidence, id_key="ev")
+    except Exception:
+        pass
     out = []
-    for item in (report or {}).get("evidence") or []:
+    for item in evidence:
         if not isinstance(item, dict):
             continue
         if not item.get("selected"):
@@ -275,6 +334,14 @@ def collect(user_uid, topic="", get_fn=None):
                 exclude = []
             report = job.get("report") if isinstance(job.get("report"), dict) else {}
             picked = judge(report, exclude, seen, topic) if status == "done" else []
+            evidence = report.get("evidence") if isinstance(report.get("evidence"), list) else []
+            if status == "error" or not picked or not evidence:
+                # An empty or failed job must not spend the day cap.
+                c.execute(
+                    "UPDATE rc_job SET reserve=0, status='delivered', delivered_at=? WHERE id=?",
+                    (now, rid),
+                )
+                continue
             for item in picked:
                 ev = item["ev"]
                 if ev in seen:

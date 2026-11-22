@@ -1,9 +1,9 @@
 """B11 date window. The agent picks the dates. This module does not parse phrases.
 
-Filter the window first (active memory line, calendar date of time_str as written),
-then either return every event in order or rank the whole window.
-Score = 0.85 * cosine(L2-normalised vectors) + 0.15 * exact token overlap.
-No stemming, no BM25, no RRF, no server-side widening.
+Filter the window first (active memory line). since/until calendar days are MSK
+(UTC+3, no DST) and cover that full day in stored UTC time_str. date=D stays [D-1, D+1].
+A query then ranks the window with the same FTS + vector weighted RRF as the core.
+Durations (3d/12h) stay stamps compared to time_str as written.
 
 WINDOW_CAP is the measured perf limit (2026-11-14, benchlme3, mml12):
 3988 events took 0.14 s to read vectors and 0.37 s to overlap; ~20k events
@@ -78,6 +78,19 @@ def _ymd(s):
         return datetime(y, mo, d)
     except ValueError:
         return None
+
+
+def msk_bounds(day):
+    """Inclusive MSK calendar day as a UTC time_str range [start, end).
+
+    Stored time_str is UTC. 2026-11-14 00:00 MSK is 2026-11-13 21:00 UTC.
+    """
+    d = _ymd(day)
+    if not d:
+        return None, None
+    start = (d - timedelta(days=1)).strftime("%Y-%m-%d") + " 21:00"
+    end = d.strftime("%Y-%m-%d") + " 21:00"
+    return start, end
 
 
 def _blank(v):
@@ -185,17 +198,18 @@ def _in_window(ts, bounds):
     ts = ts or ""
     if not ts:
         return False
-    day = ts[:10]
     lo, hi = bounds.get("since"), bounds.get("until")
     if lo:
         if bounds.get("since_kind") == "date":
-            if day < lo:
+            start, _end = msk_bounds(lo)
+            if start and ts < start:
                 return False
         elif ts < lo:
             return False
     if hi:
         if bounds.get("until_kind") == "date":
-            if day > hi:
+            _start, end = msk_bounds(hi)
+            if end and ts >= end:
                 return False
         elif ts > hi:
             return False
@@ -223,14 +237,16 @@ def collect(uid, bounds, exclude_imports=False, db=None):
         args = []
         lo, hi = bounds.get("since"), bounds.get("until")
         if lo and bounds.get("since_kind") == "date":
-            where.append("substr(time_str,1,10) >= ?")
-            args.append(lo)
+            start, _end = msk_bounds(lo)
+            where.append("time_str >= ?")
+            args.append(start or lo)
         elif lo:
             where.append("time_str >= ?")
             args.append(lo)
         if hi and bounds.get("until_kind") == "date":
-            where.append("substr(time_str,1,10) <= ?")
-            args.append(hi)
+            _start, end = msk_bounds(hi)
+            where.append("time_str < ?")
+            args.append(end or (hi + " 24:00"))
         elif hi:
             where.append("time_str <= ?")
             args.append(hi)
@@ -336,19 +352,70 @@ def _pack_page(ordered, budget, limit, offset, scored):
     return page, used, (idx if has_more else None), has_more
 
 
+def _map_ids(ids, pairs):
+    """Map a global (eid, score) list onto window ids. Short ids match the tail."""
+    want = set(ids)
+    short = {}
+    for e in ids:
+        short.setdefault(str(e).split("::")[-1], e)
+    out, seen = [], set()
+    for e, s in pairs or []:
+        hit = e if e in want else short.get(str(e).split("::")[-1])
+        if not hit or hit in seen:
+            continue
+        seen.add(hit)
+        out.append((hit, s))
+    return out
+
+
+def _hybrid_window_scores(uid, rows, query, cosine_fn=None):
+    """FTS + vector weighted RRF inside the window. Same weights as search_v2.
+
+    An injected cosine_fn is the vector list only (unit tests, no live FTS).
+    """
+    from app.search_v2 import wrrf
+    ids = [r["id"] for r in rows]
+    if cosine_fn is not None:
+        cos = cosine_fn(uid, ids, query) or {}
+    else:
+        cos = cosines(uid, ids, query)
+    vec = sorted(((e, float(cos.get(e) or 0.0)) for e in ids), key=lambda x: -x[1])
+    vec = [(e, s) for e, s in vec if s > 0]
+    words, rare = [], 0
+    if cosine_fn is None:
+        try:
+            from app.search_v2 import cfg as vcfg, fts_ranked, word_weight
+            raw, rare = fts_ranked(uid, query, limit=max(100, min(800, max(len(ids), 1))))
+            words = _map_ids(ids, raw)
+            c = vcfg()
+            fused = wrrf(vec, words, float(c.get("w_vec", 1.0)), word_weight(c, rare))
+        except Exception:
+            fused = wrrf(vec, [], 1.0, 0.5)
+    else:
+        fused = wrrf(vec, [], 1.0, 0.5)
+    scores = {e: float(s) for e, s in fused}
+    if cosine_fn is None:
+        try:
+            from app import q2s
+            extra = q2s.search(uid, query, top_k=80) or []
+            for e, s in wrrf(_map_ids(ids, extra), [], 1.0, 0.0):
+                scores[e] = scores.get(e, 0.0) + float(s)
+        except Exception:
+            pass
+    return scores
+
+
 def order_rows(rows, query, budget, limit, offset, cosine_fn=None, uid="", always_rank=False):
-    """Chronological when there is no query or the full texts fit. Else score every row."""
+    """Chronological when there is no query or the full texts fit. Else FTS+vector RRF."""
     budget = max(BUDGET_FLOOR, int(budget or 3000))
     full_cost = sum(est_tokens(r["content"]) + 24 for r in rows)
     has_query = bool((query or "").strip())
     scored = has_query and len(rows) > 0 and (always_rank or full_cost > budget)
     ordered = list(rows)
     if scored:
-        fn = cosine_fn or (lambda u, ids, q: cosines(u, ids, q))
-        cos = fn(uid, [r["id"] for r in ordered], query)
+        scores = _hybrid_window_scores(uid, ordered, query, cosine_fn=cosine_fn)
         for r in ordered:
-            ov = overlap(query, r["content"])
-            r["score"] = round(SCORE_COS * float(cos.get(r["id"], 0.0)) + SCORE_OV * ov, 5)
+            r["score"] = round(float(scores.get(r["id"], 0.0)), 5)
         ordered.sort(key=lambda r: (-float(r["score"]), r["date"], r["id"]))
     else:
         for r in ordered:

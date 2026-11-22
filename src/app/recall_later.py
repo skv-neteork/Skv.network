@@ -1176,10 +1176,19 @@ def _job_allow(uid, since, until, exclude_event, created_at):
             window = None
             if since:
                 window = set()
-                for (eid,) in conn.execute(
-                    "SELECT event_id FROM event_metadata WHERE substr(coalesce(time_str,''),1,10) >= ? AND substr(coalesce(time_str,''),1,10) <= ?",
-                    (since, until),
-                ):
+                try:
+                    from app.search_window import msk_bounds
+                    start, _ = msk_bounds(since)
+                    _, end = msk_bounds(until)
+                except Exception:
+                    start = end = None
+                if start and end:
+                    span_sql = "SELECT event_id FROM event_metadata WHERE coalesce(time_str,'') >= ? AND coalesce(time_str,'') < ?"
+                    span_args = (start, end)
+                else:
+                    span_sql = "SELECT event_id FROM event_metadata WHERE substr(coalesce(time_str,''),1,10) >= ? AND substr(coalesce(time_str,''),1,10) <= ?"
+                    span_args = (since, until)
+                for (eid,) in conn.execute(span_sql, span_args):
                     if eid:
                         window.add(eid)
                         window.add(str(eid).split("::")[-1])
@@ -1323,6 +1332,14 @@ def _substrate(uid, q, picks, pool, missing, lang, model_ok, expanded, cfg):
     if not ev:
         miss = (T[2] + (" " + miss if miss else "")).strip()
     ev, miss = judge_keep_direct(ev, q, miss)
+    try:
+        from app.search_pack import derank_quotes
+        ev = derank_quotes(ev, id_key="ev")
+        for i, x in enumerate(ev):
+            if isinstance(x, dict):
+                x["rank"] = i + 1
+    except Exception:
+        pass
     return {
         "format": "substrate",
         "found": any(x["selected"] for x in ev),

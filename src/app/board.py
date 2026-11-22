@@ -327,11 +327,13 @@ _STOP = set("the and for with this that what from have will your you are was not
 def _toks(s):
     return {w[:5] for w in re.findall(r"[a-zа-яё0-9]{3,}", (s or "").lower()) if w not in _STOP}
 
-_DONE_RE = re.compile(r"\b(готово|сделано|сделал|исправил|исправлен[оа]?|починил|починен[оа]?|заверш[её]н[оа]?|закончил|выполнен[оа]?|done|fixed|completed|finished|implemented|resolved|shipped)\b", re.I)
-
 
 def relevant(uid, message="", answer="", n=3):
-    """Up to n open tasks relevant to the message (+ answer): compact, plus a close hint when the answer reads like completion."""
+    """Up to n open tasks relevant to the message (+ answer).
+
+    Does not hint "looks done" from the answer text. A commit subject that
+    names the item is the only close hint, and that lives in turn_pack.
+    """
     op = [i for i in items(uid) if i["kind"] == "task" and i["status"] in OPEN]
     st = stale(uid)
     sx = {"board_stale": st, "board_stale_hint": STALE_HINT} if st else {}
@@ -348,13 +350,7 @@ def relevant(uid, message="", answer="", n=3):
     scored.sort(key=lambda x: (-x[0], x[2].get("priority") or 2))
     top = scored[:n]
     out = [{"id": i["item_id"], "status": i["status"], "title": i["title"][:80], **({"waiting_for": i["waiting_for"]} if i.get("waiting_for") else {})} for _, _, i in top]
-    hint = None
-    if answer and _DONE_RE.search(answer):
-        cand = [x for x in top if x[1] >= 2]
-        if cand:
-            x = cand[0][2]
-            hint = f"looks done? close item {x['item_id']}: board_act(action=done, item_id={x['item_id']}, result=<what was achieved>)"
-    return {"board": out, "board_hint": hint, **sx}
+    return {"board": out, "board_hint": None, **sx}
 
 
 STALE_HINT = "stale: close with a result (board_act action=done, result=...), park, or remove"

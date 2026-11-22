@@ -258,12 +258,36 @@ def _day_of(time_s):
 
 
 def _in_window(fact, window):
+    """A full timestamp uses the MSK span of since/until. A date-only stamp stays on the calendar day."""
     if not window:
         return False
-    day = _day_of(fact.get("time"))
+    ts = _fact_time(fact).strip()
+    if not ts:
+        return False
+    since = str(window.get("since") or "")
+    until = str(window.get("until") or "")
+    if len(ts) <= 10:
+        day = _day_of(ts)
+        if not day:
+            return False
+        return (not since or since[:10] <= day) and (not until or day <= until[:10])
+    try:
+        from app.search_window import msk_bounds
+        start = msk_bounds(since[:10])[0] if len(since) >= 10 else None
+        end = msk_bounds(until[:10])[1] if len(until) >= 10 else None
+    except Exception:
+        start = end = None
+    stamp = ts[:16]
+    if start or end:
+        if start and stamp < start:
+            return False
+        if end and stamp >= end:
+            return False
+        return True
+    day = _day_of(ts)
     if not day:
         return False
-    return window["since"] <= day <= window["until"]
+    return (not since or since[:10] <= day) and (not until or day <= until[:10])
 
 
 def _is_critical_fact(fact):
@@ -310,16 +334,31 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
         words = content_words(topic)
     except Exception:
         words, on_topic = [], None
-    if words and on_topic is not None:
-        def _keep(f):
-            if on_topic(topic, f.get("fact") or ""):
-                if _is_critical_fact(f) and not on_topic(topic, f.get("fact") or ""):
-                    return False
-                return True
+
+    def _self(f):
+        return bool(f.get("is_self"))
+
+    def _keep(f):
+        if _self(f):
             return False
-        kept = [f for f in kept if _keep(f)]
+        if window and _in_window(f, window):
+            return True
+        if words and on_topic is not None:
+            return bool(on_topic(topic, f.get("fact") or ""))
+        return False
+
+    if words and on_topic is not None:
+        inside, outside = [], []
+        for f in kept:
+            if not _keep(f):
+                continue
+            if window and _in_window(f, window):
+                inside.append(f)
+            else:
+                outside.append(f)
+        kept = inside[:window_cap] + outside
     elif window:
-        kept = [f for f in kept if _in_window(f, window)][:window_cap]
+        kept = [f for f in kept if _keep(f)][:window_cap]
     return kept
 
 
@@ -683,10 +722,31 @@ def local_commits(root="/root/skv-core", limit=40):
     return _COMMITS
 
 
-def next_step_for(resp, message=""):
-    duties = resp.get("duties") or []
+def next_step_for(resp, message="", closed_duty=None):
+    """Name the open duty and the exact close action.
+
+    kind=other never drives the line. cube_nothing / vote_nothing on this turn
+    drops that kind. Nothing is closed here.
+    """
+    closed_duty = closed_duty or {}
+    duties = []
+    for d in resp.get("duties") or []:
+        kind = _duty_kind(d)
+        if kind == "other":
+            continue
+        if kind == "cube" and closed_duty.get("cube"):
+            continue
+        if kind == "vote" and closed_duty.get("vote"):
+            continue
+        duties.append(d)
     if duties:
-        return "close duty %s" % _duty_kind(duties[0])
+        d0 = duties[0]
+        kind = _duty_kind(d0)
+        if isinstance(d0, dict):
+            name = str(d0.get("id") or d0.get("do") or kind)
+        else:
+            name = " ".join(str(d0).split())
+        return "close duty %s: %s (%s)" % (kind, _close_line(d0, 1), name[:80])
     window = resp.get("window") or {}
     weak = not resp.get("facts")
     if window and weak:
@@ -893,6 +953,105 @@ def recent_session_ids(user, session, n=_SESSION_TAIL):
         return []
 
 
+def _spread(rows, n):
+    rows = list(rows or [])
+    if len(rows) <= n:
+        return rows
+    if n <= 1:
+        return rows[:1]
+    if n == 2:
+        return [rows[0], rows[-1]]
+    mid = rows[len(rows) // 2]
+    return [rows[0], mid, rows[-1]]
+
+
+def _load_window_shelf(user, window):
+    """2-3 events plus the L1/L2 that cover them. Never creates an account db."""
+    if not user or not window:
+        return []
+    try:
+        from app import shelves
+        path = os.path.join(shelves.BASE_DIR, shelves._name(user) + ".db")
+        if not os.path.isfile(path):
+            return []
+        from app.search_window import collect
+        bounds = {
+            "since": window.get("since"), "until": window.get("until"),
+            "since_kind": "date", "until_kind": "date", "window_set": True,
+        }
+        rows = [r for r in collect(user, bounds, db=path) if (r.get("content") or "").strip()]
+        picked = _spread(rows, 3)
+        if not picked:
+            return []
+        facts = []
+        conn = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
+        try:
+            ids = [r["id"] for r in picked]
+            qmarks = ",".join("?" * len(ids))
+            rids = [r[0] for r in conn.execute(
+                "SELECT rowid FROM event_metadata WHERE event_id IN (%s)" % qmarks, ids)]
+            l1s, l2s = [], []
+            if rids:
+                lo, hi = min(rids), max(rids)
+                try:
+                    l1s = conn.execute(
+                        "SELECT session_id, topic, summary_text FROM summary_l1 "
+                        "WHERE to_rowid >= ? AND from_rowid <= ? LIMIT 2",
+                        (lo, hi),
+                    ).fetchall()
+                except Exception:
+                    l1s = []
+                try:
+                    l2s = conn.execute(
+                        "SELECT id, text FROM summary_l2_blocks "
+                        "WHERE to_rowid >= ? AND from_rowid <= ? AND source != 'legacy_summary_l2' LIMIT 2",
+                        (lo, hi),
+                    ).fetchall()
+                except Exception:
+                    l2s = []
+        finally:
+            conn.close()
+        stamp = str(picked[0].get("date") or "")[:16]
+        for sess, topic, text in l1s:
+            body = ("%s: %s" % (topic or "", text or "")).strip(": ").strip()
+            if body:
+                facts.append({
+                    "ev": "l1:%s" % (sess or "win"), "time": stamp,
+                    "fact": "[l1] " + body[:400], "layer": "l1",
+                })
+        for lid, text in l2s:
+            if text:
+                facts.append({
+                    "ev": "l2:%s" % lid, "time": stamp,
+                    "fact": "[l2] " + str(text)[:400], "layer": "l2",
+                })
+        for r in picked:
+            facts.append({
+                "ev": str(r.get("id") or "").split("::")[-1],
+                "time": str(r.get("date") or "")[:16],
+                "fact": str(r.get("content") or "")[:400],
+                "layer": "event",
+            })
+        return [f for f in facts if f.get("ev") and f.get("fact")]
+    except Exception:
+        return []
+
+
+def _window_pack(ctx, user, window):
+    if not user or not window:
+        return []
+    if "window_loader" in (ctx or {}):
+        loader = ctx.get("window_loader")
+        if not callable(loader):
+            return []
+        try:
+            got = loader(user, window) or []
+        except Exception:
+            return []
+        return [f for f in got if isinstance(f, dict) and not f.get("is_self") and f.get("ev")]
+    return _load_window_shelf(user, window)
+
+
 def finish(resp, ctx=None):
     """Apply the pack to a turn dict. Never raises. Returns the same dict."""
     try:
@@ -951,8 +1110,18 @@ def _finish(resp, ctx):
         records, placed = nest_critical(records, criticals, ctx.get("rows"))
         resp["records"] = _public_records(records)
         facts = [f for f in facts if str(f.get("ev") or "").split("::")[-1] not in placed]
-    resp["facts"] = facts
     window = date_window(message, today=today)
+    if window and user:
+        have = {str(f.get("ev") or "").split("::")[-1] for f in facts if isinstance(f, dict)}
+        for extra in _window_pack(ctx, user, window):
+            ev = str(extra.get("ev") or "").split("::")[-1]
+            if not ev or ev in have or extra.get("is_self"):
+                continue
+            if not _in_window(extra, window):
+                continue
+            facts.append(extra)
+            have.add(ev)
+    resp["facts"] = facts
     if window:
         resp["window"] = window
         mapped = window_map(facts, window)
@@ -1022,7 +1191,12 @@ def _finish(resp, ctx):
         hint = looks_done_hint(resp.get("board") or [], commits or [])
         if hint:
             resp["board_hint"] = hint
-    resp["next_step"] = next_step_for(resp, message)
+    closed_now = {}
+    if duty == "cube_nothing":
+        closed_now["cube"] = True
+    if duty == "vote_nothing":
+        closed_now["vote"] = True
+    resp["next_step"] = next_step_for(resp, message, closed_duty=closed_now)
     return resp
 
 

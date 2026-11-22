@@ -88,6 +88,15 @@ class SearchAs(unittest.TestCase):
             self.assertTrue(any("N" in s for s in stored))
             self.assertFalse(any("[" in s for s in stored))
             self.assertEqual(row[1], 0.2)
+            token = "SECRETTOKEN"
+            with mock.patch("app.recall_later.threading.Thread", _NoThread):
+                with mock.patch("app.recall_later._sh.connect", lambda uid: sqlite3.connect(path)):
+                    jid2 = rl.submit("t73v2-user", "my test password is " + token, search_as=["password is " + token])
+            c = sqlite3.connect(path)
+            row2 = c.execute("SELECT query, search_as_json FROM recall_later WHERE job_id=?", (jid2,)).fetchone()
+            c.close()
+            self.assertNotIn(token, (row2[0] or "") + (row2[1] or ""))
+            self.assertIn("[secret]", row2[0])
         finally:
             os.remove(path)
 
@@ -187,6 +196,33 @@ class RecallComponent(unittest.TestCase):
         self.assertEqual(rc.judge(report, [], {got[0]["ev"]}, "vault store"), [])
         self.assertEqual(rc.judge(report, ["remember_91"], set(), "vault store"), [])
 
+    def test_launch_scrubs_secret_before_submit(self):
+        seen = {}
+
+        def fake_submit(uid, query, search_as=None, cost_cap=None):
+            seen["query"] = query
+            seen["search_as"] = list(search_as or [])
+            return "rl_scrub"
+
+        token = "SECRETTOKEN"
+        with mock.patch("app.memory_v2.db_path", return_value=self.shelf):
+            jid = rc.launch({
+                "uid": "scrub-user",
+                "message": "my test password is " + token,
+                "topic": "my test password is " + token,
+                "turns": 5,
+                "last_sched": 0,
+            }, submit_fn=fake_submit)
+        self.assertEqual(jid, "rl_scrub")
+        blob = json.dumps(seen)
+        self.assertNotIn(token, blob)
+        self.assertIn("[secret]", seen["query"])
+        c = sqlite3.connect(self.path)
+        topic = c.execute("SELECT last_topic FROM rc_state").fetchone()[0]
+        c.close()
+        self.assertNotIn(token, topic or "")
+        self.assertIn("[secret]", topic or "")
+
 
 class RankAndCritical(unittest.TestCase):
     def test_off_topic_critical_does_not_outrank(self):
@@ -258,7 +294,9 @@ class PoolAndAuthor(unittest.TestCase):
         self.assertTrue(cv.test_pool_account("who@example.com"))
         self.assertTrue(cv.test_pool_account("test_bot"))
         self.assertFalse(cv.test_pool_account("ada@skv.network"))
+        self.assertFalse(cv.test_pool_account("skvtest_smoke_fixed@test.skv.invalid"))
         self.assertTrue(cv.refuse_live_pool("a@example.invalid", live))
+        self.assertFalse(cv.refuse_live_pool("skvtest_smoke_fixed@test.skv.invalid", live))
         self.assertFalse(cv.refuse_live_pool("a@example.invalid", "/tmp/not-the-live-pool.db"))
         self.assertFalse(cv.refuse_live_pool("ada@skv.network", live))
 

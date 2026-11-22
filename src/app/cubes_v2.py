@@ -228,7 +228,9 @@ def test_pool_account(uid):
         return True
     if not u:
         return False
-    if u.endswith(".invalid"):
+    # example.invalid is a test alias. A real smoke fixture such as
+    # *@test.skv.invalid is a normal account and must be able to publish.
+    if u.endswith("@example.invalid"):
         return True
     for suf in ("@example.com", "@example.org", "@example.net"):
         if u.endswith(suf):

@@ -292,6 +292,14 @@ def _job_cost_cap(row_cap, cap):
 
 
 def submit(uid, query, search_as=None, cost_cap=None):
+    # mask_text misses "password is <token>". Scrub before the row is written.
+    try:
+        from app.spontaneous_recall import scrub
+        query = scrub(query)
+        if search_as:
+            search_as = [scrub(x) if isinstance(x, str) else x for x in search_as]
+    except Exception:
+        pass
     query = mask_text((query or "").strip())[:500]
     if len(query) < 2:
         raise ValueError("query required")

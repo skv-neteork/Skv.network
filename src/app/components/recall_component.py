@@ -125,9 +125,10 @@ def _shelf_exists(uid):
 
 
 def _statements(message, topic):
-    raw = (message or topic or "").strip().rstrip("?").strip()
-    if not raw:
-        blob = topic or ""
+    """One search form. Secrets are scrubbed before anything is stored or queued."""
+    raw = _scrub(message or topic or "").strip().rstrip("?").strip()
+    if not raw or raw == "[secret]":
+        blob = _scrub(topic or message or "")
         raw = "прошлые решения по этой теме" if re.search(r"[А-Яа-яЁё]", blob) else "past decisions on this topic"
     return [raw[:160]]
 
@@ -141,11 +142,12 @@ def launch(state, submit_fn=None):
     cap = job_cap()
     c = _conn()
     try:
+        topic_s = _scrub(state.get("topic") or "")
         if _spent(c, user) + cap > day_cap():
             c.execute(
                 "INSERT INTO rc_state (user, turns, last_topic, last_sched, skips) VALUES (?,?,?,?,1) "
                 "ON CONFLICT(user) DO UPDATE SET skips=coalesce(rc_state.skips,0)+1",
-                (user, int(state.get("turns") or 0), state.get("topic") or "", int(state.get("turns") or 0)),
+                (user, int(state.get("turns") or 0), topic_s, int(state.get("turns") or 0)),
             )
             c.commit()
             return None
@@ -162,7 +164,7 @@ def launch(state, submit_fn=None):
         c.execute(
             "INSERT INTO rc_state (user, turns, last_topic, last_sched, skips) VALUES (?,?,?,?,0) "
             "ON CONFLICT(user) DO UPDATE SET turns=excluded.turns, last_topic=excluded.last_topic, last_sched=excluded.last_sched",
-            (user, int(state.get("turns") or 0), state.get("topic") or "", int(state.get("turns") or 0)),
+            (user, int(state.get("turns") or 0), topic_s, int(state.get("turns") or 0)),
         )
         c.commit()
         return jid
@@ -170,12 +172,18 @@ def launch(state, submit_fn=None):
         c.close()
 
 
+_LEAK_FALLBACK = re.compile(
+    r"(?i)\b(?:passwords?|passwds?|secrets?|tokens?|api[\s_-]*keys?)\b\s*(?:is|was|are|=|:)?\s*\S+"
+)
+
+
 def _scrub(text):
+    """Same secret drop as spontaneous recall. A failed import still drops the token."""
     try:
         from app.spontaneous_recall import scrub
         return scrub(text or "")
     except Exception:
-        return (text or "")[:200]
+        return _LEAK_FALLBACK.sub("[secret]", text or "")[:200]
 
 
 def _tail(eid):

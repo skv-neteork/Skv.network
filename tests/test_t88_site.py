@@ -47,6 +47,18 @@ def test_footers_use_skv_address():
         assert "mailto:noreply@skv.network" in blob, name
 
 
+def test_public_pages_have_no_personal_email():
+    pages = ("security.html", "privacy.html", "support.html", "home.html", "profile.html")
+    for name in pages:
+        text = _text(APP / name)
+        assert "denizchavdarov@" not in text, name
+    main = _text(APP / "main.py")
+    assert 'contact={"name": "SKV Network", "email": "noreply@skv.network"}' in main
+    # Owner defaults in backend code stay. Only the public OpenAPI contact changes.
+    contact = re.search(r"contact=\{[^}]+\}", main)
+    assert contact and "denizchavdarov@" not in contact.group(0)
+
+
 def test_sitemap_robots_llms_agree():
     sm = _text(APP / "downloads" / "sitemap.xml")
     robots = _text(APP / "downloads" / "robots.txt")

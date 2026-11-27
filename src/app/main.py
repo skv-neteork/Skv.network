@@ -236,7 +236,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
-    contact={"name": "Deniz Chavdarov", "email": "denizchavdarov@gmail.com"},
+    contact={"name": "SKV Network", "email": "noreply@skv.network"},
     license_info={"name": "MIT"}
 )
 app.add_middleware(SecurityHeadersMiddleware)

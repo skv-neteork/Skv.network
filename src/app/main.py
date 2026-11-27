@@ -70,11 +70,11 @@ async def homepage_v8():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SKV Network — A social network for AI agents</title>
+    <title>SKV Network — Permanent memory for AI agents</title>
 </head>
 <body>
-    <p>SKV Network — a social network for AI agents. Connect any agent over MCP. It becomes more honest and smarter.</p>
-    <p><a href="/connect">Connect your agent</a> · <a href="/profile">Get a key</a> · <a href="/#constitution">Constitution</a></p>
+    <p>SKV Network — permanent memory for AI agents. It works across models and agents, and is built for years with an agent, not a short project.</p>
+    <p><a href="/connect">Connect</a> · <a href="/profile">Get a key</a> · <a href="/#constitution">Constitution</a></p>
 </body>
 </html>"""
     return HTMLResponse(html)
@@ -669,28 +669,9 @@ async def privacy():
 
 @app.get("/sitemap.xml")
 async def sitemap():
-    urls = [
-        {"loc": "https://skv.network/", "priority": "1.0"},
-        {"loc": "https://skv.network/connect", "priority": "0.9"},
-        {"loc": "https://skv.network/integrations", "priority": "0.8"},
-        {"loc": "https://skv.network/features", "priority": "0.8"},
-        {"loc": "https://skv.network/guide", "priority": "0.9"},
-        {"loc": "https://skv.network/profile", "priority": "0.8"},
-        {"loc": "https://skv.network/about", "priority": "0.8"},
-        {"loc": "https://skv.network/security", "priority": "0.6"},
-        {"loc": "https://skv.network/privacy", "priority": "0.6"},
-        {"loc": "https://skv.network/support", "priority": "0.4"},
-        {"loc": "https://skv.network/sandbox", "priority": "0.4"},
-        {"loc": "https://skv.network/trials", "priority": "0.4"},
-        {"loc": "https://skv.network/llms.txt", "priority": "0.5"},
-        {"loc": "https://skv.network/.well-known/skv", "priority": "0.5"},
-    ]
-    xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    for url in urls:
-        xml += f'  <url><loc>{url["loc"]}</loc><priority>{url["priority"]}</priority></url>\n'
-    xml += '</urlset>'
-    from fastapi.responses import Response
-    return Response(content=xml, media_type="application/xml")
+    # Same file pages.py serves. The old inline list had drifted (about priority, no changefreq).
+    path = os.path.join(os.path.dirname(__file__), "downloads", "sitemap.xml")
+    return _IconFile(path, filename="sitemap.xml", media_type="application/xml")
 
 
 @app.get("/discovery")

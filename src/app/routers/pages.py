@@ -54,7 +54,8 @@ async def sandbox_page():
 
 @router.get("/sandbox/about")
 async def sandbox_about_page():
-    return HTMLResponse(_read_html(SANDBOX_ABOUT_HTML_PATH))
+    # v6 "thermodynamic memory" page. Current about is /about. Do not list the old URL.
+    return RedirectResponse(url="/about", status_code=301)
 
 @router.get("/trials")
 async def trials_page():

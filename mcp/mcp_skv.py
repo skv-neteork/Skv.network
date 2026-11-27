@@ -1119,7 +1119,7 @@ def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = Fals
     return out
 
 
-def _turn_hits(user_message, query, search_as, lines, sensitive_list):
+def _turn_hits(user_message, query, search_as, lines, sensitive_list, compact=False):
     """One /search, then rank decisions, critical, L1/L2 above recent self echoes. No extra search_as forms."""
     q = _SCRUB.scrub((query or user_message or "")[:500], sensitive_list)
     if _is_low(user_message) and not query and not search_as:
@@ -1160,7 +1160,8 @@ def _turn_hits(user_message, query, search_as, lines, sensitive_list):
                             break
                     if best:
                         extra = tc.neighbours(conn, best, topic)
-                hits = tc.rank(list(hits) + layers + extra, topic, echoes, multi, limit=5)
+                limit = tc.turn_rank_limit(compact) if hasattr(tc, "turn_rank_limit") else 5
+                hits = tc.rank(list(hits) + layers + extra, topic, echoes, multi, limit=limit)
             except Exception as exc:
                 print("[turn] context rank skipped: %s" % type(exc).__name__, flush=True)
         return q, hits
@@ -2192,6 +2193,13 @@ def _real_cites(text):
     """[ev:...] citations minus doc placeholders like [ev:id], [ev:ID], [ev:<id>], [ev:...]."""
     return [c for c in dict.fromkeys(re.findall(r"\[ev:([^\]\s]+)\]", text or "")) if not _PLACEHOLDER_ID.match(c.strip())]
 def _compact_facts(hits, own, rel=0.7, n=3, chars=300):
+    tc = _TC
+    if tc is not None and hasattr(tc, "pack_2400_enabled") and tc.pack_2400_enabled():
+        rows = tc.compact_facts(hits, own)
+        for row in rows:
+            if not row.get("time"):
+                row["time"] = _ev_time(row.get("event_id") or row.get("ev") or "")
+        return rows
     top = max([float(h.get("score") or 0) for h in hits] or [0])
     out = []
     for h in hits:
@@ -3118,7 +3126,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
     if not draft and event_id:
         return _dumps({"mode": "event", "event": _req("GET", f"/event/{_full_eid(event_id)}", params={"lines": "all"})})
     same = t["last_user"] == user_message and _time.time() - t["saved_t"] < 900 and t["last_eid"]
-    q, hits = _turn_hits(user_message, query, search_as, lines, [x.strip() for x in (sensitive or "").split("|")])
+    q, hits = _turn_hits(user_message, query, search_as, lines, [x.strip() for x in (sensitive or "").split("|")], compact=compact)
     own = _sid(t.get("last_eid") or "") if same else ""
     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _fact_text(h["summary"])} for h in hits if _sid(h["event_id"]) != own]
     cubes = []

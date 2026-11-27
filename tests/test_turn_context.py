@@ -201,5 +201,67 @@ class Sqlite(unittest.TestCase):
         self.assertTrue(all(tc.on_topic("cube store ship", h["summary"]) for h in near))
 
 
+class Pack2400(unittest.TestCase):
+    def test_flag_defaults_on_and_off_is_explicit(self):
+        self.assertTrue(tc.pack_2400_enabled({}))
+        self.assertTrue(tc.pack_2400_enabled({"q2s": True}))
+        self.assertFalse(tc.pack_2400_enabled({"turn_pack_2400": False}))
+        self.assertTrue(tc.pack_2400_enabled({"turn_pack_2400": True}))
+        self.assertEqual(tc.turn_rank_limit(True, {}), 12)
+        self.assertEqual(tc.turn_rank_limit(False, {}), 5)
+        self.assertEqual(tc.turn_rank_limit(True, {"turn_pack_2400": False}), 5)
+
+    def test_default_pack_keeps_the_lower_score_and_clips_at_400(self):
+        hits = [
+            {"event_id": "u::remember_1", "summary": "A" * 500, "score": 1, "time": "2026-11-01"},
+            {"event_id": "u::remember_2", "summary": "gold T87 here", "score": 0.5, "time": "2026-11-02"},
+            {"event_id": "remember_own", "summary": "skip me", "score": 0.9, "time": "2026-11-03"},
+        ]
+        facts = tc.compact_facts(hits, "remember_own", cfg={})
+        text = "\n".join(f["fact"] for f in facts)
+        self.assertEqual([f["ev"] for f in facts], ["remember_1", "remember_2"])
+        self.assertIn("T87", text)
+        self.assertIn("[ev:remember_2]", text)
+        self.assertLessEqual(len("A" * 400), 400)
+        self.assertIn("A" * 400, facts[0]["fact"])
+        self.assertNotIn("A" * 401, facts[0]["fact"])
+        self.assertIn("[cut]", facts[0]["fact"])
+        self.assertTrue(facts[0].get("pack2400"))
+        bodies = []
+        for f in facts:
+            body = f["fact"].split(" [ev:")[0]
+            body = body.replace(" [cut]", "")
+            bodies.append(body)
+        self.assertLessEqual(len("\n".join(bodies)), 2400)
+
+    def test_flag_off_restores_three_by_two_hundred(self):
+        hits = [
+            {"event_id": "u::remember_1", "summary": "A" * 500, "score": 1},
+            {"event_id": "u::remember_2", "summary": "gold T87 here", "score": 0.5},
+            {"event_id": "u::remember_3", "summary": "B" * 50, "score": 0.9},
+            {"event_id": "u::remember_4", "summary": "C" * 50, "score": 0.8},
+        ]
+        facts = tc.compact_facts(hits, "", cfg={"turn_pack_2400": False})
+        self.assertEqual(len(facts), 3)
+        self.assertNotIn("T87", "\n".join(f["fact"] for f in facts))
+        self.assertLessEqual(len(facts[0]["fact"].split(" [ev:")[0].replace(" [cut]", "")), 200)
+        self.assertNotIn("pack2400", facts[0])
+
+
+class PackSurvivesDiet(unittest.TestCase):
+    def test_topic_diet_keeps_a_packed_fact_and_drops_a_plain_one(self):
+        src = os.path.join(os.path.dirname(__file__), "..", "src")
+        if src not in sys.path:
+            sys.path.insert(0, src)
+        from app.turn_pack import select_facts
+        packed = [{"ev": "remember_1", "fact": "unrelated archive note " * 20, "time": "2026-11-01", "pack2400": True}]
+        plain = [{"ev": "remember_1", "fact": "unrelated archive note " * 20, "time": "2026-11-01"}]
+        kept = select_facts(packed, message="как сделать кубы?", recent_ids=[], seen_fact_ids=[])
+        dropped = select_facts(plain, message="как сделать кубы?", recent_ids=[], seen_fact_ids=[])
+        self.assertEqual(len(kept), 1)
+        self.assertNotIn("pack2400", kept[0])
+        self.assertEqual(dropped, [])
+
+
 if __name__ == "__main__":
     unittest.main()

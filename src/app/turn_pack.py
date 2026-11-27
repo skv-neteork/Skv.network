@@ -339,6 +339,9 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
         return bool(f.get("is_self"))
 
     def _keep(f):
+        # The 2400 compact pack already chose this row. A second topic cut would drop it.
+        if f.get("pack2400"):
+            return True
         if _self(f):
             return False
         if window and _in_window(f, window):
@@ -359,6 +362,9 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
         kept = inside[:window_cap] + outside
     elif window:
         kept = [f for f in kept if _keep(f)][:window_cap]
+    for f in kept:
+        if isinstance(f, dict):
+            f.pop("pack2400", None)
     return kept
 
 

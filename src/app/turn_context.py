@@ -597,6 +597,121 @@ def rank(hits, topic, echo_ids, multi, limit=5):
     return out
 
 
+# Compact turn pack. search_config.json key turn_pack_2400, default on when the key is absent.
+_SEARCH_CFG = "/data/skv/search_config.json"
+PACK_BUDGET = 2400
+PACK_CLIP = 400
+PACK_RANK = 12
+_LEGACY_RANK = 5
+
+
+def pack_2400_enabled(cfg=None):
+    """True unless the config explicitly sets turn_pack_2400 to false. Missing file or key stays on."""
+    if cfg is None:
+        cfg = _search_cfg()
+    if not isinstance(cfg, dict) or "turn_pack_2400" not in cfg:
+        return True
+    return bool(cfg.get("turn_pack_2400"))
+
+
+def _search_cfg():
+    try:
+        with open(_SEARCH_CFG, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def turn_rank_limit(compact=False, cfg=None):
+    """Compact turns read 12 ranked hits so the 2400 pack can fill. Otherwise the old limit of 5."""
+    if compact and pack_2400_enabled(cfg):
+        return PACK_RANK
+    return _LEGACY_RANK
+
+
+def _event_sid(event_id):
+    return str(event_id or "").split("::")[-1]
+
+
+def compact_facts(hits, own="", cfg=None, rel=0.7, n=3, chars=200):
+    """Facts for turn(compact=true).
+
+    Flag on: the same character pack the bench measured (clip 400, stop at 2400, no 0.7 cut).
+    Flag off: relative 0.7, three facts, chars each. own is this turn's event and is skipped.
+    pack2400 marks a packed row so the later topic diet does not throw it away.
+    """
+    own_sid = _event_sid(own)
+    if pack_2400_enabled(cfg):
+        return _pack_budget(hits, own_sid, PACK_BUDGET, PACK_CLIP)
+    return _legacy_facts(hits, own_sid, rel, n, chars)
+
+
+def _pack_budget(hits, own_sid, budget, clip):
+    parts = []
+    chosen = []
+    used = 0
+    for h in hits or []:
+        if not isinstance(h, dict):
+            continue
+        ev = _event_sid(h.get("event_id"))
+        if own_sid and ev == own_sid:
+            continue
+        text = re.sub(r"\s+", " ", str(h.get("summary") or "")).strip()
+        if not text:
+            continue
+        piece = text[:clip]
+        extra = len(piece) + (1 if parts else 0)
+        if parts and used + extra > budget:
+            break
+        if not parts and len(piece) > budget:
+            piece = piece[:budget]
+        shown = piece.rstrip() + " [cut]" if len(text) > len(piece) else piece
+        fact = shown + (" [ev:%s]" % ev if ev else "")
+        parts.append(piece)
+        chosen.append({
+            "ev": ev,
+            "time": h.get("time") or "",
+            "fact": fact,
+            "event_id": h.get("event_id"),
+            "score": h.get("score"),
+            "summary": h.get("summary") or "",
+            "pack2400": True,
+        })
+        used += len(piece) + (1 if len(parts) > 1 else 0)
+        if used >= budget:
+            break
+    return chosen
+
+
+def _legacy_facts(hits, own_sid, rel, n, chars):
+    top = max([float(h.get("score") or 0) for h in (hits or []) if isinstance(h, dict)] or [0])
+    out = []
+    for h in hits or []:
+        if not isinstance(h, dict):
+            continue
+        ev = _event_sid(h.get("event_id"))
+        if own_sid and ev == own_sid:
+            continue
+        if top and h.get("score") is not None and float(h.get("score") or 0) < rel * top:
+            continue
+        text = re.sub(r"\s+", " ", str(h.get("summary") or "")).strip()
+        if not text:
+            continue
+        body = text[:chars].rstrip() + " [cut]" if len(text) > chars else text
+        out.append({
+            "ev": ev,
+            "time": h.get("time") or "",
+            "fact": body + (" [ev:%s]" % ev if ev else ""),
+            "event_id": h.get("event_id"),
+            "score": h.get("score"),
+            "summary": h.get("summary") or "",
+        })
+        if len(out) >= n:
+            break
+    return out
+
+
 def open_ro(path):
     if not path:
         return None

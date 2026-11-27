@@ -91,7 +91,7 @@ def _hits(key, q, search_as=None, keep=8, context=None):
     return out
 
 
-def _turn_hits(key, user, user_message, query, search_as, sensitive):
+def _turn_hits(key, user, user_message, query, search_as, sensitive, compact=False):
     """One /search, then rank durable layers above recent self echoes. Does not invent search_as."""
     from app.secret_scrub import scrub as _scrub
     q = _scrub((query or user_message or "")[:500], sensitive)
@@ -134,7 +134,7 @@ def _turn_hits(key, user, user_message, query, search_as, sensitive):
                         break
                 if best:
                     extra = tc.neighbours(conn, best, topic)
-            hits = tc.rank(list(hits) + layers + extra, topic, echoes, multi, limit=5)
+            hits = tc.rank(list(hits) + layers + extra, topic, echoes, multi, limit=tc.turn_rank_limit(compact))
         except Exception as exc:
             print("[rest_turn] context rank skipped: %s" % type(exc).__name__, flush=True)
         return q, hits
@@ -180,15 +180,9 @@ def _real_cites(text):
     text = re.sub(r"`[^`\n]*`", " ", text)                          # inline code spans: examples, not citations
     return [c for c in dict.fromkeys(re.findall(r"\[ev:([^\]\s]+)\]", text)) if not _PLACEHOLDER_ID.match(c.strip())]
 def _compact_facts(hits, own, rel=0.7, n=3, chars=200):
-    top = max([float(h.get("score") or 0) for h in hits] or [0])
-    out = []
-    for h in hits:
-        if _sid(h.get("event_id")) == own: continue
-        if top and h.get("score") is not None and float(h.get("score") or 0) < rel * top: continue
-        s = re.sub(r"\s+", " ", str(h.get("summary") or "")).strip()
-        out.append({"ev": _sid(h.get("event_id")), "time": h.get("time") or "", "fact": (s[:chars].rstrip() + " [cut]" if len(s) > chars else s) + " [ev:%s]" % _sid(h.get("event_id"))})
-        if len(out) >= n: break
-    return out
+    """Compact facts. turn_pack_2400 (default on) is the 2400-character pack; false restores 3 x chars."""
+    from app import turn_context as tc
+    return tc.compact_facts(hits, own, rel=rel, n=n, chars=chars)
 def _compact_gate(user, session, cubes, checklist, db):
     """Return cubes/checklist only when their hash changed since this session's last turn; else versions only."""
     import sqlite3 as _sq, hashlib as _hl, json as _js
@@ -529,7 +523,7 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     # ext/hook: the same prompt on another site (or sent again in a new reply) is a NEW turn, not a revision -> hash includes the source
     _um_h = "h:" + hashlib.sha256(((user_message or "") + (("|" + str(source)) if ext_src else "")).encode()).hexdigest()  # state keeps a hash, never the raw text
     same = bool(last_user in (_um_h, user_message) and now - (saved_t or 0) < 900 and last_eid)
-    q, hits = _turn_hits(key, user, user_message, query, search_as, sensitive)
+    q, hits = _turn_hits(key, user, user_message, query, search_as, sensitive, compact=compact)
     own = _sid(last_eid) if same else ""
     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _words(h["summary"], 60)} for h in hits if _sid(h["event_id"]) != own]
     cubes = []

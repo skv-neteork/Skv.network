@@ -1,8 +1,10 @@
 """Turn-only memory context.
 
-Folds the last user lines into the one search query, ranks decisions / critical
-marks / L1 / L2 above recent self Q/A, and returns several dated facts for a
-multi-event question. No embeddings and no change to /search ranking.
+The search query is the clean user message. A short or incomplete message also
+passes the last one or two user replies as a separate list (see context_queries);
+they are not glued into the query. Ranks decisions / critical marks / L1 / L2
+above recent self Q/A, and returns several dated facts for a multi-event question.
+No embeddings and no change to /search ranking.
 """
 import json
 import re
@@ -129,39 +131,76 @@ def _clip(text, n):
     return t if len(t) <= n else t[:n].rstrip() + "…"
 
 
-def _flat(text):
-    """Context folded into a short follow-up must not look like a new question (that would add Q2S hybrids)."""
-    return _clip(re.sub(r"[?？]", " ", text or ""), 140)
+# A file, a path, or an id the follow-up itself does not repeat. Bare numbers are not enough.
+_SPECIFIC = re.compile(
+    r"(?:remember_\d+|profile_[0-9a-f]{6,}|prof:[0-9a-z0-9]{6,}|\bT\d{2,3}\b|"
+    r"[\w.-]+\.(?:py|md|txt|html|json|docx|sh)|/[\w./-]{3,})",
+    re.I,
+)
+
+
+def _word_list(msg):
+    raw = " ".join(re.sub(r"[^\w\s]", " ", (msg or "").lower(), flags=re.U).split())
+    return raw.split() if raw else []
+
+
+def incomplete(msg):
+    """Short, or at most six words that do not already name a file or an id.
+
+    A longer line stands alone. A short line that already names its own file or id
+    stands alone too: the previous reply must not compete with that name.
+    """
+    msg = (msg or "").strip()
+    if not msg or _SPECIFIC.search(msg):
+        return False
+    if is_short(msg):
+        return True
+    return len(_word_list(msg)) <= 6
+
+
+def _context_line(text, n=400):
+    """One previous reply. A file or id past the head is kept inside the clip."""
+    t = re.sub(r"\s+", " ", text or "").strip()
+    if len(t) <= n:
+        return t
+    marks = list(_SPECIFIC.finditer(t))
+    if not marks or marks[0].end() <= n:
+        return t[:n]
+    m = marks[0]
+    head = t[:60].rstrip()
+    window = t[max(0, m.start() - 40): m.end() + 80]
+    return (head + " " + window).strip()[:n]
+
+
+def context_queries(user_message, recent_user_messages, limit=2):
+    """Last 1-2 user replies when the message is short or incomplete.
+
+    Empty for a long self-contained message. This list is a separate search
+    signal. It is not concatenated onto the query.
+    """
+    if not incomplete(user_message):
+        return []
+    msg = (user_message or "").strip()
+    out = []
+    for line in recent_user_messages or []:
+        t = (line or "").strip()
+        if not t or t == msg or t in out:
+            continue
+        out.append(_context_line(t))
+        if len(out) >= max(1, int(limit or 2)):
+            break
+    return out
 
 
 def build_search(user_message, search_as, recent_user_messages):
-    """Return (query, search_as). One query string. search_as is only what the agent passed."""
+    """Return (query, search_as). The query is the clean message, never a glued line.
+
+    search_as is only what the agent passed. recent_user_messages is not folded in;
+    callers that want the follow-up signal use context_queries on the same lines.
+    """
     kept = forms(search_as)
     msg = (user_message or "").strip()
-    recent = []
-    for line in recent_user_messages or []:
-        t = (line or "").strip()
-        if not t or t == msg or t in recent:
-            continue
-        recent.append(t)
-        if len(recent) >= 4:
-            break
-    if is_short(msg):
-        bits = [msg] if msg else []
-        bits.extend(_flat(line) for line in recent[:3])
-        return " ".join(bits).strip()[:500], kept
-    extra = []
-    have = set(content_words(msg))
-    for line in recent[:3]:
-        for w in content_words(line):
-            if w not in have and w not in extra:
-                extra.append(w)
-            if len(extra) >= 8:
-                break
-        if len(extra) >= 8:
-            break
-    q = msg if not extra else (msg + " " + " ".join(extra))
-    return q[:500], kept
+    return msg[:500], kept
 
 
 def user_q(raw):
@@ -503,7 +542,7 @@ def _yyyymmdd(time_s):
 
 
 def rank(hits, topic, echo_ids, multi, limit=5):
-    """Layer order, then score, then newer day. At most one echo, and none when three durable hits exist.
+    """Layer order, then score, then newer day. At most one recent echo, kept as an ordinary event.
 
     An off-topic critical or decision mark is an ordinary event. It does not take the durable boost.
     An empty topic does not demote, because on_topic is false for every row in that case.
@@ -521,13 +560,16 @@ def rank(hits, topic, echo_ids, multi, limit=5):
             if item["layer"] in ("critical", "decision") and not on_topic(topic, item.get("summary") or ""):
                 item["layer"] = "event"
                 item["score"] = float(item.get("score") or 0) * 0.2
-    durables = [h for h in prepared if h["layer"] in _DURABLE]
-    drop_echo = len(durables) >= 3
     echoes = [h for h in prepared if h["layer"] == "echo"]
     rest = [h for h in prepared if h["layer"] != "echo"]
-    if not drop_echo and echoes:
+    if echoes:
+        # Demote the newest self-echo, do not drop it. A short follow-up's file
+        # often lives in that line. One echo stays, as an ordinary event, so it
+        # can still fit in the pack. The rest of the tail stays out.
         echoes.sort(key=lambda h: -float(h.get("score") or 0))
-        rest.append(echoes[0])
+        kept = echoes[0]
+        kept["layer"] = "event"
+        rest.append(kept)
     order = {name: i for i, name in enumerate(_ORDER)}
     rest.sort(key=lambda h: (order.get(h["layer"], 9), -float(h.get("score") or 0), -_yyyymmdd(h.get("time"))))
     if multi:

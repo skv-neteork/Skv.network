@@ -95,6 +95,7 @@ class SearchRequest(BaseModel):
     exclude_imports: bool = False     # drop kind=import, archived and test events
     source: Optional[str] = None      # events (default) | board | all
     search_as: Optional[List[str]] = None   # Q2S: up to 3 statements of how the answer was written (agent-supplied)
+    context: Optional[List[str]] = None     # T90: last 1-2 user replies, short follow-up only; fused at weight 0.25, not glued
     focus_event_id: Optional[str] = None    # B10, rejected by B11: use date/since/until around that event
     budget_tokens: Optional[int] = None     # B10 mini-lens budget (default 3000, cap 12000)
     pack: bool = False                      # B10: return mini-lens package (memory_search / turn / follow-up)

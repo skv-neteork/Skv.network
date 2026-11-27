@@ -65,10 +65,12 @@ def _words(s, n):
     return " ".join(w[:n]) + (" …" if len(w) > n else "")
 
 
-def _hits(key, q, search_as=None, keep=8):
+def _hits(key, q, search_as=None, keep=8, context=None):
     _b = {"query_text": q, "top_k": keep, "pack": True, "budget_tokens": 1800}
     if search_as:
         _b["search_as"] = [str(x)[:160] for x in (search_as if isinstance(search_as, list) else [search_as])][:3]
+    if context:
+        _b["context"] = [str(x)[:400] for x in list(context)[:2] if str(x or "").strip()]
     d = _req(key, "POST", "/search", _b)
     allr = (d or {}).get("results") or [] if isinstance(d, dict) else []
     top = max([float(r.get("score") or 0) for r in allr] or [0])
@@ -102,7 +104,7 @@ def _turn_hits(key, user, user_message, query, search_as, sensitive):
     except Exception as exc:
         print("[rest_turn] turn_context unavailable: %s" % type(exc).__name__, flush=True)
         return q, _hits(key, q, search_as)
-    echoes, multi = set(), False
+    echoes, multi, ctx = set(), False, []
     try:
         try:
             multi = bool(tc.is_multi(user_message or ""))
@@ -114,9 +116,10 @@ def _turn_hits(key, user, user_message, query, search_as, sensitive):
             q2, sa2 = tc.build_search(seed, search_as, recent)
             q = _scrub((q2 or q)[:500], sensitive)
             search_as = sa2
+            ctx = tc.context_queries(user_message or "", recent)
         except Exception as exc:
             print("[rest_turn] context expand skipped: %s" % type(exc).__name__, flush=True)
-        hits = _hits(key, q, search_as)
+        hits = _hits(key, q, search_as, context=ctx)
         try:
             topic = q if tc.is_short(user_message or "") else (user_message or q)
             layers = tc.layer_from_conn(conn, topic) if conn is not None else []

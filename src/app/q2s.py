@@ -20,13 +20,16 @@ Rollback: rollback_q2s.sh pron-off (instant) | rollback_q2s.sh pron (remove hook
 import os, re, json, time, contextvars, hashlib, sqlite3
 
 SEARCH_AS = contextvars.ContextVar("q2s_search_as", default=None)
+# Last 1-2 user replies for a short follow-up. Separate from search_as. Empty for a long message.
+CONTEXT = contextvars.ContextVar("q2s_context", default=None)
 CFG = "/data/skv/search_config.json"
 DEF = {"q2s": False, "q2s_rules": True, "q2s_llm": False, "q2s_model": "google/gemini-2.5-flash-lite", "q2s_timeout_s": 1.5,
-       "q2s_w_raw": 1.0, "q2s_w_raw_agent": 0.3, "q2s_w_rules": 1.0, "q2s_w_agent": 1.0, "q2s_w_llm": 0.8, "q2s_fuse_agent": "max", "q2s_fuse_rules": "sum",
+       "q2s_w_raw": 1.0, "q2s_w_raw_agent": 0.3, "q2s_w_rules": 1.0, "q2s_w_agent": 1.0, "q2s_w_llm": 0.8, "q2s_w_context": 0.25,
+       "q2s_fuse_agent": "max", "q2s_fuse_rules": "sum",
        "q2s_pron": False, "q2s_forms_nf": None}
 CACHE = "/data/skv/metadata_store/q2s_cache.db"
 _cfg_cache = {"m": None, "v": dict(DEF)}
-STATS = {"agent": 0, "rules": 0, "llm": 0, "skip": 0, "err": 0}
+STATS = {"agent": 0, "rules": 0, "llm": 0, "context": 0, "skip": 0, "err": 0}
 
 
 def cfg():
@@ -216,18 +219,117 @@ def llm_forms(query):
 
 # ---------------- search ----------------
 def _fuse(lists, top_k, k=60, mode="sum"):
-    """Weighted RRF. lists = [(weight, [(eid, score)], family)]; mode "max" = max over the forms of one family, then sum."""
+    """Weighted RRF. lists = [(weight, [(eid, score)], family)] or a 4th item, that list's RRF k.
+    mode "max" = max over the forms of one family, then sum across families."""
     fam = {}
-    for w, lst, f in lists:
+    for item in lists:
+        w, lst, f = item[0], item[1], item[2]
+        lk = item[3] if len(item) > 3 and item[3] else k
         d = fam.setdefault(f if mode == "max" else id(lst), {})
-        for r, (e, _s) in enumerate(lst):
-            v = w / (k + r + 1)
+        for r, (e, _s) in enumerate(lst or []):
+            v = w / (float(lk) + r + 1)
             d[e] = max(d.get(e, 0.0), v) if mode == "max" else d.get(e, 0.0) + v
     sc = {}
     for d in fam.values():
         for e, v in d.items():
             sc[e] = sc.get(e, 0.0) + v
     return sorted(sc.items(), key=lambda x: -x[1])[:top_k]
+
+
+def _context_lines(context):
+    """Up to two context strings. An explicit empty list does not fall through to the context var."""
+    if context is None:
+        context = CONTEXT.get()
+    if not context:
+        return []
+    if isinstance(context, str):
+        context = [context]
+    if not isinstance(context, (list, tuple)):
+        return []
+    out = []
+    seen = set()
+    for x in context:
+        t = re.sub(r"\s+", " ", str(x or "")).strip()[:400]
+        key = t.lower()
+        if len(t) >= 3 and key not in seen:
+            seen.add(key)
+            out.append(t)
+        if len(out) >= 2:
+            break
+    return out
+
+
+def _context_weight(v):
+    try:
+        w = float(v.get("q2s_w_context", 0.25))
+    except Exception:
+        w = 0.25
+    if w < 0.2:
+        w = 0.2
+    if w > 0.3:
+        w = 0.3
+    return w
+
+
+_CTX_TOKEN = re.compile(
+    r"(?:remember_\d+|profile_[0-9a-f]{6,}|\bT\d{2,3}\b|"
+    r"[\w.-]+\.(?:py|md|txt|html|json|docx|sh)|/[\w./-]{3,})",
+    re.I,
+)
+
+
+def _context_ranked(uid, lines, pool):
+    """Fuse the one or two previous replies. A filename or id is a word hit first.
+
+    Hybrid's vector half was burying the file the previous line names. The word list
+    stays at weight 1 and the vector list at 0.35, so the rare token leads.
+    """
+    from app import search_v2 as _v2
+    parts = []
+    for i, line in enumerate(lines[:2]):
+        try:
+            words, _rare = _v2.fts_ranked(uid, line, limit=pool)
+        except Exception as e:
+            print("[q2s] context words skipped: %s" % type(e).__name__, flush=True)
+            words = []
+        try:
+            hy = _v2.hybrid(uid, line, top_k=pool)[0]
+        except Exception as e:
+            print("[q2s] context skipped: %s" % type(e).__name__, flush=True)
+            hy = []
+        if words:
+            parts.append((1.0, words, "ctxw%d" % i))
+        if hy:
+            parts.append((0.35, hy, "ctxv%d" % i))
+    if not parts:
+        return []
+    return _fuse(parts, pool, mode="sum")
+
+
+def _attach_context(primary, ctx, weight=0.25, strong=False):
+    """Add the context ranking to the fused question.
+
+    A fixed RRF weight of 0.25 never reaches the few centres the pack keeps, because
+    the question and its rule form are already summed. When the previous line names a
+    file or an id, the first three context hits sit just above that fused top so the
+    file is packed. Otherwise rank-1 stays under the best question hit.
+    """
+    if not ctx:
+        return list(primary or [])
+    primary = list(primary or [])
+    top = primary[0][1] if primary else 0.0
+    if top <= 0:
+        top = 1.0 / 61.0
+    shelf = min(0.97, 0.92 * (float(weight) / 0.25))
+    lead = (1.15, 1.08, 1.02) if strong else ()
+    sc = {e: s for e, s in primary}
+    for r, (e, _s) in enumerate(ctx):
+        if r < len(lead):
+            add = top * lead[r]
+        else:
+            add = (top * shelf) / (1 + r)
+        sc[e] = sc.get(e, 0.0) + add
+    return sorted(sc.items(), key=lambda kv: -kv[1])
 
 
 def plan(query, search_as=None):
@@ -273,46 +375,66 @@ def _hybrid_pair(uid, query, pool):
     return out[0], out[1]
 
 
-def search(uid, query, top_k=20, search_as=None):
-    """Fused [(event_id, score)] or None when Q2S does not apply."""
+def search(uid, query, top_k=20, search_as=None, context=None):
+    """Fused [(event_id, score)] or None when Q2S does not apply and there is no context list.
+
+    context is the last 1-2 user replies (weight q2s_w_context, default 0.25). It is its own
+    list. It is not concatenated onto query and it is not search_as.
+    """
     from app import search_v2 as _v2
     v = cfg()
+    lines = _context_lines(context)
     kind, fs = plan(query, search_as)
-    if not kind:
+    if not kind and not lines:
         STATS["skip"] += 1
         return None
     pool = max(60, top_k)
-    raw, _ = _v2.hybrid(uid, query, top_k=pool)
-    w_raw = v["q2s_w_raw_agent"] if kind == "agent" else v["q2s_w_raw"]
-    w_f = {"agent": v["q2s_w_agent"], "rules": v["q2s_w_rules"], "llm": v["q2s_w_llm"]}[kind]
-    lists = [(w_raw, raw, "raw")]
-    nf = v.get("q2s_forms_nf") if kind == "rules" else None   # 2026-11-02 DIAG: share of the no-name-boost hybrid per rule form
-    for f in fs:
-        try:
-            if nf:
-                boosted, plain = _hybrid_pair(uid, f, pool)
-                b = min(max(float(nf), 0.0), 1.0)
-                lists.append((w_f * (1 - b), boosted, "rules_nb%d" % len(lists)))
-                lists.append((w_f * b, plain, "rules_np%d" % len(lists)))
-            else:
-                lists.append((w_f, _v2.hybrid(uid, f, top_k=pool)[0], kind))
-        except Exception as e:
-            print("[q2s] form skipped: %s" % type(e).__name__, flush=True)
-    STATS[kind] += 1
-    mode = v.get("q2s_fuse_agent", "max") if kind == "agent" else v.get("q2s_fuse_rules", "sum")
+    q = (query or "").strip()[:500]
+    raw = []
+    if q:
+        raw, _ = _v2.hybrid(uid, q, top_k=pool)
+    if kind:
+        w_raw = v["q2s_w_raw_agent"] if kind == "agent" else v["q2s_w_raw"]
+        w_f = {"agent": v["q2s_w_agent"], "rules": v["q2s_w_rules"], "llm": v["q2s_w_llm"]}[kind]
+        lists = [(w_raw, raw, "raw")]
+        nf = v.get("q2s_forms_nf") if kind == "rules" else None   # 2026-11-02 DIAG: share of the no-name-boost hybrid per rule form
+        for f in fs:
+            try:
+                if nf:
+                    boosted, plain = _hybrid_pair(uid, f, pool)
+                    b = min(max(float(nf), 0.0), 1.0)
+                    lists.append((w_f * (1 - b), boosted, "rules_nb%d" % len(lists)))
+                    lists.append((w_f * b, plain, "rules_np%d" % len(lists)))
+                else:
+                    lists.append((w_f, _v2.hybrid(uid, f, top_k=pool)[0], kind))
+            except Exception as e:
+                print("[q2s] form skipped: %s" % type(e).__name__, flush=True)
+        mode = v.get("q2s_fuse_agent", "max") if kind == "agent" else v.get("q2s_fuse_rules", "sum")
+    else:
+        lists = [(v.get("q2s_w_raw", 1.0), raw, "raw")]
+        mode = "sum"
+        kind = "context"
+    ranked = _context_ranked(uid, lines, pool) if lines else []
+    STATS[kind] = STATS.get(kind, 0) + 1
+    res = _fuse(lists, pool, mode=mode)
+    strong = any(_CTX_TOKEN.search(line) for line in lines)
+    res = _attach_context(res, ranked, _context_weight(v), strong=strong)
     if v.get("q2s_pron") and is_question(query):   # 2026-11-02 Q2S-PRON: names exact + short pronoun form by meaning inside them
         try:
             from app import q2s_pron as _pr
-            res = _fuse(lists, top_k, mode=mode)
             return _pr.insert(res, _pr.lists(uid, query, v), v)[:top_k]
         except Exception as e:
             print("[q2s] pron skipped: %s" % type(e).__name__, flush=True)
-    return _fuse(lists, top_k, mode=mode)
+    return res[:top_k]
 
 
 def text_core(uid, query, top_k=20, since=None, until=None, exclude_imports=False, source=None):
     """search_text.text_search entry: Q2S when on and applicable, else the unchanged _text_search_core; then passage rerank of the top."""
     out = _text_core0(uid, query, top_k, since, until, exclude_imports, source)
+    # A short follow-up's file lives in the context list, not in the question.
+    # Passage rerank scores overlap with the question only and pushes that file out of the pack.
+    if _context_lines(None):
+        return out
     try:
         from app import passage_rr as _prr
         return _prr.rerank(uid, query, out, cfg())

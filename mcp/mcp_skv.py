@@ -1074,10 +1074,12 @@ def _sa_list(search_as) -> list:
     return [str(x).strip()[:160] for x in (search_as if isinstance(search_as, list) else []) if str(x).strip()][:3]
 
 
-def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = False, search_as: Union[list, str] = "") -> list:
+def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = False, search_as: Union[list, str] = "", context: Optional[list] = None) -> list:
     body: dict[str, Any] = _uid_body({"query_text": query, "top_k": 20})
     if _sa_list(search_as):
         body["search_as"] = _sa_list(search_as)
+    if context:
+        body["context"] = [str(x)[:400] for x in list(context)[:2] if str(x or "").strip()]
     if (lines or "").lower() == "all":
         body["lines"] = "all"
     data = _req("POST", "/search", body)
@@ -1126,6 +1128,7 @@ def _turn_hits(user_message, query, search_as, lines, sensitive_list):
     conn = None
     echoes = set()
     multi = False
+    ctx = []
     try:
         if tc is not None:
             try:
@@ -1138,9 +1141,10 @@ def _turn_hits(user_message, query, search_as, lines, sensitive_list):
                 q2, sa2 = tc.build_search(seed, search_as, recent)
                 q = _SCRUB.scrub((q2 or q)[:500], sensitive_list)
                 search_as = sa2
+                ctx = tc.context_queries(user_message or "", recent)
             except Exception as exc:
                 print("[turn] context expand skipped: %s" % type(exc).__name__, flush=True)
-        hits = _hits(q, 8, lines, turn_context=True, search_as=search_as)
+        hits = _hits(q, 8, lines, turn_context=True, search_as=search_as, context=ctx)
         if tc is not None:
             try:
                 topic = q if tc.is_short(user_message or "") else (user_message or q)

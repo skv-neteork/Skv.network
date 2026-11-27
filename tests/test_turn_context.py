@@ -9,13 +9,16 @@ import turn_context as tc
 
 
 class BuildSearch(unittest.TestCase):
-    def test_short_followup_keeps_topic_and_does_not_invent_search_as(self):
-        q, sa = tc.build_search("do everything", None, ["what did we decide about the cube store?"])
-        self.assertIn("cube", q.lower())
-        self.assertIn("store", q.lower())
-        self.assertTrue(q.lower().startswith("do everything"))
-        self.assertNotIn("?", q)
+    def test_short_followup_keeps_topic_beside_the_query(self):
+        recent = ["what did we decide about the cube store?"]
+        q, sa = tc.build_search("do everything", None, recent)
+        ctx = tc.context_queries("do everything", recent)
+        self.assertEqual(q, "do everything")
+        self.assertNotIn("cube", q.lower())
         self.assertEqual(sa, [])
+        self.assertEqual(len(ctx), 1)
+        self.assertIn("cube", ctx[0].lower())
+        self.assertIn("store", ctx[0].lower())
 
     def test_agent_search_as_is_kept_and_capped(self):
         q, sa = tc.build_search(
@@ -23,16 +26,56 @@ class BuildSearch(unittest.TestCase):
             "cube store is free | vault was added later | server moved | extra form",
             ["cube store plan"],
         )
+        ctx = tc.context_queries("do everything", ["cube store plan"])
         self.assertEqual(sa, ["cube store is free", "vault was added later", "server moved"])
-        self.assertTrue(q.lower().startswith("do everything"))
-        self.assertIn("cube", q.lower())
+        self.assertEqual(q, "do everything")
+        self.assertEqual(ctx, ["cube store plan"])
 
-    def test_substantive_question_does_not_gain_search_as(self):
+    def test_substantive_question_does_not_gain_search_as_or_context(self):
         msg = "what did we decide about the cube store?"
-        q, sa = tc.build_search(msg, "", ["unrelated weekend plan for the picnic"])
+        recent = ["unrelated weekend plan for the picnic"]
+        q, sa = tc.build_search(msg, "", recent)
         self.assertEqual(sa, [])
-        self.assertTrue(q.lower().startswith("what did we decide about the cube store?"))
-        self.assertIn("picnic", q.lower())
+        self.assertEqual(q, msg)
+        self.assertNotIn("picnic", q.lower())
+        self.assertEqual(tc.context_queries(msg, recent), [])
+
+    def test_six_word_followup_keeps_the_previous_file(self):
+        q = "ты как посоветуешь с архивом?"
+        recent = ["[background] T04/T05 done, archive recall check", "older note with no id"]
+        built, sa = tc.build_search(q, None, recent)
+        ctx = tc.context_queries(q, recent)
+        self.assertEqual(built, q)
+        self.assertEqual(sa, [])
+        self.assertEqual(len(ctx), 2)
+        self.assertIn("T04", ctx[0])
+
+    def test_own_id_does_not_pull_the_previous_line(self):
+        self.assertEqual(tc.context_queries("T87", ["see notes.txt and the older plan"]), [])
+
+    def test_long_question_does_not_pull_context(self):
+        msg = "Read /root/skv-tasks/build_task_b17.txt and do task B17. No push."
+        self.assertEqual(tc.context_queries(msg, ["earlier build_task_b10.txt"]), [])
+
+    def test_file_past_the_head_survives_the_clip(self):
+        line = ("word " * 90) + "build_task_b18.txt at the end"
+        ctx = tc.context_queries("ну что там?", [line])
+        self.assertEqual(len(ctx), 1)
+        self.assertIn("build_task_b18.txt", ctx[0])
+        self.assertLessEqual(len(ctx[0]), 400)
+
+    def test_named_file_in_context_leads_and_a_vague_line_does_not(self):
+        import q2s
+        primary = [("e_raw", 0.03279)] + [("e%d" % i, 0.030 - i * 0.001) for i in range(1, 8)]
+        ctx = [("e_file", 1.0), ("e_file2", 0.5)]
+        fused = q2s._attach_context(primary, ctx, 0.25, strong=True)
+        ids = [e for e, _s in fused]
+        self.assertEqual(ids[0], "e_file")
+        self.assertLess(ids.index("e_file2"), 3)
+        self.assertIn("e_raw", ids[:5])
+        vague = q2s._attach_context(primary, [("e_ctx", 1.0)], 0.25, strong=False)
+        self.assertEqual(vague[0][0], "e_raw")
+        self.assertLess(dict(vague)["e_ctx"], dict(vague)["e_raw"])
 
     def test_short_and_multi_flags(self):
         self.assertTrue(tc.is_short("do everything"))
@@ -55,12 +98,16 @@ class Rank(unittest.TestCase):
         out = tc.rank(hits, "cube store", {"remember_9", "remember_8"}, False, limit=5)
         self.assertEqual(out[0]["layer"], "decision")
         self.assertEqual(out[1]["layer"], "critical")
-        echoes = [h for h in out if h["layer"] == "echo"]
-        self.assertEqual(len(echoes), 1)
-        self.assertLess(echoes[0]["score"], out[0]["score"])
+        ids = [h["event_id"] for h in out]
+        self.assertEqual(out[0]["layer"], "decision")
+        self.assertIn("remember_9", ids)
+        self.assertNotIn("remember_8", ids)
+        echo = next(h for h in out if h["event_id"] == "remember_9")
+        self.assertEqual(echo["layer"], "event")
+        self.assertLess(out.index(echo), len(out))
         self.assertNotIn("2026-11-14", out[0]["summary"][:4])
 
-    def test_three_durables_drop_echoes(self):
+    def test_three_durables_demote_the_best_echo(self):
         hits = [
             {"event_id": "prof:1", "score": 0.4, "summary": "[decision] cube store stays free", "source": "decision", "layer": "decision", "time": "2026-11-14"},
             {"event_id": "remember_4", "score": 0.4, "summary": "[critical] cube store", "source": "critical", "layer": "critical", "time": "2026-11-14"},
@@ -69,6 +116,8 @@ class Rank(unittest.TestCase):
         ]
         out = tc.rank(hits, "cube store", {"remember_9"}, False)
         self.assertTrue(all(h["layer"] != "echo" for h in out))
+        self.assertIn("remember_9", [h["event_id"] for h in out])
+        self.assertEqual(out[0]["layer"], "decision")
         self.assertEqual(out[0]["score"], out[1]["score"])
 
     def test_multi_event_returns_distinct_dates(self):

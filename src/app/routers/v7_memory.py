@@ -801,6 +801,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
         from app import search_text as _st, q2s as _q2s
         from app.search_window import WindowError as _WindowError
         _tok = _q2s.SEARCH_AS.set(getattr(req, "search_as", None))
+        _ctx = _q2s.CONTEXT.set(getattr(req, "context", None))
         try:
             if getattr(req, "pack", False) or getattr(req, "focus_event_id", None) or _has_window:
                 from app import search_pack as _sp
@@ -846,6 +847,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                 raise HTTPException(status_code=_we.status, detail=_we.body())
         finally:
             _q2s.SEARCH_AS.reset(_tok)
+            _q2s.CONTEXT.reset(_ctx)
     q_vec = np.array(req.query_vector, dtype=np.float32)
     try:
         # v7.8: pass layer_weights for dynamic masks

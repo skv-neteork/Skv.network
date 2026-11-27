@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
-chrome.storage.local.get(["key", "base", "enabled", "autoMemory"]).then((c) => {
-  $("key").value = c.key || ""; $("base").value = c.base || "https://skv.network"; $("enabled").checked = c.enabled !== false; $("autoMemory").checked = c.autoMemory !== false;
+chrome.storage.local.get(["key", "base", "enabled", "autoMemory", "sealRemind"]).then((c) => {
+  $("key").value = c.key || ""; $("base").value = c.base || "https://skv.network"; $("enabled").checked = c.enabled !== false; $("autoMemory").checked = c.autoMemory !== false; $("sealRemind").checked = c.sealRemind === true;
 });
 $("save").onclick = async () => {
   const key = $("key").value.trim(), base = $("base").value.trim().replace(/\/+$/, "");
@@ -10,6 +10,6 @@ $("save").onclick = async () => {
     const ok = await chrome.permissions.request({ origins: [base + "/*"] });
     if (!ok) return ($("msg").textContent = "Permission for that server was refused");
   }
-  await chrome.storage.local.set({ key, base, enabled: $("enabled").checked, autoMemory: $("autoMemory").checked });
+  await chrome.storage.local.set({ key, base, enabled: $("enabled").checked, autoMemory: $("autoMemory").checked, sealRemind: $("sealRemind").checked === true });
   $("msg").textContent = "Saved";
 };

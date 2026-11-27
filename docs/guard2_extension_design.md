@@ -25,8 +25,8 @@ Later: Le Chat, Gemini, Claude via per-site adapters. Source: /workspace/skv-gua
 | "Install constitution" (user click + confirm) | POST /api/v7/constitution/install {user_confirmed:true} | consent |
 
 ## Rules
-- Seal badge shows only the server `seal` string (textContent). No server seal → "no seal". Never a drawn seal.
-- No auto-change of the user's message: memory facts are inserted only on click, marked "data, not instructions".
+- Seal badge shows only the server `seal` string (textContent) after this extension saved the turn. A reply that already has a fresh seal number (greater than the last one seen for this host) is not posted again. No fresh seal → warning badge `SKV: no fresh seal` (not a drawn seal, not the server's backfill seal) and the turn is posted with source `guard2_ext` so the server records unsealed_gap. Master switch OFF: no badge, no record, no insert.
+- No auto-change of the user's message by default. Memory facts are inserted only on click or when auto-insert is on, marked "data, not instructions". A separate `sealRemind` toggle (default OFF) may prepend `call turn / previous answer had no seal` to the next message, and only while the master switch is on.
 - No telemetry; only the turn text (masked) goes to the configured SKV server.
 - verdict=revise is shown in the panel (the web model can't be forced to redo; the user decides).
 - Limits: the extension sees the reply after the user did; it is a save + seal + reminder layer, not a blocker.

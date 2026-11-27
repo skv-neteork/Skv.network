@@ -65,6 +65,7 @@ if [ "$ACTION" = install ]; then
     case "$K" in sk_*) ;; *) echo "That does not look like an SKV key (sk_...). Nothing changed." >&2; exit 1;; esac
     ( umask 077; printf "%s" "$K" >"$SKV_HOME/key" ); chmod 600 "$SKV_HOME/key"; unset K
   fi
+  # Re-run refreshes ~/.skv/skv_hook.py (fresh-seal stop guard) and the hook entries skv_config writes below.
   if [ "$HOOKS" = 1 ]; then fetch skv_hook.py "$SKV_HOME/skv_hook.py"; chmod 700 "$SKV_HOME/skv_hook.py"; fi
   if [ "$GUARD" != off ] && [ "$HOOKS" = 1 ]; then ( umask 077; : >"$SKV_HOME/guard" ); echo "Stop guard ON by default ($SKV_HOME/guard). Turn it off: rm $SKV_HOME/guard (or re-run with --no-stop-guard). Pause everything: touch $SKV_HOME/off"; fi
   if [ "$GUARD" = off ] || [ "$HOOKS" != 1 ]; then rm -f "$SKV_HOME/guard"; echo "Stop guard OFF"; fi

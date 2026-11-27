@@ -27,7 +27,7 @@ _COLS = {"priority": "INTEGER DEFAULT 2", "parent_id": "TEXT DEFAULT ''", "waiti
          "created_by": "TEXT DEFAULT ''", "claimed_by": "TEXT DEFAULT ''", "lease_until": "TEXT DEFAULT ''",
          "rev": "INTEGER DEFAULT 0"}
 FIELDS = ("item_id", "kind", "title", "body", "status", "updated_at", "important", "priority", "parent_id",
-          "waiting_for", "result", "result_event", "created_by", "claimed_by", "lease_until", "rev")
+          "waiting_for", "result", "result_event", "created_by", "claimed_by", "lease_until", "rev", "created_at")
 
 
 def _conn(uid):
@@ -349,7 +349,14 @@ def relevant(uid, message="", answer="", n=3):
             scored.append((s, len(at & it) + idhit, i))
     scored.sort(key=lambda x: (-x[0], x[2].get("priority") or 2))
     top = scored[:n]
-    out = [{"id": i["item_id"], "status": i["status"], "title": i["title"][:80], **({"waiting_for": i["waiting_for"]} if i.get("waiting_for") else {})} for _, _, i in top]
+    out = []
+    for _, _, i in top:
+        row = {"id": i["item_id"], "status": i["status"], "title": i["title"][:80]}
+        if i.get("waiting_for"):
+            row["waiting_for"] = i["waiting_for"]
+        if i.get("created_at"):
+            row["created_at"] = i["created_at"]
+        out.append(row)
     return {"board": out, "board_hint": None, **sx}
 
 

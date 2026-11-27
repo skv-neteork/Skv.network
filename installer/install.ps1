@@ -53,6 +53,7 @@ if ($Action -eq "install") {
     if (-not $k.StartsWith("sk_")) { Write-Host "That does not look like an SKV key (sk_...). Nothing changed."; return }
     [IO.File]::WriteAllText($KeyFile, $k); Lock $KeyFile; Remove-Variable k
   }
+  # Re-run refreshes skv_hook.py. The stop guard accepts only a fresh seal number (greater than the last one seen for that session).
   if (-not $NoHooks) { Fetch "skv_hook.py" (Join-Path $SkvHome "skv_hook.py") }
   if (-not $NoStopGuard -and -not $NoHooks) { New-Item -ItemType File -Force (Join-Path $SkvHome "guard") | Out-Null; Write-Host "Stop guard ON by default. Turn it off: delete $SkvHome\guard (or re-run with -NoStopGuard). Pause everything: create $SkvHome\off" }
   else { Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $SkvHome "guard"); Write-Host "Stop guard OFF" }

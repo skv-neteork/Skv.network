@@ -67,6 +67,29 @@ class StopGuard(unittest.TestCase):
         self.guard()
         self.assertIsNone(run(self.m, "claude-stop", {"session_id": "s2", "last_assistant_message": "ok\n" + SEAL}))
 
+    def test_repeated_seal_number_blocks_and_higher_passes(self):
+        self.guard()
+        sid = "s-fresh"
+        first = {"session_id": sid, "last_assistant_message": "ok\n" + SEAL}
+        self.assertIsNone(run(self.m, "claude-stop", first))
+        again = {"session_id": sid, "last_assistant_message": "again\n" + SEAL}
+        blocked = run(self.m, "claude-stop", again)
+        self.assertEqual(blocked["decision"], "block")
+        higher = {"session_id": sid, "last_assistant_message": "next\n🔐 SKV | #13·cd34"}
+        self.assertIsNone(run(self.m, "claude-stop", higher))
+        run(self.m, "claude-prompt", {"session_id": sid, "prompt": "next question"})
+        stale = run(self.m, "claude-stop", higher)
+        self.assertEqual(stale["decision"], "block")
+        self.assertIn("same first step", stale["reason"])
+
+    def test_cursor_repeated_seal_is_not_fresh(self):
+        self.guard()
+        run(self.m, "cursor-response", {"conversation_id": "c-n", "text": "ok " + SEAL})
+        self.assertEqual(run(self.m, "cursor-stop", {"conversation_id": "c-n", "status": "completed"}), {})
+        run(self.m, "cursor-response", {"conversation_id": "c-n", "text": "again " + SEAL})
+        r = run(self.m, "cursor-stop", {"conversation_id": "c-n", "status": "completed", "loop_count": 0})
+        self.assertIn("followup_message", r)
+
     def test_grok_camelcase_and_session_end(self):
         self.guard()
         run(self.m, "claude-prompt", {"sessionId": "g1", "prompt": "hey"})
@@ -81,7 +104,9 @@ class StopGuard(unittest.TestCase):
                 {"type": "assistant", "message": {"role": "assistant", "content": [
                     {"type": "tool_use", "name": "mcp__skv__turn", "input": {}}]}}]
         open(tp, "w").write("\n".join(json.dumps(x) for x in rows))
-        self.assertIsNone(run(self.m, "claude-stop", {"session_id": "s3", "transcript_path": tp, "last_assistant_message": "a"}))
+        # A turn tool_use without a fresh seal is a fail, same as a missing seal.
+        blocked = run(self.m, "claude-stop", {"session_id": "s3", "transcript_path": tp, "last_assistant_message": "a"})
+        self.assertEqual(blocked["decision"], "block")
         rows.append({"type": "user", "message": {"role": "user", "content": "second message"}})   # turn was for the older message
         open(tp, "w").write("\n".join(json.dumps(x) for x in rows))
         self.assertEqual(run(self.m, "claude-stop", {"session_id": "s3", "transcript_path": tp, "last_assistant_message": "a"})["decision"], "block")

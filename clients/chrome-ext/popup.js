@@ -1,8 +1,9 @@
 // Toolbar popup: on/off switch and status. Never reads or shows the key itself, only whether one is set.
 (function () {
   const $ = (id) => document.getElementById(id);
-  function paint(on, hasKey) {
+  function paint(on, hasKey, remind) {
     $("enabled").checked = on;
+    $("sealRemind").checked = !!remind;
     $("state").textContent = on ? "ON: turns are saved" : "OFF: nothing is sent";
     $("state").className = on ? "on" : "off";
     $("key").textContent = hasKey ? "set" : "not set (open Settings)";
@@ -11,13 +12,17 @@
     chrome.runtime.sendMessage({ type: "diag" }, (d) => {
       void chrome.runtime.lastError;
       d = d || {};
-      paint(d.enabled !== false, !!d.hasKey);
+      paint(d.enabled !== false, !!d.hasKey, d.sealRemind === true);
       $("diag").textContent = "last ok: " + (d.lastOk || "-") + "\nlast err: " + (d.lastErr || "-");
     });
   }
   $("enabled").addEventListener("change", async () => {
     const on = $("enabled").checked;
     await chrome.storage.local.set({ enabled: on });
+    refresh();
+  });
+  $("sealRemind").addEventListener("change", async () => {
+    await chrome.storage.local.set({ sealRemind: $("sealRemind").checked === true });
     refresh();
   });
   $("opts").addEventListener("click", (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); });

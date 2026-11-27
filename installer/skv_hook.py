@@ -11,8 +11,8 @@ Modes (argv[1]):
   test            send a test turn, print the seal
 Key: ~/.skv/key (0600) or SKV_API_KEY. Off switch: touch ~/.skv/off (or uninstall).
 
-STOP GUARD (ON by default since the installer creates ~/.skv/guard; opt out: install.sh --no-stop-guard or rm ~/.skv/guard): the Stop hook blocks the end of a reply when no SKV
-turn was called for the current user message (no seal in the answer and no turn tool call after the last user message).
+STOP GUARD (ON by default since the installer creates ~/.skv/guard; opt out: install.sh --no-stop-guard or rm ~/.skv/guard): the Stop hook blocks the end of a reply unless it
+carries a fresh seal (number greater than the last one seen for this session, stored under ~/.skv/state). A missing seal, a repeated number, or a well-formed seal that is not fresh is a fail. A turn tool call without that fresh seal does not pass.
 Claude Code and Grok Build get {"decision":"block","reason":...}; Cursor gets {"followup_message":...} from its stop event.
 At most 2 blocks per user message, then the old fallback runs (the hook saves the turn itself). Fail-open on any error.
 Grok Build reads ~/.claude/settings.json and ~/.cursor/hooks.json too: camelCase fields (sessionId, lastAssistantMessage,
@@ -24,6 +24,7 @@ HOME = os.path.expanduser("~")
 D = os.environ.get("SKV_HOME") or os.path.join(HOME, ".skv")
 BASE = (os.environ.get("SKV_BASE") or "https://skv.network").rstrip("/")
 SEAL_RE = re.compile(r"(?:🔐\s*)?SKV\s*\|\s*#\d+·[0-9a-f]{4}")
+SEAL_N_RE = re.compile(r"(?:🔐\s*)?SKV\s*\|\s*#(\d+)·[0-9a-f]{4}")
 TIMEOUT = 20
 REMIND = ("SKV: before you answer, call the skv MCP tool turn(user_message, draft) and end the answer "
           "with the seal it returns. If the tool is unavailable, answer normally (the Stop hook saves the turn).")
@@ -73,10 +74,34 @@ def state_path(sid):
     return os.path.join(sd, hashlib.sha256((sid or "default").encode()).hexdigest()[:16] + ".json")
 
 
+def seal_number(answer):
+    """Last seal number in the answer, or 0 when the pattern is absent."""
+    found = SEAL_N_RE.findall(answer or "")
+    return int(found[-1]) if found else 0
+
+
+def fresh_seal(sid, answer):
+    """True only when the seal number is greater than the last one stored for this session."""
+    n = seal_number(answer)
+    if not n:
+        return False
+    try:
+        last = int(load_state(sid).get("last_seal_n") or 0)
+    except (TypeError, ValueError):
+        last = 0
+    return n > last
+
+
 def remember_prompt(sid, prompt):
+    st = load_state(sid)
+    st["prompt"] = prompt
+    st["t"] = time.time()
+    st["blocks"] = 0
+    st.pop("last_answer", None)
+    st.pop("sealed", None)
     p = state_path(sid)
     with open(p, "w", encoding="utf-8") as f:
-        json.dump({"prompt": prompt, "t": time.time(), "blocks": 0}, f)
+        json.dump(st, f)
     try:
         os.chmod(p, 0o600)
     except Exception:
@@ -140,12 +165,15 @@ def turn_called_in_transcript(path):
 
 
 def guard_verdict(sid, answer, transcript_path=""):
-    """None = let the reply finish. A string = block with that reason (at most MAX_BLOCKS per user message)."""
+    """None = let the reply finish. A string = block with that reason (at most MAX_BLOCKS per user message).
+
+    A reply is sealed only by a fresh seal number (greater than last_seal_n for this session).
+    transcript_path is accepted so older callers keep working; a turn tool call alone is not a pass.
+    """
     if not guard_on() or os.path.exists(os.path.join(D, "off")):
         return None
-    if SEAL_RE.search(answer or ""):
-        return None
-    if transcript_path and turn_called_in_transcript(transcript_path):
+    if fresh_seal(sid, answer):
+        update_state(sid, last_seal_n=seal_number(answer), blocks=0)
         return None
     st = load_state(sid)
     n = int(st.get("blocks") or 0)
@@ -252,8 +280,14 @@ def main():
         sid = ev.get("conversation_id") or ""
         text = ev.get("text") or ""
         if guard_on() and not os.path.exists(os.path.join(D, "off")):
-            # the stop event decides: block once, or save as the fallback
-            update_state(sid, last_answer=text[:60000], sealed=bool(SEAL_RE.search(text)))
+            # the stop event decides: block once, or save as the fallback. sealed means a fresh number.
+            n = seal_number(text)
+            fresh = fresh_seal(sid, text)
+            fields = {"last_answer": text[:60000], "sealed": fresh}
+            if fresh:
+                fields["last_seal_n"] = n
+                fields["blocks"] = 0
+            update_state(sid, **fields)
         else:
             save(recall_prompt(sid), text, "hook:cursor", sid)
         print("{}")

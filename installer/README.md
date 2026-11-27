@@ -13,8 +13,9 @@ Asks per detected client (Claude Code, Cursor, Claude Desktop, Grok Build); noth
 - Key: hidden prompt -> ~/.skv/key (0600). Also present in the MCP config files (chmod 600), as those clients require.
 - Every changed config is backed up next to it as *.skv-bak.<timestamp>.
 - Stop guard (ON by default when hooks are installed; flag file ~/.skv/guard; opt out: `--no-stop-guard` / `-NoStopGuard`, or rm ~/.skv/guard; `--stop-guard` / `-StopGuard` are accepted and equal the default; with `--no-hooks` there is no guard):
-  the Stop hook blocks the end of a reply when no SKV turn was called for the current user message (no seal in the answer
-  and no `turn` tool call after the last user message). Claude Code and Grok Build: `{"decision":"block","reason":...}`;
+  the Stop hook blocks the end of a reply unless it carries a fresh seal (number greater than the last one seen for
+  that session under ~/.skv/state). A repeated or well-formed but not-fresh seal fails the same way a missing seal does.
+  A `turn` tool call without that fresh seal does not pass. Claude Code and Grok Build: `{"decision":"block","reason":...}`;
   Cursor: the `stop` event (registered with loop_limit 2) answers `{"followup_message":...}`. At most 2 blocks per user
   message, then the hook saves the turn itself (the old fallback). Fail-open on any error; paused by ~/.skv/off.
   Grok Build (`--clients grok-build`, hooks only -> ~/.grok/hooks/skv.json) also reads ~/.claude/settings.json and

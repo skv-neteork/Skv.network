@@ -1,7 +1,7 @@
 // Service worker: the only place that knows the SKV key and talks to the server.
 importScripts("mask.js");
-const DEFAULTS = { base: "https://skv.network", enabled: true, key: "", autoMemory: true };
-async function cfg() { return Object.assign({}, DEFAULTS, await chrome.storage.local.get(["base", "enabled", "key", "autoMemory"])); }
+const DEFAULTS = { base: "https://skv.network", enabled: true, key: "", sealRemind: false, autoMemory: true };
+async function cfg() { return Object.assign({}, DEFAULTS, await chrome.storage.local.get(["base", "enabled", "key", "autoMemory", "sealRemind"])); }
 
 let lastErr = null, lastOk = null;
 // Diagnostic timestamps in the user's zone (Moscow), labelled.
@@ -38,8 +38,8 @@ function slim(d) {
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     const c = await cfg();
-    if (msg.type === "diag") return reply({ lastErr, lastOk, enabled: c.enabled, hasKey: !!c.key, autoMemory: c.autoMemory !== false, version: chrome.runtime.getManifest().version });
-    if (msg.type === "status") return reply({ enabled: c.enabled, hasKey: !!c.key, autoMemory: c.autoMemory !== false, version: chrome.runtime.getManifest().version });
+    if (msg.type === "diag") return reply({ lastErr, lastOk, enabled: c.enabled, hasKey: !!c.key, autoMemory: c.autoMemory !== false, sealRemind: c.sealRemind === true, version: chrome.runtime.getManifest().version });
+    if (msg.type === "status") return reply({ enabled: c.enabled, hasKey: !!c.key, autoMemory: c.autoMemory !== false, sealRemind: c.sealRemind === true, version: chrome.runtime.getManifest().version });
     if (!c.enabled) return reply({ error: "off" });
     if (msg.type === "turn")
       return reply(slim(await api("/api/v7/agent/turn", { user_message: m(msg.user_message), draft: m(msg.draft), source: "guard2_ext:" + (msg.site || "") })));

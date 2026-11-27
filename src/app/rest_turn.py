@@ -412,9 +412,47 @@ def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compr
     return res
 
 
+def _stamp_user(res, user):
+    if isinstance(res, dict) and user:
+        res["_gap_user"] = user
+    return res
+
+
+def _apply_seal_gaps(res, user, agent_token, source, draft, answer, recap, msg_ref, duty, duty_reason):
+    """One journal check per turn: recap answers, plus a guard2/hook draft (that text was already shown).
+    A normal new draft is sealed by this call and is not a gap. Counters are always on the body."""
+    if not isinstance(res, dict) or not user:
+        return res
+    try:
+        from app import seal_gap as _sg
+        from app import turn_watch_rest as _tw
+        items = []
+        for ref, _u, ans in _tw.parse_recap(recap):
+            if (ans or "").strip():
+                items.append({"ref": ref, "text": ans})
+        if str(source or "").startswith(("guard2_ext", "ext", "hook")) and (draft or answer):
+            items.append({"ref": msg_ref or "visible", "text": answer or draft})
+        if items:
+            note = _sg.observe(user, agent_token or "", items, duty=duty, duty_reason=duty_reason)
+        else:
+            note = {"unsealed_gaps": 0, "unsealed_gaps_total": _sg.total(_sg.scope(user, agent_token or "")), "duty": None}
+        res["unsealed_gaps"] = int(note.get("unsealed_gaps") or 0)
+        res["unsealed_gaps_total"] = int(note.get("unsealed_gaps_total") or 0)
+        if note.get("duty"):
+            res["duties"] = [note["duty"]] + list(res.get("duties") or [])
+    except Exception:
+        res.setdefault("unsealed_gaps", 0)
+        res.setdefault("unsealed_gaps_total", 0)
+    return res
+
+
 def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None, const_ack=False, ack="", context_reset=False, context_compressed_at="", compressed=False, used_fact_ids=None):
     """msg_ref / recap are optional (turn-watch, see turn_watch_rest.py): clients that send neither get exactly the old behaviour. const_ack / ack="const" / context_reset are the T73 constitution heartbeat (same as MCP turn)."""
     def _out(res):
+        if isinstance(res, dict):
+            gu = res.pop("_gap_user", "") or ""
+            if gu:
+                _apply_seal_gaps(res, gu, agent_token, source, draft, answer, recap, msg_ref, duty, duty_reason)
         return _pack_turn(res, user_message, session_id, duty, duty_reason, source_event_ids, context_compressed_at, compressed, used_fact_ids, l1_summary)
     if isinstance(recap, str) and not recap.strip():
         recap = None
@@ -512,11 +550,11 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
         cg, cg_commit = _compact_gate(user, session_id or "rest", cubes, checklist, COMPACT_DB)
     if not draft and compact:
         c.close(); cg_commit()
-        return _decorate({"mode": "context", "compact": True, "facts": facts, **cg, **_board_rel(user, user_message), **_prof_rel(user, user_message, "", session_id, True), "next": "self-check, then turn with answer=<final> and compact=true"}, user, user_message, facts, launch_ok=False)
+        return _stamp_user(_decorate({"mode": "context", "compact": True, "facts": facts, **cg, **_board_rel(user, user_message), **_prof_rel(user, user_message, "", session_id, True), "next": "self-check, then turn with answer=<final> and compact=true"}, user, user_message, facts, launch_ok=False), user)
     if not draft:
         c.close()
-        return _decorate({"mode": "context", "facts": facts, "cubes": cubes, "self_check": checklist, **_board_rel(user, user_message), **_prof_rel(user, user_message, "", session_id, False),
-                "next": "write the draft, run the self_check, then call turn again with user_message and draft; the seal comes only from that call"}, user, user_message, facts, launch_ok=False)
+        return _stamp_user(_decorate({"mode": "context", "facts": facts, "cubes": cubes, "self_check": checklist, **_board_rel(user, user_message), **_prof_rel(user, user_message, "", session_id, False),
+                "next": "write the draft, run the self_check, then call turn again with user_message and draft; the seal comes only from that call"}, user, user_message, facts, launch_ok=False), user)
     drawn = [m.group(0) for m in re.finditer(r"🔐?\s*SKV\s*\|\s*#[^\n]*", draft)]
     clean = re.sub(r"\n?🔐?\s*SKV\s*\|\s*#[^\n]*", "", draft).rstrip()
     if same and ext_src and re.sub(r"\n?🔐?\s*SKV\s*\|\s*#[^\n]*", "", last_final or "").rstrip() != clean:
@@ -555,9 +593,9 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
         unverified.extend(invalid)   # ext/hook: save anyway, flag [VERIFY ?]; MCP/REST agents stay strict on a real miss
     if invalid and not ext_src:
         c.close()
-        return _hb(_decorate({"verdict": "revise", "saved": False, "seal": None, "invalid_ids": invalid,
+        return _stamp_user(_hb(_decorate({"verdict": "revise", "saved": False, "seal": None, "invalid_ids": invalid,
                 "fixes": ["[ev:%s] does not exist in your memory: remove it, cite a real id from facts, or say the fact is unknown" % x for x in invalid],
-                "facts": facts, "next": "nothing saved: fix the draft, call turn again with the same user_message"}, user, user_message, facts, launch_ok=False))
+                "facts": facts, "next": "nothing saved: fix the draft, call turn again with the same user_message"}, user, user_message, facts, launch_ok=False)), user)
     pc = {}
     _pw = []
     if True:   # profile check (always: also yields the [PROFILE ✗] seal mark) BEFORE the seal is reserved: a rejection burns no seal
@@ -573,8 +611,8 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
             pc = _prof.precheck(user, profile, profile_review, bool(l2_summary))
             if pc.get("errors") and not _prof.separable(pc["errors"]):
                 c.close()
-                return _hb(_decorate({"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
-                        "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}, user, user_message, facts, launch_ok=False))
+                return _stamp_user(_hb(_decorate({"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
+                        "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}, user, user_message, facts, launch_ok=False)), user)
             if pc.get("errors"):
                 profile = None
                 l2_summary = ""
@@ -585,8 +623,8 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
                 pc["warnings"] = list(pc.get("warnings") or []) + _pw
         elif pc.get("errors"):
             c.close()
-            return _hb(_decorate({"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
-                    "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}, user, user_message, facts, launch_ok=False))
+            return _stamp_user(_hb(_decorate({"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
+                    "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}, user, user_message, facts, launch_ok=False)), user)
     seal_n = last_seal if (same and last_verdict == "pass" and last_seal) else _next_seal(key, user, same)
     # Web extension: the model only saw SKV memory if the user inserted the memory block (or the reply cites [ev:]).
     # Otherwise the seal must not claim READ: [READ ?] + a warning naming how many facts the model did not see.
@@ -612,8 +650,8 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
         c.execute("insert or replace into st values(?,?,?,?,?,?,?)", (user, _um_h, now, eid, seal_n, final, "pass"))
         c.commit()
         try:
-            with open(SEAL_LOG, "a") as fh:
-                fh.write(json.dumps({"t": int(now), "user": user, "seal": seal_n, "code": seal.split("·")[1][:4], "event_id": eid, "via": "rest"}) + "\n")
+            from app import seal_gap as _sg
+            _sg.record_issued(user, seal_n, seal.split("·")[1][:4], clean, eid, via="rest")
         except Exception:
             pass
         try:
@@ -668,7 +706,7 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
         r["profile_warnings"] = extra + [str(x) for x in _pw]
     _decorate(r, user, user_message, facts, launch_ok=bool(ok), l1_new=bool((l1_summary or "").strip()), keyword=True)
     _attach_hooks(r, user, _hook_events(ok, task_done, sensitive, _reset, context_state), session_id)
-    return _hb(_with_room(key, r, agent_token, session_id, context_state, kind, (answer or draft), duty))
+    return _stamp_user(_hb(_with_room(key, r, agent_token, session_id, context_state, kind, (answer or draft), duty)), user)
 
 
 def seal_next(key, same=False):

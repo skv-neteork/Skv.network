@@ -17,12 +17,12 @@ Read one: `cube_get` with the id. Run `skill_md` steps; fire matching `hooks`.
 
 ### CUBE 00 Second Look + CUBE 05 §3
 → `cube_skill_const_second_look`
-- when `before_reply` → draft → verify 01/02/03 (+04 if pressured) → `turn(user_message, draft)` (search + save + Second Look) → SEAL issued by turn (a self-drawn seal without turn = violation) → output
+- when `before_reply` → short ack → `turn`(new user message + previous sent answer / recap) → write the answer → end with the NEW seal from this turn. A self-drawn seal is not that seal.
 - when user about to see answer → never skip Second Look
 
 ### CUBE 05 §1 Memory + PROTOCOL Step 0
 → `cube_skill_const_memory`
-- when `session_start` / chain switch → `constitution_status`; installed → `step_zero(page=1..N)` (consent already given, do not re-ask); not installed → ask, `constitution_install`
+- when `session_start` / chain switch → `constitution_status`; installed → `step_zero(page=1..N)` — **STALE / pending Deniz approval**. The live agent rule is never call `step_zero` again for the same key. This bullet stays until Deniz approves a replacement. Not installed → ask, `constitution_install`
 - when `before_reply` → memory search happens inside `turn` (optional `turn(user_message, query)` for context); empty ≠ invent; dig after ~3 misses
 - when every ~10 steps → reload compact constitution
 

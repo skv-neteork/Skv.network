@@ -329,8 +329,8 @@ class UsedAndBoardAndDesk(unittest.TestCase):
 
     def test_looks_done_hint_does_not_close(self):
         hint = tp.looks_done_hint(
-            [{"id": "T82", "title": "T73 v2 recall", "status": "todo"}],
-            [{"hash": "c424c18", "subject": "T73 v2: search yourself first"}, {"hash": "c314553", "subject": "T73 v2: smoke account"}],
+            [{"id": "T82", "title": "T73 v2 recall", "status": "todo", "created_at": 1000}],
+            [{"hash": "c424c18", "subject": "T73 v2: search yourself first", "ts": 2000}, {"hash": "c314553", "subject": "T73 v2: smoke account", "ts": 2001}],
         )
         self.assertIn("looks done, close?", hint)
         self.assertIn("T82", hint)

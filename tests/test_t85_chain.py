@@ -312,13 +312,13 @@ class F7Board(unittest.TestCase):
         self.assertIsNone(out.get("board_hint"))
         self.assertTrue(out.get("board"))
         hint = tp.looks_done_hint(
-            [{"id": "T83", "title": "48h ribbon", "status": "todo"}],
-            [{"hash": "abc1234", "subject": "unrelated work"}],
+            [{"id": "T83", "title": "48h ribbon", "status": "todo", "created_at": 1000}],
+            [{"hash": "abc1234", "subject": "unrelated work", "ts": 2000}],
         )
         self.assertEqual(hint, "")
         named = tp.looks_done_hint(
-            [{"id": "T82", "title": "T73 v2 recall", "status": "todo"}],
-            [{"hash": "c424c18", "subject": "T73 v2: search yourself first"}],
+            [{"id": "T82", "title": "T73 v2 recall", "status": "todo", "created_at": 1000}],
+            [{"hash": "c424c18", "subject": "T73 v2: search yourself first", "ts": 2000}],
         )
         self.assertIn("looks done, close?", named)
 

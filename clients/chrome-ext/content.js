@@ -77,9 +77,41 @@
   // further send attempt swallowed while busy, then send by clicking the button (or a synthetic Enter) and a
   // check that the composer was really emptied. The last hook decision is shown in diagnostics.
   const VER = (() => { try { return chrome.runtime.getManifest().version; } catch (e) { return "?"; } })();
-  let autoMem = null, bypass = false, busy = false, lastHook = "-";
+  let autoMem = null, sealRemind = false, bypass = false, busy = false, lastHook = "-";
+  const SEAL_NOTE = "call turn / previous answer had no seal";
   const hookLog = (t) => { lastHook = t + " @" + new Date().toTimeString().slice(0, 8); };
-  const refreshAuto = () => send({ type: "status" }).then((s) => { if (s && !s.error) autoMem = !!(s.enabled && s.hasKey && s.autoMemory !== false); });
+  const refreshAuto = () => send({ type: "status" }).then((s) => {
+    if (s && !s.error) {
+      autoMem = !!(s.enabled && s.hasKey && s.autoMemory !== false);
+      sealRemind = !!(s.enabled && s.sealRemind === true);
+    }
+  });
+  async function storageGet(keys) {
+    try {
+      const g = chrome.storage && chrome.storage.local && chrome.storage.local.get;
+      if (!g) return {};
+      const r = g.call(chrome.storage.local, keys);
+      return r && typeof r.then === "function" ? await r : {};
+    } catch (e) { return {}; }
+  }
+  async function storageSet(obj) {
+    try {
+      const s = chrome.storage && chrome.storage.local && chrome.storage.local.set;
+      if (!s) return;
+      const r = s.call(chrome.storage.local, obj);
+      if (r && typeof r.then === "function") await r;
+    } catch (e) {}
+  }
+  async function maybeRemind() {
+    if (!isOn || !sealRemind) return;
+    const bag = await storageGet(["pendingSealNote"]);
+    if (!bag.pendingSealNote) return;
+    const cur = (A.composerText && A.composerText(document)) || "";
+    if (!String(cur).includes(SEAL_NOTE) && A.setComposerText) {
+      try { A.setComposerText(document, SEAL_NOTE + (cur ? "\n" + cur : "")); } catch (e) { return; }
+    }
+    await storageSet({ pendingSealNote: false });
+  }
   refreshAuto(); setInterval(refreshAuto, 10000);
   window.addEventListener("focus", refreshAuto); document.addEventListener("visibilitychange", refreshAuto);
   const isEnter = (e) => (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter" || e.keyCode === 13 || e.which === 13 || e.charCode === 13);
@@ -130,6 +162,7 @@
     if (bypass || !isEnter(e) || e.shiftKey || e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
     if (!inComposer(e)) return;
     if (busy) { stop(e); return hookLog(e.type + ": swallowed (memory loading)"); }
+    if (isOn && sealRemind) maybeRemind();
     if (autoMem === false) return hookLog(e.type + " Enter: auto-insert off");
     if (!needsMemory()) return hookLog(e.type + " Enter: empty or memory already in");
     const d = e.type + "(key=" + (e.key || "∅") + " kc=" + e.keyCode + (e.isTrusted ? "" : " synthetic") + ")";
@@ -192,12 +225,24 @@
     const k = keyOf(p);
     if (done.has(k)) return;
     done.add(k);
-    if (self.SKVSeal && self.SKVSeal.hasSeal(p.assistant.text)) {   // already saved by native MCP: no double save
-      remember(p, "SKV: already sealed in reply (saved via MCP) — not saved again", true);
-      return status("Reply already has an SKV seal (MCP): not saved again.");
-    }
     const st = await send({ type: "status" });
-    if (!st.enabled) return status("SKV is off: this reply was not saved (switch on in the toolbar popup).");
+    if (!st || st.enabled === false || st.error === "off") {
+      if (st && st.enabled === false) return status("SKV is off: this reply was not saved (switch on in the toolbar popup).");
+      return;
+    }
+    const host = (typeof location !== "undefined" && location.host) || "page";
+    const bag = await storageGet(["sealLastByHost"]);
+    const map = (bag && bag.sealLastByHost) || {};
+    const fr = self.SKVSeal && self.SKVSeal.freshSeal ? self.SKVSeal.freshSeal(p.assistant.text, map[host] || 0) : { ok: false, n: 0 };
+    if (fr.ok) {
+      map[host] = fr.n;
+      await storageSet({ sealLastByHost: map });
+      remember(p, "SKV: already sealed in reply (saved via MCP) — not saved again", true);
+      return status("Reply already has a fresh SKV seal (MCP): not saved again.");
+    }
+    const warn = self.SKVSeal && self.SKVSeal.warnBadge ? self.SKVSeal.warnBadge() : { text: "SKV: no fresh seal", ok: false };
+    remember(p, warn.text, false);
+    if (st.sealRemind === true) await storageSet({ pendingSealNote: true });
     if (!st.hasKey) return status("Set your SKV key in the extension Options.");
     status("Saving turn…");
     // 0.1.8: a transient failure (network, 5xx, 429) must not lose the turn: retry 3 times (2 s, 6 s, 15 s).
@@ -209,9 +254,7 @@
       await new Promise((res) => setTimeout(res, d));
       r = await send({ type: "turn", site: A.id, user_message: p.user ? p.user.text : "", draft: p.assistant.text });
     }
-    // Only a seal returned by the server is shown. No seal from server = no seal. True state only.
-    const bf = self.SKVSeal.badgeFor(r);
-    remember(p, bf.text, bf.ok);
+    // The warning badge stays. The server may issue a backfill seal; that string is not shown as if the reply was fresh.
     if (r.error) return status("Error: " + (r.message || r.error));
     const lines = ["verdict: " + r.verdict + (r.saved ? " · saved" : " · NOT saved")];
     if (r.verdict === "revise") lines.push("Server found an unknown [ev:id] in the reply.");

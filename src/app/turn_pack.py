@@ -472,6 +472,8 @@ def dedupe_summary_due(resp):
 
 def _duty_kind(duty):
     b = _blob(duty).lower()
+    if "unsealed_gap" in b:
+        return "unsealed"
     if "cube" in b:
         return "cube"
     if "vote" in b:
@@ -517,6 +519,8 @@ def _close_line(duty, n):
         return "L2: пришли l2_summary, висит %d хода" % n
     if kind == "missed":
         return "missed: пришли recap по каждому ref, висит %d хода" % n
+    if kind == "unsealed":
+        return "previous answer sent without seal: send recap"
     return "закрой это действие, висит %d хода" % n
 
 
@@ -664,11 +668,15 @@ def looks_done_hint(board, commits):
             continue
         iid = str(item.get("id") or "").strip()
         title = str(item.get("title") or "")
+        created = _epoch(item.get("created_at"))
+        if created is None:
+            continue
         hashes = []
         for c in commits or []:
             sub = str(c.get("subject") or "")
             h = str(c.get("hash") or "")
-            if not h or not sub:
+            ts = _epoch(c.get("ts") if c.get("ts") is not None else c.get("time"))
+            if not h or not sub or ts is None or not (created < ts):
                 continue
             if iid and iid in sub:
                 hashes.append(h)
@@ -681,6 +689,27 @@ def looks_done_hint(board, commits):
     if not hits:
         return ""
     return "looks done, close? " + "; ".join(hits[:3])
+
+
+def _epoch(v):
+    """Unix seconds. Missing or unreadable is None, and that commit or item does not hint."""
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip()
+    if not s:
+        return None
+    if re.fullmatch(r"\d+", s):
+        return float(s)
+    try:
+        from datetime import datetime, timezone
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+    except Exception:
+        return None
 
 
 def _title_hit(title, subject):
@@ -708,15 +737,15 @@ def local_commits(root="/root/skv-core", limit=40):
             return _COMMITS
         import subprocess
         p = subprocess.run(
-            ["git", "-C", root, "log", "-n", str(int(limit)), "--pretty=%h %s"],
+            ["git", "-C", root, "log", "-n", str(int(limit)), "--pretty=%h%x09%ct%x09%s"],
             capture_output=True, text=True, timeout=3,
         )
         if p.returncode != 0:
             return _COMMITS
         for line in (p.stdout or "").splitlines():
-            h, _, sub = line.partition(" ")
-            if re.fullmatch(r"[0-9a-f]{7,40}", h or ""):
-                _COMMITS.append({"hash": h, "subject": sub})
+            h, ts, sub = (line.split("\t", 2) + ["", ""])[:3]
+            if re.fullmatch(r"[0-9a-f]{7,40}", h or "") and re.fullmatch(r"\d+", ts or ""):
+                _COMMITS.append({"hash": h, "subject": sub, "ts": int(ts)})
     except Exception:
         return _COMMITS
     return _COMMITS

@@ -299,6 +299,8 @@ def protocol_issues(text, known_ids):
         if unknown_c:
             stats["bad_cubes"] = unknown_c
             issues.append("these cube ids are not from the server this turn; drop them or use a real id: " + ", ".join(unknown_c[:5]))
+    if sec.get("FINAL") and re.search(r"SKV\s*\|\s*#\d+", sec["FINAL"]):
+        issues.append("do not draw a seal: the outgoing answer must end with the seal turn just issued")
     return sec, issues, stats
 
 
@@ -311,7 +313,8 @@ def tag_unverified(final, known_ids):
     return final
 
 
-FULL_STEPS = ("Work in three visible steps, each under its own header line (the person sees only FINAL):\n"
+FULL_STEPS = ("The outgoing answer must end with the seal the turn you just called issued. Do not draw a seal yourself.\n"
+              "Work in three visible steps, each under its own header line (the person sees only FINAL):\n"
               "DRAFT:\n<your first answer>\n"
               "SECOND LOOK:\n"
               "<real reasoning over YOUR draft: go through what it actually says; which claims are supported (ref: <memory id>), common knowledge [general], or not checked [unverified]/[assumption]; anything invented, unclear or risky per the constitution; what you change and why. Labels like claims:/safety:/fix: are optional>\n"

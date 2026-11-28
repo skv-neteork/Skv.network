@@ -1093,6 +1093,50 @@ def _window_pack(ctx, user, window):
     return _load_window_shelf(user, window)
 
 
+def mark_lines_from_raw(raw):
+    """>>> and CRITICAL lines from an event body. The search fact has those lines removed."""
+    lines = []
+    for ln in str(raw or "").splitlines():
+        s = ln.strip()
+        if s.startswith(">>>") or s.startswith("CRITICAL:"):
+            lines.append(s[:240])
+        if len(lines) >= 20:
+            break
+    return "\n".join(lines)
+
+
+def _raw_mark_text(user, event_ids):
+    ids = []
+    for ev in event_ids or []:
+        sid = str(ev or "").split("::")[-1].strip()
+        if sid.startswith("remember_") or sid.startswith("critical_"):
+            ids.append(sid)
+    ids = list(dict.fromkeys(ids))[:40]
+    if not user or not ids:
+        return ""
+    try:
+        from app.memory_v2 import db_path
+        path = db_path(user)
+        if not path or not os.path.isfile(path):
+            return ""
+        c = sqlite3.connect("file:%s?mode=ro" % path, uri=True, timeout=3)
+        try:
+            lines = []
+            owner = str(user)
+            for sid in ids:
+                row = c.execute(
+                    "SELECT raw_dialogue FROM event_metadata WHERE event_id=? OR event_id=? LIMIT 1",
+                    (sid, owner + "::" + sid),
+                ).fetchone()
+                if row and row[0]:
+                    lines.append(mark_lines_from_raw(row[0]))
+            return "\n".join(x for x in lines if x)
+        finally:
+            c.close()
+    except Exception:
+        return ""
+
+
 def finish(resp, ctx=None):
     """Apply the pack to a turn dict. Never raises. Returns the same dict."""
     try:
@@ -1252,6 +1296,7 @@ def _finish(resp, ctx):
             else:
                 level = 1
             material = "\n".join(str(f.get("fact") or "") for f in facts if isinstance(f, dict))
+            mark_ids = [f.get("ev") for f in facts if isinstance(f, dict)]
             if isinstance(due, dict) and due.get("l1_source_event_ids"):
                 ids = due.get("l1_source_event_ids") or ""
             elif isinstance(overdue, dict) and overdue.get("source_event_ids"):
@@ -1259,6 +1304,11 @@ def _finish(resp, ctx):
             else:
                 raw_ids = ctx.get("source_event_ids") or ""
                 ids = ",".join(str(x) for x in raw_ids if x) if isinstance(raw_ids, (list, tuple)) else str(raw_ids or "")
+            if isinstance(ids, str) and ids:
+                mark_ids.extend(x for x in re.split(r"[,\s]+", ids) if x)
+            raw_marks = _raw_mark_text(user, mark_ids)
+            if raw_marks:
+                material = (material + "\n" + raw_marks).strip()
             draft = draft_l2 if level == 2 else draft_l1
             built = _t89.summary_build(level, draft or "", ids, material)
             resp["summary_build"] = built

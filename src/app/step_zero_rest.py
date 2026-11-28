@@ -279,4 +279,38 @@ def select_rest_page(built, page=None, room=None, transport="plain") -> dict:
     body = {"ok": True, "page": page_n, "total_pages": total, "text": slices[page_n - 1], "error": ""}
     if page_n == 1:
         body.update(room_addon(room))
+    try:
+        from app.t89_rules import remote_step_next, step_zero_done
+        body["done"] = step_zero_done(page_n, total)
+        nxt = remote_step_next(page_n, total, body.get("text") or "")
+        if body["done"] and page_n < total:
+            nxt = "step zero complete enough to answer. " + nxt
+        body["next"] = nxt
+    except Exception:
+        pass
+    if transport != "gzip":
+        _fit_response(body)
     return body
+
+
+def _fit_response(body):
+    """Keep done and next. Trim room text if the plain JSON would pass 16 KB."""
+    limit = REST_RESPONSE_JSON
+    for _ in range(40):
+        raw = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        if len(raw) <= limit:
+            return
+        room = body.get("room_text")
+        if isinstance(room, str) and room:
+            body["room_text"] = room[:-120]
+            if not body["room_text"]:
+                body.pop("room_text", None)
+            continue
+        dropped = False
+        for key in ("while_away", "others_block", "identify_hint"):
+            if body.get(key):
+                body.pop(key, None)
+                dropped = True
+                break
+        if not dropped:
+            return

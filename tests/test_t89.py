@@ -196,6 +196,11 @@ class StepZero(unittest.TestCase):
         self.assertIn("memory pack 8/8/8", remote)
         self.assertIn("allowed", remote)
         self.assertNotIn("until done=true", remote)
+        from app.step_zero_rest import select_rest_page
+        one = select_rest_page({"ok": True, "pages": ["hello pack"], "error": ""}, 1, None)
+        self.assertTrue(one["done"])
+        self.assertIn("step zero complete", one["next"])
+        self.assertEqual(tp.mark_lines_from_raw("Saved.\n>>> t94live-mark-keep2\nThe goal."), ">>> t94live-mark-keep2")
 
 
 class Cubes(unittest.TestCase):

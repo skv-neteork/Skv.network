@@ -187,7 +187,11 @@ class SearchResponse(BaseModel):
     note: Optional[str] = None
     no_confident_match: Optional[bool] = None
     explanation: Optional[str] = None
-    deep_search: Optional[Dict[str, Any]] = None
+    deep_search: Optional[Any] = None
+    reliable_matches: Optional[bool] = None
+    message: Optional[str] = None
+    offer: Optional[str] = None
+    not_in_memory: Optional[bool] = None
     suggested_cubes: Optional[Dict[str, Any]] = None   # targeted cube suggestions (cube_suggest)
     pack: Optional[Dict[str, Any]] = None              # B10 mini-lens package
     window: Optional[Dict[str, Any]] = None

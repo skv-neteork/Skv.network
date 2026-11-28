@@ -278,22 +278,41 @@ def portfolio_apply(c, ops, today=None):
     return {"applied": applied, "errors": errors, "lines": portfolio_lines(c)}
 
 
-def take_portfolio(uid, ops, connect):
-    """Split portfolio ops off the profile list and store them. connect(uid) -> sqlite connection."""
-    if isinstance(ops, str):
+def split_portfolio(ops):
+    """Portfolio ops have a portfolio field and no profile op. No write.
+
+    A profile op always carries op=add|supersede|retract|confirm|dismiss.
+    Those stay in the profile list even when kind is preference.
+    """
+    raw = ops
+    if isinstance(ops, (str, bytes)):
         import json
         try:
-            ops = json.loads(ops or "[]")
+            ops = json.loads(ops or b"[]")
         except Exception:
-            return ops, {}
+            return raw, []
     if isinstance(ops, dict):
         ops = [ops]
+    if ops is None:
+        return None, []
+    if not isinstance(ops, list):
+        return raw, []
     kept, pf = [], []
-    for op in ops or []:
-        if isinstance(op, dict) and _norm_field(op.get("field") or op.get("kind")):
+    for op in ops:
+        field = _norm_field(op.get("field") or op.get("kind")) if isinstance(op, dict) else ""
+        has_profile_op = isinstance(op, dict) and bool(str(op.get("op") or "").strip())
+        if field and not has_profile_op:
             pf.append(op)
         else:
             kept.append(op)
+    return kept, pf
+
+
+def take_portfolio(uid, ops, connect):
+    """Split portfolio ops off the profile list and store them. connect(uid) -> sqlite connection."""
+    kept, pf = split_portfolio(ops)
+    if isinstance(ops, (str, bytes)) and not isinstance(kept, list):
+        return ops, {}
     if not pf:
         return kept, {}
     c = connect(uid)
@@ -357,6 +376,14 @@ def second_look_for(draft, checked_this_turn=False, const="01-04 and memory", be
 
 def is_dangerous(text):
     return bool(_DANGER.search(text or ""))
+
+
+def recall_query(query):
+    """Query text safe to echo in a deep-search call. A danger command is not echoed."""
+    text = str(query or "")
+    if is_dangerous(text):
+        return ""
+    return text[:200]
 
 
 def hash_value(value):

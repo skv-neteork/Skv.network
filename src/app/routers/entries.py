@@ -845,4 +845,12 @@ async def search_cubes(query: str = "", response: Response = None):
             res = dict(res); res["suggested_cubes"] = _cs.suggest(query, "", "")
     except Exception:
         pass
+    if isinstance(res, dict) and not (res.get("results") or []):
+        try:
+            from app.t89_rules import EMPTY_CUBE_HINT
+            res = dict(res)
+            res["hint"] = EMPTY_CUBE_HINT
+            res["message"] = EMPTY_CUBE_HINT
+        except Exception:
+            pass
     return res

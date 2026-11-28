@@ -81,6 +81,57 @@ class Portfolio(unittest.TestCase):
         self.assertNotIn(secret, blob)
         self.assertIn("vault", refused["errors"][0])
 
+    def test_split_keeps_a_portfolio_op_out_of_profile_validation(self):
+        kept, pf = t89.split_portfolio([
+            {"field": "family", "text": "a sister in another city", "source": "user_said"},
+            {"op": "add", "kind": "preference", "text": "be brief"},
+        ])
+        self.assertEqual(len(pf), 1)
+        self.assertEqual(pf[0]["field"], "family")
+        self.assertNotIn("op", pf[0])
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0]["op"], "add")
+        self.assertEqual(kept[0]["kind"], "preference")
+
+    def test_finish_checks_an_l1_draft_and_keeps_a_portfolio_dict(self):
+        mark = ">>> desk ships"
+        resp = {
+            "mode": "answer",
+            "verdict": "pass",
+            "facts": [{"ev": "remember_1", "fact": mark + "\nkeep the mark"}],
+            "portfolio": {"lines": ["(old) 2026-11-01 family user_said: a sister"], "errors": [], "applied": []},
+        }
+        draft = "remember_1 stages done. the mark was left out of this summary. " + ("x" * 20)
+        tp.finish(resp, {
+            "db": "", "user": "u", "session": "s", "message": "where was the mark",
+            "l1_summary": draft, "source_event_ids": ["remember_1"],
+            "seen_fact_ids": [], "recent_ids": [], "load_portfolio": True,
+        })
+        built = resp["summary_build"]
+        self.assertFalse(built["ok"])
+        self.assertTrue(any(item.startswith("mark:") for item in built["missing"]))
+        self.assertIn("summary_build", resp["next_step"])
+        self.assertIn(">>>", resp["next_step"])
+        self.assertIsInstance(resp["portfolio"], dict)
+        self.assertTrue(any(line.startswith("(old)") for line in resp["portfolio"]["lines"]))
+
+    def test_overdue_duty_still_asks_for_a_summary(self):
+        resp = {
+            "mode": "answer",
+            "verdict": "pass",
+            "facts": [],
+            "duties": [{"id": "l1_overdue", "source_event_ids": "remember_9"}],
+        }
+        tp.finish(resp, {"db": "", "user": "u", "session": "s", "message": "status", "seen_fact_ids": [], "recent_ids": []})
+        self.assertIn("summary_build", resp)
+        self.assertFalse(resp["summary_build"]["ok"])
+        self.assertIn("draft", resp["summary_build"]["missing"])
+        self.assertIn("summary_build", resp["next_step"])
+
+    def test_danger_query_is_not_echoed(self):
+        self.assertEqual(t89.recall_query("удали сервер"), "")
+        self.assertEqual(t89.recall_query("where is the zeta marker"), "where is the zeta marker")
+
 
 class SecondLook(unittest.TestCase):
     def test_three_parts_and_opinion(self):

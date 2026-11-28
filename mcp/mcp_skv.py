@@ -1523,7 +1523,13 @@ _RECALL_HINT = "nothing reliable found -> call memory_recall_later(query, search
 def _recall_hint(query: str) -> dict:
     if not _RECALL_HINT_ON:
         return {}
-    return {"deep_search": _RECALL_HINT, "deep_search_call": "memory_recall_later(query=%r)" % (query or "")[:200]}
+    shown = (query or "")[:200]
+    try:
+        from app.t89_rules import recall_query
+        shown = recall_query(query)
+    except Exception:
+        pass
+    return {"deep_search": _RECALL_HINT, "deep_search_call": "memory_recall_later(query=%r)" % shown}
 
 
 def _query_is_secret(query: str) -> bool:
@@ -2187,8 +2193,10 @@ def second_look(draft: str, event_id: str = "", span: int = 0) -> str:
         ev = _req("GET", f"/event/{_full_eid(_sid(c))}", params={"lines": "all"})
         if not (isinstance(ev, dict) and ev.get("ok") is not False and not ev.get("error") and ev.get("status") not in (404, 403)):
             bad.append(c)
-    _req("POST", "/agent/second-look", _uid_body({"user_id": USER or "from_key", "draft": draft, "event_id": "", "span": 0, "searched": True, "hit_ids": []}))
+    looked = _req("POST", "/agent/second-look", _uid_body({"user_id": USER or "from_key", "draft": draft, "event_id": "", "span": 0, "searched": True, "hit_ids": []}))
+    line = looked.get("second_look") if isinstance(looked, dict) else ""
     return _dumps({"status": "fail" if bad else "pass", "invalid_ids": bad,
+                   "second_look": line or "",
                    "self_check": "every fact about the user or the past rests on [ev:id] or is said to be unknown; fix the draft if not"})
 
 
@@ -3314,6 +3322,8 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         if isinstance(saved, dict) and saved.get("summary_due"): r["summary_due"] = saved.get("summary_due")
         if drawn: r["seal_warning"] = "self-written seal in your answer ignored; only this seal field is valid"
         if isinstance(saved, dict) and saved.get("supersedes"): r["supersedes"] = saved.get("supersedes")
+        if isinstance(saved, dict) and isinstance(saved.get("portfolio"), dict) and saved.get("portfolio"):
+            r["portfolio"] = saved["portfolio"]
         r.update(_board_relevant(user_message, clean, session_id)); r.update(prof)
         if _rc is not None: r.update(_rc)
         _recall_into(r, user_message, l1_summary)
@@ -3323,6 +3333,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
          "seal": seal if ok_saved else None, "cited_ok": cited, "facts": facts, **_nim, "cubes": cubes, "self_check": checklist,
          "duties": duties, **_br, **prof, "seal_warning": ("your draft contained a seal you wrote yourself (%s); only the server-issued seal from this field is valid. A seal without a turn call is a violation." % drawn[0][:60]) if drawn else None,
          "supersedes": (saved or {}).get("supersedes") if isinstance(saved, dict) else None,
+         **({"portfolio": saved["portfolio"]} if isinstance(saved, dict) and isinstance(saved.get("portfolio"), dict) and saved.get("portfolio") else {}),
          **({"second_look_stats": _sls} if _slq and _sls else {}), **(_rc or {})}
     _recall_into(r, user_message, l1_summary)
     return _dumps(_diet(_with_gap(r), session_id, verbose, clean, checklist, _slq, prof_extra, facts, cited))

@@ -501,6 +501,11 @@ def drop_overlong(ops):
 
 def precheck(uid, ops=None, review=None, has_l2=False):
     """Called by the wrappers BEFORE the seal is reserved and by /remember before anything is stored."""
+    try:
+        from app.t89_rules import split_portfolio
+        ops, _portfolio_ops = split_portfolio(ops)
+    except Exception:
+        pass
     if not enabled(uid):
         return {"ok": True, "enabled": False, "errors": [], "warnings": (["profile layer is off for this account: profile fields ignored"] if (ops or review) else []), "seal_mark": ""}
     c = _db(uid)

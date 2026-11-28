@@ -1751,6 +1751,15 @@ async def remember(req: RememberRequest, request: Request = None):
         except Exception as _e:
             print(f"[profile] apply failed: {_e}", flush=True)
             _out["profile_errors"] = ["profile apply failed on the server: %s" % type(_e).__name__]
+    elif req.profile:
+        try:
+            from app import profile as _prof_pf
+            from app import t89_rules as _t89pf
+            _pk, _pf = _t89pf.take_portfolio(req.user_id, req.profile, _prof_pf._db)
+            if _pf:
+                _out["portfolio"] = _pf
+        except Exception as _e:
+            print(f"[portfolio] off-layer take skipped: {_e}", flush=True)
     if _duty_notes:
         _out["cube_duty"] = _duty_notes
     if _rate_missed:
@@ -2452,4 +2461,11 @@ async def guardian_l1_memory(req: MemoryRequest, buffer: ChronoBufferV77Ultimate
 @router.post("/search", response_model=SearchResponse)
 async def search_endpoint(req: SearchRequest, buffer: ChronoBufferV77Ultimate = Depends(get_memory_buffer), authorization: str = Header(None)):
     res = await _search_endpoint_impl(req, buffer, authorization)
-    return _cs_attach(res, req.query_text, req.user_id, getattr(req, "session_id", "") or "search")
+    res = _cs_attach(res, req.query_text, req.user_id, getattr(req, "session_id", "") or "search")
+    if isinstance(res, dict):
+        try:
+            from app.t89_rules import apply_score_floor
+            apply_score_floor(res, res.get("results") or [], req.query_text or "")
+        except Exception as _e:
+            print(f"[search] score floor skipped: {_e}", flush=True)
+    return res

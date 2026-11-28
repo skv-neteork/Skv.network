@@ -709,6 +709,8 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
                             (("SKV memory was not given to the model before this answer (%d matching facts exist): [READ ?]. Use Insert SKV memory before sending." % len(facts)) if no_read else None),
             "summary_due": saved.get("summary_due") if isinstance(saved, dict) else None, "saved_parts": saved.get("saved") if isinstance(saved, dict) else None,
             "error": None if ok else saved, **({"second_look_stats": _sls} if _slq and _sls else {})}
+    if isinstance(saved, dict) and isinstance(saved.get("portfolio"), dict) and saved.get("portfolio"):
+        r["portfolio"] = saved["portfolio"]
     if _pw:
         extra = list(r.get("profile_warnings") or []) if isinstance(r.get("profile_warnings"), list) else []
         r["profile_warnings"] = extra + [str(x) for x in _pw]

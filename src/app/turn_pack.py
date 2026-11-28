@@ -1240,18 +1240,31 @@ def _finish(resp, ctx):
     resp["next_step"] = next_step_for(resp, message, closed_duty=closed_now)
     try:
         from app import t89_rules as _t89
-        if resp.get("summary_due"):
-            level = 2 if isinstance(resp.get("summary_due"), dict) and resp["summary_due"].get("l2") and not resp["summary_due"].get("l1") else 1
+        draft_l1 = str(ctx.get("l1_summary") or "").strip()
+        draft_l2 = str(ctx.get("l2_summary") or "").strip()
+        overdue = next((d for d in (resp.get("duties") or []) if isinstance(d, dict) and d.get("id") == "l1_overdue"), None)
+        due = resp.get("summary_due")
+        if due or draft_l1 or draft_l2 or overdue:
+            if draft_l2 and not draft_l1:
+                level = 2
+            elif isinstance(due, dict) and due.get("l2") and not due.get("l1") and not draft_l1:
+                level = 2
+            else:
+                level = 1
             material = "\n".join(str(f.get("fact") or "") for f in facts if isinstance(f, dict))
-            ids = ""
-            if isinstance(resp.get("summary_due"), dict):
-                ids = resp["summary_due"].get("l1_source_event_ids") or ""
-            draft = ctx.get("l2_summary") if level == 2 else ctx.get("l1_summary")
+            if isinstance(due, dict) and due.get("l1_source_event_ids"):
+                ids = due.get("l1_source_event_ids") or ""
+            elif isinstance(overdue, dict) and overdue.get("source_event_ids"):
+                ids = overdue.get("source_event_ids") or ""
+            else:
+                raw_ids = ctx.get("source_event_ids") or ""
+                ids = ",".join(str(x) for x in raw_ids if x) if isinstance(raw_ids, (list, tuple)) else str(raw_ids or "")
+            draft = draft_l2 if level == 2 else draft_l1
             built = _t89.summary_build(level, draft or "", ids, material)
             resp["summary_build"] = built
             if not built.get("ok"):
                 resp["next_step"] = built.get("ready_call") or resp["next_step"]
-        if ctx.get("load_portfolio") and first and user:
+        if ctx.get("load_portfolio") and first and user and not isinstance(resp.get("portfolio"), dict):
             from app import shelves as _sh
             lines = _t89.portfolio_public(user, _sh.BASE_DIR, _sh._name)
             if lines:

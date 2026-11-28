@@ -31,6 +31,8 @@ everything something anything nothing
 _SHORT = {"do everything", "сделай всё", "сделай все", "делай", "делай все", "делай всё"}
 _ORDER = ("decision", "critical", "l1", "l2", "event", "echo")
 _DURABLE = {"decision", "critical", "l1", "l2"}
+# GB-29 B: a durable row competes on relevance plus this bonus; it no longer sits above every event.
+_LAYER_BONUS = {"decision": 0.25, "critical": 0.25, "l1": 0.15, "l2": 0.10}
 _SECRET_KIND = {"password", "secret", "token", "credential", "api_key", "apikey", "private_key"}
 _PROBE = re.compile(r"^\s*(\[(latency[ _-]?test|report|test|probe|ping|service)[^\]]*\]|zz)", re.I)
 _REMEMBER = re.compile(r"(?:[\w.+-]+::)?remember_\d+")
@@ -1120,7 +1122,10 @@ def _yyyymmdd(time_s):
 
 
 def rank(hits, topic, echo_ids, multi, limit=5):
-    """Layer order, then score, then newer day. At most one recent echo, kept as an ordinary event.
+    """Relevance plus a layer bonus, then newer day. At most one recent echo, kept as an ordinary event.
+
+    An event's relevance is its search score over the best event score. A durable row's is the share
+    of topic words it covers, plus _LAYER_BONUS. (Before GB-29 every durable row sat above every event.)
 
     An off-topic critical or decision mark is an ordinary event. It does not take the durable boost.
     An empty topic does not demote, because on_topic is false for every row in that case.
@@ -1148,8 +1153,18 @@ def rank(hits, topic, echo_ids, multi, limit=5):
         kept = echoes[0]
         kept["layer"] = "event"
         rest.append(kept)
-    order = {name: i for i, name in enumerate(_ORDER)}
-    rest.sort(key=lambda h: (order.get(h["layer"], 9), -float(h.get("score") or 0), -_yyyymmdd(h.get("time"))))
+    tw = content_words(topic)
+    ev_mx = max([float(h.get("score") or 0) for h in rest if h["layer"] not in _DURABLE] or [0]) or 0.0
+    for h in rest:
+        if h["layer"] in _DURABLE:
+            if tw:
+                rel = min(1.0, _overlap_count(tw, h.get("summary") or "") / float(len(tw)))
+            else:
+                rel = 0.5
+            h["_key"] = rel + _LAYER_BONUS.get(h["layer"], 0.0)
+        else:
+            h["_key"] = (float(h.get("score") or 0) / ev_mx) if ev_mx else 0.0
+    rest.sort(key=lambda h: (-h["_key"], -_yyyymmdd(h.get("time"))))
     if multi:
         rest = _diversify(rest, limit)
         for h in rest:
@@ -1165,13 +1180,16 @@ def rank(hits, topic, echo_ids, multi, limit=5):
         out.append(h)
         if len(out) >= limit:
             break
-    mx = max([float(h.get("score") or 0) for h in out] or [0]) or 1.0
+    mx = max([float(h.get("score") or 0) for h in out if h["layer"] not in _DURABLE] or [0]) or 1.0
     has_durable = any(h["layer"] in _DURABLE for h in out)
     for h in out:
         if h["layer"] in _DURABLE:
-            h["score"] = mx
+            # On the event scale: full relevance + bonus reaches the best event score, never above it.
+            h["score"] = round(mx * min(1.0, float(h.get("_key") or 0)), 6)
         elif h["layer"] == "echo" and has_durable:
             h["score"] = mx * 0.5
+    for h in rest:
+        h.pop("_key", None)
     return out
 
 

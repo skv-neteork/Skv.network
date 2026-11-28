@@ -366,6 +366,10 @@ def _hybrid_pair(uid, query, pool):
     except Exception as e:
         print("[q2s] semantic skipped: %s" % type(e).__name__, flush=True)
     words, rare = _v2.fts_ranked(uid, query, limit=max(c["fts_limit"], 80))
+    try:
+        _v2.note_signals(query, sem, words, rare)
+    except Exception:
+        pass
     ww = _v2.word_weight(c, rare)
     out = []
     for s in (nfil(uid, sem, query), sem):

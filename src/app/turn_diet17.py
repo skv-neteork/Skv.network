@@ -559,7 +559,8 @@ def overlay(plan, msg, search_as, conn=None):
     if on:
         ids = sorted(load_own_fresh(conn, actor, session))
     recent_texts = _recent_briefs(conn, actor, session) if conn is not None else []
-    trig, _sim = topic_trigger(msg, search_as_text(search_as), recent_texts)
+    topic_texts = _recent_briefs(conn, actor, session, n=400, full=True) if conn is not None else []
+    trig, _sim = topic_trigger(msg, search_as_text(search_as), topic_texts, prev_answer=prev)
     lines = []
     if plan.get("mode") == "directive":
         lines = [h.get("summary") or "" for h in directive_hits(conn, session)]
@@ -662,7 +663,7 @@ def directive_hits(conn, session=""):
     return hits
 
 
-def _recent_briefs(conn, actor, session, n=5):
+def _recent_briefs(conn, actor, session, rows=5, n=160, full=False):
     if conn is None or not actor:
         return []
     try:
@@ -676,34 +677,50 @@ def _recent_briefs(conn, actor, session, n=5):
     if "session_id" in cols and session:
         where += " AND session_id=?"
         args.append(session)
-    args.append(int(n))
+    args.append(int(rows))
     try:
-        rows = conn.execute(
+        got = conn.execute(
             "SELECT raw_dialogue FROM event_metadata WHERE %s ORDER BY rowid DESC LIMIT ?" % where,
             args,
         ).fetchall()
     except Exception:
         return []
-    return [_brief(r[0] or "", 160) for r in rows if r and r[0]]
+    if full:
+        return [re.sub(r"\s+", " ", r[0] or "").strip()[:int(n)] for r in got if r and r[0]]
+    return [_brief(r[0] or "", int(n)) for r in got if r and r[0]]
 
 
-def topic_trigger(msg, search_as="", recent_texts=None):
-    """Explicit phrase, or low overlap with this actor's last turns. Logs a trigger."""
+def _topic_stems(text):
+    """5-letter prefixes of content words: RU inflection and EN plurals still overlap."""
+    return {w.replace("ё", "е")[:5] for w in _content_words(text)}
+
+
+def topic_trigger(msg, search_as="", recent_texts=None, prev_answer=""):
+    """Explicit phrase, or low overlap with this actor's last turns. Logs a trigger.
+
+    A short reply (<= 40 characters or <= 6 words) continues the topic unless it names a new one
+    with a phrase. Overlap is on stem prefixes of search_as + message against the last turns
+    (question and answer) and the tail of the previous answer (anchor_query).
+    """
     blob = ((search_as or "") + " " + (msg or "")).lower().replace("ё", "е")
     for phrase in NEW_TOPIC_PHRASES:
         if phrase in blob:
             print("[17-topic] trigger=phrase", flush=True)
             return "phrase", 1.0
-    q_words = _content_words(search_as or msg)
-    recent = [t for t in (recent_texts or []) if t][:5]
+    if _shortish(msg):
+        return "", 1.0
+    q_words = _topic_stems((search_as or "") + " " + (msg or ""))
+    recent = [t for t in (recent_texts or []) if t][:6]
+    if prev_answer:
+        recent = [anchor_query(prev_answer, "")] + recent
     if len(q_words) < 3 or not recent:
         return "", 1.0
     cent = set()
     for text in recent:
-        cent.update(_content_words(text))
+        cent.update(_topic_stems(text))
     if not cent:
         return "", 1.0
-    sim = len(set(q_words) & cent) / float(len(set(q_words)))
+    sim = len(q_words & cent) / float(len(q_words))
     if sim < LEX_TOPIC:
         print("[17-topic] trigger=lex sim=%.3f" % sim, flush=True)
         return "lex", sim

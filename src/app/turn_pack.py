@@ -22,6 +22,13 @@ _DEFAULT_DB = "/data/skv/metadata_store/turn_pack.db"
 _SESSION_TAIL = 50
 _WINDOW_CAP = 5
 _SEEN_CAP = 80
+# Novelty: a fact shown on turn N is held back until turn N + _SEEN_TTL, then may return.
+_SEEN_TTL = 18
+_SEEN_KEEP = 240
+# Soft topic filter for normal compact rows (GB-29).
+SOFT_COS = 0.45      # mml12 cosine to the query or search_as that counts as on topic (calibrated 28.11: hit cos p10 0.49, min 0.41)
+SOFT_FACTOR = 0.3    # score multiplier for a row that fails every topic test
+SOFT_FILL = 3        # off-topic rows only fill up to this many facts
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")
 _URL = re.compile(r"https?://\S+|www\.\S+", re.I)
@@ -33,7 +40,10 @@ _CORE = "AUTHOR CUBE CORE ("
 _CUBE_ID = re.compile(r"cube_[0-9a-f]{8,}")
 _ISO = re.compile(r"\b(20\d{2})-(\d{2})-(\d{2})\b")
 _DMY = re.compile(r"\b(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?\b")
-_UNIT_AFTER = re.compile(r"(?i)^\s*(?:кб|kb|mb|gb|tb|тб|байт|bytes?|руб)\b")
+_UNIT_AFTER = re.compile(
+    r"(?i)^\s*(?:(?:кб|мб|гб|тб|kb|mb|gb|tb|kib|mib|gib|тыс|млн|байт|bytes?|руб|usd|eur|ms|мс|сек|мин|ram|vram|cpu|ядр\w*|ghz|mhz|ггц|мгц|раз)\b|[%₽$€×x](?!\w))")
+# "~1.12", "≈1.5", "x1.5", "v1.12", "1.12.3": a size or version, not a date.
+_NUM_BEFORE = re.compile(r"(?i)(?:[~≈×x]|\bv|\d[.,]|\+|-)\s*$")
 _MON = {
     "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3,
     "april": 4, "apr": 4, "may": 5, "june": 6, "jun": 6, "july": 7, "jul": 7,
@@ -123,6 +133,10 @@ def _parse_explicit(text, today):
     for m in _DMY.finditer(text or ""):
         dd_s, mm_s, yy = m.group(1), m.group(2), m.group(3)
         if _UNIT_AFTER.match((text or "")[m.end():]):
+            continue
+        if _NUM_BEFORE.search((text or "")[max(0, m.start() - 3):m.start()]):
+            continue
+        if re.match(r"[.,]\d", (text or "")[m.end():]):
             continue
         if not yy and len(mm_s) != 2:
             continue
@@ -356,7 +370,7 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
         return bool(f.get("is_self"))
 
     def _keep(f):
-        # The 2400 pack and the active-state slice already chose this row.
+        # The wide 2400 pack and the active-state slice already chose this row.
         if f.get("pack2400") or f.get("active_slice"):
             return True
         if _self(f):
@@ -367,10 +381,16 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
             return bool(on_topic(topic, f.get("fact") or "", extra))
         return False
 
+    soft = []
     if words and on_topic is not None:
         inside, outside = [], []
         for f in kept:
             if not _keep(f):
+                if f.get("pack_soft") and not _self(f):
+                    if soft_pass(f):
+                        outside.append(f)
+                    else:
+                        soft.append(f)
                 continue
             if window and _in_window(f, window):
                 inside.append(f)
@@ -378,12 +398,38 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
                 outside.append(f)
         kept = inside[:window_cap] + outside
     elif window:
-        kept = [f for f in kept if _keep(f)][:window_cap]
+        kept = [f for f in kept if _keep(f) or f.get("pack_soft")][:window_cap]
+    if soft and len(kept) < SOFT_FILL:
+        for f in soft[:SOFT_FILL - len(kept)]:
+            try:
+                f["score"] = round(float(f.get("score") or 0) * SOFT_FACTOR, 6)
+            except (TypeError, ValueError):
+                f["score"] = 0.0
+            f["off_topic"] = True
+            kept.append(f)
     for f in kept:
         if isinstance(f, dict):
             f.pop("pack2400", None)
+            f.pop("pack_soft", None)
             f.pop("active_slice", None)
+            f.pop("cos", None)
+            f.pop("rare", None)
     return kept
+
+
+def soft_pass(f, cos_floor=None):
+    """Semantic or exact-token evidence that a normal compact row is on topic.
+
+    cos is the best mml12 cosine of the event to the query or a search_as form (from /search).
+    rare is a keyword hit on a rare or latin query term (FTS rare mode).
+    """
+    floor = SOFT_COS if cos_floor is None else float(cos_floor)
+    if f.get("rare"):
+        return True
+    try:
+        return float(f.get("cos") or 0) >= floor
+    except (TypeError, ValueError):
+        return False
 
 
 def system_skip_refs(recap):
@@ -881,6 +927,8 @@ def _load_sess(db, user, session):
         seen = json.loads(row[5] or "[]")
     except Exception:
         seen = []
+    turn_no, seen_seq = seen_state(seen)
+    seen = [ev for ev, _s in seen_seq]
     try:
         duty = json.loads(row[6] or "{}")
     except Exception:
@@ -892,8 +940,62 @@ def _load_sess(db, user, session):
         "prof_h": row[3] or "",
         "core_sent": int(row[4] or 0),
         "seen": seen if isinstance(seen, list) else [],
+        "seen_seq": seen_seq,
+        "turn": turn_no,
         "duty": duty if isinstance(duty, dict) else {},
     }, True
+
+
+def seen_state(blob):
+    """(turn, [(ev, turn_seen)]) from the stored seen_json.
+
+    v2 is {"v": 2, "turn": N, "ids": [[ev, n], ...]}. A legacy flat list keeps only its last
+    _SEEN_CAP ids, stamped turn 0, so they expire after _SEEN_TTL turns.
+    """
+    if isinstance(blob, dict):
+        try:
+            turn_no = int(blob.get("turn") or 0)
+        except (TypeError, ValueError):
+            turn_no = 0
+        pairs = []
+        for item in blob.get("ids") or []:
+            if isinstance(item, (list, tuple)) and len(item) >= 2 and item[0]:
+                try:
+                    pairs.append((str(item[0]), int(item[1])))
+                except (TypeError, ValueError):
+                    continue
+        return turn_no, pairs
+    if isinstance(blob, list):
+        return 0, [(str(x), 0) for x in blob[-_SEEN_CAP:] if x]
+    return 0, []
+
+
+def seen_active(seen_seq, turn_no, ttl=None):
+    """Ids still held back on turn turn_no."""
+    ttl = _SEEN_TTL if ttl is None else int(ttl)
+    return [ev for ev, n in (seen_seq or []) if int(turn_no) - int(n) < ttl]
+
+
+def seen_update(seen_seq, sent_ids, turn_no, ttl=None):
+    """Drop expired pairs, stamp the ids sent now with turn_no. Newest last, capped."""
+    ttl = _SEEN_TTL if ttl is None else int(ttl)
+    keep = {}
+    for ev, n in seen_seq or []:
+        if int(turn_no) - int(n) < ttl:
+            keep[ev] = max(int(n), keep.get(ev, -10 ** 9))
+    for ev in sent_ids or []:
+        if ev:
+            keep.pop(str(ev), None)
+            keep[str(ev)] = int(turn_no)
+    pairs = sorted(keep.items(), key=lambda kv: kv[1])
+    return pairs[-_SEEN_KEEP:]
+
+
+def _seen_blob(st):
+    if "seen_seq" in st:
+        return {"v": 2, "turn": int(st.get("turn") or 0),
+                "ids": [[ev, n] for ev, n in (st.get("seen_seq") or [])][-_SEEN_KEEP:]}
+    return list(st.get("seen") or [])[-_SEEN_CAP:]
 
 
 def _save_sess(db, user, session, st):
@@ -908,7 +1010,7 @@ def _save_sess(db, user, session, st):
                     _user_key(user), (session or "s")[:80],
                     st.get("desk_h") or "", st.get("dig_h") or "", st.get("lang_h") or "", st.get("prof_h") or "",
                     1 if st.get("core_sent") else 0,
-                    json.dumps(list(st.get("seen") or [])[-_SEEN_CAP:]),
+                    json.dumps(_seen_blob(st)),
                     json.dumps(st.get("duty") or {}),
                 ),
             )
@@ -1207,12 +1309,15 @@ def _finish(resp, ctx):
         recent_ids = []
     else:
         recent_ids = recent_session_ids(user, session)
+    turn_no = int(st.get("turn") or 0) + 1
+    seen_seq = list(st.get("seen_seq") or [])
     if "seen_fact_ids" in ctx:
         seen = ctx.get("seen_fact_ids") or []
+        seen_seq = [(str(x), turn_no) for x in seen if x]
     elif compressed or compressed_at:
         seen = []
     else:
-        seen = st.get("seen") or []
+        seen = seen_active(seen_seq, turn_no)
     search_as = ctx.get("search_as") or ""
     if not search_as:
         try:
@@ -1315,9 +1420,10 @@ def _finish(resp, ctx):
     st["duty"] = counts
     sent_ids = [str(f.get("ev")) for f in facts if isinstance(f, dict) and f.get("ev")]
     if compressed or compressed_at:
-        st["seen"] = sent_ids[-_SEEN_CAP:]
-    else:
-        st["seen"] = (list(seen) + sent_ids)[-_SEEN_CAP:]
+        seen_seq = []
+    st["seen_seq"] = seen_update(seen_seq, sent_ids, turn_no)
+    st["turn"] = turn_no
+    st["seen"] = [ev for ev, _n in st["seen_seq"]]
     _save_sess(db, user, session, st)
     used = _parse_ids(ctx.get("used_fact_ids"))
     if used:

@@ -261,6 +261,68 @@ def anchors(query):
 # Cosine similarity, applied to the vector list before RRF. Not a cut on the fused score.
 COS_BEFORE_FUSION = 0.35
 
+# GB-29: per-request topic signals for the turn pack. The /search route sets a dict; each
+# hybrid() run on the query or a search_as form records the best cosine per event and the
+# keyword hits of an exact (latin / digit) term. Runs on context lines are not recorded.
+import contextvars as _cv
+SIGNALS = _cv.ContextVar("skv_search_signals", default=None)
+
+
+def _sid_of(eid):
+    return str(eid or "").split("::")[-1]
+
+
+def _is_context_query(query):
+    try:
+        from app import q2s as _q
+        lines = _q.CONTEXT.get() or []
+    except Exception:
+        return False
+    if isinstance(lines, str):
+        lines = [lines]
+    q = re.sub(r"\s+", " ", str(query or "")).strip()[:300]
+    if not q:
+        return False
+    for line in lines or []:
+        t = re.sub(r"\s+", " ", str(line or "")).strip()
+        if t and (t[:300] == q or (len(q) > 20 and q in t)):
+            return True
+    return False
+
+
+def note_signals(query, sem, words, rare):
+    d = SIGNALS.get()
+    if d is None or _is_context_query(query):
+        return
+    try:
+        for eid, score in sem or []:
+            k = _sid_of(eid)
+            c = d.setdefault(k, {})
+            c["cos"] = max(float(c.get("cos") or 0.0), float(score))
+        if rare == 2:
+            for eid, _s in list(words or [])[:10]:
+                d.setdefault(_sid_of(eid), {})["rare"] = True
+    except Exception:
+        return
+
+
+def annotate(results):
+    """Copy the recorded cosine / exact-term signals onto /search result dicts. Never raises."""
+    d = SIGNALS.get()
+    if not d or not isinstance(results, list):
+        return results
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        sig = d.get(_sid_of(r.get("event_id") or r.get("id")))
+        if not sig:
+            continue
+        if sig.get("cos") is not None:
+            r["cos"] = round(float(sig["cos"]), 4)
+        if sig.get("rare"):
+            r["rare"] = True
+    return results
+
 
 def cosine_keep(sem, floor=COS_BEFORE_FUSION):
     """Keep vector hits whose cosine is at least the floor. Keyword hits are a separate list."""
@@ -380,9 +442,11 @@ def hybrid(uid, query, top_k=20, vec_k=None, with_cos=False):
             sem, _v = _ln.semantic_visible(uid, query, k=vk)
     except Exception as e:
         print(f"[search_v2] semantic skipped: {e}", flush=True)
+    raw_sem = sem
     sem = cosine_keep(sem)
     sem = name_filter(uid, sem, query)
     words, rare = fts_ranked(uid, query, limit=fk)
+    note_signals(query, raw_sem, words, rare)
     fused = wrrf(sem, words, c["w_vec"], word_weight(c, rare))
     if not c.get("chunks"):
         fused = _impute_pending(uid, fused, sem, words, c["w_vec"])

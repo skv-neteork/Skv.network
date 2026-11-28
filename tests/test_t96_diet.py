@@ -125,7 +125,8 @@ class Diet(unittest.TestCase):
         evs = [f["ev"] for f in facts]
         self.assertIn("remember_9", evs)
         self.assertLessEqual(len(facts), 3)
-        self.assertTrue(facts[0].get("pack2400"))
+        # GB-29: a normal row is soft-marked (topic diet may demote it, not drop it).
+        self.assertTrue(facts[0].get("pack_soft"))
         self.assertNotIn("summary", facts[0])
         body = "\n".join(f["fact"].split(" [ev:")[0].replace(" [cut]", "") for f in facts)
         self.assertLessEqual(len(body), 1500)
@@ -215,8 +216,9 @@ class ShortSearchTopic(unittest.TestCase):
         hits = [{"event_id": "u::remember_1", "time": "2026-11-27 18:07", "score": 0.5,
                  "summary": "по хорошему это должно работать как скил энд хук", "source": "x"}]
         facts = tc.compact_facts(hits, "", message=msg, kind="turn")
-        self.assertTrue(facts and facts[0].get("pack2400"))
+        self.assertTrue(facts and facts[0].get("pack_soft"))
         out = tp.select_facts(facts, message=msg, recent_ids=[], seen_fact_ids=[], topic_query=msg)
+        # No cosine or exact token here: the row stays in a free slot, at a lower score.
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["ev"], "remember_1")
 

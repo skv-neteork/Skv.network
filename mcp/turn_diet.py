@@ -352,6 +352,30 @@ def apply(path, resp, ctx):
     return resp, mode
 
 
+def log_context(path, user, session, resp, mode="context"):
+    """One diet_metrics row for a context-only turn (single-call recap+seal mode).
+
+    apply() only logs when it sees a draft with verdict=pass. Since an agent switched to
+    turn(user_message, recap=[...]) without answer, every turn took the context return and the
+    table went silent (28.11 after 20:06 MSK). Ids and sizes only. Never raises.
+    """
+    try:
+        if not cfg("metrics") or not isinstance(resp, dict):
+            return False
+        facts = [f for f in (resp.get("facts") or []) if isinstance(f, dict)]
+        secs = {k: _tok(v) for k, v in resp.items()}
+        c = _db(path)
+        try:
+            c.execute("insert into diet_metrics values(?,?,?,?,?,?,?,?)",
+                      (time.time(), _h(user), mode, _tok(resp), json.dumps(secs), len(facts), 0, 0))
+            c.commit()
+        finally:
+            c.close()
+        return True
+    except Exception:
+        return False
+
+
 def stats(path, user, days=1.0):
     """Plan #7 baseline: tokens per turn by mode, confirmed use of facts sent on the previous turn."""
     try:

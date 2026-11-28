@@ -1108,8 +1108,13 @@ def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = Fals
             continue                            # lexical relevance: unrelated questions get no memory_check
         seen.add(key)
         meta = r.get("metadata") or {}
-        out.append({"event_id": r.get("event_id"), "score": round(sc, 4), "summary": _fact_text(_norm_seal(summ)),
-                    "source": r.get("source"), "time": meta.get("time_str") or r.get("time") or ""})
+        _row = {"event_id": r.get("event_id"), "score": round(sc, 4), "summary": _fact_text(_norm_seal(summ)),
+                "source": r.get("source"), "time": meta.get("time_str") or r.get("time") or ""}
+        if r.get("cos") is not None:
+            _row["cos"] = r.get("cos")
+        if r.get("rare"):
+            _row["rare"] = True
+        out.append(_row)
         if len(out) >= top_k:
             break
     _mark_conflicts(out)
@@ -3301,7 +3306,12 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         pass
     if not draft and compact:
         cg_commit()
-        return _dumps(_with_gap({"mode": "context", "compact": True, "facts": facts, **_nim, **cg, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, True), "next": "self-check, then turn(user_message, answer=<final>, compact=true)", **_rsx}))
+        _cres = _with_gap({"mode": "context", "compact": True, "facts": facts, **_nim, **cg, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, True), "next": "self-check, then turn(user_message, answer=<final>, compact=true)", **_rsx})
+        try:
+            _DIET.log_context(COMPACT_DB, _caller_id() or "env", session_id or "mcp", _cres, "context_seal" if _rsx else "context")
+        except Exception:
+            pass
+        return _dumps(_cres)
     if not draft:
         return _dumps(_with_gap({"mode": "context", "facts": facts, **_nim, "cubes": cubes, "self_check": checklist, **_board_relevant(user_message, "", session_id), **_profile_rel(user_message, "", session_id, False),
                        **({} if _rsx else {"next_seal": SEAL_FMT.format(n=_last_seal() + 1)}), "next": "draft, run the self_check, then turn(user_message, draft)", **_rsx}))

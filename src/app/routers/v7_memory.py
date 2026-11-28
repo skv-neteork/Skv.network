@@ -813,6 +813,8 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
         from app.search_window import WindowError as _WindowError
         _tok = _q2s.SEARCH_AS.set(getattr(req, "search_as", None))
         _ctx = _q2s.CONTEXT.set(getattr(req, "context", None))
+        from app import search_v2 as _v2s
+        _sig = _v2s.SIGNALS.set({})
         try:
             if getattr(req, "pack", False) or getattr(req, "focus_event_id", None) or _has_window:
                 from app import search_pack as _sp
@@ -842,6 +844,7 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                                     "rank": h.get("rank"),
                                     "id": h.get("id") or h.get("event_id"),
                                     "date": h.get("date"), "content": content})
+                _v2s.annotate(results)
                 return {"results": results, "pack": pack, "window": pack.get("window"),
                         "truncated": pack.get("truncated"), "hint": pack.get("hint"),
                         "next": pack.get("next"),
@@ -853,10 +856,11 @@ async def _search_endpoint_impl(req: SearchRequest, buffer: ChronoBufferV77Ultim
                         "has_more": pack.get("has_more"),
                         "note": pack.get("note")}
             try:
-                return {"results": _st.text_search(req.user_id, req.query_text, req.top_k, since=_since, until=_until, exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None))}
+                return {"results": _v2s.annotate(_st.text_search(req.user_id, req.query_text, req.top_k, since=_since, until=_until, exclude_imports=bool(getattr(req, "exclude_imports", False)), source=getattr(req, "source", None)))}
             except _WindowError as _we:
                 raise HTTPException(status_code=_we.status, detail=_we.body())
         finally:
+            _v2s.SIGNALS.reset(_sig)
             _q2s.SEARCH_AS.reset(_tok)
             _q2s.CONTEXT.reset(_ctx)
     q_vec = np.array(req.query_vector, dtype=np.float32)

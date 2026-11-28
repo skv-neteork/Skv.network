@@ -1275,13 +1275,17 @@ def _order_for_pack(hits, limit_n, reserve_raw):
     return chosen
 
 
-def compact_facts(hits, own="", cfg=None, rel=0.7, n=3, chars=200, message=None, kind="", expand=False):
+def compact_facts(hits, own="", cfg=None, rel=0.7, n=3, chars=200, message=None, kind="", expand=False, terms=None):
     """Facts for turn(compact=true).
 
     Flag on and wide (or no message): clip 400, stop at 2400, no relative score cut.
     Flag on and a normal message: 1500 characters, at most 3 facts, 160 characters each, raw slots kept.
     Flag off: relative 0.7, three facts, chars each. own is this turn's event and is skipped.
-    pack2400 marks a packed row so the later topic diet does not throw it away.
+    pack2400 marks a wide row so the later topic diet does not throw it away. A normal row is
+    marked pack_soft: the topic diet keeps it on a lexical, cosine or rare-token match, and
+    otherwise only lets it fill a free slot at a lower score.
+    A normal row is clipped to a window around the best match of the message and search_as
+    terms, not to its first 160 characters.
     The summary field is not copied: fact already carries the text.
     """
     own_sid = _event_sid(own)
@@ -1291,11 +1295,73 @@ def compact_facts(hits, own="", cfg=None, rel=0.7, n=3, chars=200, message=None,
         return _pack_budget(hits, own_sid, PACK_BUDGET, PACK_CLIP, mark=True)
     return _pack_budget(
         hits, own_sid, PACK_NORMAL, PACK_NORMAL_CLIP,
-        mark=True, limit_n=PACK_NORMAL_N, reserve_raw=PACK_RAW_SLOTS,
+        mark="soft", limit_n=PACK_NORMAL_N, reserve_raw=PACK_RAW_SLOTS,
+        terms=terms if terms is not None else _plan_terms(message),
     )
 
 
-def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=0):
+def _plan_terms(message):
+    """Message plus the searched query and search_as of this turn's plan, for the clip window."""
+    parts = [str(message or "")]
+    try:
+        plan = current_plan() or {}
+    except Exception:
+        plan = {}
+    if isinstance(plan, dict):
+        parts.append(str(plan.get("query") or ""))
+        sa = plan.get("search_as")
+        if isinstance(sa, (list, tuple)):
+            parts.extend(str(x) for x in sa if str(x).strip() != "-")
+        elif sa and str(sa).strip() != "-":
+            parts.append(str(sa))
+    return " ".join(p for p in parts if p.strip())
+
+
+def clip_window(text, terms, clip):
+    """clip characters of text around the densest match of terms. Head when nothing matches.
+
+    Uses search_v2's stemmer and tokenizer (the same terms _snippet uses).
+    Returns (piece, start).
+    """
+    if len(text) <= clip or not (terms or "").strip():
+        return text[:clip], 0
+    try:
+        from app import search_v2 as _v2
+    except Exception:
+        try:
+            import search_v2 as _v2
+        except Exception:
+            return text[:clip], 0
+    try:
+        stems = {st for _w, st, _r in _v2.query_terms(terms)}
+        if not stems:
+            return text[:clip], 0
+        pos = [m.start() for m in _v2._TOK.finditer(text) if _v2.stem(m.group(0)) in stems]
+    except Exception:
+        return text[:clip], 0
+    if not pos:
+        return text[:clip], 0
+    best_n, best_start = 0, 0
+    j = 0
+    for i, p in enumerate(pos):
+        while pos[j] < p - (clip - 40):
+            j += 1
+        n = i - j + 1
+        if n > best_n:
+            best_n, best_start = n, pos[j]
+    # The head already holds a match: keep the head, which usually carries the question.
+    head_n = sum(1 for p in pos if p < clip - 20)
+    if head_n >= best_n:
+        return text[:clip], 0
+    start = max(0, best_start - 30)
+    sp = text.rfind(" ", 0, start + 1)
+    if sp > start - 20 and sp > 0:
+        start = sp + 1
+    start = min(start, max(0, len(text) - clip))
+    return text[start:start + clip], start
+
+
+def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=0, terms=""):
     parts = []
     chosen = []
     used = 0
@@ -1310,13 +1376,19 @@ def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=
         if not text:
             continue
         row_clip = 400 if h.get("active_slice") else clip
-        piece = text[:row_clip]
+        start = 0
+        if mark == "soft" and terms and not h.get("active_slice"):
+            piece, start = clip_window(text, terms, row_clip)
+        else:
+            piece = text[:row_clip]
         extra = len(piece) + (1 if parts else 0)
         if parts and used + extra > budget:
             break
         if not parts and len(piece) > budget:
             piece = piece[:budget]
-        shown = piece.rstrip() + " [cut]" if len(text) > len(piece) else piece
+        shown = piece.rstrip() + " [cut]" if len(text) > start + len(piece) else piece
+        if start:
+            shown = "… " + shown
         fact = shown + (" [ev:%s]" % ev if ev else "")
         parts.append(piece)
         row = {
@@ -1328,8 +1400,14 @@ def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=
         }
         if h.get("active_slice"):
             row["active_slice"] = True
+        elif mark == "soft":
+            row["pack_soft"] = True
         elif mark:
             row["pack2400"] = True
+        if h.get("cos") is not None:
+            row["cos"] = h.get("cos")
+        if h.get("rare"):
+            row["rare"] = True
         chosen.append(row)
         used += len(piece) + (1 if len(parts) > 1 else 0)
         if used >= budget:

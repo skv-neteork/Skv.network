@@ -87,8 +87,13 @@ def _hits(key, q, search_as=None, keep=8, context=None):
             continue
         seen.add(k)
         meta = r.get("metadata") or {}
-        out.append({"event_id": r.get("event_id"), "time": meta.get("time_str") or r.get("time") or "",
-                    "score": float(r.get("score") or 0), "summary": s, "source": r.get("source") or ""})
+        row = {"event_id": r.get("event_id"), "time": meta.get("time_str") or r.get("time") or "",
+               "score": float(r.get("score") or 0), "summary": s, "source": r.get("source") or ""}
+        if r.get("cos") is not None:
+            row["cos"] = r.get("cos")
+        if r.get("rare"):
+            row["rare"] = True
+        out.append(row)
         if len(out) >= keep:
             break
     return out

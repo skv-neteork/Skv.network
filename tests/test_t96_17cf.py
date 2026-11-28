@@ -364,5 +364,38 @@ class Dates(unittest.TestCase):
         self.assertEqual(short["until"], "2026-10-20")
 
 
+class DirectiveGaps(unittest.TestCase):
+    def test_push_and_continue_are_directives(self):
+        for msg in ("пуш", "пушь", "продолжай", "продолжи"):
+            self.assertTrue(d.is_directive(msg), msg)
+            plan = d.apply_17c({}, msg, None, prev_answer="Готово.", minutes=1.0)
+            self.assertEqual(plan["mode"], "directive", msg)
+            self.assertTrue(plan["search_skipped"], msg)
+            self.assertEqual(plan["skip_reason"], "directive", msg)
+        # the typo form with a soft sign stays, and the short form is not lost
+        self.assertTrue("пушь" in d.DIRECTIVES and "пуш" in d.DIRECTIVES)
+
+
+class CatchupGaps(unittest.TestCase):
+    def test_delta_fires_at_exactly_three_hours(self):
+        self.assertTrue(d.catchup_due(3.0, "", 10, 1))
+        self.assertTrue(d.catchup_due(3, "", 10, 2))
+        self.assertFalse(d.catchup_due(2.99, "", 10, 1))
+        self.assertFalse(d.catchup_due(3.0, "", 10, 0))
+
+    def test_delta_hours_round_half_up(self):
+        self.assertEqual(d._delta_hours(8.5), 9)
+        self.assertEqual(d._delta_hours(8.49), 8)
+        self.assertEqual(d._delta_hours(3.0), 3)
+        self.assertEqual(d._delta_hours(2.5), 3)
+        items = [{"kind": "AGENT", "actor": "coder", "text": "Fixed auth bug", "ev": "remember_9"}]
+        text = d.format_delta(items, 8.5)
+        self.assertTrue(text.startswith("[DELTA +9h] "), text)
+        many = [{"kind": "AGENT", "actor": "a", "text": "e%d" % i, "ev": "e%d" % i} for i in range(8)]
+        over = d.format_delta(many, 8.5, since="2026-11-28 00:00:00")
+        self.assertTrue(over.startswith("[DELTA +9h]"), over)
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -32,7 +32,8 @@ ALWAYS_VERBS = frozenset({
 # Class B: at most 4 words. No archive search; return the doing row, the last
 # two turns, and the git/deploy guard.
 DIRECTIVES = frozenset({
-    "нет", "стоп", "отмена", "откат", "подожди", "выкатывай", "пушь", "удали",
+    "нет", "стоп", "отмена", "откат", "подожди", "выкатывай", "пушь", "пуш", "удали",
+    "продолжай", "продолжи",
     "stop", "rollback", "deploy",
 })
 NEW_TOPIC_PHRASES = (
@@ -954,11 +955,11 @@ def server_seal_of(conn, actor):
 
 
 def catchup_due(gap_h, client_seal, server_seal, n_new, gap_default=None):
-    """Gap over the threshold, or an older client seal, and only when something new exists."""
+    """Gap at or over the threshold, or an older client seal, and only when something new exists."""
     if not n_new:
         return False
     limit = gap_hours_limit() if gap_default is None else gap_default
-    time_gap = gap_h is not None and gap_h > limit
+    time_gap = gap_h is not None and gap_h >= limit
     return bool(time_gap or seal_older(client_seal, server_seal))
 
 
@@ -980,9 +981,18 @@ def _delta_seg(item):
     return seg
 
 
+
+def _delta_hours(gap_h):
+    """Whole hours for the [DELTA +Nh] head. Half rounds up (8.5 -> 9), not banker's rounding."""
+    x = float(gap_h or 0)
+    if x < 0:
+        x = 0.0
+    return int(x + 0.5)
+
+
 def _overflow_delta(rows, gap_h, since, budget):
     """More than 5 events: one L1 line, the board diff, new critical, and a count."""
-    hours = int(round(gap_h or 0))
+    hours = _delta_hours(gap_h)
     head = "[DELTA +%dh]" % hours
     l1 = ""
     board = ""
@@ -1018,7 +1028,7 @@ def format_delta(items, gap_h, budget=None, since=""):
         budget = DELTA_LONG if long else DELTA_QUOTA
     if len(rows) > 5:
         return _overflow_delta(rows, gap_h, since, budget)
-    hours = int(round(gap_h or 0))
+    hours = _delta_hours(gap_h)
     head = "[DELTA +%dh] " % hours
     parts = [_delta_seg(it) for it in rows]
     body = head + " / ".join(parts)

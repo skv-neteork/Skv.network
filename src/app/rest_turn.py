@@ -458,9 +458,10 @@ def _session_window(user):
 def _decorate(result, user, message, facts=None, launch_ok=False, l1_new=False, keyword=False):
     """Tool duty and the once-per-hash tool map on every user-facing return.
 
-    The recall component launches only when launch_ok is true and this turn did not
-    already ask the agent to search. The keyword sidecar runs only when the component
-    is off and keyword is true (the saved return). A failure never fails the turn.
+    The recall component no longer launches here. turn_pack.finish calls safety_net
+    after fact selection, so a context turn with empty facts can queue the job.
+    The keyword sidecar runs only when the component is off and keyword is true.
+    launch_ok and l1_new stay in the signature for existing callers. A failure never fails the turn.
     """
     if not isinstance(result, dict):
         return result
@@ -475,33 +476,12 @@ def _decorate(result, user, message, facts=None, launch_ok=False, l1_new=False, 
         _tm(result, user)
     except Exception:
         pass
-    # tool_duty is only the hint. It must not block the safety-net recall.
-    agent_searched = bool(result.get("agent_searched"))
-    skipped = bool(result.get("search_skipped"))
+    # The component used to launch here, before fact selection, and a context
+    # turn passed launch_ok false. The 17g safety net runs after the pack.
+    # tool_duty stays a hint and does not count as the agent searching.
     try:
-        from app.components.recall_component import agent_has_recent_job
-        agent_searched = agent_searched or agent_has_recent_job(user, 300)
-    except Exception:
-        pass
-    weak = False
-    try:
-        from app.turn_diet17 import facts_are_weak, is_directive, is_strict_empty
-        weak = facts_are_weak(result.get("facts"))
-        meaningful = not is_strict_empty(message) and not is_directive(message) and len((message or "").split()) >= 2
-    except Exception:
-        meaningful = len((message or "").split()) >= 2
-    try:
-        from app.components.recall_component import enabled as _rc_on, on_turn as _rc
+        from app.components.recall_component import enabled as _rc_on
         if _rc_on():
-            _rc(
-                result, user, message,
-                l1_new=l1_new,
-                session_ids=_session_window(user),
-                searched=agent_searched,
-                launch_ok=bool(launch_ok) and not agent_searched and not skipped,
-                facts_weak=bool(weak and meaningful and not skipped),
-                skipped=skipped,
-            )
             return result
     except Exception:
         pass
@@ -540,6 +520,7 @@ def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compr
             "load_portfolio": True,
             "actor": agent_token or "",
             "harvest": bool(agent_token),
+            "recall_exclude": _session_window(user) if user else [],
         }
         try:
             from app import turn_diet17 as _d17

@@ -1437,6 +1437,12 @@ def _finish(resp, ctx):
     except Exception:
         pass
     try:
+        from app.components.recall_component import safety_net as _net
+        _ids = ctx.get("recall_exclude") if "recall_exclude" in ctx else None
+        _net(resp, user, message, l1_new=bool(ctx.get("l1_just_saved")), session_ids=_ids)
+    except Exception:
+        pass
+    try:
         from app.t89_rules import pin_last as _pin
         _pin(resp, "next_step")
     except Exception:

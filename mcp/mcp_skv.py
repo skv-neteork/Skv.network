@@ -3498,9 +3498,19 @@ _CAPS = {}
 
 
 def _recall_into(resp, user_message, l1_summary):
-    """Next-turn spontaneous hits. A failure stays off the turn. No model call here."""
+    """Keyword sidecar only when the recall component is off.
+
+    The component's 17g safety net runs after the fact pack, including on the
+    context turn. A failure stays off the turn. No model call here.
+    """
     if not isinstance(resp, dict):
         return resp
+    try:
+        from app.components.recall_component import enabled as _rc_on
+        if _rc_on():
+            return resp
+    except Exception:
+        pass
     try:
         from app.spontaneous_recall import push_into
         push_into(resp, _caller_id() or "", user_message or "", l1_new=bool((l1_summary or "").strip()))

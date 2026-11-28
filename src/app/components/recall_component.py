@@ -443,6 +443,105 @@ def agent_has_recent_job(uid, within=300):
     return False
 
 
+def _recent_ids(uid):
+    """Newest dialogue ids. A queued job excludes them so it does not echo this chat."""
+    try:
+        from app.spontaneous_recall import recent_events
+        out = []
+        for ev in recent_events(uid, limit=8) or []:
+            eid = (ev or {}).get("event_id") or ""
+            if eid:
+                out.append(eid)
+        return out
+    except Exception:
+        return []
+
+
+def _queue_weak(uid, message, session_ids=None, l1_new=False):
+    """Queue one weak-fact job without moving the every-N turn counter."""
+    user = user_key(uid)
+    c = _conn()
+    try:
+        st = _load_state(c, user)
+    finally:
+        c.close()
+    age = _last_job_age(uid)
+    print("[17g-recall] weak=1 gap_s=%s" % ("none" if age is None else int(age)), flush=True)
+    state = {
+        "uid": uid,
+        "message": message or "",
+        "topic": _topic(message),
+        "turns": st["turns"],
+        "last_topic": st["last_topic"],
+        "last_sched": st["last_sched"],
+        "skips": st["skips"],
+        "l1_new": bool(l1_new),
+        "exclude": list(session_ids or []),
+    }
+    try:
+        from app.turn_pack import date_window
+        window = date_window(message)
+        if window:
+            state["since"] = window["since"]
+            state["until"] = window["until"]
+    except Exception:
+        pass
+    return launch(state)
+
+
+def safety_net(result, uid, message="", l1_new=False, session_ids=None):
+    """17g after the fact pack. Deliver a finished job, and queue one when the facts the agent sees are empty or weak.
+
+    A saved turn keeps the existing every-N cadence. A context or unsaved turn only queues the weak-fact job, so the cadence is not doubled.
+    Search skipped, an empty ack, a directive, or a job the agent already started does not queue another.
+    """
+    if not isinstance(result, dict) or not uid or not enabled():
+        return result
+    try:
+        from app.turn_diet17 import get_meta
+        if not (get_meta() or {}).get("on"):
+            return result
+    except Exception:
+        return result
+    skipped = bool(result.get("search_skipped"))
+    try:
+        from app.turn_diet17 import facts_are_weak, is_directive, is_strict_empty
+        weak = facts_are_weak(result.get("facts"))
+        meaningful = (
+            not is_strict_empty(message)
+            and not is_directive(message)
+            and len((message or "").split()) >= 2
+        )
+    except Exception:
+        weak = not (result.get("facts") or [])
+        meaningful = len((message or "").split()) >= 2
+    searched = bool(result.get("agent_searched")) or agent_has_recent_job(uid, 300)
+    ids = list(session_ids) if session_ids is not None else _recent_ids(uid)
+    saved = result.get("saved") is True and result.get("mode") != "context"
+    if not saved:
+        on_turn(result, uid, message, l1_new=False, session_ids=ids, launch_ok=False)
+        try:
+            from app.turn_diet17 import weak_recall_due
+            due = weak_recall_due(bool(weak and meaningful), True, _last_job_age(uid), searched, skipped)
+        except Exception:
+            due = bool(weak and meaningful) and not searched and not skipped
+        if due and not _agent_searched(uid, set()):
+            try:
+                _queue_weak(uid, message, ids, l1_new=l1_new)
+            except Exception as exc:
+                print("[17g-recall] skipped: %s" % type(exc).__name__, flush=True)
+        return result
+    return on_turn(
+        result, uid, message,
+        l1_new=l1_new,
+        session_ids=ids,
+        searched=searched,
+        launch_ok=not searched and not skipped,
+        facts_weak=bool(weak and meaningful and not skipped),
+        skipped=skipped,
+    )
+
+
 def on_turn(result, uid, message="", l1_new=False, session_ids=None, searched=False, launch_ok=True, facts_weak=False, skipped=False):
     """Deliver ready lines, then maybe queue the next job. Never raises and never blocks on a model."""
     if not isinstance(result, dict) or not uid or not enabled():

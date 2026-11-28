@@ -1,9 +1,10 @@
-"""T96 items 17c-17f. Rules only. No network."""
+"""T96 items 17c-17g. Rules only. No network and no paid recall."""
 import os
 import sqlite3
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "app"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -234,6 +235,72 @@ class Quota(unittest.TestCase):
                 self.assertEqual(fh.read().strip(), "3")
         finally:
             os.remove(path)
+
+
+class RecallNet(unittest.TestCase):
+    def setUp(self):
+        self.fd, self.path = tempfile.mkstemp(suffix=".db")
+        os.close(self.fd)
+        os.environ["SKV_RECALL_COMPONENT_DB"] = self.path
+        os.environ["SKV_RECALL_COMPONENT"] = "1"
+        from app.components import recall_component as rc
+        import app.turn_diet17 as ad
+        self.rc = rc
+        self.ad = ad
+        ad.set_meta({"on": True})
+
+    def tearDown(self):
+        self.ad.set_meta({})
+        d.set_meta({})
+        os.environ.pop("SKV_RECALL_COMPONENT_DB", None)
+        os.environ.pop("SKV_RECALL_COMPONENT", None)
+        if os.path.exists(self.path):
+            os.remove(self.path)
+
+    def _net(self, result, message, searched=False):
+        calls = []
+
+        def _launch(state, submit_fn=None):
+            calls.append(state.get("message"))
+            return "job-test"
+
+        with mock.patch.object(self.rc, "launch", _launch), \
+             mock.patch.object(self.rc, "_recent_ids", lambda uid: []), \
+             mock.patch.object(self.rc, "agent_has_recent_job", lambda uid, within=300: searched), \
+             mock.patch.object(self.rc, "_agent_searched", lambda uid, own: False):
+            self.rc.safety_net(result, "acct-test", message)
+        return calls
+
+    def test_context_empty_facts_queue_one_job(self):
+        calls = self._net({"mode": "context", "facts": []}, "where is the archive")
+        self.assertEqual(calls, ["where is the archive"])
+
+    def test_skip_directive_strong_and_recent_do_not_queue(self):
+        self.assertEqual(self._net({"mode": "context", "facts": [], "search_skipped": True}, "where is the archive"), [])
+        self.assertEqual(self._net({"mode": "context", "facts": []}, "стоп"), [])
+        self.assertEqual(self._net({"mode": "context", "facts": [{"fact": "kept", "score": 0.9}]}, "where is the archive"), [])
+        self.assertEqual(self._net({"mode": "context", "facts": []}, "where is the archive", searched=True), [])
+        self.ad.set_meta({})
+        self.assertEqual(self._net({"mode": "context", "facts": []}, "where is the archive"), [])
+
+    def test_finish_calls_the_net_and_keeps_next_step_last(self):
+        import turn_pack as tp
+        seen = {}
+
+        def _net(resp, uid, message="", l1_new=False, session_ids=None):
+            seen["uid"] = uid
+            seen["message"] = message
+            resp["recalled"] = "nothing recalled"
+            return resp
+
+        d.set_meta({"on": True})
+        resp = {"mode": "context", "facts": [], "next_step": "turn(answer=)"}
+        with mock.patch("app.components.recall_component.safety_net", _net):
+            tp.finish(resp, {"user": "acct-test", "session": "s", "message": "where is the archive", "db": ""})
+        self.assertEqual(seen["message"], "where is the archive")
+        self.assertEqual(list(resp.keys())[-1], "next_step")
+        self.assertIn("facts_note", resp)
+        self.assertIn("memory_recall_later", resp["facts_note"])
 
 
 class Dates(unittest.TestCase):

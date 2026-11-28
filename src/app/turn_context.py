@@ -64,7 +64,7 @@ def _overlap_count(topic_words, text):
     return n
 
 
-def on_topic(topic, text):
+def _topic_match(topic, text):
     tw = content_words(topic)
     if not tw:
         return False
@@ -72,6 +72,13 @@ def on_topic(topic, text):
     if len(tw) <= 3:
         return n >= 1
     return n >= 2 or (n / len(tw)) >= 0.20
+
+
+def on_topic(topic, text, extra=""):
+    """True if text overlaps topic, or the optional search_as extra source."""
+    if _topic_match(topic, text):
+        return True
+    return bool(extra) and _topic_match(extra, text)
 
 
 def is_short(msg):
@@ -1274,7 +1281,7 @@ def compact_facts(hits, own="", cfg=None, rel=0.7, n=3, chars=200, message=None,
     Flag on and wide (or no message): clip 400, stop at 2400, no relative score cut.
     Flag on and a normal message: 1500 characters, at most 3 facts, 160 characters each, raw slots kept.
     Flag off: relative 0.7, three facts, chars each. own is this turn's event and is skipped.
-    pack2400 marks a wide row so the later topic diet does not throw it away.
+    pack2400 marks a packed row so the later topic diet does not throw it away.
     The summary field is not copied: fact already carries the text.
     """
     own_sid = _event_sid(own)
@@ -1284,7 +1291,7 @@ def compact_facts(hits, own="", cfg=None, rel=0.7, n=3, chars=200, message=None,
         return _pack_budget(hits, own_sid, PACK_BUDGET, PACK_CLIP, mark=True)
     return _pack_budget(
         hits, own_sid, PACK_NORMAL, PACK_NORMAL_CLIP,
-        mark=False, limit_n=PACK_NORMAL_N, reserve_raw=PACK_RAW_SLOTS,
+        mark=True, limit_n=PACK_NORMAL_N, reserve_raw=PACK_RAW_SLOTS,
     )
 
 

@@ -303,7 +303,7 @@ def _is_critical_fact(fact):
     return layer == "critical" or text.lower().startswith("[critical]") or text.startswith("CRITICAL:")
 
 
-def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compressed=False, compressed_at="", today=None, window_cap=_WINDOW_CAP, topic_query=""):
+def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compressed=False, compressed_at="", today=None, window_cap=_WINDOW_CAP, topic_query="", search_as=""):
     """Dedupe, drop junk, apply the session cutoff and the novelty filter.
 
     Default (no compressed flag): drop ids in recent_ids (the last ~50 of this session).
@@ -313,6 +313,7 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
     requiring the word "yesterday" to match the fact.
     The date window always comes from the user message. On a short message the
     topic match uses topic_query, which is the query that was actually searched.
+    search_as is an extra lexical topic: a hit may match it when the message does not.
     """
     rows = dedupe_facts(facts)
     kept = []
@@ -338,13 +339,15 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
         kept = [f for f in kept if str(f.get("ev") or "") not in seen and str(f.get("ev") or "").split("::")[-1] not in seen]
     window = date_window(message, today=today)
     topic_src = message or ""
+    extra = ""
     try:
-        from app.turn_context import content_words, is_short, on_topic
+        from app.turn_context import content_words, is_short, on_topic, forms
         asked = str(topic_query or "").strip()
         if asked and is_short(message or ""):
             topic_src = asked
         topic = strip_time_phrases(topic_src)
         words = content_words(topic)
+        extra = " ".join(forms(search_as)) if search_as else ""
     except Exception:
         topic = strip_time_phrases(message or "")
         words, on_topic = [], None
@@ -361,7 +364,7 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
         if window and _in_window(f, window):
             return True
         if words and on_topic is not None:
-            return bool(on_topic(topic, f.get("fact") or ""))
+            return bool(on_topic(topic, f.get("fact") or "", extra))
         return False
 
     if words and on_topic is not None:
@@ -1210,6 +1213,13 @@ def _finish(resp, ctx):
         seen = []
     else:
         seen = st.get("seen") or []
+    search_as = ctx.get("search_as") or ""
+    if not search_as:
+        try:
+            from app.turn_context import current_plan
+            search_as = (current_plan() or {}).get("search_as") or ""
+        except Exception:
+            search_as = ""
     facts = select_facts(
         resp.get("facts") or [],
         message=message,
@@ -1219,6 +1229,7 @@ def _finish(resp, ctx):
         compressed_at=compressed_at,
         today=today,
         topic_query=topic_query,
+        search_as=search_as,
     )
     records = ctx.get("records")
     criticals = ctx.get("criticals")

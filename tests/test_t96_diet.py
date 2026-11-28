@@ -125,7 +125,7 @@ class Diet(unittest.TestCase):
         evs = [f["ev"] for f in facts]
         self.assertIn("remember_9", evs)
         self.assertLessEqual(len(facts), 3)
-        self.assertNotIn("pack2400", facts[0])
+        self.assertTrue(facts[0].get("pack2400"))
         self.assertNotIn("summary", facts[0])
         body = "\n".join(f["fact"].split(" [ev:")[0].replace(" [cut]", "") for f in facts)
         self.assertLessEqual(len(body), 1500)
@@ -208,6 +208,34 @@ class ShortSearchTopic(unittest.TestCase):
             {"message": short, "user": "", "session": "t19", "db": "", "recent_ids": [], "seen_fact_ids": []},
         )
         self.assertNotIn("_topic_query", resp)
+        self.assertEqual([f["ev"] for f in resp["facts"]], ["remember_1"])
+
+    def test_normal_compact_facts_survive_topic_filter_without_word_overlap(self):
+        msg = "ну мы сделали что агент пишет свое понимание слов человека?"
+        hits = [{"event_id": "u::remember_1", "time": "2026-11-27 18:07", "score": 0.5,
+                 "summary": "по хорошему это должно работать как скил энд хук", "source": "x"}]
+        facts = tc.compact_facts(hits, "", message=msg, kind="turn")
+        self.assertTrue(facts and facts[0].get("pack2400"))
+        out = tp.select_facts(facts, message=msg, recent_ids=[], seen_fact_ids=[], topic_query=msg)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["ev"], "remember_1")
+
+    def test_hit_that_overlaps_only_search_as_is_kept(self):
+        msg = "ну мы сделали что агент пишет свое понимание слов человека?"
+        gloss = "скил энд хук как навык"
+        fact = {"ev": "remember_1", "fact": "по хорошему это должно работать как скил энд хук",
+                "time": "2026-11-27 18:07"}
+        self.assertFalse(tc.on_topic(msg, fact["fact"]))
+        self.assertTrue(tc.on_topic(msg, fact["fact"], gloss))
+        bare = tp.select_facts([dict(fact)], message=msg, topic_query=msg)
+        self.assertEqual(bare, [])
+        kept = tp.select_facts([dict(fact)], message=msg, topic_query=msg, search_as=gloss)
+        self.assertEqual([f["ev"] for f in kept], ["remember_1"])
+        resp = tp.finish(
+            {"mode": "context", "facts": [dict(fact)]},
+            {"message": msg, "user": "", "session": "t96sa", "db": "",
+             "recent_ids": [], "seen_fact_ids": [], "search_as": gloss},
+        )
         self.assertEqual([f["ev"] for f in resp["facts"]], ["remember_1"])
 
 

@@ -476,7 +476,7 @@ def run_measure():
             "hint": bool(resp.get("window_hint")),
             "facts": evs,
             "next_step": resp.get("next_step"),
-            "covered": bool(resp.get("window") or evs or resp.get("next_step") == "search first" or cutoff_ok),
+            "covered": bool(resp.get("window") or evs or str(resp.get("next_step") or "").startswith("search first") or cutoff_ok),
         })
 
     remember("yesterday", [_fact("remember_y", "[l1] shipped", "2026-11-21", "l1")])

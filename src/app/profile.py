@@ -637,8 +637,14 @@ def apply(uid, eid, user_msg="", answer="", ops=None, review=None, has_l2=False,
             _cc.observe(uid, user_msg, "turn", eid)
     except Exception as _e:
         print("[cube_consent] observe failed:", _e, flush=True)
+    pf = {}
+    try:
+        from app import t89_rules as _t89
+        ops, pf = _t89.take_portfolio(uid, ops, _db)
+    except Exception:
+        pf = {}
     if not enabled(uid):
-        return {}
+        return {"portfolio": pf} if pf else {}
     c = _db(uid)
     res = {}
     try:
@@ -648,7 +654,10 @@ def apply(uid, eid, user_msg="", answer="", ops=None, review=None, has_l2=False,
         e2, nrops = validate(c, uid, rops, eid, author) if rops else ([], [])
         if errs or rerrs or e2:
             c.rollback()
-            return {"profile_errors": errs + rerrs + e2, "profile_applied": []}
+            out = {"profile_errors": errs + rerrs + e2, "profile_applied": []}
+            if pf:
+                out["portfolio"] = pf
+            return out
         mark = _due_mark(c, nops + nrops)
         tn = int(_st(c, "turn_n", 0) or 0) + (1 if eid else 0)
         _st_set(c, "turn_n", tn)
@@ -689,6 +698,8 @@ def apply(uid, eid, user_msg="", answer="", ops=None, review=None, has_l2=False,
             threading.Thread(target=_fallback_run, args=(uid, expired), daemon=True).start()
             res["profile_fallback_started"] = [d for d, _, _ in expired]
         res["profile_duties"] = duties(c, tn)
+        if pf:
+            res["portfolio"] = pf
     except Exception:
         try:
             c.rollback()
@@ -931,9 +942,24 @@ def relevant(uid, q="", answer="", session="", compact=False, diet=False):
 
 
 def block(uid):
-    """step_zero page 1: PROFILE v<hash> (N active), <=1.5 KB / <=12 rows, prohibitions first."""
+    """step_zero page 1: PROFILE v<hash> (N active), <=1.5 KB / <=12 rows, prohibitions first.
+    The portfolio (user facts, not rules) rides with it at session start."""
+    pf = ""
+    try:
+        import os
+        from app import shelves as _sh
+        path = os.path.join(_sh.BASE_DIR, _sh._name(uid) + ".db")
+        if uid and os.path.isfile(path):
+            c0 = _db(uid)
+            try:
+                from app import t89_rules as _t89
+                pf = _t89.portfolio_text(c0)
+            finally:
+                c0.close()
+    except Exception:
+        pf = ""
     if not enabled(uid):
-        return ""
+        return pf
     c = _db(uid)
     try:
         act = _active(c)
@@ -953,7 +979,8 @@ def block(uid):
             tail.append("%d open profile duties: resolve them in your next turn" % nd)
         if not act:
             lines = ["(empty: when the user states a lasting rule, add it with turn profile=[{op:add,...}])"]
-        return "\n".join([head] + lines + tail)
+        body = "\n".join([head] + lines + tail)
+        return body + ("\n" + pf if pf else "")
     finally:
         c.close()
 

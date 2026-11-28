@@ -29,7 +29,7 @@ Owner phrase: `I order you to follow the SKV constitution`
 - `cube_search`, `cube_get` — shared experience cubes
 - There are 39 MCP tools in total. `memory_import_text` imports a pasted chat. A conversations export can also be uploaded on Profile.
 
-Constitution: CUBE 00–05, compact v5, current CUBE 05 is `cube_const_05_v23`. Manifest every 10th turn; acknowledge with `const_ack`. Seal comes from `turn`, never invented.
+Constitution: CUBE 00–05, compact v5, current CUBE 05 is `cube_const_05_v24`. Manifest every 10th turn; acknowledge with `const_ack`. Seal comes from `turn`, never invented.
 
 ## Pages
 Same public pages as https://skv.network/sitemap.xml. robots.txt disallows /chat, /guardian, /upload, /bureau, /deepseek, /evolver, /court, and /services.

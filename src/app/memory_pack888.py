@@ -917,20 +917,9 @@ def assemble_step_zero(intro_pages: Sequence[str], pack_pages: Sequence[str], co
 
 
 def step_zero_next(page: int, pages: Sequence[str]) -> str:
-    n = len(pages)
-    span = pack_span(pages)
-    if page >= n:
-        return "step zero complete: answer the user using turn(user_message, draft)"
-    if span and page < span[1]:
-        return (
-            "call step_zero(page=%d) now. Pages %d..%d are the memory pack 8/8/8: "
-            "concatenate the text under each PACK888 line, in order. A record may continue "
-            "on the next page. Read every page until done=true."
-        ) % (page + 1, span[0], span[1])
-    return (
-        "call step_zero(page=%d) now. Remaining pages are the constitution "
-        "(CUBE 00-04 + CUBE 05-MCP). Read every page until done=true."
-    ) % (page + 1)
+    """Turn on the user message is allowed while pages remain. done can be true before the last page."""
+    from app.t89_rules import step_zero_next as _next
+    return _next(page, pages)
 
 
 def export_user(user_id: str, out_dir: str, user_db: str = "", shared_db: str = "", part_bytes: int = 32768) -> str:

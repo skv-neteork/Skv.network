@@ -92,7 +92,13 @@ async def second_look(req: SecondLookRequest):
         note = "no memory search or opened turn this call; do not claim memory facts"
     checks.append({"name": "hallucination", "ok": ok, "note": note})
     ok = all(c["ok"] for c in checks if c["name"] != "creative")
-    return {"status": "pass" if ok else "fail", "checks": checks,
+    try:
+        from app.t89_rules import second_look_for
+        looked = second_look_for(draft, checked_this_turn=bool(saved or req.searched or req.event_id),
+                                 const="constitution checks", better="fix the failed check" if not ok else "keep the answer")
+    except Exception:
+        looked = ""
+    return {"status": "pass" if ok else "fail", "checks": checks, "second_look": looked,
             "pass_requires": "1) turn saved via turn (MCP) or /agent/turn (REST) before this call; 2) cite event id for any memory fact",
             "next": "SEAL and output" if ok else "fix the failed checks (see FAIL notes), then call second-look again"}
 

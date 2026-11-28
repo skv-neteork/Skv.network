@@ -42,7 +42,7 @@ OpenAPI: https://skv.network/api/v7/agent/openapi.json
 
 #3. CONSTITUTION
 
-CUBE 00–05, compact v5. Current CUBE 05 row: `cube_const_05_v23`. Live text: `GET /api/v7/constitution`. Public entry: `GET /api/v1/entries/cube_const_05_v23`.
+CUBE 00–05, compact v5. Current CUBE 05 row: `cube_const_05_v24`. Live text: `GET /api/v7/constitution`. Public entry: `GET /api/v1/entries/cube_const_05_v24`.
 
 #4. CUBES
 

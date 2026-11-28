@@ -774,6 +774,12 @@ def next_step_for(resp, message="", closed_duty=None):
         if kind == "vote" and closed_duty.get("vote"):
             continue
         duties.append(d)
+    from app.t89_rules import search_first_line, summary_ready_call
+    sd = resp.get("summary_due")
+    if isinstance(sd, dict) and (sd.get("l2") or sd.get("l1")) and not duties:
+        level = 2 if sd.get("l2") and not sd.get("l1") else 1
+        ids = sd.get("l1_source_event_ids") or sd.get("source_event_ids") or ""
+        return summary_ready_call(level, ids)
     if duties:
         d0 = duties[0]
         kind = _duty_kind(d0)
@@ -786,8 +792,8 @@ def next_step_for(resp, message="", closed_duty=None):
     weak = not resp.get("facts")
     if window and weak:
         return "search first with since=%s until=%s" % (window.get("since"), window.get("until"))
-    if weak and (resp.get("facts_note") or resp.get("tool_duty") or _asks_past(message)):
-        return "search first"
+    if weak:
+        return search_first_line(message)
     return "answer"
 
 
@@ -1232,6 +1238,33 @@ def _finish(resp, ctx):
     if duty == "vote_nothing":
         closed_now["vote"] = True
     resp["next_step"] = next_step_for(resp, message, closed_duty=closed_now)
+    try:
+        from app import t89_rules as _t89
+        if resp.get("summary_due"):
+            level = 2 if isinstance(resp.get("summary_due"), dict) and resp["summary_due"].get("l2") and not resp["summary_due"].get("l1") else 1
+            material = "\n".join(str(f.get("fact") or "") for f in facts if isinstance(f, dict))
+            ids = ""
+            if isinstance(resp.get("summary_due"), dict):
+                ids = resp["summary_due"].get("l1_source_event_ids") or ""
+            draft = ctx.get("l2_summary") if level == 2 else ctx.get("l1_summary")
+            built = _t89.summary_build(level, draft or "", ids, material)
+            resp["summary_build"] = built
+            if not built.get("ok"):
+                resp["next_step"] = built.get("ready_call") or resp["next_step"]
+        if ctx.get("load_portfolio") and first and user:
+            from app import shelves as _sh
+            lines = _t89.portfolio_public(user, _sh.BASE_DIR, _sh._name)
+            if lines:
+                resp["portfolio"] = lines
+        if _t89.is_dangerous(message):
+            rows = []
+            gate = _t89.danger_gate(message, {}, rows=rows)
+            resp["danger"] = gate
+            if gate.get("blocked"):
+                resp["next_step"] = gate.get("ready_call") or resp["next_step"]
+        _t89.pin_last(resp, "next_step")
+    except Exception:
+        pass
     return resp
 
 

@@ -119,6 +119,14 @@ def questions(draft, user_message="", facts=None, tool_text=""):
     # 5. much longer than the question needs
     if um and len(um) < 200 and len(d) > max(900, 10 * len(um)):
         add("too_long", _q(sents[0], 60), 'The question is %d chars, the draft %d. Which parts after "%s" does the user not need for this question?' % (len(um), len(d), _q(sents[0], 60)))
+    try:
+        from app.t89_rules import looks_like_opinion, second_look_line
+        checked = bool(facts or tool_text)
+        for q in out:
+            src = "checked this turn" if checked else "model memory"
+            q["line"] = second_look_line(src, q.get("rule") or "01-04", "correct this spot", looks_like_opinion(q.get("quote")))
+    except Exception:
+        pass
     return out
 
 

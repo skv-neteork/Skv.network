@@ -39,10 +39,12 @@ def rule_text(duty):
     """Soft rule: what / when / how it looks. Short, English."""
     return {
         "l1": "RULE L1: at the start or end of a big task, or when a topic closes, send l1_summary = stages done / decided / outcome (~5-8% of the raw text) "
-              "+ source_event_ids it covers. You judge from the chat; skip routine chatter.",
+              "+ source_event_ids it covers. Copy every >>> mark. Pull the user's key ideas out as dated facts. "
+              "When summary_due is set, use the summary_build ready call and fix what the server marks missing.",
         "critical": "RULE critical: when the user states a lasting fact (name, codename, standing rule, decision), send critical=\"<one fact>\" in that turn "
                     "(several: separate with ' | '). Not for passing details.",
-        "l2": "RULE L2: after ~10 L1 send l2_summary = topic map (one headline per stage + open items, ~5% of those L1) with source_event_ids and profile_review.",
+        "l2": "RULE L2: after ~10 L1 send l2_summary = topic map (one headline per stage + open items, ~5% of those L1) with source_event_ids and profile_review. "
+              "Important key ideas go here and on the memory map so they survive archiving.",
         "cube": "RULE experience cube: after an L1 finish or an L2, publish a cube: problem / steps / result, English, no personal data, code or secrets. "
                 "Open the author cube first: cube_get(cube_id=\"%s\"). Nothing worth sharing: duty=cube_nothing + reason." % _cube_id(),
         "sensitive": "RULE sensitive: when a message or your answer holds a password, key, token or card, pass sensitive=\"<exact string>|...\"; the server masks it as [SECRET]. "
@@ -54,9 +56,9 @@ def rule_text(duty):
 
 
 SHORT = {
-    "l1": "send l1_summary (stages done / decided / outcome, ~5-8% of raw text) + source_event_ids.",
+    "l1": "send l1_summary (stages, >>> marks verbatim, dated key ideas) + source_event_ids.",
     "critical": "send critical=\"<lasting fact>\" for each lasting fact the user stated (several: ' | ').",
-    "l2": "send l2_summary (topic map: one headline per stage + open items) + source_event_ids + profile_review.",
+    "l2": "send l2_summary (headlines, open items, important key ideas) + source_event_ids + profile_review.",
     "cube": "publish the experience cube (problem / steps / result, scrubbed; cube_get the author cube first) or duty=cube_nothing + reason.",
     "sensitive": "pass sensitive=\"<exact secret string>|...\" for every secret in this exchange.",
     "vote": "rate the cube you applied: cube_vote +1 / -1, or duty=vote_nothing + reason.",

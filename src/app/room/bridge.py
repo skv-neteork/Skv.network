@@ -27,15 +27,15 @@ REST_BAD_TOKEN_HINT = "agent_token was not accepted. Call identify(name) again. 
 # Any agent, even the only one on a key, introduces itself: the memory then shows which agent led which part.
 SOFT_IDENTIFY_HINT = (
     "Call identify(name) and pass agent_token on every call, even if you are the only agent. "
-    "Then step_zero(page=1) until done=true, then turn on every user message. This turn was saved."
+    "Then step_zero(page=1). turn on the user message is allowed even while pages remain. This turn was saved."
 )
 STEP_ZERO_NEXT = (
-    "Now call step_zero(agent_token, page=1) and read every page until done=true. "
-    "Then turn(agent_token) on every user message."
+    "Call step_zero(agent_token, page=1). turn(agent_token) on the user message is allowed now, "
+    "even while pages remain. done=true arrives before the last page."
 )
 STEP_ZERO_REMINDER = (
-    "step_zero was not called yet for this agent. Call step_zero(agent_token, page=1) and read every page "
-    "until done=true, then turn on every user message."
+    "step_zero was not called yet for this agent. Call step_zero(agent_token, page=1). "
+    "turn on the user message is allowed even while pages remain."
 )
 _NUDGE = {}
 

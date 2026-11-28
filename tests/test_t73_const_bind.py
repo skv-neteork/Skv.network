@@ -35,7 +35,10 @@ class RegistryTests(Base):
         self.assertLessEqual(reg["n"], 25)
         self.assertEqual(len(reg["hash"]), 6)
         for a in CB.ATOMS:
-            self.assertLessEqual(len(a[1]), 66, a[0])
+            # R05c is the sentence approved 28.11.2026. registry() does not truncate it.
+            limit = 160 if a[0] == "R05c" else 66
+            self.assertLessEqual(len(a[1]), limit, a[0])
+            self.assertLessEqual(len(a[2]), 30, a[0])
         self.assertEqual(reg["drift"], [], "an atom lost its section in the source text")
 
     def test_rebuild_when_source_changes_and_drift(self):
@@ -125,8 +128,13 @@ class HeartbeatTests(Base):
         seen = []
         for n in range(1, len(CB.ATOMS) + 1):
             r = self.turn(n, ack=True)
-            seen.append(r["constitution"]["rule"].split(" ")[0])
-            self.assertLessEqual(len(json.dumps(r["constitution"], separators=(",", ":"))), 120)
+            rule = r["constitution"]["rule"]
+            seen.append(rule.split(" ")[0])
+            # R05c is the approved sentence (28.11.2026). The runtime does not cut it to 120.
+            limit = 240 if rule.startswith("R05c ") else 120
+            self.assertLessEqual(len(json.dumps(r["constitution"], separators=(",", ":"))), limit)
+            if rule.startswith("R05c "):
+                self.assertIn("don't publish", rule)
         self.assertEqual(seen, [a[0] for a in CB.ATOMS])
 
     def test_manifest_every_tenth_turn_only(self):

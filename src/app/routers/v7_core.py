@@ -177,6 +177,8 @@ class SearchResultItem(BaseModel):
     truncated: Optional[bool] = None
     archived: Optional[bool] = None
     rank: Optional[int] = None
+    cos: Optional[float] = None    # GB-29: best mml12 cosine to the query / search_as (turn topic filter)
+    rare: Optional[bool] = None    # GB-29: keyword hit on an exact (latin / digit) query term
 
 class SearchResponse(BaseModel):
     results: List[SearchResultItem]

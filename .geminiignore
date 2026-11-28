@@ -1,0 +1,81 @@
+# Dependencies and virtualenvs
+node_modules/
+vendor/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.tox/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# VCS
+.git/
+
+# Logs, backups, database dumps
+logs/
+log/
+backups/
+backup/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.dump
+*.sql.gz
+
+# Build, cache, coverage
+dist/
+build/
+out/
+coverage/
+htmlcov/
+target/
+.cache/
+.next/
+*.egg
+
+# Archives and bulky binaries
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.whl
+*.mp4
+*.webm
+
+# Secrets (never feed these to the model)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local data / volumes
+qdrant_storage/
+postgres_data/
+docker/volumes/
+*.qdrant
+
+# Agent tool output
+graphify-out/
+.atlas/
+.serena/
+
+# SKV repo-specific bulky / generated (reviewed 2026-11-28 against /root/skv-core)
+archive/
+runtime/
+var/
+staging/
+data/
+mcp_stage/
+clients/**/node_modules/

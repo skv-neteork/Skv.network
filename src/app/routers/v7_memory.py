@@ -148,8 +148,19 @@ async def _guardian_l1_memory_impl(req: MemoryRequest, buffer: ChronoBufferV77Ul
         # Try VectorRouter (HNSW) first, fallback to _cached_search
         if _sem_tag != "bge" and req.query_text:
             from app import search_v2 as _v2
-            hnsw_results, _sem_vec = _sem.semantic_events(req.user_id, _eq12_vec_query, k=max(req.top_k * 3, _v2.cfg()["vec_k"] if _v2.enabled() else 20))
-            hnsw_results = [(e, sc) for e, sc in hnsw_results if e.startswith(f"{req.user_id}::")]
+            _chunk_on = bool(_v2.enabled() and _v2.cfg().get("chunks"))
+            if _chunk_on:
+                try:
+                    hnsw_results, _sem_vec = _v2.chunk_events(
+                        req.user_id, _eq12_vec_query, k=max(100, int(req.top_k or 1))
+                    )
+                    hnsw_results = [(e, sc) for e, sc in hnsw_results if str(e).startswith(f"{req.user_id}::")]
+                except Exception as _ce:
+                    print("[chunks] search fell back: %s" % type(_ce).__name__, flush=True)
+                    _chunk_on = False
+            if not _chunk_on:
+                hnsw_results, _sem_vec = _sem.semantic_events(req.user_id, _eq12_vec_query, k=max(req.top_k * 3, _v2.cfg()["vec_k"] if _v2.enabled() else 20))
+                hnsw_results = [(e, sc) for e, sc in hnsw_results if e.startswith(f"{req.user_id}::")]
         else:
             hnsw_results = GLOBAL_VECTOR_ROUTER.search(req.user_id.replace("@", "").replace(".", ""), q_vec, top_k=req.top_k)
         raw_results = []

@@ -2,7 +2,7 @@
 (events_fts_stem, old events_fts untouched), weighted RRF (vector 1.0 / words 0.5, full word weight for
 rare terms), and grouping of hits by parent L1/L2 summaries with drill-down (parent_id).
 Switch: /data/skv/search_config.json {"search_v2": true}. Missing file or false = old behaviour."""
-import json, os, re, sqlite3
+import json, os, re, sqlite3, zlib
 
 CFG_PATH = "/data/skv/search_config.json"
 DEF = {"search_v2": False, "vec_k": 50, "w_vec": 1.0, "w_words": 0.5, "w_words_rare": 1.0, "w_words_latin": 2.0,
@@ -572,21 +572,138 @@ def missing_terms(uid, query):
         return []
 
 
-# ---------------- v3 (2026-10-20 13:20): chunk index, L1 v2 titles, critical labels ----------------
-CHUNK, OVERLAP = 800, 150
+# ---------------- v3 chunks. T95: 350/70, parent score before RRF. ----------------
+# A chunk is 320-360 characters (target 350) with a 70-character overlap.
+# The cut is the nearest sentence end or space inside that window.
+# count_tokens, when given, shrinks a piece so it stays within the model limit.
+CHUNK_LO, CHUNK_HI, CHUNK_TARGET, CHUNK_OVERLAP = 300, 360, 350, 70
+CHUNK_CAP = 40
+TOKEN_LIMIT = 128
+PARENT_COS_FLOOR = 0.45
+PARENT_BONUS = 0.03
 
 
-def _chunks(text):
+def _boundary(text, origin):
+    """Cut index after origin. Short tails stay whole. Otherwise the nearest .!? newline or space in [300..360]."""
+    n = len(text)
+    if origin >= n:
+        return n
+    if n - origin <= CHUNK_HI:
+        return n
+    lo = origin + CHUNK_LO
+    hi = min(n, origin + CHUNK_HI)
+    target = origin + CHUNK_TARGET
+    best = None
+    for i in range(lo, hi):
+        ch = text[i]
+        if ch in ".!?\n":
+            pos, kind = i + 1, 0
+        elif ch == " ":
+            pos, kind = i, 1
+        else:
+            continue
+        if pos <= origin:
+            continue
+        cand = (abs(pos - target), kind, pos)
+        if best is None or cand < best:
+            best = cand
+    return best[2] if best else min(n, origin + CHUNK_TARGET)
+
+
+def _fit_token_limit(text, count_tokens, limit):
+    """Shrink to the longest prefix the tokenizer accepts. No counter means the char cut stands."""
+    if not text or count_tokens is None:
+        return text
+    if count_tokens(text) <= limit:
+        return text
+    lo, hi, best = 1, len(text), 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if count_tokens(text[:mid]) <= limit:
+            best = mid
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    window = text[:best]
+    snap = max(window.rfind(". "), window.rfind("! "), window.rfind("? "), window.rfind("\n"), window.rfind(" "))
+    if snap >= int(best * 0.6):
+        if window[snap] == " ":
+            best = snap
+        else:
+            best = snap + 1
+    return text[:max(1, best)]
+
+
+def _chunks(text, count_tokens=None, token_limit=TOKEN_LIMIT):
     t = text or ""
-    if len(t) <= CHUNK:
+    if not str(t).strip():
+        return []
+    if len(t) <= CHUNK_HI and (count_tokens is None or count_tokens(t) <= token_limit):
         return [t]
-    out, i = [], 0
-    while i < len(t):
-        out.append(t[i:i + CHUNK])
-        if i + CHUNK >= len(t):
+    out, i, n, guard = [], 0, len(t), 0
+    while i < n and len(out) < CHUNK_CAP:
+        guard += 1
+        if guard > n + 5:
             break
-        i += CHUNK - OVERLAP
-    return out[:40]
+        end = _boundary(t, i)
+        if end <= i:
+            end = min(n, i + 1)
+        fitted = _fit_token_limit(t[i:end], count_tokens, token_limit)
+        if not fitted:
+            i += 1
+            continue
+        out.append(fitted)
+        end = i + len(fitted)
+        if end >= n:
+            break
+        nxt = end - CHUNK_OVERLAP
+        if nxt <= i:
+            nxt = i + 1
+        i = nxt
+    return out
+
+
+def parent_score(chunk_hits, event_hits, floor=PARENT_COS_FLOOR, bonus=PARENT_BONUS):
+    """One score per parent event, before RRF.
+
+    score = max(chunk cosines, whole-event cosine) + bonus * ln(1 + N_hits).
+    N_hits counts chunks at or above the floor. The whole-event cosine is only a candidate for the max.
+    """
+    import math
+    chunks = {}
+    for cid, cos in chunk_hits or []:
+        eid = str(cid).rsplit("#", 1)[0]
+        chunks.setdefault(eid, []).append(float(cos))
+    events = {}
+    for eid, cos in event_hits or []:
+        events[str(eid).rsplit("#", 1)[0]] = float(cos)
+    scored = []
+    for eid in set(chunks) | set(events):
+        cs = chunks.get(eid) or []
+        cands = list(cs)
+        if eid in events:
+            cands.append(events[eid])
+        if not cands:
+            continue
+        n_hits = sum(1 for c in cs if c >= floor)
+        scored.append((eid, max(cands) + bonus * math.log(1.0 + n_hits)))
+    scored.sort(key=lambda x: -x[1])
+    return scored
+
+
+def flip_active_where_indexed(conn, table):
+    """pending_vector is written on create and never read by search. Flip it where a vector row exists."""
+    if not table or not str(table).replace("_", "").isalnum():
+        return 0
+    try:
+        cur = conn.execute(
+            "UPDATE event_metadata SET status='active' "
+            "WHERE coalesce(status,'') IN ('pending_vector','') "
+            "AND event_id IN (SELECT event_id FROM %s)" % table
+        )
+        return cur.rowcount
+    except sqlite3.Error:
+        return 0
 
 
 def _chunk_name(uid):
@@ -594,55 +711,143 @@ def _chunk_name(uid):
     return account_name(uid) + "__chunks"
 
 
-def build_chunks(uid, since_rowid=0, threads=2, batch=64, conn=None):
-    """Per-chunk vectors in a NEW index <account>__chunks (old index untouched). One entry per chunk -> no dupes."""
+def _bump_chunk_row(conn, rowid):
+    conn.execute("CREATE TABLE IF NOT EXISTS events_fts_stem_state (k TEXT PRIMARY KEY, v INTEGER)")
+    cur = conn.execute("SELECT v FROM events_fts_stem_state WHERE k='chunk_rowid'").fetchone()
+    have = int(cur[0]) if cur and cur[0] is not None else 0
+    if int(rowid) >= have:
+        conn.execute("INSERT OR REPLACE INTO events_fts_stem_state VALUES ('chunk_rowid', ?)", (int(rowid),))
+
+
+def event_text(raw, archived_raw="", body_z=None):
+    """Hot dialogue, or the archived body when the hot row is only the marker."""
+    raw = raw or ""
+    if not raw.startswith("[archived]"):
+        return raw
+    if archived_raw:
+        return archived_raw
+    if body_z:
+        try:
+            return zlib.decompress(body_z).decode("utf-8")
+        except Exception:
+            return ""
+    return ""
+
+
+def build_chunks(uid, since_rowid=0, threads=2, batch=64, conn=None, reset=False, count_tokens=None):
+    """Per-chunk vectors in <account>__chunks (the event index is not touched).
+
+    reset replaces that chunk index. A later write appends with append_event_chunks.
+    An archived marker is chunked from event_archive, not from the marker line.
+    """
     from app import semantic as _sem
     own = conn is None
     conn = conn or sqlite3.connect(_db(uid), timeout=30)
+    if not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='event_metadata'"
+    ).fetchone():
+        if own:
+            conn.close()
+        return 0, 0
     conn.execute("CREATE TABLE IF NOT EXISTS events_fts_stem_state (k TEXT PRIMARY KEY, v INTEGER)")
-    rows = conn.execute("SELECT rowid, event_id, raw_dialogue FROM event_metadata WHERE rowid > ? ORDER BY rowid", (since_rowid,)).fetchall()
+    has_arch = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='event_archive'").fetchone()
+    if has_arch:
+        rows = conn.execute(
+            "SELECT e.rowid, e.event_id, e.raw_dialogue, coalesce(a.raw_dialogue,''), a.body_z "
+            "FROM event_metadata e LEFT JOIN event_archive a ON a.event_id=e.event_id "
+            "WHERE e.rowid > ? ORDER BY e.rowid",
+            (since_rowid,),
+        ).fetchall()
+    else:
+        rows = [(r, e, raw, "", None) for r, e, raw in conn.execute(
+            "SELECT rowid, event_id, raw_dialogue FROM event_metadata WHERE rowid > ? ORDER BY rowid",
+            (since_rowid,),
+        ).fetchall()]
     tag, name = _sem.active_tag(), _chunk_name(uid)
+    if reset and int(since_rowid or 0) == 0:
+        _sem.STORE.reset(tag, name)
     ids, texts = [], []
-    for _r, eid, raw in rows:
-        if (raw or "").startswith("[archived]"):
-            continue   # archived: no chunk vectors
-        for k, ch in enumerate(_chunks(raw)):
-            ids.append(f"{eid}#{k}")
+    for row in rows:
+        _r, eid, raw = row[0], row[1], row[2]
+        arch = row[3] if len(row) > 3 else ""
+        blob = row[4] if len(row) > 4 else None
+        body = event_text(raw, arch, blob)
+        if not body or body.startswith("[archived]"):
+            continue
+        for k, ch in enumerate(_chunks(body, count_tokens=count_tokens)):
+            ids.append("%s#%d" % (eid, k))
             texts.append(ch)
-    for i in range(0, len(ids), batch):
+    for nbatch, i in enumerate(range(0, len(ids), batch)):
         vecs = _sem.embed(texts[i:i + batch], tag, threads=threads)
         _sem.STORE.add(tag, name, ids[i:i + batch], vecs, save=False)
+        if nbatch and nbatch % 8 == 0:
+            _sem.STORE.save(tag, name)
     if ids:
         _sem.STORE.save(tag, name)
     if rows:
-        conn.execute("INSERT OR REPLACE INTO events_fts_stem_state VALUES ('chunk_rowid', ?)", (rows[-1][0],))
+        _bump_chunk_row(conn, rows[-1][0])
         conn.commit()
     if own:
         conn.close()
     return len(rows), len(ids)
 
 
-def chunk_events(uid, query, k=50):
-    """Vector search over chunks; record score = best chunk. Returns ([(eid, cos)], qvec)."""
+def append_event_chunks(uid, event_id, text, tag=None):
+    """One new or rewritten event. Same chunk ids are replaced. The event index is not touched."""
+    from app import semantic as _sem
+    parts = _chunks(text or "")
+    if not parts or not event_id:
+        return 0
+    tag = tag or _sem.active_tag()
+    ids = ["%s#%d" % (event_id, k) for k in range(len(parts))]
+    vecs = _sem.embed(parts, tag)
+    _sem.STORE.add(tag, _chunk_name(uid), ids, vecs, save=True)
+    try:
+        conn = sqlite3.connect(_db(uid), timeout=30)
+        try:
+            row = conn.execute("SELECT rowid FROM event_metadata WHERE event_id=?", (event_id,)).fetchone()
+            if row:
+                _bump_chunk_row(conn, row[0])
+                conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        print("[search_v2] chunk watermark skipped: %s" % type(exc).__name__, flush=True)
+    return len(parts)
+
+
+def chunk_events(uid, query, k=100):
+    """Chunk hits grouped by parent event, then one slot each. Returns ([(eid, score)], qvec).
+
+    The whole-event vector is one more candidate for the same event. An empty chunk index
+    falls back to that event index so search still answers.
+    """
     from app import semantic as _sem
     try:
         conn = sqlite3.connect(_db(uid), timeout=10)
         st = conn.execute("SELECT v FROM events_fts_stem_state WHERE k='chunk_rowid'").fetchone()
         mx = conn.execute("SELECT max(rowid) FROM event_metadata").fetchone()[0] or 0
-        if st and mx > st[0] and mx - st[0] <= 50:   # fresh records: embed on the fly (few)
+        if st and mx > st[0] and mx - st[0] <= 50:
             build_chunks(uid, st[0], conn=conn)
         conn.close()
     except Exception as e:
-        print(f"[search_v2] chunk sync skipped: {e}", flush=True)
+        print("[search_v2] chunk sync skipped: %s" % type(e).__name__, flush=True)
     tag = _sem.active_tag()
     vec = _sem.embed([query], tag)[0]
-    hits = _sem.STORE.search(tag, _chunk_name(uid), vec, k=min(400, k * 8))
-    best = {}
-    for cid, s in hits:
-        eid = cid.rsplit("#", 1)[0]
-        if eid.startswith(uid + "::") and s > best.get(eid, -1):
-            best[eid] = s
-    return sorted(best.items(), key=lambda x: -x[1])[:k], vec
+    width = max(int(k or 1), 100)
+    name = _sem.account_name(uid)
+    chunk_hits = _sem.STORE.search(tag, _chunk_name(uid), vec, k=width)
+    event_hits = _sem.STORE.search(tag, name, vec, k=width)
+    prefix = str(uid) + "::"
+
+    def _own(eid):
+        return str(eid).startswith(prefix)
+
+    chunk_hits = [(c, s) for c, s in chunk_hits if _own(str(c).rsplit("#", 1)[0])]
+    event_hits = [(e, s) for e, s in event_hits if _own(e)]
+    if not chunk_hits:
+        return event_hits[:k], vec
+    return parent_score(chunk_hits, event_hits)[:k], vec
 
 
 def build_l1_v2(uid):

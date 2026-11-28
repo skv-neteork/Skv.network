@@ -143,6 +143,17 @@ class IndexStore:
             if save:
                 self.save(tag, name)
 
+    def reset(self, tag, name):
+        """Drop one index. Used for a full __chunks rebuild. The event index is a different name."""
+        with self.lock:
+            self.cache.pop((tag, name), None)
+            hp, ip = self._paths(tag, name)
+            for p in (hp, ip, hp + ".tmp", ip + ".tmp.npy"):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+
     def save(self, tag, name):
         with self.lock:
             e = self.cache.get((tag, name))
@@ -227,7 +238,6 @@ def search_cubes(vec, k=3, tag=None):
 # ---------------- (re)building ----------------
 def _ensure_table(conn, table):
     conn.execute(f"CREATE TABLE IF NOT EXISTS {table} (event_id TEXT PRIMARY KEY, created_at TEXT)")
-
 
 
 # ---------------- lazy vectorization ----------------
@@ -340,6 +350,11 @@ def build_user(tag, fname, threads=None, batch=32, progress=None, max_items=None
                 STORE.save(tag, target)
                 conn.commit()
     finally:
+        try:
+            from app.search_v2 import flip_active_where_indexed
+            flip_active_where_indexed(conn, table)
+        except Exception:
+            pass
         conn.commit()
         conn.close()
     return done
@@ -370,10 +385,19 @@ def account_files():
 
 
 def add_event_now(user_id, event_id, text):
-    """Embed one new turn right away (API process is the only writer once switched)."""
+    """Embed one new turn right away (API process is the only writer once switched).
+
+    Chunks are written even when the event vector waits for the lazy batch.
+    A REBUILDING flag skips both so a chunk rebuild is the only writer of that index.
+    """
     tag = active_tag()
     if tag == "bge" or os.path.exists(os.path.join(MODELS[tag]["dir"], "REBUILDING")):
         return False
+    try:
+        from app.search_v2 import append_event_chunks
+        append_event_chunks(user_id, event_id, text, tag=tag)
+    except Exception as exc:
+        print("[chunks] write skipped: %s" % type(exc).__name__, flush=True)
     if lazy_cfg()["enabled"]:
         _LAST_WRITE[account_name(user_id)] = time.time()
         return False   # lazy: batch vectorizer picks it up (threshold or idle)
@@ -384,10 +408,54 @@ def add_event_now(user_id, event_id, text):
     try:
         _ensure_table(conn, MODELS[tag]["table"])
         conn.execute(f"INSERT OR REPLACE INTO {MODELS[tag]['table']} (event_id, created_at) VALUES (?, datetime('now'))", (event_id,))
+        from app.search_v2 import flip_active_where_indexed
+        flip_active_where_indexed(conn, MODELS[tag]["table"])
         conn.commit()
     finally:
         conn.close()
     return True
+
+
+def index_archived_bodies(user_id, tag=None):
+    """Give an archived marker its vector back from event_archive. Already-purged rows are not stripped again."""
+    tag = tag or active_tag()
+    if tag not in MODELS:
+        return 0
+    name = account_name(user_id)
+    path = os.path.join(BASE_DIR, name + ".db")
+    if not os.path.isfile(path):
+        return 0
+    table = MODELS[tag]["table"]
+    conn = sqlite3.connect(path, timeout=30)
+    try:
+        _ensure_table(conn, table)
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='event_archive'").fetchone():
+            return 0
+        rows = conn.execute(
+            "SELECT e.event_id, a.body_z FROM event_metadata e "
+            "JOIN event_archive a ON a.event_id=e.event_id "
+            "LEFT JOIN %s v ON v.event_id=e.event_id "
+            "WHERE v.event_id IS NULL AND e.raw_dialogue LIKE '[archived]%%' AND a.body_z IS NOT NULL" % table
+        ).fetchall()
+        from app.search_v2 import event_text, flip_active_where_indexed
+        items = []
+        for eid, blob in rows:
+            text = event_text("[archived]", "", blob)
+            if text:
+                items.append((eid, text))
+        if not items:
+            return 0
+        vecs = embed([t for _, t in items], tag)
+        STORE.add(tag, name, [e for e, _ in items], vecs, save=True)
+        conn.executemany(
+            "INSERT OR REPLACE INTO %s (event_id, created_at) VALUES (?, datetime('now'))" % table,
+            [(e,) for e, _ in items],
+        )
+        flip_active_where_indexed(conn, table)
+        conn.commit()
+        return len(items)
+    finally:
+        conn.close()
 
 
 def build_pending_all(tag=None, force=False):

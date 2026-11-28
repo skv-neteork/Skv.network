@@ -3044,11 +3044,11 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
         _fin = _room_finish_turn(res, agent_token, session_id, context_state, kind, _gsrc, recap, duty)
     else:
         _fin = _room_rest_finish(res, agent_token, session_id, context_state, kind, _gsrc, duty)
-    _fin = _t84_pack(_fin, user_message, session_id, duty, duty_reason, source_event_ids, context_compressed_at, compressed, used_fact_ids, l1_summary, l2_summary)
+    _fin = _t84_pack(_fin, user_message, session_id, duty, duty_reason, source_event_ids, context_compressed_at, compressed, used_fact_ids, l1_summary, l2_summary, agent_token)
     return _cb_turn(_fin, user_message, msg_ref, session_id, bool(const_ack) or (ack or "").strip().lower() == "const", bool(context_reset), bool(draft or answer))
 
 
-def _t84_pack(res, user_message, session_id, duty, duty_reason, source_event_ids, compressed_at, compressed, used_fact_ids, l1_summary, l2_summary=""):
+def _t84_pack(res, user_message, session_id, duty, duty_reason, source_event_ids, compressed_at, compressed, used_fact_ids, l1_summary, l2_summary="", actor=""):
     """Fact diet, window, duties, desk and next_step. After _bl_add so the language rule is visible. Never fails the turn."""
     try:
         o = json.loads(res) if isinstance(res, str) else res
@@ -3072,6 +3072,8 @@ def _t84_pack(res, user_message, session_id, duty, duty_reason, source_event_ids
             "l1_summary": l1_summary or "",
             "l2_summary": l2_summary or "",
             "load_portfolio": True,
+            "actor": actor or "",
+            "harvest": bool(actor),
         })
     except Exception as exc:
         print("[turn] pack skipped: %s" % type(exc).__name__, flush=True)

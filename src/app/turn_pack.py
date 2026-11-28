@@ -1262,6 +1262,17 @@ def _finish(resp, ctx):
             resp["danger"] = gate
             if gate.get("blocked"):
                 resp["next_step"] = gate.get("ready_call") or resp["next_step"]
+        actor = str(ctx.get("actor") or "").strip()
+        if actor and ctx.get("harvest"):
+            from app import first_connect_harvest as _fc
+            hint = _fc.note_file(
+                actor,
+                event_id=str(resp.get("event_id") or ctx.get("event_id") or ""),
+                path=ctx.get("harvest_db") or None,
+            )
+            if hint:
+                resp["first_connect_harvest"] = hint["text"]
+                resp["first_connect_scan"] = hint["scan"]
         _t89.pin_last(resp, "next_step")
     except Exception:
         pass

@@ -164,6 +164,13 @@ async def create_experience_cube(req: ExperienceCreateRequest, request: Request 
             _skill_md = _scrub["fields"].get("skill_md") or ""
             _hooks_json = _scrub["fields"].get("hooks") or ""
         _skill_quarantine = bool(_scrub["doubtful"])
+        _scan = _dd.court_scan("\n".join([
+            _scrub["fields"].get("topic") or "", _scrub["fields"].get("essence") or "",
+            _scrub["fields"].get("rules") or "", _scrub["fields"].get("skill_md") or "",
+            _scrub["fields"].get("hooks") or "",
+        ]))
+        if _scan.get("court"):
+            _skill_quarantine = True
     if req.cube_publish is not False:
         from app import cube_guard as _cgs
         _rep = _cgs.field_report(topic=req.topic, essence=req.essence, rules=req.rules_markdown, evidence=req.evidence, skill_md=req.skill_md or "", hooks=_hooks_json or "")
@@ -256,25 +263,35 @@ async def create_experience_cube(req: ExperienceCreateRequest, request: Request 
             _parts = _dd.parts_from(topic=req.topic, problem=req.essence, hooks=_hooks_json, skill_md=_skill_md,
                                     rules=req.rules_markdown, requirements=getattr(req, "requirements", None) or [])
             _draft = {"kind": _kind, "parts": _parts, "steps_sha": _dd.steps_sha(_parts), "norm_text": _dd.norm_text(_parts)}
-            _dedup_plan = _dd.classify(_draft, _dd.load_candidates(conn, _kind))
+            _dedup_plan = _dd.classify(_draft, _dd.load_candidates(conn, _kind), opposite_check=_dd.active_opposite_check())
             if _dedup_plan.get("result") == "duplicate":
+                _dedup_plan["auto_vote"] = False
                 conn.commit(); conn.close()
                 return _dedup_plan
             if _dedup_plan.get("result") in ("near_duplicate", "conflict"):
                 _fields = {"topic": req.topic, "essence": req.essence, "rules": req.rules_markdown,
                            "skill_md": _skill_md, "hooks": _hooks_json or "", "kind": _kind, "carrier": _carrier,
                            "diff": _dedup_plan.get("diff") or {}, "requirements": getattr(req, "requirements", None) or []}
-                _why = "conflict: opposite hook" if _dedup_plan["result"] == "conflict" else "near_duplicate: added steps or hooks"
+                _why = "conflict: opposite rule" if _dedup_plan["result"] == "conflict" else "near_duplicate: merge candidate"
                 _prop = _dd.propose_version(conn, _dedup_plan["canonical_cube_id"], _fields, _why, uid)
-                if _dedup_plan["result"] == "conflict" and _prop.get("cube_id"):
+                if _prop.get("cube_id") and _dedup_plan["result"] == "conflict":
                     cur.execute("UPDATE cubes_new SET status='disputed' WHERE cube_id=?", (_prop["cube_id"],))
+                    _dd.link_against(conn, _prop["cube_id"], _dedup_plan["canonical_cube_id"], uid)
+                    _prop["link"] = "against"
+                    _prop["merge"] = False
+                if _prop.get("cube_id") and _dedup_plan["result"] == "near_duplicate":
+                    _dd.link_merge_candidate(conn, _prop["cube_id"], _dedup_plan["canonical_cube_id"], uid)
+                    _prop["merge_candidate"] = True
                 conn.commit(); conn.close()
                 _prop["result"] = _dedup_plan["result"]
                 _prop["similarity"] = _dedup_plan.get("similarity")
                 _prop["diff"] = _dedup_plan.get("diff")
                 _prop["published"] = False
+                _prop["auto_vote"] = False
                 _prop["next"] = "cube_confirm(...) | cube_propose_version(...)"
                 return _prop
+        if _dedup_plan and _dedup_plan.get("probation") and _status != "quarantine":
+            _status = "probation"
         for cid, ess, rules in cur.execute("select cube_id, essence, rules_markdown from cubes_new where subject_action_object=? and coalesce(status,'') not in ('superseded','rejected','pending_version')", (req.topic,)).fetchall():
             old_w = _words(req.topic) | _words(ess) | _words(rules)
             if not new_w or not old_w or cid == sup:

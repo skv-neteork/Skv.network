@@ -390,7 +390,7 @@ def _decorate(result, user, message, facts=None, launch_ok=False, l1_new=False, 
     return result
 
 
-def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compressed_at, compressed, used_fact_ids, l1_summary, l2_summary=""):
+def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compressed_at, compressed, used_fact_ids, l1_summary, l2_summary="", agent_token=""):
     """T84 pack after the watch. Pops the stashed account id so it never leaves the server."""
     if not isinstance(res, dict):
         return res
@@ -411,6 +411,8 @@ def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compr
             "l1_summary": l1_summary or "",
             "l2_summary": l2_summary or "",
             "load_portfolio": True,
+            "actor": agent_token or "",
+            "harvest": bool(agent_token),
         })
     except Exception as exc:
         print("[rest_turn] turn pack skipped: %s" % type(exc).__name__, flush=True)
@@ -458,7 +460,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
             gu = res.pop("_gap_user", "") or ""
             if gu:
                 _apply_seal_gaps(res, gu, agent_token, source, draft, answer, recap, msg_ref, duty, duty_reason)
-        return _pack_turn(res, user_message, session_id, duty, duty_reason, source_event_ids, context_compressed_at, compressed, used_fact_ids, l1_summary, l2_summary)
+        return _pack_turn(res, user_message, session_id, duty, duty_reason, source_event_ids, context_compressed_at, compressed, used_fact_ids, l1_summary, l2_summary, agent_token)
     if isinstance(recap, str) and not recap.strip():
         recap = None
     if not msg_ref and not recap:

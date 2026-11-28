@@ -9,5 +9,6 @@
   "young_weight": 0.5,
   "half_life_days": 90,
   "embed_on_create": false,
-  "note": "Starting thresholds. calibrate() changes them only when given about 100 labeled pairs."
+  "probation_n": 2,
+  "note": "Starting thresholds. calibrate() writes a fit only when store=True and it is given about 100 labeled pairs that include a cosine. Cosine cuts are not fixed at 0.90/0.75."
 }

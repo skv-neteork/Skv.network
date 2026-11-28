@@ -1,9 +1,10 @@
 """Cube dedup, skill scrub, confirmations and rank v0.
 
 Thresholds live in cube_dedup_config.json. Cosine uses stored vectors.
-embed_on_create stays off until calibrate() sees about 100 labeled pairs:
-the live catalog has no vectors, and an uncalibrated model would file
-ordinary creates as court cases.
+embed_on_create stays off until calibrate() sees about 100 labeled pairs
+that already include a cosine: the live catalog has no vectors, and this
+module does not load a second embedder. calibrate() writes only when
+store=True. A fitted cut is not a fixed 0.90 or 0.75.
 """
 import hashlib
 import json
@@ -22,12 +23,27 @@ _CHAIN = re.compile(r"\bch_[0-9a-fA-F]{8,}\b")
 _EV = re.compile(r"\[ev:[^\]]+\]")
 _REPO = re.compile(r"\bgithub\.com/[\w.-]+/[\w.-]+\b", re.I)
 _PATH = re.compile(r"(?:(?:/|\b)(?:root|home|Users|opt|var|data|tmp|workspace)/[^\s\"'`<>]+)|(?:[A-Za-z]:\\[^\s\"'`<>]+)")
-_HOST = re.compile(r"\b[a-z0-9][a-z0-9-]{0,62}\.(?:com|net|org|io|ru|dev)\b", re.I)
+_HOST = re.compile(
+    r"\b(?:[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.)+(?:com|net|org|io|ru|dev)\b",
+    re.I,
+)
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{8,}")
 _PRIV = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
 _KEYISH = re.compile(r"\b(?:sk_|pza_|re_|AKIA|xai-|ghp_|github_pat_)[A-Za-z0-9_\-]{8,}")
 _STEP = re.compile(r"^\s*(?:step\s+\d+[:.)]|(\d+)[.)]|[-*])\s+(.*)$", re.I)
 _NEG = re.compile(r"\b(do not|don't|never|avoid|forbid|without|disable)\b", re.I)
+_POS = re.compile(r"\b(always|must|required)\b", re.I)
+_NEG_TEXT = re.compile(r"\b(never|forbid|forbidden|avoid|disable)\b|\bdo not\b|\bdon't\b", re.I)
+_INJECT = (
+    "ignore previous instructions",
+    "ignore all previous",
+    "system prompt",
+    "you are now",
+)
+_DUP_LABELS = {"duplicate", "paraphrase", "same"}
+_DIST_LABELS = {"distinct", "new", "different"}
+_REL_LABELS = {"related"}
+_CHEAP_MODEL = "google/gemini-2.5-flash-lite"
 
 
 def load_config():
@@ -40,21 +56,115 @@ def load_config():
         "candidate_cos": 0.78, "duplicate_cos": 0.93, "hook_jaccard": 0.6,
         "near_cos": 0.84, "related_cos": 0.75, "norm_jaccard_exact": 0.85,
         "young_account_days": 7, "young_weight": 0.5, "half_life_days": 90,
-        "embed_on_create": False,
+        "embed_on_create": False, "probation_n": 2,
     }
     base.update({k: cfg[k] for k in base if k in cfg})
     return base
 
 
-def calibrate(pairs, cfg=None):
-    """Suggest thresholds from labeled pairs. Does not write the config below 100 pairs."""
+def _pair_score(pair):
+    """Cosine the caller already measured. This does not embed text."""
+    if not isinstance(pair, dict):
+        return None
+    for key in ("cosine", "score"):
+        if pair.get(key) is None:
+            continue
+        try:
+            return float(pair[key])
+        except (TypeError, ValueError):
+            return None
+    if pair.get("vector_a") and pair.get("vector_b"):
+        return cosine(pair["vector_a"], pair["vector_b"])
+    return None
+
+
+def _best_cut(pos, neg):
+    """Highest cosine cut that puts `pos` above it and `neg` below it."""
+    if not pos or not neg:
+        return None
+    grid = sorted({round(float(x), 4) for x in list(pos) + list(neg)})
+    best_t, best_acc = None, -1
+    for t in grid:
+        acc = sum(1 for s in pos if s >= t) + sum(1 for s in neg if s < t)
+        if acc > best_acc or (acc == best_acc and (best_t is None or t > best_t)):
+            best_acc, best_t = acc, t
+    return best_t
+
+
+def _clip_cos(value):
+    return max(0.01, min(0.99, float(value)))
+
+
+def calibrate(pairs, cfg=None, store=False, path=None):
+    """Fit cosine cuts from labeled pairs. Writes the config only when store=True.
+
+    Below 100 pairs the starting thresholds stay. Pairs need a label and a cosine
+    that the caller already computed. Opposite labels are left out of the cut:
+    a high cosine can still be the opposite rule.
+    """
     cfg = dict(cfg or load_config())
     n = len(pairs or [])
     if n < 100:
-        return {"calibrated": False, "n": n, "thresholds": cfg,
+        return {"calibrated": False, "n": n, "thresholds": cfg, "stored": False,
                 "reason": "need about 100 labeled pairs before thresholds change"}
-    return {"calibrated": False, "n": n, "thresholds": cfg,
-            "reason": "pair set is large enough to review; thresholds stay at the starting values until a person accepts a fit"}
+    scored = []
+    for pair in pairs or []:
+        if not isinstance(pair, dict):
+            continue
+        score = _pair_score(pair)
+        label = str(pair.get("label") or "").strip().lower()
+        if score is None or not label or label == "opposite":
+            continue
+        scored.append((label, score))
+    if len(scored) < 100:
+        return {"calibrated": False, "n": n, "thresholds": cfg, "stored": False,
+                "reason": "need about 100 labeled pairs with a cosine before thresholds change"}
+    dup = [s for lab, s in scored if lab in _DUP_LABELS]
+    dist = [s for lab, s in scored if lab in _DIST_LABELS]
+    rel = [s for lab, s in scored if lab in _REL_LABELS]
+    if len(dup) < 10 or len(dist) < 10:
+        return {"calibrated": False, "n": n, "thresholds": cfg, "stored": False,
+                "reason": "need duplicate and distinct scores before thresholds change"}
+    high = _best_cut(dup, dist + rel)
+    if high is None:
+        return {"calibrated": False, "n": n, "thresholds": cfg, "stored": False,
+                "reason": "no separable cut in the labeled pairs"}
+    if len(rel) >= 10:
+        mid = _best_cut(dup, rel)
+        low = _best_cut(rel, dist)
+    else:
+        mid = (max(dist) + min(dup)) / 2.0
+        low = (min(dist) + max(dist)) / 2.0
+    if mid is None or low is None:
+        return {"calibrated": False, "n": n, "thresholds": cfg, "stored": False,
+                "reason": "no separable cut in the labeled pairs"}
+    duplicate_cos = _clip_cos(high)
+    near_cos = _clip_cos(min(mid, duplicate_cos - 0.01))
+    related_cos = _clip_cos(min(low, near_cos - 0.01))
+    fitted = dict(cfg)
+    fitted["duplicate_cos"] = round(duplicate_cos, 4)
+    fitted["near_cos"] = round(near_cos, 4)
+    fitted["related_cos"] = round(related_cos, 4)
+    stored = False
+    if store:
+        dest = path or _CFG
+        try:
+            with open(dest, encoding="utf-8") as fh:
+                blob = json.load(fh)
+        except Exception:
+            blob = {}
+        if not isinstance(blob, dict):
+            blob = {}
+        blob["duplicate_cos"] = fitted["duplicate_cos"]
+        blob["near_cos"] = fitted["near_cos"]
+        blob["related_cos"] = fitted["related_cos"]
+        blob["note"] = "Fitted by calibrate() from labeled pair cosines. Not a fixed 0.90/0.75."
+        with open(dest, "w", encoding="utf-8") as fh:
+            json.dump(blob, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+        stored = True
+    return {"calibrated": True, "n": n, "used": len(scored), "thresholds": fitted,
+            "stored": stored, "reason": "fitted from labeled cosine pairs"}
 
 
 def _toks(text):
@@ -268,13 +378,125 @@ def _opposite(new_hooks, old_hooks):
     return False
 
 
+def _text_opposite(new_text, old_text):
+    """always X versus never X on the same remaining words. No network."""
+    a, b = new_text or "", old_text or ""
+    a_pos, a_neg = bool(_POS.search(a)), bool(_NEG_TEXT.search(a))
+    b_pos, b_neg = bool(_POS.search(b)), bool(_NEG_TEXT.search(b))
+    left_neg, left_pos = a_neg and not a_pos, a_pos and not a_neg
+    right_neg, right_pos = b_neg and not b_pos, b_pos and not b_neg
+    if not ((left_neg and right_pos) or (left_pos and right_neg)):
+        return False
+    left = _toks(_NEG_TEXT.sub(" ", _POS.sub(" ", a)))
+    right = _toks(_NEG_TEXT.sub(" ", _POS.sub(" ", b)))
+    if len(left) < 2 or len(right) < 2:
+        return False
+    return jaccard(left, right) >= 0.5
+
+
+def court_scan(text):
+    """File text is data. Hidden-instruction phrases go to court before a shared publish."""
+    low = (text or "").lower()
+    hits = [p for p in _INJECT if p in low]
+    return {"treat_as_data": True, "hits": hits, "court": bool(hits)}
+
+
+def _polza_key():
+    raw = (os.environ.get("POLZA_KEY") or "").strip()
+    if raw:
+        return raw
+    path = os.environ.get("SKV_ENV_FILE", "/root/skv-core/.env")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("POLZA_KEY="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        return ""
+    return ""
+
+
+def cheap_opposite(text_a, text_b, timeout=8):
+    """Gemini flash-lite. None when the flag is off, the call fails, or the reply is unclear.
+
+    SKV_OPPOSITE_LLM=1 turns the call on. Tests leave it unset and stay offline.
+    """
+    if os.environ.get("SKV_OPPOSITE_LLM", "") != "1":
+        return None
+    key = _polza_key()
+    if not key:
+        return None
+    prompt = (
+        "Two rules. Reply one word only: OPPOSITE if one requires what the other forbids "
+        "(always X versus never X). Reply SAME otherwise.\nA: %s\nB: %s"
+        % ((text_a or "")[:800], (text_b or "")[:800])
+    )
+    body = json.dumps({
+        "model": _CHEAP_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        "max_tokens": 16,
+    }).encode()
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            "https://api.polza.ai/v1/chat/completions",
+            data=body,
+            headers={"Content-Type": "application/json", "Authorization": "Bearer " + key, "User-Agent": "skv-dedup"},
+        )
+        raw = urllib.request.urlopen(req, timeout=timeout).read()
+        data = json.loads(raw)
+        word = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip().upper()
+    except Exception:
+        return None
+    if word.startswith("OPPOSITE"):
+        return True
+    if word.startswith("SAME"):
+        return False
+    return None
+
+
+def active_opposite_check():
+    """The create path calls this. Offline unless SKV_OPPOSITE_LLM=1."""
+    if os.environ.get("SKV_OPPOSITE_LLM", "") == "1":
+        return cheap_opposite
+    return None
+
+
+def scrubbed_parts(fields):
+    """Scrub, then build the parts similarity compares. A secret refuses the publish."""
+    scrub = scrub_skill(fields)
+    if not scrub["ok"]:
+        return scrub
+    src = scrub["fields"]
+    parts = parts_from(
+        topic=src.get("topic") or "",
+        problem=src.get("essence") or src.get("problem") or "",
+        hooks=src.get("hooks") or "",
+        skill_md=src.get("skill_md") or "",
+        rules=src.get("rules") or src.get("rules_markdown") or "",
+        requirements=fields.get("requirements") if isinstance(fields, dict) else [],
+    )
+    return {"ok": True, "parts": parts, "fields": src, "placeholders": scrub["placeholders"],
+            "changed": scrub["changed"]}
+
+
+def opening_status(plan, default="community"):
+    """Low-band neighbor: probation. A quarantine or a cube with no neighbor keeps its status."""
+    if default == "quarantine":
+        return default
+    if isinstance(plan, dict) and plan.get("probation"):
+        return "probation"
+    return default
+
+
 def _extra(new_list, old_list):
     old = set(old_list or [])
     return [x for x in (new_list or []) if x not in old]
 
 
-def classify(draft, candidates, cfg=None):
-    """Decide duplicate / near_duplicate / conflict / related / new. Does not write."""
+def classify(draft, candidates, cfg=None, opposite_check=None):
+    """Decide duplicate / near_duplicate / conflict / related / new. Does not write or vote."""
     cfg = cfg or load_config()
     kind = (draft.get("kind") or "moment").strip().lower()
     parts = draft.get("parts") or {}
@@ -314,7 +536,9 @@ def classify(draft, candidates, cfg=None):
     added_steps = _extra(parts.get("steps"), target.get("steps")) if len(parts.get("steps") or []) > len(target.get("steps") or []) else []
     added_hooks = _extra(whens, target.get("hooks"))
     delta = req_delta(parts.get("requirements"), target.get("requirements"))
-    opposite = _opposite(hooks, target.get("hook_rows"))
+    hook_opposite = _opposite(hooks, target.get("hook_rows"))
+    text_opposite = _text_opposite(norm_text(parts), target.get("norm_text") or "")
+    opposite = hook_opposite or text_opposite
     hook_j = jaccard(whens, target.get("hooks") or [])
     compatible = reqs_compatible(parts.get("requirements"), target.get("requirements"))
     reasons = []
@@ -326,19 +550,31 @@ def classify(draft, candidates, cfg=None):
         reasons.append("hooks")
     if compatible:
         reasons.append("requirements")
+    band = bool(target is sha_hit or cos >= cfg["near_cos"])
+    if (not opposite) and band and opposite_check is not None:
+        try:
+            judged = opposite_check(norm_text(parts), target.get("norm_text") or "")
+        except Exception:
+            judged = None
+        if judged is True:
+            opposite = True
+            reasons.append("opposite_check")
     base = {"canonical_cube_id": target.get("cube_id"), "similarity": round(float(cos), 4), "reasons": reasons,
-            "diff": {"added_steps": added_steps, "added_hooks": added_hooks, "req_delta": delta}}
-    if opposite and (target is sha_hit or cos >= cfg["near_cos"]):
-        return {**base, "result": "conflict", "court": True, "reasons": reasons + ["opposite_hook"]}
+            "diff": {"added_steps": added_steps, "added_hooks": added_hooks, "req_delta": delta},
+            "auto_vote": False}
+    if opposite and band:
+        why = "opposite_hook" if hook_opposite else "opposite"
+        return {**base, "result": "conflict", "court": True, "link": "against", "merge": False,
+                "reasons": reasons + [why]}
     extra = bool(added_steps or added_hooks)
     if target is sha_hit and not extra and compatible:
         return {**base, "result": "duplicate", "next": _NEXT}
     if cos >= cfg["duplicate_cos"] and hook_j >= cfg["hook_jaccard"] and compatible and not extra:
         return {**base, "result": "duplicate", "next": _NEXT}
     if cos >= cfg["near_cos"] or (target is sha_hit and extra) or (cos >= cfg["duplicate_cos"] and (extra or not compatible)):
-        return {**base, "result": "near_duplicate"}
+        return {**base, "result": "near_duplicate", "merge_candidate": True, "link": "merge_candidate", "court": True}
     if cos >= cfg["related_cos"]:
-        return {**base, "result": "related"}
+        return {**base, "result": "related", "probation": True, "probation_n": int(cfg.get("probation_n") or 2)}
     return {"result": "new", "reasons": []}
 
 
@@ -428,10 +664,25 @@ def stamp(conn, cube_id, parts, vector=None, requirements=None, applied=None, ve
             (cube_id, version or "1", req.get("kind") or "", req.get("name") or "", req.get("constraint_text") or "", 1 if req.get("optional") else 0))
 
 
-def link_related(conn, src, dst, by=""):
+def link_kind(conn, src, dst, kind, by=""):
+    """Insert a link. Never deletes a cube and never merges one."""
     conn.execute("CREATE TABLE IF NOT EXISTS cube_links (src TEXT, dst TEXT, kind TEXT, created_by TEXT, created_at TEXT, PRIMARY KEY (src, dst, kind))")
     conn.execute("INSERT OR IGNORE INTO cube_links (src, dst, kind, created_by, created_at) VALUES (?,?,?,?,datetime('now'))",
-                 (src, dst, "related", by or ""))
+                 (src, dst, kind, by or ""))
+
+
+def link_related(conn, src, dst, by=""):
+    link_kind(conn, src, dst, "related", by)
+
+
+def link_against(conn, src, dst, by=""):
+    """Opposite rule. The canonical cube stays. This is not a merge."""
+    link_kind(conn, src, dst, "against", by)
+
+
+def link_merge_candidate(conn, src, dst, by=""):
+    """Middle band. Court or the author decides. This does not merge by itself."""
+    link_kind(conn, src, dst, "merge_candidate", by)
 
 
 def link_pending(conn, canonical, new_id, diff, reason):
@@ -491,7 +742,30 @@ def confirm(conn, cube_id, account_id, outcome, evidence, agent_id="", env=None,
         "INSERT INTO cube_contributions (cube_id, version, account_id, agent_id, type, source_hash, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
         (cube_id, ver, account, (agent_id or "")[:80], "case", _sha(evidence), ))
     rank = recompute_rank(conn, cube_id, ver)
-    return {"ok": True, "counted": True, "vote": "recorded", "votes": after, "rank_v0": rank}
+    promoted = _maybe_promote(conn, cube_id, ver) if outcome == "ok" else False
+    return {"ok": True, "counted": True, "vote": "recorded", "votes": after, "rank_v0": rank, "promoted": promoted}
+
+
+def _maybe_promote(conn, cube_id, ver):
+    """Probation ends after N ok confirms from different accounts. The author is already excluded."""
+    cfg = load_config()
+    try:
+        need = int(cfg.get("probation_n") or 2)
+    except (TypeError, ValueError):
+        need = 2
+    if need < 1:
+        need = 1
+    try:
+        oks = conn.execute(
+            "SELECT COUNT(*) FROM cube_confirmations WHERE cube_id=? AND version=? AND outcome='ok'",
+            (cube_id, ver)).fetchone()[0]
+        st = conn.execute("SELECT coalesce(status,'') FROM cubes_new WHERE cube_id=?", (cube_id,)).fetchone()
+    except Exception:
+        return False
+    if st and st[0] == "probation" and oks >= need:
+        conn.execute("UPDATE cubes_new SET status='community' WHERE cube_id=? AND status='probation'", (cube_id,))
+        return True
+    return False
 
 
 def _vote_count(conn, cube_id, version):

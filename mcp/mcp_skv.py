@@ -3125,7 +3125,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
             "actor": _who.get("actor_id") or "",
             "prev_seen_at": _who.get("prev_seen_at") or "",
             "prev_session": _who.get("prev_session") or "",
-            "prev_answer": _tstate.get("last_final") or "",
+            "prev_answer": _d17.pick_prev_answer(answer, _tstate.get("last_final") or ""),
             "minutes": _mins,
             "stateless": not str(agent_token or "").strip(),
             "verbose": bool(verbose),

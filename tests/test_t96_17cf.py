@@ -314,6 +314,35 @@ class RecallNet(unittest.TestCase):
         self.assertIn("memory_recall_later", resp["facts_note"])
 
 
+class PrevAnswer(unittest.TestCase):
+    """The anchor rule reads the request's `answer` first, then the last saved final."""
+
+    def test_answer_wins_and_falls_back(self):
+        self.assertEqual(d.pick_prev_answer("Откатить?", "старый ответ"), "Откатить?")
+        self.assertEqual(d.pick_prev_answer("", "старый ответ"), "старый ответ")
+        self.assertEqual(d.pick_prev_answer(None, ""), "")
+        self.assertEqual(d.pick_prev_answer("   ", "x"), "x")
+
+    def test_question_answer_then_da_is_not_a_skip(self):
+        prev = d.pick_prev_answer("Выкатываем T96. Откатить ли при ошибке?", "Готово.")
+        plan = d.apply_17c({}, "да", None, prev_answer=prev, minutes=1.0)
+        self.assertFalse(plan["search_skipped"])
+        self.assertEqual(plan["mode"], "anchor")
+        self.assertIn("Откатить", plan["query"])
+
+    def test_plain_answer_then_ok_still_skips(self):
+        prev = d.pick_prev_answer("Готово, всё выкачено.", "Откатить?")
+        plan = d.apply_17c({}, "ок", None, prev_answer=prev, minutes=1.0)
+        self.assertTrue(plan["search_skipped"])
+        self.assertEqual(plan["skip_reason"], "empty_ack<15m")
+
+    def test_both_entry_points_use_the_picker(self):
+        root = os.path.join(os.path.dirname(__file__), "..")
+        for rel in ("src/app/rest_turn.py", "mcp/mcp_skv.py"):
+            with open(os.path.join(root, rel), encoding="utf-8") as fh:
+                self.assertIn("pick_prev_answer(answer", fh.read(), rel)
+
+
 class Dates(unittest.TestCase):
     def test_bare_decimals_are_not_a_date_window(self):
         import turn_pack as tp

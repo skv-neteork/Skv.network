@@ -290,6 +290,12 @@ def _shortish(msg):
     return len(raw.split()) <= 6
 
 
+def pick_prev_answer(answer, last_final=""):
+    """The agent's previous answer for the anchor rule: a non-empty `answer` wins, else the last saved final."""
+    a = str(answer or "").strip()
+    return a[:4000] if a else str(last_final or "")
+
+
 def apply_17c(plan, msg, search_as, prev_answer=None, minutes=None):
     """Return a plan. A filled gloss and an explicit dash are left as they are.
 

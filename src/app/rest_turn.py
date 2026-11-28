@@ -596,7 +596,7 @@ def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty
             "compact": bool(compact),
             "token_hash": hashlib.sha256(str(agent_token).encode()).hexdigest() if agent_token else "",
             "actor": "",
-            "prev_answer": "",
+            "prev_answer": _d17.pick_prev_answer(answer, ""),
             "minutes": None,
         })
     except Exception:

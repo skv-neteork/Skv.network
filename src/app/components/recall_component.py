@@ -301,10 +301,46 @@ def judge(report, exclude, seen, topic):
     return out
 
 
+def _last_job_age(uid):
+    try:
+        c = _conn()
+        row = c.execute(
+            "SELECT created_at FROM rc_job WHERE user=? ORDER BY id DESC LIMIT 1",
+            (user_key(uid),),
+        ).fetchone()
+        c.close()
+    except Exception:
+        return None
+    if not row or row[0] is None:
+        return None
+    return max(0.0, time.time() - float(row[0]))
+
+
+def _clip_recalled(lines, cap=300):
+    try:
+        from app.turn_diet17 import estimate_tokens
+    except Exception:
+        return list(lines or [])[:2]
+    kept = []
+    used = 0.0
+    for line in lines or []:
+        text = str(line)
+        cost = estimate_tokens(text)
+        if kept and used + cost > cap:
+            break
+        if not kept and cost > cap:
+            text = text[:400]
+            cost = estimate_tokens(text)
+        kept.append(text)
+        used += cost
+    return kept
+
+
 def collect(user_uid, topic="", get_fn=None):
     """Read finished jobs and return new lines. Marks each ev seen. Never raises."""
     user = user_key(user_uid)
     lines = []
+    collect.empty_hit = False
     try:
         c = _conn()
     except Exception:
@@ -341,6 +377,7 @@ def collect(user_uid, topic="", get_fn=None):
                     "UPDATE rc_job SET reserve=0, status='delivered', delivered_at=? WHERE id=?",
                     (now, rid),
                 )
+                collect.empty_hit = True
                 continue
             for item in picked:
                 ev = item["ev"]
@@ -359,6 +396,8 @@ def collect(user_uid, topic="", get_fn=None):
         c.commit()
     finally:
         c.close()
+    if lines:
+        collect.empty_hit = False
     return lines[:2]
 
 
@@ -388,7 +427,23 @@ def _agent_searched(uid, own_ids):
     return False
 
 
-def on_turn(result, uid, message="", l1_new=False, session_ids=None, searched=False, launch_ok=True):
+def agent_has_recent_job(uid, within=300):
+    """True when this user already queued a recall inside the window."""
+    if not uid or not _shelf_exists(uid):
+        return False
+    try:
+        from app.recall_later import jobs
+        now = time.time()
+        for row in jobs(uid, limit=5) or []:
+            if now - float(row.get("created_at") or 0) < float(within or 0):
+                if row.get("status") in ("queued", "running", "done"):
+                    return True
+    except Exception:
+        return False
+    return False
+
+
+def on_turn(result, uid, message="", l1_new=False, session_ids=None, searched=False, launch_ok=True, facts_weak=False, skipped=False):
     """Deliver ready lines, then maybe queue the next job. Never raises and never blocks on a model."""
     if not isinstance(result, dict) or not uid or not enabled():
         return result
@@ -396,9 +451,23 @@ def on_turn(result, uid, message="", l1_new=False, session_ids=None, searched=Fa
         topic = _topic(message)
         lines = collect(uid, topic)
         if lines:
-            result["recalled"] = lines
-        if not launch_ok or searched:
+            result["recalled"] = _clip_recalled(lines)
+        elif getattr(collect, "empty_hit", False):
+            result["recalled"] = "nothing recalled"
+        # A hint on the turn is not the agent choosing search. facts_weak is the safety net.
+        if skipped or not launch_ok or searched:
             return result
+        if facts_weak:
+            age = _last_job_age(uid)
+            try:
+                from app.turn_diet17 import weak_recall_due
+                due_weak = weak_recall_due(True, True, age, False, False)
+            except Exception:
+                due_weak = age is None or age >= 300
+            if not due_weak:
+                facts_weak = False
+            else:
+                print("[17g-recall] weak=1 gap_s=%s" % ("none" if age is None else int(age)), flush=True)
         user = user_key(uid)
         c = _conn()
         try:
@@ -422,7 +491,7 @@ def on_turn(result, uid, message="", l1_new=False, session_ids=None, searched=Fa
                     state["until"] = window["until"]
             except Exception:
                 pass
-            due = should_trigger(state)
+            due = should_trigger(state) or bool(facts_weak)
             own = {r[0] for r in c.execute("SELECT job_id FROM rc_job WHERE user=?", (user,))}
             if due and not _agent_searched(uid, own):
                 launch(state)

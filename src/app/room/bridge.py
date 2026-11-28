@@ -266,6 +266,22 @@ def finish_turn(conn, info, who, result, kind="", context_state="normal", gist="
         result = dict(result)
         result["actor"] = who["actor_id"]
         result["while_away"] = away.get("text")
+        # 17f: the room digest stays null when the line was never stamped as a room
+        # event. The typed changelog uses the actor's previous last_seen, which
+        # resolve_call saved before it touched the clock.
+        try:
+            from app import turn_diet17 as _d17
+            client_seal = ""
+            try:
+                client_seal = str((_d17.get_meta() or {}).get("last_seal") or "")
+            except Exception:
+                client_seal = ""
+            delta = _d17.catchup_text(conn, who, client_seal)
+            if delta:
+                result["while_away"] = delta
+                result["catch_up"] = True
+        except Exception as exc:
+            print("[17f] catch-up skipped: %s" % type(exc).__name__, flush=True)
         # Commit as soon as the digest is attached, so a later decoration error
         # cannot re-deliver the same while_away on the next turn.
         if away.get("text"):

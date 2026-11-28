@@ -113,14 +113,15 @@ def resolve_call(conn, key_id, chain_id, key_name, agent_token="", session_id=""
     if agent_token:
         th = token_hash(agent_token)
         row = conn.execute(
-            "SELECT id, role, name, session_id FROM agents WHERE key_id=? AND token_hash=?",
+            "SELECT id, role, name, session_id, last_seen_at FROM agents WHERE key_id=? AND token_hash=?",
             (key_id, th),
         ).fetchone()
         if not row:
             return {"ok": False, "error": "BAD_TOKEN", "saved": False}
+        prev_seen, prev_session = row[4] or "", row[3] or ""
         _touch_seen(conn, key_id, row[0], session_id, now_dt)
         conn.commit()
-        return {"ok": True, "actor_id": row[0], "role": row[1], "name": row[2], "implicit": False, "multi": n_explicit > 0, "key_id": key_id, "chain_id": chain_id}
+        return {"ok": True, "actor_id": row[0], "role": row[1], "name": row[2], "implicit": False, "multi": n_explicit > 0, "key_id": key_id, "chain_id": chain_id, "prev_seen_at": prev_seen, "prev_session": prev_session}
     if n_explicit == 0:
         return {
             "ok": True,
@@ -142,9 +143,10 @@ def resolve_call(conn, key_id, chain_id, key_name, agent_token="", session_id=""
         if seen and (now_dt - seen).total_seconds() < 30 * 60:
             live.append(r)
     if len(live) == 1:
+        prev_seen = live[0][3] or ""
         _touch_seen(conn, key_id, live[0][0], session_id, now_dt)
         conn.commit()
-        return {"ok": True, "actor_id": live[0][0], "role": live[0][1], "name": live[0][2], "implicit": False, "multi": True, "key_id": key_id, "chain_id": chain_id, "bound": True}
+        return {"ok": True, "actor_id": live[0][0], "role": live[0][1], "name": live[0][2], "implicit": False, "multi": True, "key_id": key_id, "chain_id": chain_id, "bound": True, "prev_seen_at": prev_seen, "prev_session": session_id}
     row = conn.execute("SELECT n FROM identify_misses WHERE key_id=? AND session_id=?", (key_id, session_id)).fetchone()
     n = (row[0] if row else 0) + 1
     conn.execute(

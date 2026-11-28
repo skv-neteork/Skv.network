@@ -1141,7 +1141,29 @@ def _turn_hits(user_message, query, search_as, lines, sensitive_list, compact=Fa
             plan = dict(plan)
             plan["query"] = (query or "")[:500]
         tc.set_plan(plan)
+        try:
+            from app import turn_diet17 as _d17
+            plan = _d17.overlay(plan, user_message or "", search_as, conn)
+            tc.set_plan(plan)
+        except Exception as _exc:
+            print("[17c] overlay skipped: %s" % type(_exc).__name__, flush=True)
         mode = plan.get("mode")
+        if mode == "auto_skip":
+            try:
+                from app import turn_diet17 as _d17
+                _d17.log_skip(plan.get("skip_reason") or "empty", user_message or "")
+                return "", _d17.board_hits(conn)
+            except Exception as _exc:
+                print("[17c] skip pack skipped: %s" % type(_exc).__name__, flush=True)
+                return "", []
+        if mode == "directive":
+            try:
+                from app import turn_diet17 as _d17
+                _d17.log_skip(plan.get("skip_reason") or "directive", user_message or "")
+                return "", _d17.directive_hits(conn)
+            except Exception as _exc:
+                print("[17c] directive pack skipped: %s" % type(_exc).__name__, flush=True)
+                return "", []
         if mode == "skip":
             return "", []
         if mode == "slice":
@@ -3017,7 +3039,8 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
          msg_ref: str = "", second_look: str = "", recap: Union[list, str] = "", verbose: bool = False, search_as: Union[list, str] = "",
          agent_token: str = "", context_state: str = "normal", kind: str = "", l1_task: str = "",
          const_ack: bool = False, ack: str = "", context_reset: bool = False,
-         context_compressed_at: str = "", compressed: bool = False, used_fact_ids: str = "") -> str:
+         context_compressed_at: str = "", compressed: bool = False, used_fact_ids: str = "",
+         context_compacted: bool = False, last_seal: str = "") -> str:
     """ONE CALL PER TURN: self-check context + save + seal. Write your draft privately, then call
     turn(user_message=<exact user text>, draft=<draft>) BEFORE the user sees it.
     The server does NOT judge the meaning of the draft. It returns: memory facts with [ev:id] (deduped, latest only),
@@ -3071,6 +3094,32 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
         _tc_plan.set_agent(agent_token)
     except Exception:
         pass
+    try:
+        from app import turn_diet17 as _d17
+        _who = _tr().get("room_who") or {}
+        _tstate = _tr()
+        _mins = None
+        if _tstate.get("saved_t"):
+            _mins = (_time.time() - float(_tstate.get("saved_t") or 0)) / 60.0
+        if _who.get("prev_seen_at"):
+            _mins = _d17.gap_minutes(_who.get("prev_seen_at"))
+        _d17.set_meta({
+            "on": True,
+            "context_compacted": bool(context_compacted),
+            "last_seal": str(last_seal or ""),
+            "session": session_id or "mcp",
+            "actor": _who.get("actor_id") or "",
+            "prev_seen_at": _who.get("prev_seen_at") or "",
+            "prev_session": _who.get("prev_session") or "",
+            "prev_answer": _tstate.get("last_final") or "",
+            "minutes": _mins,
+            "stateless": not str(agent_token or "").strip(),
+            "verbose": bool(verbose),
+            "compact": bool(compact),
+            "token_hash": "",
+        })
+    except Exception as _exc:
+        print("[17c] meta skipped: %s" % type(_exc).__name__, flush=True)
     res = _bl_add(_sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose, search_as=search_as, agent_token=agent_token, context_state=context_state, kind=kind, l1_task=l1_task)))
     _gsrc = answer or draft or ""
     if not _gsrc and recap:
@@ -3097,7 +3146,7 @@ def _t84_pack(res, user_message, session_id, duty, duty_reason, source_event_ids
         return res
     try:
         from app import turn_pack as _tp
-        _tp.finish(o, {
+        _ctx = {
             "user": _caller_id() or "",
             "session": session_id or "mcp",
             "message": user_message or "",
@@ -3114,7 +3163,20 @@ def _t84_pack(res, user_message, session_id, duty, duty_reason, source_event_ids
             "load_portfolio": True,
             "actor": actor or "",
             "harvest": bool(actor),
-        })
+        }
+        try:
+            from app import turn_diet17 as _d17
+            _ctx.update(_d17.pack_ctx_flags(user_message or "", compressed=bool(compressed), catchup=bool(o.get("catch_up"))))
+            try:
+                from app import turn_context as _tc_plan
+                _mini = (_tc_plan.current_plan() or {}).get("mini_step_zero")
+            except Exception:
+                _mini = ""
+            if _mini:
+                o["mini_step_zero"] = _mini
+        except Exception:
+            pass
+        _tp.finish(o, _ctx)
     except Exception as exc:
         print("[turn] pack skipped: %s" % type(exc).__name__, flush=True)
         return res if isinstance(res, str) else _dumps(o)
@@ -4031,6 +4093,35 @@ def step_zero(page: int = 1, force: bool = False, agent_token: str = "", session
                 res = _dumps_step_zero(o)
     except Exception as exc:
         print("[room] step_zero skipped: %s" % type(exc).__name__, flush=True)
+    try:
+        _t = _tr()
+        _repeat = bool(_t.get("sz_completed")) and int(page or 1) == 1
+        if _sz_done(page, n):
+            _t["sz_completed"] = _time.time()
+        if _repeat:
+            _who = _t.get("room_who") if isinstance(_t.get("room_who"), dict) else {}
+            _conn = None
+            try:
+                from app.room.bridge import open_account
+                _info = _t.get("room_info")
+                if isinstance(_info, dict):
+                    _conn = open_account(_info)
+            except Exception:
+                _conn = None
+            try:
+                from app import turn_diet17 as _d17
+                _mini = _d17.load_mini_text(_conn, session_id or "mcp", _who.get("actor_id") or "")
+            finally:
+                if _conn is not None:
+                    _conn.close()
+            if _mini:
+                _o = json.loads(res)
+                _o["mini_step_zero"] = _mini
+                _o["reset_signal"] = "step_zero_repeat"
+                res = _dumps_step_zero(_o)
+                print("[17f-reset] signal=step_zero_repeat", flush=True)
+    except Exception:
+        pass
     return res
 
 

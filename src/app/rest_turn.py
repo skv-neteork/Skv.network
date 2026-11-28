@@ -119,7 +119,29 @@ def _turn_hits(key, user, user_message, query, search_as, sensitive, compact=Fal
             plan = dict(plan)
             plan["query"] = (query or "")[:500]
         tc.set_plan(plan)
+        try:
+            from app import turn_diet17 as _d17
+            plan = _d17.overlay(plan, user_message or "", search_as, conn)
+            tc.set_plan(plan)
+        except Exception as _exc:
+            print("[17c] overlay skipped: %s" % type(_exc).__name__, flush=True)
         mode = plan.get("mode")
+        if mode == "auto_skip":
+            try:
+                from app import turn_diet17 as _d17
+                _d17.log_skip(plan.get("skip_reason") or "empty", user_message or "")
+                return "", _d17.board_hits(conn)
+            except Exception as _exc:
+                print("[17c] skip pack skipped: %s" % type(_exc).__name__, flush=True)
+                return "", []
+        if mode == "directive":
+            try:
+                from app import turn_diet17 as _d17
+                _d17.log_skip(plan.get("skip_reason") or "directive", user_message or "")
+                return "", _d17.directive_hits(conn)
+            except Exception as _exc:
+                print("[17c] directive pack skipped: %s" % type(_exc).__name__, flush=True)
+                return "", []
         if mode == "skip":
             return "", []
         if mode == "slice":
@@ -284,9 +306,55 @@ def _harvest_fallback(result, user, duty=""):
     return result
 
 
+def _context_catchup(key, result, agent_token, session_id):
+    """17f on a context turn. Nothing is stamped. last_seen is read before it is moved."""
+    if not isinstance(result, dict) or not agent_token or not key:
+        return result
+    try:
+        from app.room.bridge import lookup_key, open_account
+        from app.room.clock import iso
+        from app import turn_diet17 as _d17
+        from datetime import datetime, timezone
+        info = lookup_key(key)
+        if not info:
+            return result
+        conn = open_account(info)
+        try:
+            th = hashlib.sha256(str(agent_token).encode()).hexdigest()
+            row = conn.execute(
+                "SELECT id, last_seen_at FROM agents WHERE key_id=? AND token_hash=?",
+                (info.get("key_id") or "", th),
+            ).fetchone()
+            if not row:
+                return result
+            who = {"actor_id": row[0], "prev_seen_at": row[1] or "", "ok": True}
+            text = _d17.catchup_text(conn, who, str((_d17.get_meta() or {}).get("last_seal") or ""))
+            conn.execute(
+                "UPDATE agents SET last_seen_at=?, session_id=? WHERE key_id=? AND id=?",
+                (iso(datetime.now(timezone.utc)), session_id or "", info.get("key_id") or "", row[0]),
+            )
+            conn.commit()
+            if text:
+                result = dict(result)
+                result["while_away"] = text
+                result["catch_up"] = True
+            return result
+        finally:
+            conn.close()
+    except Exception as exc:
+        print("[17f] context catch-up skipped: %s" % type(exc).__name__, flush=True)
+        return result
+
+
 def _with_room(key, result, agent_token="", session_id="rest", context_state="normal", kind="turn", gist="", duty=""):
-    """Attach the room digest when this key has agents. A missing token does not undo the save."""
+    """Attach the room digest when this key has agents. A missing token does not undo the save.
+
+    A compact context turn used to return here before while_away was set, so the
+    field stayed null. Catch-up is attached without saving a room event.
+    """
     if not isinstance(result, dict) or result.get("mode") in ("context", "recap") or result.get("saved") is False:
+        if isinstance(result, dict) and result.get("mode") in ("context", "recap"):
+            return _context_catchup(key, result, agent_token, session_id)
         return result
     if not (result.get("saved") or result.get("event_id")):
         return result
@@ -407,7 +475,21 @@ def _decorate(result, user, message, facts=None, launch_ok=False, l1_new=False, 
         _tm(result, user)
     except Exception:
         pass
-    searched = bool(result.get("tool_duty"))
+    # tool_duty is only the hint. It must not block the safety-net recall.
+    agent_searched = bool(result.get("agent_searched"))
+    skipped = bool(result.get("search_skipped"))
+    try:
+        from app.components.recall_component import agent_has_recent_job
+        agent_searched = agent_searched or agent_has_recent_job(user, 300)
+    except Exception:
+        pass
+    weak = False
+    try:
+        from app.turn_diet17 import facts_are_weak, is_directive, is_strict_empty
+        weak = facts_are_weak(result.get("facts"))
+        meaningful = not is_strict_empty(message) and not is_directive(message) and len((message or "").split()) >= 2
+    except Exception:
+        meaningful = len((message or "").split()) >= 2
     try:
         from app.components.recall_component import enabled as _rc_on, on_turn as _rc
         if _rc_on():
@@ -415,8 +497,10 @@ def _decorate(result, user, message, facts=None, launch_ok=False, l1_new=False, 
                 result, user, message,
                 l1_new=l1_new,
                 session_ids=_session_window(user),
-                searched=searched,
-                launch_ok=bool(launch_ok) and not searched,
+                searched=agent_searched,
+                launch_ok=bool(launch_ok) and not agent_searched and not skipped,
+                facts_weak=bool(weak and meaningful and not skipped),
+                skipped=skipped,
             )
             return result
     except Exception:
@@ -439,7 +523,7 @@ def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compr
     topic_query = str(res.pop("_topic_query", "") or "") or _TOPIC_Q.get()
     try:
         from app import turn_pack as _tp
-        _tp.finish(res, {
+        _ctx = {
             "user": user,
             "session": session or "rest",
             "message": message or "",
@@ -456,7 +540,20 @@ def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compr
             "load_portfolio": True,
             "actor": agent_token or "",
             "harvest": bool(agent_token),
-        })
+        }
+        try:
+            from app import turn_diet17 as _d17
+            _ctx.update(_d17.pack_ctx_flags(message or "", compressed=bool(compressed), catchup=bool(res.get("catch_up"))))
+            try:
+                from app import turn_context as _tc_plan
+                _mini = (_tc_plan.current_plan() or {}).get("mini_step_zero")
+            except Exception:
+                _mini = ""
+            if _mini:
+                res["mini_step_zero"] = _mini
+        except Exception:
+            pass
+        _tp.finish(res, _ctx)
     except Exception as exc:
         print("[rest_turn] turn pack skipped: %s" % type(exc).__name__, flush=True)
     return res
@@ -496,13 +593,31 @@ def _apply_seal_gaps(res, user, agent_token, source, draft, answer, recap, msg_r
     return res
 
 
-def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None, const_ack=False, ack="", context_reset=False, context_compressed_at="", compressed=False, used_fact_ids=None):
+def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None, const_ack=False, ack="", context_reset=False, context_compressed_at="", compressed=False, used_fact_ids=None, context_compacted=False, last_seal=""):
     """msg_ref / recap are optional (turn-watch, see turn_watch_rest.py): clients that send neither get exactly the old behaviour. const_ack / ack="const" / context_reset are the T73 constitution heartbeat (same as MCP turn)."""
     _TOPIC_Q.set("")
     try:
         from app import turn_context as _tc_plan
         _tc_plan.set_plan({})
         _tc_plan.set_agent(agent_token)
+    except Exception:
+        pass
+    try:
+        from app import turn_diet17 as _d17
+        _src = str(source or "")
+        _d17.set_meta({
+            "on": True,
+            "context_compacted": bool(context_compacted),
+            "last_seal": str(last_seal or ""),
+            "session": session_id or "rest",
+            "stateless": (not str(agent_token or "").strip()) or _src.startswith(("guard2_ext", "ext", "hook", "guard1", "api")),
+            "verbose": False,
+            "compact": bool(compact),
+            "token_hash": hashlib.sha256(str(agent_token).encode()).hexdigest() if agent_token else "",
+            "actor": "",
+            "prev_answer": "",
+            "minutes": None,
+        })
     except Exception:
         pass
     def _out(res):
@@ -586,6 +701,17 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     row = c.execute("select last_user, saved_t, eid, seal, final, verdict from st where user=?", (user,)).fetchone() or (None, 0, "", None, "", "")
     last_user, saved_t, last_eid, last_seal, last_final, last_verdict = row
     now = time.time()
+    try:
+        from app import turn_diet17 as _d17
+        extra = {}
+        if last_final and not (_d17.get_meta() or {}).get("prev_answer"):
+            extra["prev_answer"] = last_final
+        if saved_t and (_d17.get_meta() or {}).get("minutes") is None and not (_d17.get_meta() or {}).get("prev_seen_at"):
+            extra["minutes"] = (now - float(saved_t)) / 60.0
+        if extra:
+            _d17.merge_meta(**extra)
+    except Exception:
+        pass
     ext_src = str(source or "").startswith(("guard2_ext", "ext", "hook"))
     # ext/hook: the same prompt on another site (or sent again in a new reply) is a NEW turn, not a revision -> hash includes the source
     _um_h = "h:" + hashlib.sha256(((user_message or "") + (("|" + str(source)) if ext_src else "")).encode()).hexdigest()  # state keeps a hash, never the raw text

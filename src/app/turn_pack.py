@@ -33,6 +33,7 @@ _CORE = "AUTHOR CUBE CORE ("
 _CUBE_ID = re.compile(r"cube_[0-9a-f]{8,}")
 _ISO = re.compile(r"\b(20\d{2})-(\d{2})-(\d{2})\b")
 _DMY = re.compile(r"\b(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?\b")
+_UNIT_AFTER = re.compile(r"(?i)^\s*(?:кб|kb|mb|gb|tb|тб|байт|bytes?|руб)\b")
 _MON = {
     "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3,
     "april": 4, "apr": 4, "may": 5, "june": 6, "jun": 6, "july": 7, "jul": 7,
@@ -117,9 +118,15 @@ def _parse_explicit(text, today):
                 return date(int(m.group(3)), mon, int(m.group(1)))
             except ValueError:
                 pass
-    m = _DMY.search(text or "")
-    if m:
-        dd, mm, yy = int(m.group(1)), int(m.group(2)), m.group(3)
+    # A bare decimal (1.5, 3.5) or a size (1.5 KB, 5 КБ) is not a calendar day.
+    # A real short date has a 2-digit month (14.11, 3.05, 19.10) or an explicit year.
+    for m in _DMY.finditer(text or ""):
+        dd_s, mm_s, yy = m.group(1), m.group(2), m.group(3)
+        if _UNIT_AFTER.match((text or "")[m.end():]):
+            continue
+        if not yy and len(mm_s) != 2:
+            continue
+        dd, mm = int(dd_s), int(mm_s)
         if yy:
             year = int(yy)
             if year < 100:
@@ -130,7 +137,7 @@ def _parse_explicit(text, today):
             if 1 <= mm <= 12 and 1 <= dd <= 31:
                 return date(year, mm, dd)
         except ValueError:
-            return None
+            continue
     return None
 
 
@@ -1184,7 +1191,14 @@ def _finish(resp, ctx):
     today = ctx.get("today")
     st, existed = _load_sess(db, user, session)
     first = not existed
-    if "recent_ids" in ctx:
+    penalize_ids = []
+    if ctx.get("fresh_off"):
+        recent_ids = []
+    elif "own_fresh_ids" in ctx:
+        # 17d is a score penalty, not a hard drop. Other actors are not in this set.
+        penalize_ids = list(ctx.get("own_fresh_ids") or [])
+        recent_ids = []
+    elif "recent_ids" in ctx:
         recent_ids = ctx.get("recent_ids") or []
     elif compressed or compressed_at:
         recent_ids = []
@@ -1223,6 +1237,17 @@ def _finish(resp, ctx):
                 continue
             facts.append(extra)
             have.add(ev)
+    if penalize_ids:
+        try:
+            try:
+                from app import turn_diet17 as _d17p
+            except ImportError:
+                import turn_diet17 as _d17p
+            facts = _d17p.penalize_own_fresh(
+                facts, penalize_ids, ctx.get("topic_query") or message,
+            )
+        except Exception:
+            pass
     resp["facts"] = facts
     if window:
         resp["window"] = window
@@ -1370,6 +1395,50 @@ def _finish(resp, ctx):
                 resp["first_connect_harvest"] = hint["text"]
                 resp["first_connect_scan"] = hint["scan"]
         _t89.pin_last(resp, "next_step")
+    except Exception:
+        pass
+    if ctx.get("auto_skip") or ctx.get("directive"):
+        try:
+            try:
+                from app import turn_diet17 as _d17
+            except ImportError:
+                import turn_diet17 as _d17
+            if ctx.get("directive"):
+                fake = [{"fact": ln, "active_slice": True} for ln in (ctx.get("directive_lines") or []) if ln]
+                resp["facts"] = _d17.fit_skip_facts(fake, None, [])
+                resp["guardrails"] = _d17.GUARD_LINE
+            else:
+                resp["facts"] = _d17.fit_skip_facts(resp.get("facts"), resp.get("board"), resp.get("duties"))
+        except Exception:
+            pass
+    if ctx.get("search_skipped"):
+        resp["search_skipped"] = True
+        resp["search_skip_reason"] = ctx.get("search_skip_reason") or ""
+    if ctx.get("diet_quota"):
+        try:
+            try:
+                from app import turn_diet17 as _d17
+            except ImportError:
+                import turn_diet17 as _d17
+            _d17.apply_quotas(
+                resp,
+                long_delta=bool(ctx.get("long_delta")),
+                message=ctx.get("diet_message") or message,
+                tier=ctx.get("token_tier") or "",
+            )
+        except Exception:
+            pass
+    try:
+        try:
+            from app import turn_diet17 as _d17h
+        except ImportError:
+            import turn_diet17 as _d17h
+        _d17h.attach_facts_hint(resp, message, skipped=bool(ctx.get("search_skipped") or ctx.get("auto_skip")))
+    except Exception:
+        pass
+    try:
+        from app.t89_rules import pin_last as _pin
+        _pin(resp, "next_step")
     except Exception:
         pass
     return resp

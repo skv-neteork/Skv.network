@@ -42,7 +42,7 @@ EXPECTED_PARAMS = {
     "memory_start": ["detail", "page", "query", "session_id"],
     "sandbox_run": ["code", "files", "language"],
     "step_zero": ["agent_token", "context_state", "force", "page", "session_id"],
-    "turn": ["ack", "agent_token", "answer", "compact", "compressed", "const_ack", "context_compressed_at", "context_reset", "context_state", "critical", "draft", "draft_summary", "duty", "duty_reason", "event_id", "kind", "l1_summary", "l1_task", "l2_summary", "lines", "msg_ref", "profile", "profile_review", "query", "recap", "search_as", "second_look", "sensitive", "session_id", "source_event_ids", "task_done", "used_fact_ids", "user_message", "verbose"],
+    "turn": ["ack", "agent_token", "answer", "compact", "compressed", "const_ack", "context_compacted", "context_compressed_at", "context_reset", "context_state", "critical", "draft", "draft_summary", "duty", "duty_reason", "event_id", "kind", "l1_summary", "l1_task", "l2_summary", "last_seal", "lines", "msg_ref", "profile", "profile_review", "query", "recap", "search_as", "second_look", "sensitive", "session_id", "source_event_ids", "task_done", "used_fact_ids", "user_message", "verbose"],
     "turn_stats": ["days"],
     "vault_inject": ["ack", "body", "method", "name", "purpose", "url"],
     "memory_import_text": ["source", "text"],

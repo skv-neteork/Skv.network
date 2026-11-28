@@ -27,8 +27,9 @@ class BuildSearch(unittest.TestCase):
             ["cube store plan"],
         )
         ctx = tc.context_queries("do everything", ["cube store plan"])
-        self.assertEqual(sa, ["cube store is free", "vault was added later", "server moved"])
-        self.assertEqual(q, "do everything")
+        self.assertEqual(q, "cube store is free")
+        self.assertEqual(sa, ["vault was added later", "server moved"])
+        self.assertNotIn("plan", q.lower())
         self.assertEqual(ctx, ["cube store plan"])
 
     def test_substantive_question_does_not_gain_search_as_or_context(self):

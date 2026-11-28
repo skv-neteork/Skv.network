@@ -779,7 +779,7 @@ def next_step_for(resp, message="", closed_duty=None):
     if isinstance(sd, dict) and (sd.get("l2") or sd.get("l1")) and not duties:
         level = 2 if sd.get("l2") and not sd.get("l1") else 1
         ids = sd.get("l1_source_event_ids") or sd.get("source_event_ids") or ""
-        return summary_ready_call(level, ids)
+        return summary_ready_call(level, ids, where="summary_due.l1_source_event_ids")
     if duties:
         d0 = duties[0]
         kind = _duty_kind(d0)
@@ -923,6 +923,11 @@ def store_used_facts(db, user, chain, turn_key, fact_ids):
             c.close()
     except Exception:
         return
+
+
+def bare_ids(raw):
+    """Ids from a string or a list. A string is split on commas, not into characters."""
+    return [str(x).split("::")[-1] for x in _parse_ids(raw)]
 
 
 def _parse_ids(raw):
@@ -1099,7 +1104,7 @@ def mark_lines_from_raw(raw):
     for ln in str(raw or "").splitlines():
         s = ln.strip()
         if s.startswith(">>>") or s.startswith("CRITICAL:"):
-            lines.append(s[:240])
+            lines.append(s[:2000])
         if len(lines) >= 20:
             break
     return "\n".join(lines)
@@ -1297,20 +1302,26 @@ def _finish(resp, ctx):
                 level = 1
             material = "\n".join(str(f.get("fact") or "") for f in facts if isinstance(f, dict))
             mark_ids = [f.get("ev") for f in facts if isinstance(f, dict)]
+            param_ids = _parse_ids(ctx.get("source_event_ids"))
             if isinstance(due, dict) and due.get("l1_source_event_ids"):
                 ids = due.get("l1_source_event_ids") or ""
+                id_where = "summary_due.l1_source_event_ids"
             elif isinstance(overdue, dict) and overdue.get("source_event_ids"):
                 ids = overdue.get("source_event_ids") or ""
+                id_where = "summary_build.source_event_ids"
             else:
-                raw_ids = ctx.get("source_event_ids") or ""
-                ids = ",".join(str(x) for x in raw_ids if x) if isinstance(raw_ids, (list, tuple)) else str(raw_ids or "")
-            if isinstance(ids, str) and ids:
-                mark_ids.extend(x for x in re.split(r"[,\s]+", ids) if x)
+                ids = param_ids
+                id_where = "summary_build.source_event_ids"
+            id_list = _parse_ids(ids)
+            mark_ids.extend(id_list)
             raw_marks = _raw_mark_text(user, mark_ids)
             if raw_marks:
                 material = (material + "\n" + raw_marks).strip()
             draft = draft_l2 if level == 2 else draft_l1
-            built = _t89.summary_build(level, draft or "", ids, material)
+            built = _t89.summary_build(level, draft or "", id_list, material, covered_ids=param_ids)
+            if id_where == "summary_due.l1_source_event_ids":
+                built["source_event_ids"] = "see summary_due.l1_source_event_ids"
+                built["ready_call"] = _t89.summary_ready_call(level, "ids", where=id_where)
             resp["summary_build"] = built
             if not built.get("ok"):
                 resp["next_step"] = built.get("ready_call") or resp["next_step"]

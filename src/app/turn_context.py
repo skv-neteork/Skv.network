@@ -210,14 +210,26 @@ def context_queries(user_message, recent_user_messages, limit=2):
     return out
 
 
-def build_search(user_message, search_as, recent_user_messages):
-    """Return (query, search_as). The query is the clean message, never a glued line.
+def search_as_skip(search_as):
+    """True when every agent form is the dash that means do not recall."""
+    kept = forms(search_as)
+    return bool(kept) and all(x.strip() == "-" for x in kept)
 
-    search_as is only what the agent passed. recent_user_messages is not folded in;
-    callers that want the follow-up signal use context_queries on the same lines.
+
+def build_search(user_message, search_as, recent_user_messages):
+    """Return (query, search_as). The query is never a glued previous line.
+
+    A dash skips recall. On a short message a real search_as is the query,
+    because the short line itself does not name the topic. A long message
+    stays the query and search_as stays beside it. recent_user_messages is
+    not folded in; callers use context_queries for that signal.
     """
     kept = forms(search_as)
     msg = (user_message or "").strip()
+    if kept and all(x.strip() == "-" for x in kept):
+        return "", []
+    if kept and is_short(msg):
+        return kept[0][:500], kept[1:]
     return msg[:500], kept
 
 
@@ -678,8 +690,13 @@ def rank(hits, topic, echo_ids, multi, limit=5):
 
 
 # Compact turn pack. search_config.json key turn_pack_2400, default on when the key is absent.
+# Wide turns keep 2400. A normal turn uses the smaller budget.
 _SEARCH_CFG = "/data/skv/search_config.json"
 PACK_BUDGET = 2400
+PACK_NORMAL = 1500
+PACK_NORMAL_N = 3
+PACK_NORMAL_CLIP = 160
+PACK_RAW_SLOTS = 2
 PACK_CLIP = 400
 PACK_RANK = 12
 _LEGACY_RANK = 5
@@ -714,24 +731,90 @@ def _event_sid(event_id):
     return str(event_id or "").split("::")[-1]
 
 
-def compact_facts(hits, own="", cfg=None, rel=0.7, n=3, chars=200):
+def _message_window(message):
+    if not (message or "").strip():
+        return None
+    try:
+        from app.turn_pack import date_window
+    except Exception:
+        try:
+            import turn_pack as _tp
+            date_window = _tp.date_window
+        except Exception:
+            return None
+    try:
+        return date_window(message)
+    except Exception:
+        return None
+
+
+def pack_is_wide(message=None, kind="", expand=False):
+    """None message keeps the 2400 pack the bench calls without a turn message.
+
+    A real message is normal unless it is multi-part, a date window, a doc, or expand.
+    """
+    if expand or str(kind or "").strip().lower() in ("doc", "expand"):
+        return True
+    if message is None:
+        return True
+    if is_multi(message):
+        return True
+    return bool(_message_window(message))
+
+
+def _is_summary_hit(h):
+    layer = str((h or {}).get("layer") or "").lower()
+    if layer in ("l1", "l2"):
+        return True
+    text = str((h or {}).get("summary") or "").lstrip()
+    return text.startswith("[l1]") or text.startswith("[l2]")
+
+
+def _order_for_pack(hits, limit_n, reserve_raw):
+    """Of a base of limit_n facts, keep 1-2 slots for raw events."""
+    rows = [h for h in (hits or []) if isinstance(h, dict)]
+    if not limit_n:
+        return rows
+    raw, summ = [], []
+    for h in rows:
+        (summ if _is_summary_hit(h) else raw).append(h)
+    if not reserve_raw or not raw:
+        return (raw + summ)[:limit_n]
+    slots = min(int(reserve_raw), len(raw), int(limit_n))
+    chosen = list(raw[:slots])
+    for h in list(raw[slots:]) + summ:
+        if len(chosen) >= limit_n:
+            break
+        chosen.append(h)
+    return chosen
+
+
+def compact_facts(hits, own="", cfg=None, rel=0.7, n=3, chars=200, message=None, kind="", expand=False):
     """Facts for turn(compact=true).
 
-    Flag on: the same character pack the bench measured (clip 400, stop at 2400, no 0.7 cut).
+    Flag on and wide (or no message): clip 400, stop at 2400, no relative score cut.
+    Flag on and a normal message: 1500 characters, at most 3 facts, 160 characters each, raw slots kept.
     Flag off: relative 0.7, three facts, chars each. own is this turn's event and is skipped.
-    pack2400 marks a packed row so the later topic diet does not throw it away.
+    pack2400 marks a wide row so the later topic diet does not throw it away.
+    The summary field is not copied: fact already carries the text.
     """
     own_sid = _event_sid(own)
-    if pack_2400_enabled(cfg):
-        return _pack_budget(hits, own_sid, PACK_BUDGET, PACK_CLIP)
-    return _legacy_facts(hits, own_sid, rel, n, chars)
+    if not pack_2400_enabled(cfg):
+        return _legacy_facts(hits, own_sid, rel, n, chars)
+    if pack_is_wide(message, kind=kind, expand=expand):
+        return _pack_budget(hits, own_sid, PACK_BUDGET, PACK_CLIP, mark=True)
+    return _pack_budget(
+        hits, own_sid, PACK_NORMAL, PACK_NORMAL_CLIP,
+        mark=False, limit_n=PACK_NORMAL_N, reserve_raw=PACK_RAW_SLOTS,
+    )
 
 
-def _pack_budget(hits, own_sid, budget, clip):
+def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=0):
     parts = []
     chosen = []
     used = 0
-    for h in hits or []:
+    ordered = _order_for_pack(hits, limit_n, reserve_raw)
+    for h in ordered:
         if not isinstance(h, dict):
             continue
         ev = _event_sid(h.get("event_id"))
@@ -749,15 +832,16 @@ def _pack_budget(hits, own_sid, budget, clip):
         shown = piece.rstrip() + " [cut]" if len(text) > len(piece) else piece
         fact = shown + (" [ev:%s]" % ev if ev else "")
         parts.append(piece)
-        chosen.append({
+        row = {
             "ev": ev,
             "time": h.get("time") or "",
             "fact": fact,
             "event_id": h.get("event_id"),
             "score": h.get("score"),
-            "summary": h.get("summary") or "",
-            "pack2400": True,
-        })
+        }
+        if mark:
+            row["pack2400"] = True
+        chosen.append(row)
         used += len(piece) + (1 if len(parts) > 1 else 0)
         if used >= budget:
             break

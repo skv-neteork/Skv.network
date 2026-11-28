@@ -1,0 +1,155 @@
+"""T96 items 17, 17b, 18. Response diet and the L1 turn check. No network."""
+import os
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, "/root/skv-core/src")
+
+from app import duty_rules, search_v2, t89_rules as t89
+from app import turn_context as tc
+from app import turn_pack as tp
+
+
+class Marks(unittest.TestCase):
+    def test_full_line_not_one_character(self):
+        text = ">>> 2 the cube shipped on Friday\n>>> Р строка целиком остаётся\nnote\n"
+        marks = t89.critical_marks(text)
+        self.assertEqual(marks[0], ">>> 2 the cube shipped on Friday")
+        self.assertEqual(marks[1], ">>> Р строка целиком остаётся")
+        self.assertNotEqual(marks[0], ">>> 2")
+
+    def test_prefix_is_not_the_mark(self):
+        material = ">>> 2 the cube shipped on Friday\n"
+        draft = "stages done. >>> 2 is only the prefix. " + ("x" * 30)
+        built = t89.summary_build(1, draft, "remember_1", material, covered_ids=["remember_1"])
+        self.assertFalse(built["ok"])
+        self.assertTrue(any(item == "mark: >>> 2 the cube shipped on Friday" for item in built["missing"]))
+
+    def test_raw_mark_line_is_not_clipped_at_one_token(self):
+        raw = "Saved.\n>>> 2 the cube shipped on Friday\nThe goal.\n"
+        self.assertEqual(tp.mark_lines_from_raw(raw), ">>> 2 the cube shipped on Friday")
+
+
+class SourceIds(unittest.TestCase):
+    def test_string_is_not_split_into_characters(self):
+        raw = "remember_1,remember_2 remember_3"
+        self.assertEqual(tp._parse_ids(raw), ["remember_1", "remember_2", "remember_3"])
+        self.assertEqual(tp.bare_ids(raw), ["remember_1", "remember_2", "remember_3"])
+        self.assertEqual(tp.bare_ids("user::remember_9"), ["remember_9"])
+        self.assertNotEqual(tp.bare_ids(raw)[0], "r")
+
+    def test_param_ids_satisfy_the_check_without_being_in_the_draft(self):
+        ids = ["remember_%d" % i for i in range(16)]
+        draft = "stages done. decided the pack. outcome shipped. " + ("x" * 20)
+        built = t89.summary_build(1, draft, ids, "", covered_ids=",".join(ids))
+        self.assertFalse(any(item.startswith("id:") for item in built["missing"]), built["missing"])
+        self.assertNotIn(",".join(ids), built["ready_call"])
+        self.assertIn("see summary_build.source_event_ids", built["ready_call"])
+
+    def test_finish_keeps_the_id_list_once(self):
+        ids = ",".join("remember_%d" % i for i in range(16))
+        draft = "stages done. the summary names the work. " + ("x" * 20)
+        resp = {
+            "mode": "answer",
+            "verdict": "pass",
+            "facts": [{"ev": "remember_1", "fact": "a fact"}],
+            "summary_due": {"l1": "due", "l1_source_event_ids": ids},
+        }
+        tp.finish(resp, {
+            "db": "", "user": "u", "session": "s", "message": "status",
+            "l1_summary": draft, "source_event_ids": ids,
+            "seen_fact_ids": [], "recent_ids": [],
+        })
+        built = resp["summary_build"]
+        self.assertFalse(any(item.startswith("id:") for item in built["missing"]), built["missing"])
+        self.assertEqual(built["source_event_ids"], "see summary_due.l1_source_event_ids")
+        self.assertEqual(resp["summary_due"]["l1_source_event_ids"], ids)
+        self.assertNotIn(ids, built["ready_call"])
+        self.assertNotIn(ids, resp["next_step"])
+        self.assertIn("see summary_due.l1_source_event_ids", resp["next_step"])
+
+
+class SearchAs(unittest.TestCase):
+    def test_dash_skips(self):
+        self.assertTrue(tc.search_as_skip("-"))
+        self.assertTrue(tc.search_as_skip(["-"]))
+        self.assertFalse(tc.search_as_skip("статус сборки"))
+        q, sa = tc.build_search("как идет ?)", "-", [])
+        self.assertEqual(q, "")
+        self.assertEqual(sa, [])
+
+    def test_short_message_uses_search_as_as_the_query(self):
+        q, sa = tc.build_search("Как идет ?)", "статус Build по T95", ["older line about a picnic"])
+        self.assertEqual(q, "статус Build по T95")
+        self.assertEqual(sa, [])
+        self.assertNotIn("picnic", q.lower())
+
+    def test_long_message_keeps_search_as_beside_the_query(self):
+        msg = "what did we decide about the cube store and the archive layout?"
+        q, sa = tc.build_search(msg, "cube store decision", [])
+        self.assertEqual(q, msg)
+        self.assertEqual(sa, ["cube store decision"])
+
+
+class Diet(unittest.TestCase):
+    def test_normal_budget_reserves_a_raw_slot(self):
+        hits = [
+            {"event_id": "l1:a", "summary": "[l1] alpha topic notes", "layer": "l1", "score": 0.9},
+            {"event_id": "l1:b", "summary": "[l1] beta topic notes", "layer": "l1", "score": 0.8},
+            {"event_id": "l1:c", "summary": "[l1] gamma topic notes", "layer": "l1", "score": 0.7},
+            {"event_id": "u::remember_9", "summary": "raw answer about the topic", "layer": "event", "score": 0.4},
+        ]
+        facts = tc.compact_facts(hits, "", message="what is the topic status now")
+        evs = [f["ev"] for f in facts]
+        self.assertIn("remember_9", evs)
+        self.assertLessEqual(len(facts), 3)
+        self.assertNotIn("pack2400", facts[0])
+        self.assertNotIn("summary", facts[0])
+        body = "\n".join(f["fact"].split(" [ev:")[0].replace(" [cut]", "") for f in facts)
+        self.assertLessEqual(len(body), 1500)
+        long = tc.compact_facts(
+            [{"event_id": "u::remember_9", "summary": "R" * 400, "layer": "event", "score": 0.4}],
+            "", message="what is the topic status now")
+        piece = long[0]["fact"].split(" [ev:")[0]
+        self.assertTrue(piece.endswith(" [cut]"))
+        self.assertEqual(len(piece.replace(" [cut]", "")), 160)
+
+    def test_wide_triggers_keep_2400(self):
+        hits = [
+            {"event_id": "u::remember_%d" % i, "summary": "word %d %s" % (i, "x" * 300), "score": 1 - i * 0.01}
+            for i in range(8)
+        ]
+        multi = tc.compact_facts(hits, "", message="when did it ship and where is the file?")
+        dated = tc.compact_facts(hits, "", message="yesterday the cube store")
+        doc = tc.compact_facts(hits, "", message="status", kind="doc")
+        plain = tc.compact_facts(hits, "")
+        for facts in (multi, dated, doc, plain):
+            self.assertTrue(facts[0].get("pack2400"))
+            self.assertGreater(len(facts), 3)
+
+    def test_cosine_floor_is_before_fusion_not_a_fused_cut(self):
+        kept = search_v2.cosine_keep([("a", 0.36), ("b", 0.34), ("c", 0.90)])
+        self.assertEqual([e for e, _s in kept], ["a", "c"])
+        fused = search_v2.wrrf(kept, [("b", 1.0)], 1.0, 0.5)
+        self.assertIn("b", [e for e, _s in fused])
+
+    def test_duty_line_is_short_and_repeats_on_a_cadence(self):
+        full = duty_rules.rule_text("l1")
+        short = duty_rules.diet_line(full)
+        self.assertLess(len(short), len(full))
+        self.assertTrue(short.startswith("RULE l1:"))
+        self.assertIn("source_event_ids", short)
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            first = duty_rules.diet_block([full], "u", "s", path)
+            second = duty_rules.diet_block([full], "u", "s", path)
+            self.assertEqual(first, [short])
+            self.assertTrue(second[0].startswith("duty_rules_unchanged"))
+        finally:
+            os.remove(path)
+
+
+if __name__ == "__main__":
+    unittest.main()

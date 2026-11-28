@@ -73,11 +73,11 @@ def _hits(key, q, search_as=None, keep=8, context=None):
         _b["context"] = [str(x)[:400] for x in list(context)[:2] if str(x or "").strip()]
     d = _req(key, "POST", "/search", _b)
     allr = (d or {}).get("results") or [] if isinstance(d, dict) else []
-    top = max([float(r.get("score") or 0) for r in allr] or [0])
     out, seen = [], set()
     for r in allr:
         s = r.get("summary") or ""
-        if (top and float(r.get("score") or 0) < 0.45 * top) or r.get("superseded_by") or r.get("superseded") or "[lightweight]" in s[:40]:
+        # No cut on the flat RRF score. Cosine is filtered before fusion; topic diet runs later.
+        if r.get("superseded_by") or r.get("superseded") or "[lightweight]" in s[:40]:
             continue
         k = re.sub(r"\s+", " ", re.sub(r"🔐[^\n]*", "", s))[:200]
         if k in seen:
@@ -95,6 +95,13 @@ def _turn_hits(key, user, user_message, query, search_as, sensitive, compact=Fal
     """One /search, then rank durable layers above recent self echoes. Does not invent search_as."""
     from app.secret_scrub import scrub as _scrub
     q = _scrub((query or user_message or "")[:500], sensitive)
+    try:
+        from app import turn_context as _tc_skip
+        if _tc_skip.search_as_skip(search_as):
+            return q, []
+    except Exception:
+        if str(search_as or "").strip() == "-":
+            return q, []
     if _is_low(user_message) and not query and not search_as:
         return q, []
     conn = None
@@ -180,10 +187,21 @@ def _real_cites(text):
     text = re.sub(r"```.*?(```|$)", " ", text or "", flags=re.S)   # fenced code blocks: examples, not citations
     text = re.sub(r"`[^`\n]*`", " ", text)                          # inline code spans: examples, not citations
     return [c for c in dict.fromkeys(re.findall(r"\[ev:([^\]\s]+)\]", text)) if not _PLACEHOLDER_ID.match(c.strip())]
-def _compact_facts(hits, own, rel=0.7, n=3, chars=200):
-    """Compact facts. turn_pack_2400 (default on) is the 2400-character pack; false restores 3 x chars."""
+def _norm_ids(raw):
+    """str or list -> bare ids. A string is not iterated character by character."""
+    try:
+        from app.turn_pack import bare_ids
+        return bare_ids(raw)
+    except Exception:
+        if isinstance(raw, str):
+            return [_sid(x) for x in re.split(r"[,|\s]+", raw) if x.strip()]
+        return [_sid(x) for x in (raw or []) if x]
+
+
+def _compact_facts(hits, own, rel=0.7, n=3, chars=200, message=None, kind=""):
+    """Compact facts. Wide turns keep 2400. A normal message uses the 1500 budget."""
     from app import turn_context as tc
-    return tc.compact_facts(hits, own, rel=rel, n=n, chars=chars)
+    return tc.compact_facts(hits, own, rel=rel, n=n, chars=chars, message=message, kind=kind)
 def _compact_gate(user, session, cubes, checklist, db):
     """Return cubes/checklist only when their hash changed since this session's last turn; else versions only."""
     import sqlite3 as _sq, hashlib as _hl, json as _js
@@ -395,6 +413,7 @@ def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compr
     """T84 pack after the watch. Pops the stashed account id so it never leaves the server."""
     if not isinstance(res, dict):
         return res
+    source_event_ids = _norm_ids(source_event_ids)
     user = res.pop("_tp_user", "") or ""
     try:
         from app import turn_pack as _tp
@@ -546,15 +565,16 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
                     cubes.append({"cube_id": x.get("cube_id") or x.get("id"), "essence": _words(x.get("essence") or x.get("title") or "", 25)})
     except Exception:
         cubes = []
+    # Static text. Cube ids live on the cubes field. Putting them here changed the
+    # checklist hash every turn, so compact mode resent self_check (~500 bytes).
     checklist = ["Facts missing or the user asks to recall: dig deeper (POST /api/v7/memory with lines=all, GET /api/v7/event/{id}, POST /api/v7/memory/dig) before saying you do not remember.",
                  "Every fact about the user or the past in the draft rests on an [ev:id] from facts, or is said to be unknown.",
                  "Newest fact wins; superseded entries are history.",
-                 "No fact outside the user message, this turn's results, memory [ev:] or general knowledge."]
-    if cubes:
-        checklist.insert(4, "The answer follows the relevant cubes (%s) or says why not; then vote or duty=vote_nothing." % ", ".join(x["cube_id"] for x in cubes))
+                 "No fact outside the user message, this turn's results, memory [ev:] or general knowledge.",
+                 "The answer follows the relevant cubes or says why not; then vote or duty=vote_nothing."]
     cg = None
     if compact:
-        facts = _compact_facts(hits, own)
+        facts = _compact_facts(hits, own, message=user_message, kind=kind)
         cg, cg_commit = _compact_gate(user, session_id or "rest", cubes, checklist, COMPACT_DB)
     if not draft and compact:
         c.close(); cg_commit()
@@ -645,7 +665,7 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     else:
         body = {"query": user_message, "response": final, "duty": duty, "duty_reason": duty_reason, "task_done": bool(task_done),
                 "critical": critical, "pin": bool(critical), "session_id": session_id or "rest", "self_check": True,
-                "l1_summary": l1_summary or "", "l2_map": l2_summary or "", "source_event_ids": [_sid(x) for x in (source_event_ids or []) if x], "sensitive": [x for x in (sensitive or []) if x],
+                "l1_summary": l1_summary or "", "l2_map": l2_summary or "", "source_event_ids": _norm_ids(source_event_ids), "sensitive": [x for x in (sensitive or []) if x],
                 "profile": profile or None, "profile_review": profile_review or None}
         if _is_low(user_message) and len(final) < 400 and not (critical or duty or l1_summary or l2_summary or sensitive):
             body["topic"] = "lightweight"; body["query"] = "[lightweight] " + user_message
@@ -688,7 +708,11 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     if isinstance(saved, dict) and isinstance(saved.get("task_cube"), dict) and saved["task_cube"].get("note") and not ext:
         duties = ["TASK CUBE: " + str(saved["task_cube"]["note"])] + duties   # T71
     if isinstance(saved, dict) and isinstance(saved.get("duty_rules"), dict) and saved["duty_rules"].get("rules") and not ext:
-        duties = [str(x) for x in saved["duty_rules"]["rules"]] + duties   # T72 duty rules (soft or MANDATORY)
+        try:
+            from app.duty_rules import diet_block
+            duties = diet_block(saved["duty_rules"]["rules"], user, session_id or "rest", COMPACT_DB) + duties
+        except Exception:
+            duties = [str(x)[:180] for x in saved["duty_rules"]["rules"]] + duties
     prof = {k: saved[k] for k in ("profile_applied", "profile_version", "profile_warnings", "profile_errors", "profile_mark", "profile_fallback_started", "profile_duties")
             if isinstance(saved, dict) and saved.get(k)}
     prof.update({k: v for k, v in _prof_rel(user, user_message, clean, session_id, compact).items() if k not in prof})

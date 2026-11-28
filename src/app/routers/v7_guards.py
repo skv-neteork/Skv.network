@@ -1,4 +1,5 @@
 from typing import List, Optional, Any
+from pydantic import field_validator
 """SKV v7 API: Guard 1 / constitution: constitution text, Second Look, Guard 2 download, agent prompt and OpenAPI.
 Split from v7_router.py with behavior unchanged; shared helpers and state come from v7_core."""
 from app.routers import v7_core as _core
@@ -115,7 +116,7 @@ class TurnRequest(BaseModel):
     critical: str = ""
     l1_summary: str = ""
     l2_summary: str = ""
-    source_event_ids: List[str] = []
+    source_event_ids: Any = []
     user_id: str = ""
     compact: bool = False
     answer: str = ""
@@ -124,7 +125,22 @@ class TurnRequest(BaseModel):
     profile_review: Optional[Any] = None   # with l2_summary: {"ops":[...]} or {"no_changes":true,"reason":...}
     source: str = ""                       # e.g. guard2_ext:chatgpt -> no L1/L2 duties, server summarises
     second_look: str = ""                  # answers to last turn's second_look_questions: "kept|changed: <what>"
-    search_as: Optional[List[str]] = None  # Q2S: up to 3 statements of how the answer was written in memory
+    search_as: Optional[Any] = None  # Q2S: up to 3 statements, or "-" to skip recall
+
+    @field_validator("source_event_ids", mode="before")
+    @classmethod
+    def _norm_source_ids(cls, v):
+        from app.turn_pack import _parse_ids
+        return _parse_ids(v)
+
+    @field_validator("search_as", mode="before")
+    @classmethod
+    def _norm_search_as(cls, v):
+        if v is None or v == "" or v == []:
+            return None
+        from app.turn_context import forms
+        got = forms(v)
+        return got or None
     agent_token: str = ""
     context_state: str = "normal"
     kind: str = "turn"

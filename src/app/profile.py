@@ -903,7 +903,7 @@ def digest(c, chars=320):
 
 
 def relevant(uid, q="", answer="", session="", compact=False, diet=False):
-    """turn read path: <=5 rows / <=800 B. Compact: full set only when profile_version changed for the session; else only new rows."""
+    """turn read path: <=5 rows / <=800 B. Compact: full block on session start, on version change, and every 12th turn; other turns send profile_unchanged plus any new rows."""
     if not enabled(uid):
         return {}
     c = _db(uid)
@@ -914,7 +914,9 @@ def relevant(uid, q="", answer="", session="", compact=False, diet=False):
         if compact and session:
             k = "cs:" + session
             prev = json.loads(_st(c, k, "{}") or "{}")
-            if prev.get("v") == v:
+            n = int(prev.get("n") or 0) + 1
+            # Full block on session start, on change, and every 12th turn. Other turns send the version only.
+            if prev.get("v") == v and n % 12 != 0:
                 seen = set(prev.get("ids") or [])
                 new = [r for r in rows if r["id"] not in seen]
                 out["profile_unchanged"] = True
@@ -924,7 +926,7 @@ def relevant(uid, q="", answer="", session="", compact=False, diet=False):
             else:
                 out["profile"] = [r["line"] for r in rows]
                 seen = {r["id"] for r in rows}
-            _st_set(c, k, json.dumps({"v": v, "ids": sorted(seen)[-60:]}))
+            _st_set(c, k, json.dumps({"v": v, "ids": sorted(seen)[-60:], "n": n}))
         else:
             out["profile"] = [r["line"] for r in rows]
         ds = duties(c)

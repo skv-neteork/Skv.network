@@ -55,6 +55,81 @@ def rule_text(duty):
     }.get(duty, "")
 
 
+_RULE_HEADS = (
+    ("RULE L1:", "l1"),
+    ("RULE L2:", "l2"),
+    ("RULE critical:", "critical"),
+    ("RULE experience cube:", "cube"),
+    ("RULE sensitive:", "sensitive"),
+    ("RULE vote:", "vote"),
+    ("RULE profile:", "profile"),
+)
+
+
+def diet_line(text):
+    """Short id plus the close line. The full RULE paragraph stays in rule_text."""
+    s = str(text or "").strip()
+    if s.startswith("MANDATORY:"):
+        return s[:220]
+    for head, key in _RULE_HEADS:
+        if s.startswith(head):
+            return "RULE %s: %s" % (key, SHORT[key])
+    return s[:180]
+
+
+def diet_block(rules, user, session, db, every=12):
+    """Full short lines on the first turn, when the text changes, and every 12th turn.
+
+    Other turns return one unchanged token. Never raises; a store error shows the lines.
+    """
+    shorts = [diet_line(x) if isinstance(x, str) else str(x)[:180] for x in (rules or [])]
+    if not db:
+        return shorts
+    blob = json.dumps(shorts, ensure_ascii=False)
+    h = hashlib_sha(blob)
+    try:
+        n, prev = _diet_load(db, user, session)
+        n += 1
+        show = n == 1 or prev != h or (every and n % int(every) == 0)
+        _diet_save(db, user, session, n, h)
+    except Exception:
+        return shorts
+    if show:
+        return shorts
+    return ["duty_rules_unchanged %s" % h]
+
+
+def hashlib_sha(blob):
+    import hashlib
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:8]
+
+
+def _diet_load(db, user, session):
+    if not db:
+        return 0, ""
+    c = sqlite3.connect(db, timeout=10)
+    try:
+        c.execute("create table if not exists diet_duty(user text, session text, n int, h text, primary key(user, session))")
+        row = c.execute("select n, h from diet_duty where user=? and session=?", ((user or "")[:80], (session or "s")[:80])).fetchone()
+        if not row:
+            return 0, ""
+        return int(row[0] or 0), row[1] or ""
+    finally:
+        c.close()
+
+
+def _diet_save(db, user, session, n, h):
+    if not db:
+        return
+    c = sqlite3.connect(db, timeout=10)
+    try:
+        c.execute("create table if not exists diet_duty(user text, session text, n int, h text, primary key(user, session))")
+        c.execute("insert or replace into diet_duty values(?,?,?,?)", ((user or "")[:80], (session or "s")[:80], int(n), h))
+        c.commit()
+    finally:
+        c.close()
+
+
 SHORT = {
     "l1": "send l1_summary (stages, >>> marks verbatim, dated key ideas) + source_event_ids.",
     "critical": "send critical=\"<lasting fact>\" for each lasting fact the user stated (several: ' | ').",

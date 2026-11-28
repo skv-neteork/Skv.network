@@ -41,7 +41,9 @@ _IDEA = re.compile(
     r"(?i)(dream|intention|goal|i want|we should|хочу|мечта|цель|намерен|важно|must|always|никогда|всегда)"
 )
 _IMPORTANT = re.compile(r"(?i)(dream|мечта|важно|must|always|никогда|всегда|goal|цель)")
-_MARK = re.compile(r"^>{3}\s?\S|^CRITICAL:\s?\S", re.M)
+# The whole line. A one-character match (">>> 2", ">>> Р") cannot be copied back.
+_MARK = re.compile(r"^(?:>{3}[ \t]?.*|CRITICAL:[ \t]?.*)$", re.M)
+_MARK_CAP = 2000
 
 
 def pin_last(obj, key="next_step"):
@@ -94,12 +96,17 @@ def search_first_line(message=""):
     return "search first: memory_recall_later"
 
 
-def summary_ready_call(level, source_ids=""):
+def summary_ready_call(level, source_ids="", where=""):
+    """Point at the one id list. Do not paste it again into the call."""
     level = 2 if int(level or 1) == 2 else 1
-    ids = source_ids or "<ev ids>"
     field = "l2_summary" if level == 2 else "l1_summary"
-    return "summary_build(level=%d) via turn(%s=\"<stages; copy every >>> mark; dated key ideas>\", source_event_ids=\"%s\")" % (
-        level, field, ids)
+    ids = str(source_ids or "").strip()
+    if not ids or ids == "<ev ids>":
+        return "summary_build(level=%d) via turn(%s=\"<stages; copy every >>> mark; dated key ideas>\", source_event_ids=\"<ev ids>\")" % (
+            level, field)
+    ref = where or "summary_due.l1_source_event_ids"
+    return "summary_build(level=%d) via turn(%s=\"<stages; copy every >>> mark; dated key ideas>\", source_event_ids=see %s)" % (
+        level, field, ref)
 
 
 def key_ideas(text, today=""):
@@ -122,7 +129,17 @@ def key_ideas(text, today=""):
 
 
 def critical_marks(text):
-    return [m.group(0).strip()[:240] for m in _MARK.finditer(text or "")][:20]
+    """Full mark lines, capped only when a line is enormous."""
+    out = []
+    for m in _MARK.finditer(text or ""):
+        line = m.group(0).strip()
+        if len(line) > _MARK_CAP:
+            line = line[:_MARK_CAP]
+        if line:
+            out.append(line)
+        if len(out) >= 20:
+            break
+    return out
 
 
 def summary_steps(level):
@@ -145,29 +162,47 @@ def summary_steps(level):
     ]
 
 
-def summary_build(level=1, draft="", source_event_ids="", material="", today=""):
-    """Material and short steps when due. With a draft, return the missing pieces."""
+def _id_list(raw):
+    """List or comma/whitespace string. A list must not be stringified first."""
+    if raw is None or raw == "":
+        return []
+    if isinstance(raw, (list, tuple)):
+        return [str(x).strip().split("::")[-1] for x in raw if str(x).strip() and str(x).strip() != "<ev ids>"]
+    return [x.split("::")[-1] for x in re.split(r"[,\s]+", str(raw)) if x and x != "<ev ids>"]
+
+
+def summary_build(level=1, draft="", source_event_ids="", material="", today="", covered_ids=None):
+    """Material and short steps when due. With a draft, return the missing pieces.
+
+    The id list is this packet's source_event_ids. ready_call points at it.
+    Ids the agent already passed (covered_ids) satisfy the id check.
+    """
     level = 2 if int(level or 1) == 2 else 1
-    ids = [x for x in re.split(r"[,\s]+", str(source_event_ids or "")) if x and x != "<ev ids>"]
+    ids = _id_list(source_event_ids)
     marks = critical_marks(material)
     ideas = key_ideas(material, today=today)
+    where = "summary_build.source_event_ids"
     packet = {
         "level": level,
         "steps": summary_steps(level),
         "marks": marks,
         "key_ideas": ideas,
         "source_event_ids": ids,
-        "ready_call": summary_ready_call(level, ",".join(ids)),
+        "ready_call": summary_ready_call(level, ",".join(ids), where=where),
     }
     if not str(draft or "").strip():
         packet["ok"] = False
         packet["missing"] = ["draft"]
         return packet
-    return {**packet, **summary_check(level, draft, ids, marks, ideas)}
+    return {**packet, **summary_check(level, draft, ids, marks, ideas, covered_ids=covered_ids, where=where)}
 
 
-def summary_check(level, draft, source_ids=None, marks=None, ideas=None):
-    """Server check: verbatim marks, source ids, sane size, key ideas present."""
+def summary_check(level, draft, source_ids=None, marks=None, ideas=None, covered_ids=None, where=""):
+    """Server check: verbatim marks, source ids, sane size, key ideas present.
+
+    An id listed in the source_event_ids parameter counts. It does not also
+    have to be pasted into the draft. A prefix of a mark does not count.
+    """
     level = 2 if int(level or 1) == 2 else 1
     text = str(draft or "")
     missing = []
@@ -178,17 +213,20 @@ def summary_check(level, draft, source_ids=None, marks=None, ideas=None):
         missing.append("size: longer than %d characters" % hi)
     for mark in marks or []:
         if mark not in text:
-            missing.append("mark: " + mark[:80])
+            missing.append("mark: " + mark)
+    covered = {str(x).split("::")[-1] for x in _id_list(covered_ids)}
     for ev in source_ids or []:
-        if ev not in text:
-            missing.append("id: " + ev)
+        sid = str(ev).split("::")[-1]
+        if sid in covered or ev in text or sid in text:
+            continue
+        missing.append("id: " + sid)
     for idea in ideas or []:
         body = idea.get("text") or ""
         if body and body not in text:
             missing.append("key idea: " + body[:80])
         if idea.get("layer") == "l2" and level == 2 and body and body not in text:
             missing.append("l2 idea: " + body[:80])
-    ready = summary_ready_call(level, ",".join(source_ids or []))
+    ready = summary_ready_call(level, ",".join(source_ids or []), where=where or "summary_build.source_event_ids")
     if missing:
         return {"ok": False, "missing": missing, "ready_call": ready}
     return {"ok": True, "missing": [], "ready_call": ready}

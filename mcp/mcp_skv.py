@@ -1094,13 +1094,10 @@ def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = Fals
             r2 = (d2 or {}).get("results") or [] if isinstance(d2, dict) else []
             ids = {r.get("event_id") for r in allr}
             allr = allr + [r for r in r2 if r.get("event_id") not in ids]
-    top = max([float(r.get("score") or 0) for r in allr] or [0])
     out, seen = [], set()
     for r in allr:
         sc = float(r.get("score") or 0)
         summ = (r.get("summary") or "")
-        if top and sc < 0.45 * top:          # relevance threshold relative to best hit
-            continue
         key = _dk(summ)
         if r.get("superseded_by") or r.get("superseded"):
             continue                            # only the latest version of a revised turn
@@ -1762,14 +1759,13 @@ def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = 
                 "source": h.get("match_reason") or "personal",
             })
     else:
-        top = max([float(r.get("score") or 0) for r in allr] or [0])
         seen, filt = set(), []
         for r in allr:
             summ = r.get("summary") or ""
             k = _dk(summ)
             if r.get("superseded_by"):
                 continue
-            if (top and float(r.get("score") or 0) < 0.45 * top) or k in seen or "[lightweight]" in summ[:40]:
+            if k in seen or "[lightweight]" in summ[:40]:
                 continue
             seen.add(k); filt.append(r)
         dropped = len(allr) - len(filt)
@@ -3164,8 +3160,8 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
     checklist = ["Facts missing or user asks to recall: dig deeper (memory_search by meaning + keywords, lines=all; memory_search(focus_event_id=) for a wider episode; still nothing -> memory_recall_later(query) deep search, poll memory_recall_status) before saying you do not remember.", "Every fact about the user or the past in the draft rests on an [ev:id] from facts/step_zero, or is said to be unknown.",
                  "Newest fact wins; superseded entries are history.",
                  "No fact outside the user's message, this turn's tool results, memory [ev:] or general knowledge."]
-    if cubes:
-        checklist.append("The answer follows the relevant cubes (%s) or says why not; then vote or duty=vote_nothing." % ", ".join(c["cube_id"] for c in cubes))
+    # Ids stay on the cubes field. A changing id list made the checklist hash flip every turn.
+    checklist.append("The answer follows the relevant cubes or says why not; then vote or duty=vote_nothing.")
     cg = None
     if compact:
         facts = _compact_facts(hits, own)

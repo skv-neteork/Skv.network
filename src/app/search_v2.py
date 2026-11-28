@@ -226,6 +226,23 @@ def anchors(query):
             out.append(t.lower())
     return out
 
+# Cosine similarity, applied to the vector list before RRF. Not a cut on the fused score.
+COS_BEFORE_FUSION = 0.35
+
+
+def cosine_keep(sem, floor=COS_BEFORE_FUSION):
+    """Keep vector hits whose cosine is at least the floor. Keyword hits are a separate list."""
+    kept = []
+    for item in sem or []:
+        try:
+            eid, score = item[0], float(item[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if score >= float(floor):
+            kept.append((eid, score))
+    return kept
+
+
 def wrrf(vec, words, w_vec, w_words, k=60):
     fused = {}
     for w, lst in ((w_vec, vec), (w_words, words)):
@@ -331,6 +348,7 @@ def hybrid(uid, query, top_k=20, vec_k=None, with_cos=False):
             sem, _v = _ln.semantic_visible(uid, query, k=vk)
     except Exception as e:
         print(f"[search_v2] semantic skipped: {e}", flush=True)
+    sem = cosine_keep(sem)
     sem = name_filter(uid, sem, query)
     words, rare = fts_ranked(uid, query, limit=fk)
     fused = wrrf(sem, words, c["w_vec"], word_weight(c, rare))

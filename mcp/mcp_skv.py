@@ -1744,9 +1744,19 @@ _SEARCH_GUIDE = (
 )
 
 
+def _agent_choice(tool: str) -> None:
+    """Remember that this agent started memory_search or memory_recall_later. Never fails the tool."""
+    try:
+        from app.components.recall_component import note_choice
+        note_choice(_caller_id() or "", tool)
+    except Exception:
+        pass
+
+
 @mcp.tool()
 def memory_search(query: str = "", top_k: int = 8, mode: str = "", lines: str = "", offset: int = 0, since: str = "", until: str = "", exclude_imports: bool = False, source: str = "", search_as: Union[list, str] = "", agents: str = "", agent_token: str = "", session_id: str = "", focus_event_id: str = "", budget_tokens: int = 0, date: str = "", time: str = "", limit: int = 0) -> str:
     """Search memory for the event, not the user's question. See the tool description for date/since/until/time=unknown."""
+    _agent_choice("search")
     if _room_local():
         _room_stopped = _room_block(agent_token, session_id)
         if _room_stopped:
@@ -1956,6 +1966,7 @@ def memory_dig(query: str = "", focus_event_id: str = "", radius: int = 2, focus
     prof:<id> also returns the row's history chain and change log; prof:list = all active profile rows; prof:history = the profile change log.
     since/until ("3d", "2026-10-23") and exclude_imports=true: query dig only inside that window, without imported/archived/test events
     (summaries are skipped: they span ranges). Go down from a summary to its events, open full text with memory_event. Nothing found = say you do not know."""
+    _agent_choice("search")
     def _sh(eid):
         return (eid or "").split("::")[-1]
     if query and not focus_id and not focus_event_id and (since or until or exclude_imports):
@@ -2020,6 +2031,8 @@ def memory_dig(query: str = "", focus_event_id: str = "", radius: int = 2, focus
 @mcp.tool()
 def memory_lens(query: str = "", focus_event_id: str = "", radius: int = 2, offset: int = 0) -> str:
     """Episode around one event (POST /memory/lens), or memory_search(query) when there is no focus."""
+    if focus_event_id:
+        _agent_choice("search")
     if focus_event_id:
         eid = _full_eid(focus_event_id)
         d = _req("POST", "/memory/lens", _uid_body({
@@ -2169,6 +2182,7 @@ def memory_recall_later(query: str, search_as: Union[list, str] = "", since: str
     Dates are MSK. date=YYYY-MM-DD is that day ±1. since/until=YYYY-MM-DD is that exact MSK day (full UTC span).
     Example: since=2026-11-21 until=2026-11-21. date is ignored when since or until is set.
     Returns job_id at once; poll memory_recall_status(job_id) every ~10 s until status=done."""
+    _agent_choice("recall")
     body = {"query": query}
     if _sa_list(search_as):
         body["search_as"] = _sa_list(search_as)

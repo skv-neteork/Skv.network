@@ -257,7 +257,7 @@ class RecallNet(unittest.TestCase):
         if os.path.exists(self.path):
             os.remove(self.path)
 
-    def _net(self, result, message, searched=False):
+    def _net(self, result, message, searched=False, uid="acct-test"):
         calls = []
 
         def _launch(state, submit_fn=None):
@@ -268,8 +268,19 @@ class RecallNet(unittest.TestCase):
              mock.patch.object(self.rc, "_recent_ids", lambda uid: []), \
              mock.patch.object(self.rc, "agent_has_recent_job", lambda uid, within=300: searched), \
              mock.patch.object(self.rc, "_agent_searched", lambda uid, own: False):
-            self.rc.safety_net(result, "acct-test", message)
+            self.rc.safety_net(result, uid, message)
         return calls
+
+    def test_agent_choice_blocks_this_turn_and_the_next(self):
+        self.rc.note_choice("acct-choice", "search")
+        first = self._net({"mode": "context", "facts": []}, "where is the archive", uid="acct-choice")
+        second = self._net({"mode": "context", "facts": []}, "where is the archive", uid="acct-choice")
+        third = self._net({"mode": "context", "facts": []}, "where is the archive", uid="acct-choice")
+        self.assertEqual(first, [])
+        self.assertEqual(second, [])
+        self.assertEqual(third, ["where is the archive"])
+        self.assertIn("memory_search", d.HINT_LINE)
+        self.assertIn("memory_recall_later", d.HINT_LINE)
 
     def test_context_empty_facts_queue_one_job(self):
         calls = self._net({"mode": "context", "facts": []}, "where is the archive")

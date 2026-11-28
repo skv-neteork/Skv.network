@@ -92,6 +92,9 @@ def _conn():
     c.execute("""CREATE TABLE IF NOT EXISTS rc_seen (
         user TEXT, ev TEXT, delivered_at REAL, PRIMARY KEY (user, ev)
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS rc_choice (
+        user TEXT PRIMARY KEY, turn_n INTEGER, choice_turn INTEGER, tool TEXT
+    )""")
     return c
 
 
@@ -427,6 +430,73 @@ def _agent_searched(uid, own_ids):
     return False
 
 
+def _choice_row(c, user):
+    row = c.execute(
+        "SELECT turn_n, choice_turn, tool FROM rc_choice WHERE user=?",
+        (user,),
+    ).fetchone()
+    if not row:
+        return {"turn_n": 0, "choice_turn": None, "tool": ""}
+    return {
+        "turn_n": int(row[0] or 0),
+        "choice_turn": None if row[1] is None else int(row[1]),
+        "tool": row[2] or "",
+    }
+
+
+def note_choice(uid, tool):
+    """The agent called memory_search or memory_recall_later. Binds to the open turn."""
+    if not uid or tool not in ("search", "recall"):
+        return
+    user = user_key(uid)
+    c = _conn()
+    try:
+        row = _choice_row(c, user)
+        choice_turn = row["turn_n"] if row["turn_n"] else None
+        c.execute(
+            "INSERT INTO rc_choice (user, turn_n, choice_turn, tool) VALUES (?,?,?,?) "
+            "ON CONFLICT(user) DO UPDATE SET choice_turn=excluded.choice_turn, tool=excluded.tool",
+            (user, row["turn_n"], choice_turn, tool),
+        )
+        c.commit()
+    except Exception:
+        pass
+    finally:
+        c.close()
+
+
+def open_turn(uid):
+    """Advance the turn counter. An unbound choice binds to this turn. Returns (turn_n, choice_turn)."""
+    if not uid:
+        return 0, None
+    user = user_key(uid)
+    c = _conn()
+    try:
+        row = _choice_row(c, user)
+        turn_n = row["turn_n"] + 1
+        choice_turn = row["choice_turn"]
+        if row["tool"] and choice_turn is None:
+            choice_turn = turn_n
+        c.execute(
+            "INSERT INTO rc_choice (user, turn_n, choice_turn, tool) VALUES (?,?,?,?) "
+            "ON CONFLICT(user) DO UPDATE SET turn_n=excluded.turn_n, choice_turn=excluded.choice_turn",
+            (user, turn_n, choice_turn, row["tool"]),
+        )
+        c.commit()
+        return turn_n, choice_turn
+    except Exception:
+        return 0, None
+    finally:
+        c.close()
+
+
+def chose_this_or_prev(turn_n, choice_turn):
+    """True when the agent started search or recall on this turn or the previous one."""
+    if not turn_n or choice_turn is None:
+        return False
+    return 0 <= (int(turn_n) - int(choice_turn)) <= 1
+
+
 def agent_has_recent_job(uid, within=300):
     """True when this user already queued a recall inside the window."""
     if not uid or not _shelf_exists(uid):
@@ -493,7 +563,7 @@ def safety_net(result, uid, message="", l1_new=False, session_ids=None):
     """17g after the fact pack. Deliver a finished job, and queue one when the facts the agent sees are empty or weak.
 
     A saved turn keeps the existing every-N cadence. A context or unsaved turn only queues the weak-fact job, so the cadence is not doubled.
-    Search skipped, an empty ack, a directive, or a job the agent already started does not queue another.
+    Search skipped, an empty ack, a directive, or a search/recall the agent started this turn or the previous one does not queue another. The hint still offers both tools.
     """
     if not isinstance(result, dict) or not uid or not enabled():
         return result
@@ -504,6 +574,12 @@ def safety_net(result, uid, message="", l1_new=False, session_ids=None):
     except Exception:
         return result
     skipped = bool(result.get("search_skipped"))
+    chose = False
+    try:
+        turn_n, choice_turn = open_turn(uid)
+        chose = chose_this_or_prev(turn_n, choice_turn)
+    except Exception:
+        chose = False
     try:
         from app.turn_diet17 import facts_are_weak, is_directive, is_strict_empty
         weak = facts_are_weak(result.get("facts"))
@@ -515,7 +591,7 @@ def safety_net(result, uid, message="", l1_new=False, session_ids=None):
     except Exception:
         weak = not (result.get("facts") or [])
         meaningful = len((message or "").split()) >= 2
-    searched = bool(result.get("agent_searched")) or agent_has_recent_job(uid, 300)
+    searched = bool(result.get("agent_searched")) or chose or agent_has_recent_job(uid, 300)
     ids = list(session_ids) if session_ids is not None else _recent_ids(uid)
     saved = result.get("saved") is True and result.get("mode") != "context"
     if not saved:

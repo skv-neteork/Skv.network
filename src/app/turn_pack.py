@@ -1265,10 +1265,20 @@ def _finish(resp, ctx):
         actor = str(ctx.get("actor") or "").strip()
         if actor and ctx.get("harvest"):
             from app import first_connect_harvest as _fc
+            turn_n = None
+            user = str(ctx.get("user") or "").strip()
+            if user:
+                try:
+                    found = _fc.actor_turns(user, actor)
+                except Exception:
+                    found = None
+                if found:
+                    turn_n = found
             hint = _fc.note_file(
                 actor,
                 event_id=str(resp.get("event_id") or ctx.get("event_id") or ""),
                 path=ctx.get("harvest_db") or None,
+                turn_n=turn_n,
             )
             if hint:
                 resp["first_connect_harvest"] = hint["text"]

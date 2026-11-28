@@ -121,6 +121,7 @@ def _turn_hits(key, user, user_message, query, search_as, sensitive, compact=Fal
             print("[rest_turn] context expand skipped: %s" % type(exc).__name__, flush=True)
         hits = _hits(key, q, search_as, context=ctx)
         try:
+            hits, echoes = tc.merge_status_newest(hits, user_message or "", conn, ctx, echoes)
             topic = q if tc.is_short(user_message or "") else (user_message or q)
             layers = tc.layer_from_conn(conn, topic) if conn is not None else []
             extra = []

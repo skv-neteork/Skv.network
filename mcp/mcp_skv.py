@@ -1147,6 +1147,7 @@ def _turn_hits(user_message, query, search_as, lines, sensitive_list, compact=Fa
         hits = _hits(q, 8, lines, turn_context=True, search_as=search_as, context=ctx)
         if tc is not None:
             try:
+                hits, echoes = tc.merge_status_newest(hits, user_message or "", conn, ctx, echoes)
                 topic = q if tc.is_short(user_message or "") else (user_message or q)
                 layers = tc.layer_from_conn(conn, topic) if conn is not None else []
                 extra = []

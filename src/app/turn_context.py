@@ -158,6 +158,24 @@ def incomplete(msg):
     return len(_word_list(msg)) <= 6
 
 
+def status_recency(msg, context_lines=None):
+    """A short status question that names nothing, after the previous line also names nothing.
+
+    The follow-up path stays in charge when the previous line names a file or an id.
+    A command with no question mark stays on that path too.
+    """
+    if not incomplete(msg):
+        return False
+    if "?" not in (msg or "") and "？" not in (msg or ""):
+        return False
+    if len(content_words(msg)) > 1:
+        return False
+    for line in context_lines or []:
+        if _SPECIFIC.search(line or ""):
+            return False
+    return True
+
+
 def _context_line(text, n=400):
     """One previous reply. A file or id past the head is kept inside the clip."""
     t = re.sub(r"\s+", " ", text or "").strip()
@@ -273,6 +291,68 @@ def recent_from_conn(conn, current=""):
         if len(texts) >= 4:
             break
     return texts, echoes
+
+
+def newest_status_hits(conn, msg="", limit=5):
+    """Newest saved lines, newest first. Used when a status question has no named referent.
+
+    Scores sit above a weak search (about 0.03) and under a real durable layer.
+    The question itself, if it was already saved, is not one of these lines.
+    """
+    if conn is None:
+        return []
+    try:
+        rows = conn.execute(
+            "SELECT event_id, raw_dialogue, time_str FROM event_metadata "
+            "WHERE coalesce(raw_dialogue,'') NOT LIKE '%[lightweight]%' "
+            "ORDER BY rowid DESC LIMIT 12"
+        ).fetchall()
+    except Exception:
+        return []
+    cur = (msg or "").strip()
+    out = []
+    for eid, raw, ts in rows:
+        if not eid:
+            continue
+        if "[lightweight]" in (raw or "")[:80]:
+            continue
+        q = user_q(raw)
+        if not q or _PROBE.match(q):
+            continue
+        if cur and q.strip() == cur:
+            continue
+        score = 0.20 - 0.01 * len(out)
+        out.append(_hit(eid, score, "event", "event", _clip(q, 240), ts or ""))
+        if len(out) >= max(1, int(limit or 4)):
+            break
+    return out
+
+
+def merge_status_newest(hits, msg, conn, context_lines, echoes):
+    """Prepend this account's newest events and keep them out of the one-echo slot.
+
+    No change when the question names its own topic or the previous line names a file.
+    """
+    echoes = set(echoes or [])
+    if not status_recency(msg, context_lines):
+        return list(hits or []), echoes
+    extra = newest_status_hits(conn, msg=msg, limit=5)
+    if not extra:
+        return list(hits or []), echoes
+    for h in extra:
+        eid = str(h.get("event_id") or "")
+        echoes.discard(eid)
+        echoes.discard(eid.split("::")[-1])
+    seen, merged = set(), []
+    for h in extra + list(hits or []):
+        eid = str(h.get("event_id") or "")
+        sid = eid.split("::")[-1]
+        key = sid or eid
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(h)
+    return merged, echoes
 
 
 def _eid_at(conn, rowid):

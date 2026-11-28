@@ -263,5 +263,35 @@ class PackSurvivesDiet(unittest.TestCase):
         self.assertEqual(dropped, [])
 
 
+class StatusPause(unittest.TestCase):
+    def test_vague_status_leads_with_the_newest_event(self):
+        c = sqlite3.connect(":memory:")
+        c.execute("CREATE TABLE event_metadata (event_id TEXT, time_str TEXT, raw_dialogue TEXT)")
+        c.executemany(
+            "INSERT INTO event_metadata VALUES (?,?,?)",
+            [
+                ("old", "2026-11-01 10:00", "Q: old november note"),
+                ("mid", "2026-11-28 00:34", "Q: deploy check compact"),
+                ("new", "2026-11-28 04:11", "Q: later status line"),
+            ],
+        )
+        msg = "Ну что там ?"
+        ctx = tc.context_queries(msg, ["deploy check compact"])
+        self.assertTrue(tc.status_recency(msg, ctx))
+        self.assertFalse(tc.status_recency(msg, ["see build_task_b10.txt"]))
+        self.assertFalse(tc.status_recency("сделай всё", ctx))
+        self.assertTrue(tc.status_recency("и что дальше?", ["the last fact"]))
+        hits = [{"event_id": "old", "score": 0.032, "summary": "old november note", "time": "2026-11-01", "layer": "event"}]
+        merged, echoes = tc.merge_status_newest(hits, msg, c, ctx, {"new", "mid"})
+        self.assertNotIn("new", echoes)
+        ranked = tc.rank(merged, msg, echoes, False, limit=12)
+        ids = [h["event_id"] for h in ranked]
+        self.assertEqual(ids[0], "new")
+        self.assertIn("mid", ids)
+        self.assertLess(ids.index("new"), ids.index("old"))
+        named = tc.merge_status_newest(hits, msg, c, ["see build_task_b10.txt"], {"new"})
+        self.assertEqual([h["event_id"] for h in named[0]], ["old"])
+
+
 if __name__ == "__main__":
     unittest.main()

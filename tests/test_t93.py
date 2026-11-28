@@ -272,6 +272,43 @@ class HarvestHintTests(unittest.TestCase):
         finally:
             os.remove(path)
 
+    def test_old_actor_total_never_shows_the_hint(self):
+        c = sqlite3.connect(":memory:")
+        self.assertIsNone(fc.note_turn(c, "old-agent", event_id="e1", turn_n=818))
+        row = c.execute("SELECT turns, shown FROM first_connect_harvest").fetchone()
+        self.assertEqual(row[0], 818)
+        self.assertEqual(row[1], 1)
+        self.assertIsNone(fc.note_turn(c, "old-agent", event_id="e2"))
+        c.execute(
+            "CREATE TABLE agents (id TEXT, token_hash TEXT)"
+        )
+        c.execute("CREATE TABLE event_metadata (actor_agent_id TEXT)")
+        c.execute("CREATE TABLE room_events (actor_agent_id TEXT)")
+        token = "fresh-token"
+        from app.room.identity import token_hash
+        c.execute("INSERT INTO agents VALUES (?,?)", ("grok-bot", token_hash(token)))
+        c.executemany("INSERT INTO event_metadata VALUES (?)", [("grok-bot",)] * 3)
+        c.executemany("INSERT INTO room_events VALUES (?)", [("grok-bot",)] * 5)
+        self.assertEqual(fc.actor_turns("unused", token, conn=c), 5)
+        self.assertEqual(fc.actor_turns("unused", "missing-token", conn=c), 0)
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            ctx = {"db": "", "actor": token, "harvest": True, "harvest_db": path,
+                   "user": "someone@example.invalid", "session": "s", "message": "hello"}
+            real = fc.actor_turns
+            fc.actor_turns = lambda user, tok, conn=None: 818
+            try:
+                out = tp.finish({"mode": "context", "facts": []}, dict(ctx, event_id="t1"))
+            finally:
+                fc.actor_turns = real
+            self.assertNotIn("first_connect_harvest", out)
+            row = sqlite3.connect(path).execute("SELECT turns, shown FROM first_connect_harvest").fetchone()
+            self.assertGreaterEqual(row[0], 4)
+            self.assertEqual(row[1], 1)
+        finally:
+            os.remove(path)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -73,17 +73,18 @@ def note_turn(conn, actor_id, event_id="", turn_n=None):
     if event and event == last and turn_n is None:
         return None
     turns = int(turn_n) if turn_n is not None else turns + 1
-    show = turns in (2, 3)
+    established = turn_n is not None and int(turn_n) >= 4
+    show = (not established) and turns in (2, 3)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S") if show else ""
     conn.execute(
         """INSERT INTO first_connect_harvest (actor_id, turns, shown, shown_at, last_event)
            VALUES (?,?,?,?,?)
            ON CONFLICT(actor_id) DO UPDATE SET
              turns=excluded.turns,
-             shown=excluded.shown,
-             shown_at=excluded.shown_at,
+             shown=CASE WHEN first_connect_harvest.shown=1 THEN 1 ELSE excluded.shown END,
+             shown_at=CASE WHEN first_connect_harvest.shown=1 THEN first_connect_harvest.shown_at ELSE excluded.shown_at END,
              last_event=excluded.last_event""",
-        (actor, turns, 1 if show else 0, stamp, event),
+        (actor, turns, 1 if (show or established) else 0, stamp, event),
     )
     if not show:
         return None
@@ -101,14 +102,70 @@ def default_path():
     return ""
 
 
-def note_file(actor_id, event_id="", path=None):
-    """Persist the per-actor flag. `path` None uses the metadata flag file when that directory exists."""
+def actor_turns(user_id, token, conn=None):
+    """How many turns this actor already has. None when the account cannot be read.
+
+    The token is hashed and never stored here. A missing actor is 0 (brand new).
+    Legacy rows with an empty actor are not counted: they are not this actor.
+    Read-only: this does not create an account file.
+    """
+    token = (token or "").strip()
+    if not token:
+        return None
+    own = False
+    if conn is None:
+        if not (user_id or "").strip():
+            return None
+        try:
+            from app import shelves
+            name = shelves._name(user_id)
+            path = os.path.join(shelves.BASE_DIR, name + ".db") if name else ""
+            if not path or not os.path.isfile(path):
+                return None
+            conn = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
+            own = True
+        except Exception:
+            return None
+    try:
+        from app.room.identity import token_hash
+        row = conn.execute(
+            "SELECT id FROM agents WHERE token_hash=?", (token_hash(token),)
+        ).fetchone()
+        if not row:
+            return 0
+        aid = row[0]
+        n = 0
+        for sql in (
+            "SELECT COUNT(*) FROM event_metadata WHERE actor_agent_id=?",
+            "SELECT COUNT(*) FROM room_events WHERE actor_agent_id=?",
+        ):
+            try:
+                n = max(n, int(conn.execute(sql, (aid,)).fetchone()[0] or 0))
+            except Exception:
+                pass
+        return n
+    except Exception:
+        return None
+    finally:
+        if own and conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def note_file(actor_id, event_id="", path=None, turn_n=None):
+    """Persist the per-actor flag. `path` None uses the metadata flag file when that directory exists.
+
+    turn_n is the actor's total turns, including this one. An old actor (4 or more)
+    never sees the hint. Omit it only when the total is unknown.
+    """
     dest = default_path() if path is None else path
     if not dest:
         return None
     conn = sqlite3.connect(dest, timeout=5)
     try:
-        out = note_turn(conn, actor_id, event_id=event_id)
+        out = note_turn(conn, actor_id, event_id=event_id, turn_n=turn_n)
         conn.commit()
         return out
     finally:

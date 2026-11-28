@@ -1,6 +1,9 @@
 """REST equivalent of the MCP tool turn (same logic): agent self-check context + [ev:] id check + save + server seal.
 Used by Guard 1 (REST/starter prompt chats) and Guard 2. POST /api/v7/agent/turn (Bearer) or GET /api/v7/agent/turn?k=."""
+import contextvars
 import re, json, time, hmac, hashlib, sqlite3, os
+
+_TOPIC_Q = contextvars.ContextVar("skv_turn_topic_q", default="")
 import httpx
 
 BASE = "http://127.0.0.1:8000/api/v7"
@@ -415,12 +418,14 @@ def _pack_turn(res, message, session, duty, duty_reason, source_event_ids, compr
         return res
     source_event_ids = _norm_ids(source_event_ids)
     user = res.pop("_tp_user", "") or ""
+    topic_query = str(res.pop("_topic_query", "") or "") or _TOPIC_Q.get()
     try:
         from app import turn_pack as _tp
         _tp.finish(res, {
             "user": user,
             "session": session or "rest",
             "message": message or "",
+            "topic_query": topic_query or "",
             "duty": duty or "",
             "duty_reason": duty_reason or "",
             "source_event_ids": source_event_ids or [],
@@ -475,6 +480,7 @@ def _apply_seal_gaps(res, user, agent_token, source, draft, answer, recap, msg_r
 
 def turn(key, user_message, draft="", query="", session_id="rest", duty="", duty_reason="", task_done=False, critical="", l1_summary="", l2_summary="", source_event_ids=None, sensitive=None, compact=False, answer="", draft_summary="", profile=None, profile_review=None, source="", second_look="", search_as=None, agent_token="", context_state="normal", kind="turn", msg_ref="", recap=None, const_ack=False, ack="", context_reset=False, context_compressed_at="", compressed=False, used_fact_ids=None):
     """msg_ref / recap are optional (turn-watch, see turn_watch_rest.py): clients that send neither get exactly the old behaviour. const_ack / ack="const" / context_reset are the T73 constitution heartbeat (same as MCP turn)."""
+    _TOPIC_Q.set("")
     def _out(res):
         if isinstance(res, dict):
             gu = res.pop("_gap_user", "") or ""
@@ -554,6 +560,7 @@ def _turn_inner(key, user_message, draft="", query="", session_id="rest", duty="
     _um_h = "h:" + hashlib.sha256(((user_message or "") + (("|" + str(source)) if ext_src else "")).encode()).hexdigest()  # state keeps a hash, never the raw text
     same = bool(last_user in (_um_h, user_message) and now - (saved_t or 0) < 900 and last_eid)
     q, hits = _turn_hits(key, user, user_message, query, search_as, sensitive, compact=compact)
+    _TOPIC_Q.set(q or "")
     own = _sid(last_eid) if same else ""
     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _words(h["summary"], 60)} for h in hits if _sid(h["event_id"]) != own]
     cubes = []

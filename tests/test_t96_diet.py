@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import date
 
 sys.path.insert(0, "/root/skv-core/src")
 
@@ -149,6 +150,45 @@ class Diet(unittest.TestCase):
             self.assertTrue(second[0].startswith("duty_rules_unchanged"))
         finally:
             os.remove(path)
+
+
+class ShortSearchTopic(unittest.TestCase):
+    def test_short_line_keeps_the_searched_query_and_a_long_line_still_filters(self):
+        query = "остатки работ SKV и нужен ли Google"
+        short = "как идет ?)"
+        facts = [
+            {"ev": "remember_1", "fact": "остатки работ SKV и нужен ли Google ещё открыты", "time": "2026-11-01"},
+            {"ev": "remember_2", "fact": "picnic on the hill", "time": "2026-11-01"},
+        ]
+        bare = tp.select_facts([dict(f) for f in facts], message=short)
+        self.assertEqual(bare, [])
+        kept = tp.select_facts([dict(f) for f in facts], message=short, topic_query=query)
+        self.assertEqual([f["ev"] for f in kept], ["remember_1"])
+        long_msg = "what remains of the SKV work and is Google still required"
+        off = tp.select_facts(
+            [{"ev": "remember_9", "fact": "picnic on the hill yesterday afternoon", "time": "2026-11-01"}],
+            message=long_msg,
+            topic_query=query,
+        )
+        self.assertEqual(off, [])
+        today = date(2026, 11, 28)
+        dated = tp.select_facts(
+            [
+                {"ev": "remember_3", "fact": "picnic on the hill", "time": "2026-11-27 12:00"},
+                {"ev": "remember_1", "fact": "остатки работ SKV и нужен ли Google ещё открыты", "time": "2026-11-01"},
+                {"ev": "remember_4", "fact": "unrelated porridge note", "time": "2026-11-01"},
+            ],
+            message="вчера",
+            topic_query=query,
+            today=today,
+        )
+        self.assertEqual([f["ev"] for f in dated], ["remember_3", "remember_1"])
+        resp = tp.finish(
+            {"mode": "context", "facts": [dict(f) for f in facts], "_topic_query": query},
+            {"message": short, "user": "", "session": "t19", "db": "", "recent_ids": [], "seen_fact_ids": []},
+        )
+        self.assertNotIn("_topic_query", resp)
+        self.assertEqual([f["ev"] for f in resp["facts"]], ["remember_1"])
 
 
 if __name__ == "__main__":

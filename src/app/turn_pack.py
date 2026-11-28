@@ -296,7 +296,7 @@ def _is_critical_fact(fact):
     return layer == "critical" or text.lower().startswith("[critical]") or text.startswith("CRITICAL:")
 
 
-def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compressed=False, compressed_at="", today=None, window_cap=_WINDOW_CAP):
+def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compressed=False, compressed_at="", today=None, window_cap=_WINDOW_CAP, topic_query=""):
     """Dedupe, drop junk, apply the session cutoff and the novelty filter.
 
     Default (no compressed flag): drop ids in recent_ids (the last ~50 of this session).
@@ -304,6 +304,8 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
     compressed_at: drop facts whose time is at or after that stamp.
     A time-only question keeps facts inside the date window (capped) instead of
     requiring the word "yesterday" to match the fact.
+    The date window always comes from the user message. On a short message the
+    topic match uses topic_query, which is the query that was actually searched.
     """
     rows = dedupe_facts(facts)
     kept = []
@@ -328,11 +330,16 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
         seen |= {str(x) for x in (seen_fact_ids or []) if x}
         kept = [f for f in kept if str(f.get("ev") or "") not in seen and str(f.get("ev") or "").split("::")[-1] not in seen]
     window = date_window(message, today=today)
-    topic = strip_time_phrases(message or "")
+    topic_src = message or ""
     try:
-        from app.turn_context import content_words, on_topic
+        from app.turn_context import content_words, is_short, on_topic
+        asked = str(topic_query or "").strip()
+        if asked and is_short(message or ""):
+            topic_src = asked
+        topic = strip_time_phrases(topic_src)
         words = content_words(topic)
     except Exception:
+        topic = strip_time_phrases(message or "")
         words, on_topic = [], None
 
     def _self(f):
@@ -1151,6 +1158,9 @@ def finish(resp, ctx=None):
 
 
 def _finish(resp, ctx):
+    topic_query = str((ctx or {}).get("topic_query") or "")
+    if isinstance(resp, dict):
+        topic_query = str(resp.pop("_topic_query", "") or "") or topic_query
     if not isinstance(resp, dict):
         return resp
     if resp.get("status") in (401, 403):
@@ -1193,6 +1203,7 @@ def _finish(resp, ctx):
         compressed=compressed,
         compressed_at=compressed_at,
         today=today,
+        topic_query=topic_query,
     )
     records = ctx.get("records")
     criticals = ctx.get("criticals")

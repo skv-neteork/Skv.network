@@ -81,6 +81,7 @@ SITE = os.environ.get("SKV_SITE", BASE.rsplit("/api/v7", 1)[0] or "http://127.0.
 ENV_KEY = (os.environ.get("SKV_API_KEY") or "").strip()
 USER = (os.environ.get("SKV_USER_ID") or "").strip()
 _key_var: contextvars.ContextVar[str] = contextvars.ContextVar("skv_api_key", default="")
+_topic_q: contextvars.ContextVar[str] = contextvars.ContextVar("skv_topic_q", default="")
 
 START_ORDER = (
     "1) constitution_install(user_confirmed=true) if not installed (short reply, no pages) "
@@ -1119,9 +1120,11 @@ def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = Fals
 def _turn_hits(user_message, query, search_as, lines, sensitive_list, compact=False):
     """One /search, then rank decisions, critical, L1/L2 above recent self echoes. No extra search_as forms."""
     q = _SCRUB.scrub((query or user_message or "")[:500], sensitive_list)
+    tc = _TC
+    if tc is not None and hasattr(tc, "search_as_skip") and tc.search_as_skip(search_as):
+        return q, []
     if _is_low(user_message) and not query and not search_as:
         return q, []
-    tc = _TC
     conn = None
     echoes = set()
     multi = False
@@ -2202,10 +2205,10 @@ _PLACEHOLDER_ID = re.compile(r"^(<[^>]*>|id|ids|event_id|\.{2,}|…|x+|n+|_+|\*+
 def _real_cites(text):
     """[ev:...] citations minus doc placeholders like [ev:id], [ev:ID], [ev:<id>], [ev:...]."""
     return [c for c in dict.fromkeys(re.findall(r"\[ev:([^\]\s]+)\]", text or "")) if not _PLACEHOLDER_ID.match(c.strip())]
-def _compact_facts(hits, own, rel=0.7, n=3, chars=300):
+def _compact_facts(hits, own, rel=0.7, n=3, chars=300, message=None, kind=""):
     tc = _TC
     if tc is not None and hasattr(tc, "pack_2400_enabled") and tc.pack_2400_enabled():
-        rows = tc.compact_facts(hits, own)
+        rows = tc.compact_facts(hits, own, message=message, kind=kind)
         for row in rows:
             if not row.get("time"):
                 row["time"] = _ev_time(row.get("event_id") or row.get("ev") or "")
@@ -3037,6 +3040,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
         _room_stopped = _room_block(agent_token, session_id, soft=True)
         if _room_stopped:
             return _room_stopped
+    _topic_q.set("")
     res = _bl_add(_sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose, search_as=search_as, agent_token=agent_token, context_state=context_state, kind=kind, l1_task=l1_task)))
     _gsrc = answer or draft or ""
     if not _gsrc and recap:
@@ -3067,6 +3071,7 @@ def _t84_pack(res, user_message, session_id, duty, duty_reason, source_event_ids
             "user": _caller_id() or "",
             "session": session_id or "mcp",
             "message": user_message or "",
+            "topic_query": str(o.pop("_topic_query", "") or "") or _topic_q.get(),
             "duty": duty or "",
             "duty_reason": duty_reason or "",
             "source_event_ids": source_event_ids or "",
@@ -3137,6 +3142,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         return _dumps({"mode": "event", "event": _req("GET", f"/event/{_full_eid(event_id)}", params={"lines": "all"})})
     same = t["last_user"] == user_message and _time.time() - t["saved_t"] < 900 and t["last_eid"]
     q, hits = _turn_hits(user_message, query, search_as, lines, [x.strip() for x in (sensitive or "").split("|")], compact=compact)
+    _topic_q.set(q or "")
     own = _sid(t.get("last_eid") or "") if same else ""
     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _fact_text(h["summary"])} for h in hits if _sid(h["event_id"]) != own]
     cubes = []
@@ -3164,7 +3170,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
     checklist.append("The answer follows the relevant cubes or says why not; then vote or duty=vote_nothing.")
     cg = None
     if compact:
-        facts = _compact_facts(hits, own)
+        facts = _compact_facts(hits, own, message=user_message, kind=kind)
         cg, cg_commit = _compact_gate(_caller_id() or "env", session_id or "mcp", cubes, checklist, COMPACT_DB)
     _nim = {} if facts or _is_low(user_message) else {"facts_note": _NOT_IN_MEMORY}
     try:

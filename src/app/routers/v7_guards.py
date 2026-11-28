@@ -120,12 +120,12 @@ class TurnRequest(BaseModel):
     user_id: str = ""
     compact: bool = False
     answer: str = ""
-    draft_summary: str = ""
+    draft_summary: str = Field(default="", description="5-8 words: what you checked, changed or decided, and the result. On the next turn this describes the previous answer and is stored on that event. A long answer without it raises a duty.")
     profile: Optional[Any] = None          # profile ops (list or JSON string)
     profile_review: Optional[Any] = None   # with l2_summary: {"ops":[...]} or {"no_changes":true,"reason":...}
     source: str = ""                       # e.g. guard2_ext:chatgpt -> no L1/L2 duties, server summarises
     second_look: str = ""                  # answers to last turn's second_look_questions: "kept|changed: <what>"
-    search_as: Optional[Any] = None  # Q2S: up to 3 statements, or "-" to skip recall
+    search_as: Optional[Any] = Field(default=None, description="Required. 3-8 words of what the user MEANS (your interpretation from context: topic, referent of it/this, goal), not a rephrase of the message words. Or exactly - for an ack or filler (ok, thanks, next). Empty is not allowed: the turn is saved, but a short line without this field comes back status=revise with no facts and no seal; resend only search_as. Example: user 'а он сделал?' -> 'Build сделал 40 пропущенных заданий T95'.")
 
     @field_validator("source_event_ids", mode="before")
     @classmethod

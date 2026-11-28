@@ -60,7 +60,7 @@ def _fts_insert(cur, event_id: str, dialogue: str):
     )
 
 
-def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response: str, source: str = "chat", topic: str = "", time_str: str = None) -> dict:
+def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response: str, source: str = "chat", topic: str = "", time_str: str = None, search_as: str = "", draft_summary: str = "", note_event_id: str = "") -> dict:
     name = account_db_name(user_id)
     if not name or not event_id:
         raise ValueError("user_id and event_id required")
@@ -75,6 +75,21 @@ def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response:
     except Exception as exc:
         print(f"[vault] turn scrub skipped: {exc}", flush=True)
     dialogue = f"Q: {query}\nA: {response}"
+    essence = (topic or query)[:200]
+    embed_text = None
+    try:
+        from app.turn_context import forms as _forms, gloss_good as _gloss_good
+        from app.gloss_note import essence_outcome, essence_prepend, headline, vector_text
+        kept = _forms(search_as)
+        if _gloss_good(search_as) and kept:
+            essence = essence_prepend(essence, kept[0])
+        on_this = str(draft_summary or "").strip() and (not note_event_id or note_event_id == event_id)
+        if on_this:
+            essence = essence_outcome(essence, draft_summary)
+        if headline(essence):
+            embed_text = vector_text(essence, dialogue)
+    except Exception as exc:
+        print(f"[gloss_note] essence skipped: {type(exc).__name__}", flush=True)
     with sqlite3.connect(path, timeout=30) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(
@@ -93,9 +108,14 @@ def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response:
             """INSERT OR REPLACE INTO event_metadata
                (event_id, time_str, essence, raw_dialogue, messages_count, links_json, topics_json, status)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (event_id, time_str or time.strftime("%Y-%m-%d %H:%M"), (topic or query)[:200], dialogue, 2, "[]", json.dumps([source]), "pending_vector"),
+            (event_id, time_str or time.strftime("%Y-%m-%d %H:%M"), essence, dialogue, 2, "[]", json.dumps([source]), "pending_vector"),
         )
         _fts_insert(conn.cursor(), event_id, dialogue)
+        try:
+            from app.gloss_note import refresh_fts
+            refresh_fts(conn, event_id)
+        except Exception as exc:
+            print(f"[gloss_note] fts skipped: {type(exc).__name__}", flush=True)
         try:   # cheap regex auto-capture of names/dates/links/phones/emails/addresses (text is already vault-scrubbed)
             from app import critical_auto as _ca, memory_v2 as _m2
             if _m2.config().get("critical_auto", True):
@@ -105,9 +125,15 @@ def queue_turn(base_dir: str, user_id: str, event_id: str, query: str, response:
         conn.commit()
     try:
         from app import semantic
-        semantic.add_event_now(user_id, event_id, dialogue)
+        semantic.add_event_now(user_id, event_id, dialogue, embed_text=embed_text)
     except Exception as exc:
         print(f"[memory] instant vector skipped: {exc}", flush=True)
+    if str(draft_summary or "").strip() and note_event_id and note_event_id != event_id:
+        try:
+            from app.gloss_note import stamp_outcome
+            stamp_outcome(path, note_event_id, draft_summary)
+        except Exception as exc:
+            print(f"[gloss_note] outcome skipped: {type(exc).__name__}", flush=True)
     _ensure_batch_thread(base_dir)
     return {"status": "queued", "event_id": event_id, "account": name}
 

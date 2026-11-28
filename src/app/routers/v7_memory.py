@@ -1521,7 +1521,7 @@ async def remember(req: RememberRequest, request: Request = None):
     if req.query or req.response or req.critical:
         eid = f"{req.user_id}::remember_{time.time_ns()}"
         _ts = _event_time_str(req.ts or req.occurred_at)
-        queue_turn("/data/skv/metadata_store", req.user_id, eid, text_q, text_a, source="agent", topic=req.topic, time_str=_ts)
+        queue_turn("/data/skv/metadata_store", req.user_id, eid, text_q, text_a, source="agent", topic=req.topic, time_str=_ts, search_as=getattr(req, "search_as", "") or "", draft_summary=getattr(req, "draft_summary", "") or "", note_event_id=getattr(req, "note_event_id", "") or "")
         if _sens:
             try:
                 import sqlite3 as _sq3

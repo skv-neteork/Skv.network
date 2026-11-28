@@ -818,6 +818,9 @@ class RememberRequest(BaseModel):
     l1_task: str = ""           # T71: optional 'start'|'end': the l1_summary opens/closes a notable task (phrases are detected too)
     client_key: str = ""        # idempotency key from the client: a resend with the same key replays the first result (no double save)
     agent_token: str = ""       # identify token; stamps actor on a cube this call writes
+    search_as: str = ""         # retelling of this user message, stored as the event headline
+    draft_summary: str = ""     # 5-8 words on the previous answer, stored on note_event_id
+    note_event_id: str = ""     # event that receives draft_summary; empty stores it on this new event
 
 def _event_time_str(value):
     """ISO 8601 time -> stored time_str ('YYYY-MM-DD HH:MM', UTC like the server clock). Naive values are taken as UTC.

@@ -81,10 +81,30 @@ class SearchAs(unittest.TestCase):
         self.assertEqual(sa, [])
 
     def test_short_message_uses_search_as_as_the_query(self):
+        # A status line is the active-state slice. search_as only names the task.
         q, sa = tc.build_search("Как идет ?)", "статус Build по T95", ["older line about a picnic"])
-        self.assertEqual(q, "статус Build по T95")
+        self.assertEqual(q, "")
         self.assertEqual(sa, [])
-        self.assertNotIn("picnic", q.lower())
+        plan = tc.followup_plan("Как идет ?)", "статус Build по T95", ["older line about a picnic"])
+        self.assertEqual(plan["mode"], "slice")
+        self.assertEqual(plan["task_hint"], "статус Build по T95")
+        self.assertFalse(plan["revise"])
+        # A non-status short line still searches by the gloss, not by the raw words.
+        q2, sa2 = tc.build_search("а про Google?", "нужен ли Google для остатков работ", ["older line about a picnic"])
+        self.assertEqual(q2, "нужен ли Google для остатков работ")
+        self.assertEqual(sa2, [])
+        self.assertNotIn("picnic", q2.lower())
+        # Deictic: the gloss is the whole query. The raw line is not added beside it.
+        gloss = "Build сделал 40 пропущенных заданий T95"
+        q3, sa3 = tc.build_search("а он сделал?", gloss, ["older line about a picnic"])
+        self.assertEqual(q3, gloss)
+        self.assertEqual(sa3, [])
+        self.assertNotIn("picnic", q3.lower())
+        deictic = tc.followup_plan("а он сделал?", gloss, ["older line about a picnic"])
+        self.assertEqual(deictic["mode"], "deictic")
+        self.assertEqual(deictic["user_weight"], 0.0)
+        self.assertEqual(deictic["recency_h"], 36.0)
+        self.assertEqual(deictic["context"], [])
 
     def test_long_message_keeps_search_as_beside_the_query(self):
         msg = "what did we decide about the cube store and the archive layout?"

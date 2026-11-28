@@ -346,8 +346,8 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
         return bool(f.get("is_self"))
 
     def _keep(f):
-        # The 2400 compact pack already chose this row. A second topic cut would drop it.
-        if f.get("pack2400"):
+        # The 2400 pack and the active-state slice already chose this row.
+        if f.get("pack2400") or f.get("active_slice"):
             return True
         if _self(f):
             return False
@@ -372,6 +372,7 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
     for f in kept:
         if isinstance(f, dict):
             f.pop("pack2400", None)
+            f.pop("active_slice", None)
     return kept
 
 

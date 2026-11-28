@@ -116,9 +116,10 @@ def topic_cover(query, text):
     return _match(stems, query or "", text or "")
 
 
-def blend_score(relevance, age_hours, cover):
+def blend_score(relevance, age_hours, cover, half_life=168.0):
     """Fresh on-topic text beats an old off-topic hit. An old on-topic hit still beats a fresh off-topic one.
-    Off-topic (cover near 0) cannot spend a high semantic score to win."""
+    Off-topic (cover near 0) cannot spend a high semantic score to win.
+    half_life stays 168 everywhere except a caller that passes another value."""
     try:
         rel = float(relevance)
     except (TypeError, ValueError):
@@ -137,7 +138,13 @@ def blend_score(relevance, age_hours, cover):
         cov = 1.0
     if age < 0.0:
         age = 0.0
-    return rel * (0.15 + 0.85 * cov) * (0.45 + 0.55 * _math.exp(-age / 168.0))
+    try:
+        life = float(half_life)
+    except (TypeError, ValueError):
+        life = 168.0
+    if life <= 0:
+        life = 168.0
+    return rel * (0.15 + 0.85 * cov) * (0.45 + 0.55 * _math.exp(-age / life))
 
 
 def _blend_fused(uid, query, fused, top_k, times=None):

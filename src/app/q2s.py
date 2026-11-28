@@ -237,7 +237,7 @@ def _fuse(lists, top_k, k=60, mode="sum"):
 
 
 def _context_lines(context):
-    """Up to two context strings. An explicit empty list does not fall through to the context var."""
+    """Up to three context strings. An explicit empty list does not fall through to the context var."""
     if context is None:
         context = CONTEXT.get()
     if not context:
@@ -254,7 +254,7 @@ def _context_lines(context):
         if len(t) >= 3 and key not in seen:
             seen.add(key)
             out.append(t)
-        if len(out) >= 2:
+        if len(out) >= 3:
             break
     return out
 
@@ -286,7 +286,7 @@ def _context_ranked(uid, lines, pool):
     """
     from app import search_v2 as _v2
     parts = []
-    for i, line in enumerate(lines[:2]):
+    for i, line in enumerate(lines[:3]):
         try:
             words, _rare = _v2.fts_ranked(uid, line, limit=pool)
         except Exception as e:

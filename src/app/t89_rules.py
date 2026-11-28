@@ -182,14 +182,24 @@ def summary_build(level=1, draft="", source_event_ids="", material="", today="",
     marks = critical_marks(material)
     ideas = key_ideas(material, today=today)
     where = "summary_build.source_event_ids"
+    steps = summary_steps(level)
+    try:
+        from app.gloss_note import skeleton_lines
+        skel = skeleton_lines(material)
+    except Exception:
+        skel = []
+    if skel:
+        steps = ["use these headlines as the L1 skeleton", *steps]
     packet = {
         "level": level,
-        "steps": summary_steps(level),
+        "steps": steps,
         "marks": marks,
         "key_ideas": ideas,
         "source_event_ids": ids,
         "ready_call": summary_ready_call(level, ",".join(ids), where=where),
     }
+    if skel:
+        packet["skeleton"] = skel
     if not str(draft or "").strip():
         packet["ok"] = False
         packet["missing"] = ["draft"]

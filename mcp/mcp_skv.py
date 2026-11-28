@@ -1080,7 +1080,7 @@ def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = Fals
     if _sa_list(search_as):
         body["search_as"] = _sa_list(search_as)
     if context:
-        body["context"] = [str(x)[:400] for x in list(context)[:2] if str(x or "").strip()]
+        body["context"] = [str(x)[:400] for x in list(context)[:3] if str(x or "").strip()]
     if (lines or "").lower() == "all":
         body["lines"] = "all"
     data = _req("POST", "/search", body)
@@ -1118,54 +1118,78 @@ def _hits(query: str, top_k: int = 6, lines: str = "", turn_context: bool = Fals
 
 
 def _turn_hits(user_message, query, search_as, lines, sensitive_list, compact=False):
-    """One /search, then rank decisions, critical, L1/L2 above recent self echoes. No extra search_as forms."""
+    """One /search, or the active-state slice. No extra search_as forms are invented."""
     q = _SCRUB.scrub((query or user_message or "")[:500], sensitive_list)
     tc = _TC
-    if tc is not None and hasattr(tc, "search_as_skip") and tc.search_as_skip(search_as):
-        return q, []
-    if _is_low(user_message) and not query and not search_as:
-        return q, []
+    if tc is None or not hasattr(tc, "followup_plan"):
+        if tc is not None and hasattr(tc, "search_as_skip") and tc.search_as_skip(search_as):
+            return "", []
+        if str(search_as or "").strip() == "-":
+            return "", []
+        return q, _hits(q, 8, lines, turn_context=True, search_as=search_as)
+    tc.set_plan({})
     conn = None
     echoes = set()
-    multi = False
-    ctx = []
     try:
-        if tc is not None:
-            try:
-                multi = bool(tc.is_multi(user_message or ""))
-                conn = _udb()
-                recent = []
-                if conn is not None:
-                    recent, echoes = tc.recent_from_conn(conn, user_message or "")
-                seed = query if query and not tc.is_short(user_message or "") else (user_message or query or "")
-                q2, sa2 = tc.build_search(seed, search_as, recent)
-                q = _SCRUB.scrub((q2 or q)[:500], sensitive_list)
-                search_as = sa2
-                ctx = tc.context_queries(user_message or "", recent)
-            except Exception as exc:
-                print("[turn] context expand skipped: %s" % type(exc).__name__, flush=True)
+        multi = bool(tc.is_multi(user_message or ""))
+        conn = _udb()
+        recent = []
+        if conn is not None:
+            recent, echoes = tc.recent_from_conn(conn, user_message or "")
+        plan = tc.followup_plan(user_message or "", search_as, recent)
+        if plan.get("mode") == "plain" and query and not tc.is_short(user_message or ""):
+            plan = dict(plan)
+            plan["query"] = (query or "")[:500]
+        tc.set_plan(plan)
+        mode = plan.get("mode")
+        if mode == "skip":
+            return "", []
+        if mode == "slice":
+            hits = tc.active_slice(conn, plan.get("task_hint") or "") if conn is not None else []
+            if tc.slice_keeps(plan, hits):
+                return "", hits
+            # No doing row: keep the short line as the query. The previous line
+            # stays in the context list. Replacing the query dropped hits.
+            q = _SCRUB.scrub((user_message or "")[:500], sensitive_list)
+            ctx = list(plan.get("context") or [])[:2]
+            search_as = []
+            skip_merge = False
+        else:
+            skip_merge = mode == "deictic"
+            if mode == "plain" and _is_low(user_message) and not (plan.get("query") or "").strip() and not plan.get("search_as"):
+                return q, []
+            q = _SCRUB.scrub((plan.get("query") or q or "")[:500], sensitive_list)
+            search_as = plan.get("search_as") or []
+            ctx = list(plan.get("context") or [])
+        if not (q or "").strip() and not search_as:
+            return q, []
         hits = _hits(q, 8, lines, turn_context=True, search_as=search_as, context=ctx)
-        if tc is not None:
-            try:
+        try:
+            if not skip_merge:
                 hits, echoes = tc.merge_status_newest(hits, user_message or "", conn, ctx, echoes)
-                topic = q if tc.is_short(user_message or "") else (user_message or q)
-                layers = tc.layer_from_conn(conn, topic) if conn is not None else []
-                extra = []
-                if multi and conn is not None:
-                    best = ""
-                    for h in hits:
-                        eid = h.get("event_id") or ""
-                        sid = str(eid).split("::")[-1]
-                        if eid not in echoes and sid not in echoes:
-                            best = eid
-                            break
-                    if best:
-                        extra = tc.neighbours(conn, best, topic)
-                limit = tc.turn_rank_limit(compact) if hasattr(tc, "turn_rank_limit") else 5
-                hits = tc.rank(list(hits) + layers + extra, topic, echoes, multi, limit=limit)
-            except Exception as exc:
-                print("[turn] context rank skipped: %s" % type(exc).__name__, flush=True)
+            topic = q if tc.is_short(user_message or "") else (user_message or q)
+            layers = tc.layer_from_conn(conn, topic) if conn is not None else []
+            extra = []
+            if multi and conn is not None:
+                best = ""
+                for h in hits:
+                    eid = h.get("event_id") or ""
+                    sid = str(eid).split("::")[-1]
+                    if eid not in echoes and sid not in echoes:
+                        best = eid
+                        break
+                if best:
+                    extra = tc.neighbours(conn, best, topic)
+            limit = tc.turn_rank_limit(compact) if hasattr(tc, "turn_rank_limit") else 5
+            hits = tc.rank(list(hits) + layers + extra, topic, echoes, multi, limit=limit)
+            if plan.get("recency_h"):
+                hits = tc.rerank_recency(hits, q, plan["recency_h"])
+        except Exception as exc:
+            print("[turn] context rank skipped: %s" % type(exc).__name__, flush=True)
         return q, hits
+    except Exception as exc:
+        print("[turn] context expand skipped: %s" % type(exc).__name__, flush=True)
+        return q, _hits(q, 8, lines, turn_context=True, search_as=search_as)
     finally:
         if conn is not None:
             try:
@@ -3008,7 +3032,7 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
     after about 10 L1, l2_summary=<one headline per stage + open items>.
     COMPACT MODE (opt-in, compact=true): self-check FIRST, then send the FINAL answer once as answer=<final text>
     (draft= stays a backward-compatible alias). It is saved verbatim and sealed but never echoed back. Optional
-    draft_summary=<short gist> is only logged/id-checked. facts: max 3, only strong hits (>=0.7 of best score), each
+    draft_summary=<5-8 words: what you checked, changed or decided, and the result> is stored on the previous event. search_as=<3-8 words of what the user MEANS, or exactly -. A short line without it is saved and comes back status=revise with no facts and no seal; resend only search_as. facts: max 3, only strong hits (>=0.7 of best score), each
     whole when short (<=~300 chars, longer ones cut), ending with [ev:id]; no facts -> facts_note "not in memory". cubes and self_check are returned only when changed since this session's last
     turn; otherwise only cubes_version / checklist_version (+ *_unchanged=true): reuse the ones you already have.
     Seal, [ev:id] check, saving and summary_due/duties are identical in both modes.
@@ -3041,6 +3065,12 @@ def turn(user_message: str, draft: str = "", query: str = "", session_id: str = 
         if _room_stopped:
             return _room_stopped
     _topic_q.set("")
+    try:
+        from app import turn_context as _tc_plan
+        _tc_plan.set_plan({})
+        _tc_plan.set_agent(agent_token)
+    except Exception:
+        pass
     res = _bl_add(_sz_auto_attach(_turn_core(user_message=user_message, draft=draft, query=query, session_id=session_id, event_id=event_id, duty=duty, duty_reason=duty_reason, task_done=task_done, critical=critical, lines=lines, l1_summary=l1_summary, l2_summary=l2_summary, source_event_ids=source_event_ids, sensitive=sensitive, compact=compact, answer=answer, draft_summary=draft_summary, profile=profile, profile_review=profile_review, msg_ref=msg_ref, second_look=second_look, recap=recap, verbose=verbose, search_as=search_as, agent_token=agent_token, context_state=context_state, kind=kind, l1_task=l1_task)))
     _gsrc = answer or draft or ""
     if not _gsrc and recap:
@@ -3088,6 +3118,11 @@ def _t84_pack(res, user_message, session_id, duty, duty_reason, source_event_ids
     except Exception as exc:
         print("[turn] pack skipped: %s" % type(exc).__name__, flush=True)
         return res if isinstance(res, str) else _dumps(o)
+    try:
+        from app import turn_context as _tc_plan
+        _tc_plan.attach_gloss(o, _tc_plan.current_plan(), actor)
+    except Exception:
+        pass
     return _dumps(o)
 
 
@@ -3143,11 +3178,18 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
     same = t["last_user"] == user_message and _time.time() - t["saved_t"] < 900 and t["last_eid"]
     q, hits = _turn_hits(user_message, query, search_as, lines, [x.strip() for x in (sensitive or "").split("|")], compact=compact)
     _topic_q.set(q or "")
+    try:
+        from app import turn_context as _tc_plan
+        _gp = _tc_plan.current_plan()
+        if isinstance(_gp, dict):
+            _gp["summary_missing"] = bool(draft) and len(draft) > 300 and not str(draft_summary or "").strip()
+    except Exception:
+        pass
     own = _sid(t.get("last_eid") or "") if same else ""
     facts = [{"ev": _sid(h["event_id"]), "time": h.get("time"), "fact": _fact_text(h["summary"])} for h in hits if _sid(h["event_id"]) != own]
     cubes = []
     try:
-        if not _is_low(user_message):
+        if q and not _is_low(user_message):
             cd = _req("GET", "/api/cubes/search", params={"query": q[:200]}, base=SITE)
             if isinstance(cd, dict) and isinstance(cd.get("results"), list):
                 rk = _rank_cubes(cd.get("cube_query") or q, cd)
@@ -3215,6 +3257,36 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
         if pc.get("errors"):
             return _dumps(_with_gap({"verdict": "revise", "saved": False, "seal": None, "profile_errors": pc["errors"],
                            "next": "nothing saved, no seal used: fix profile / profile_review and call turn again with the same user_message"}))
+    _gloss_revise = False
+    try:
+        from app import turn_context as _tc_plan
+        _gloss_revise = bool((_tc_plan.current_plan() or {}).get("revise"))
+    except Exception:
+        _gloss_revise = False
+    if _gloss_revise:
+        from app.turn_context import gloss_revise_reason, remember_fields
+        reason = gloss_revise_reason()
+        body = _uid_body({"query": user_message, "response": clean, "duty": duty, "duty_reason": duty_reason,
+                          "task_done": bool(task_done), "critical": critical, "pin": bool(critical), "session_id": session_id or "mcp",
+                          "self_check": True, "l1_summary": l1_summary or "", "l2_map": l2_summary or "",
+                          "source_event_ids": [_sid(x.strip()) for x in re.split(r"[,\s]+", source_event_ids or "") if x.strip()],
+                          "sensitive": [x.strip() for x in (sensitive or "").split("|") if x.strip()],
+                          "profile": profile or None, "profile_review": profile_review or None, "l1_task": l1_task or ""})
+        body.update(remember_fields(search_as, draft_summary, t.get("last_eid") or ""))
+        if same and t.get("last_eid"):
+            body["query"] = "[revision of ev:%s] " % _sid(t["last_eid"]) + body["query"]
+            body["supersedes"] = t["last_eid"]
+        saved = _req("POST", "/remember", body)
+        eid = (saved.get("event_id") or ((saved.get("saved") or [""])[0]) or "") if isinstance(saved, dict) else ""
+        t["last_user"] = user_message
+        t["saved_t"] = _time.time()
+        t["last_eid"] = eid or t.get("last_eid") or ""
+        t["verdict"] = "revise"
+        t["last_final"] = clean
+        return _dumps(_with_gap({
+            "verdict": "revise", "status": "revise", "saved": bool(eid), "seal": None, "facts": [],
+            "event_id": eid or None, "reason": reason, "next": reason,
+        }))
     if same and t.get("verdict") == "pass":
         seal_n = t["seal"]
     else:
@@ -3223,7 +3295,7 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
     final = clean + "\n" + seal
     drawn = [m.group(0) for m in re.finditer(r"🔐\s*SKV[^\n]*", draft or "")]
     gap = (not same) and t.get("seal") is not None and t.get("saved_t") and _time.time() - t["saved_t"] > 0 and bool(drawn)
-    if invalid:
+    if invalid and not _gloss_revise:
         return _dumps(_with_gap({"verdict": "revise", "saved": False, "seal": None, "invalid_ids": invalid,
                        "fixes": ["[ev:%s] does not exist in your memory: remove it, cite a real id from facts, or say the fact is unknown" % x for x in invalid],
                        "facts": facts, "next": "nothing saved: fix the draft, call turn again with the same user_message"}))
@@ -3236,6 +3308,11 @@ def _turn_core(user_message: str, draft: str = "", query: str = "", session_id: 
                           "source_event_ids": [_sid(x.strip()) for x in re.split(r"[,\s]+", source_event_ids or "") if x.strip()],
                           "sensitive": [x.strip() for x in (sensitive or "").split("|") if x.strip()],
                           "profile": profile or None, "profile_review": profile_review or None, "l1_task": l1_task or ""})
+        try:
+            from app.turn_context import remember_fields
+            body.update(remember_fields(search_as, draft_summary, t.get("last_eid") or ""))
+        except Exception:
+            pass
         light = _is_low(user_message) and len(final) < 400 and not (critical or duty or l1_summary or l2_summary or sensitive)
         if light:
             body["topic"] = "lightweight"; body["query"] = "[lightweight] " + user_message
@@ -5348,8 +5425,9 @@ def _build_public_app():
 
 
 PARAM_DESC = {"turn": {"profile_review": "With l2_summary: JSON {\"ops\":[...]} or {\"no_changes\":true,\"reason\":\"<why, >=20 chars>\"}; required after the first 3 L2 (else L2 rejected)."}}
-PARAM_DESC["turn"]["search_as"] = "Optional, recommended when the user asks a question about the past: up to 3 short statements of how the answer was most likely WRITTEN in memory - statement form, not a question; first person as the speaker said it (\"my kids loved...\", \"I went to...\") and third person with names; in the memory's base_language (turn/step_zero report it; translate the question if the user wrote in another language; keep names); never invent the unknown fact. Searched together with the question (finds answers a question-shaped query misses, esp. cross-language)."   # Q2S 2026-11-02
-PARAM_DESC.setdefault("memory_search", {})["search_as"] = PARAM_DESC["turn"]["search_as"]
+PARAM_DESC["turn"]["search_as"] = "Required. 3-8 words of what the user MEANS (your interpretation from context: topic, referent of it/this, goal), not a rephrase of the message words. Or exactly - for an ack or filler (ok, thanks, next). Empty is not allowed: the turn is saved, but a short line without this field comes back status=revise with no facts and no seal; resend only search_as. Example: user 'а он сделал?' -> 'Build сделал 40 пропущенных заданий T95'."
+PARAM_DESC["turn"]["draft_summary"] = "5-8 words: what you checked, changed or decided, and the result. On the next turn this describes the previous answer and is stored on that event. A long answer without it raises a duty."
+PARAM_DESC.setdefault("memory_search", {})["search_as"] = "Optional, recommended when the user asks a question about the past: up to 3 short statements of how the answer was most likely WRITTEN in memory - statement form, not a question; first person as the speaker said it (\"my kids loved...\", \"I went to...\") and third person with names; in the memory's base_language (turn/step_zero report it; translate the question if the user wrote in another language; keep names); never invent the unknown fact. Searched together with the question (finds answers a question-shaped query misses, esp. cross-language)."
 PARAM_DESC.setdefault("memory_recall_later", {})["search_as"] = "Optional, recommended: the same up to 3 statement forms you passed to turn/memory_search (how the answer was most likely WRITTEN in memory, base_language, keep names, never invent the unknown fact). Used as an extra seed of the deep search."   # 2026-11-02
 PARAM_DESC["memory_recall_later"]["query"] = "The question in the memory base_language (turn/step_zero report base_language); keep names and exact terms."
 PARAM_DESC["turn"]["const_ack"] = "true = you read the constitution manifest (constitution_manifest in the reply); also ack=\"const\". context_reset=true after a context compaction: asks for the manifest again."

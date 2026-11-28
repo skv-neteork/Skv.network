@@ -6,7 +6,10 @@ they are not glued into the query. Ranks decisions / critical marks / L1 / L2
 above recent self Q/A, and returns several dated facts for a multi-event question.
 No embeddings and no change to /search ranking.
 """
+import contextvars
+import hashlib
 import json
+import math
 import re
 import sqlite3
 from datetime import datetime, timezone
@@ -216,21 +219,497 @@ def search_as_skip(search_as):
     return bool(kept) and all(x.strip() == "-" for x in kept)
 
 
-def build_search(user_message, search_as, recent_user_messages):
-    """Return (query, search_as). The query is never a glued previous line.
+# Status phrases and deictic markers. A command in _SHORT is not one of these.
+_STATUS = (
+    "как идет", "как идёт", "как дела", "ну как", "как успехи", "какой статус",
+    "как там", "готово", "статус", "what is the status", "how's it going",
+    "how is it going", "status",
+)
+_DEICTIC = re.compile(
+    r"\b(там|это|этот|эта|этого|этом|он|она|они|него|неё|нее|дальше|this|that|there)\b",
+    re.I,
+)
+_JUNK = set("""
+делай делаем сделай давай дальше хорошо понял поняла ладно next ok okay yes no
+thanks thank спасибо да ок
+""".split())
+_PLAN = contextvars.ContextVar("skv_followup_plan", default=None)
+_AGENT = contextvars.ContextVar("skv_gloss_agent", default="")
+_DUTY = (
+    "search_as_missing: send search_as=<what the user means, 3-8 words> or exactly -. "
+    "Turns hanging: %d."
+)
+_SUMMARY_DUTY = (
+    "draft_summary_missing: 5-8 words of what you checked, changed or decided, and the result."
+)
+_REVISE_REASON = (
+    "search_as required: send search_as=<what the user means, 3-8 words> or exactly -. "
+    "The event is saved. Resend only search_as."
+)
 
-    A dash skips recall. On a short message a real search_as is the query,
-    because the short line itself does not name the topic. A long message
-    stays the query and search_as stays beside it. recent_user_messages is
-    not folded in; callers use context_queries for that signal.
-    """
+
+def _bare(msg):
+    raw = (msg or "").lower().replace("ё", "е").replace("'", "").replace("\u2019", "").replace("`", "")
+    return " ".join(re.sub(r"[^\w\s]", " ", raw, flags=re.U).split())
+
+
+def _is_command(msg):
+    raw = " ".join(re.sub(r"[^\w\s]", " ", (msg or "").lower(), flags=re.U).split())
+    if not raw:
+        return False
+    return raw in _SHORT or raw.startswith("do everything") or raw.startswith("сделай всё") or raw.startswith("сделай все")
+
+
+def is_status(msg):
+    """A bare status question. 'как идет сборка' has two content words and is not one."""
+    if _SPECIFIC.search(msg or ""):
+        return False
+    bare = _bare(msg)
+    if not bare:
+        return False
+    words = bare.split()
+    shortish = is_short(msg) or (incomplete(msg) and len(words) <= 5)
+    if not shortish or len(content_words(msg)) > 1:
+        return False
+    for phrase in _STATUS:
+        p = _bare(phrase)
+        if bare == p or bare.startswith(p + " "):
+            return True
+    return False
+
+
+def is_deictic(msg):
+    """'а он сделал?' points at the current task. A status line and a command do not."""
+    if is_status(msg) or _is_command(msg) or _SPECIFIC.search(msg or ""):
+        return False
+    if not (is_short(msg) or incomplete(msg)):
+        return False
+    return bool(_DEICTIC.search(_bare(msg)))
+
+
+def is_empty_followup(msg):
+    """Ack or filler. A question and a deictic line are not acks."""
+    if _is_command(msg) or _SPECIFIC.search(msg or "") or is_status(msg):
+        return False
+    if not (msg or "").strip() or not (is_short(msg) or incomplete(msg)):
+        return False
+    words = [w.replace("ё", "е") for w in _word_list(msg)]
+    if not words:
+        return False
+    if len(words) == 1 and words[0] in _JUNK:
+        return True
+    if "?" in (msg or "") or "？" in (msg or "") or is_deictic(msg):
+        return False
+    return all(w in _JUNK or w in _STOP or len(w) < 4 for w in words)
+
+
+def gloss_good(search_as):
+    """Two content words that are not a single filler. A dash is not a gloss."""
     kept = forms(search_as)
-    msg = (user_message or "").strip()
+    if not kept or all(x.strip() == "-" for x in kept):
+        return False
+    text = " ".join(kept)
+    words = [w.replace("ё", "е") for w in _word_list(text)]
+    if len(words) == 1 and words[0] in _JUNK:
+        return False
+    return len(content_words(text)) >= 2
+
+
+def _needs_gloss(msg):
+    """Short or reference line that should carry the agent's interpretation."""
+    if is_status(msg) or _is_command(msg) or _SPECIFIC.search(msg or "") or is_empty_followup(msg):
+        return False
+    if is_deictic(msg):
+        return True
+    text = " ".join((msg or "").split())
+    if not text:
+        return False
+    if is_short(msg) or (incomplete(msg) and len(text) < 40):
+        return len(content_words(msg)) >= 1
+    return False
+
+
+def _bad_dash(msg):
+    """Dash where the line still needs a gloss. Status, fillers, and long lines are allowed."""
+    if is_status(msg) or _SPECIFIC.search(msg or "") or is_empty_followup(msg) or _is_command(msg):
+        return False
+    if not (is_short(msg) or incomplete(msg)):
+        return False
+    return len(content_words(msg)) >= 2 or "?" in (msg or "") or "？" in (msg or "")
+
+
+def gloss_kind(msg, search_as):
+    kept = forms(search_as)
     if kept and all(x.strip() == "-" for x in kept):
+        return "dash_rejected" if _bad_dash(msg) else "dash_ok"
+    if gloss_good(search_as):
+        return "filled"
+    if kept:
+        return "junk"
+    if _needs_gloss(msg) or is_deictic(msg):
+        return "missed"
+    return "open"
+
+
+def followup_plan(user_message, search_as, recent_user_messages=None):
+    """How this turn is searched. The raw line is never concatenated onto search_as.
+
+    mode skip: no memory facts. slice: the active board and the latest answers.
+    deictic: search_as alone, recency half-life 36h. gloss: search_as is the query
+    and the last series lines stay a separate context list. series: a short line
+    that already names its topic stays the query; a vaguer one uses the previous line.
+    """
+    msg = (user_message or "").strip()
+    kept = forms(search_as)
+    kind = gloss_kind(msg, search_as)
+    good = kind == "filled"
+    ctx3 = context_queries(msg, recent_user_messages, limit=3)
+    plan = {
+        "mode": "plain",
+        "query": msg[:500],
+        "search_as": [],
+        "context": ctx3[:2],
+        "user_weight": 1.0,
+        "recency_h": None,
+        "task_hint": "",
+        "gloss": kind,
+        "stat": "",
+        "revise": False,
+        "duty": False,
+    }
+    if is_status(msg):
+        plan.update(mode="slice", query="", context=[], user_weight=0.0,
+                    task_hint=(kept[0] if good else ""))
+        if kind == "dash_ok":
+            plan["stat"] = "dash_ok"
+        elif good:
+            plan["stat"] = "filled"
+        return plan
+    if kind == "dash_rejected":
+        plan.update(mode="skip", query="", context=[], revise=True, duty=True, stat="dash_rejected")
+        return plan
+    if kind == "dash_ok":
+        plan.update(mode="skip", query="", context=[], stat="dash_ok")
+        return plan
+    if is_empty_followup(msg) and not good:
+        plan.update(mode="slice", query="", context=ctx3, user_weight=0.0)
+        return plan
+    if is_deictic(msg) and good:
+        plan.update(mode="deictic", query=kept[0][:500], search_as=[], context=[],
+                    user_weight=0.0, recency_h=36.0, stat="filled")
+        return plan
+    if is_deictic(msg) and kind in ("missed", "junk"):
+        plan.update(mode="slice", query="", context=ctx3, user_weight=0.0,
+                    revise=True, duty=True, stat="missed")
+        return plan
+    if good and is_short(msg):
+        plan.update(mode="gloss", query=kept[0][:500], search_as=kept[1:], context=ctx3, stat="filled")
+        return plan
+    if good:
+        plan.update(mode="plain", query=msg[:500], search_as=kept, context=ctx3[:2], stat="filled")
+        return plan
+    if _needs_gloss(msg) and kind in ("missed", "junk"):
+        vague = len(content_words(msg)) < 2
+        if vague and ctx3:
+            query, rest = ctx3[0], ctx3[1:]
+        else:
+            query, rest = msg[:500], ctx3
+        plan.update(mode="series", query=query, search_as=[], context=rest,
+                    revise=True, duty=True, stat="missed")
+        return plan
+    if not (is_short(msg) or incomplete(msg)):
+        plan["context"] = []
+    return plan
+
+
+def build_search(user_message, search_as, recent_user_messages):
+    """Return (query, search_as). Skip and slice search nothing here.
+
+    The query is never a glued previous line. A real gloss on a non-status
+    short line is the query. A long line stays the query.
+    """
+    plan = followup_plan(user_message, search_as, recent_user_messages)
+    if plan["mode"] in ("skip", "slice"):
         return "", []
-    if kept and is_short(msg):
-        return kept[0][:500], kept[1:]
-    return msg[:500], kept
+    return (plan.get("query") or "")[:500], list(plan.get("search_as") or [])
+
+
+def set_plan(plan):
+    _PLAN.set(plan if isinstance(plan, dict) else {})
+
+
+def current_plan():
+    plan = _PLAN.get()
+    return plan if isinstance(plan, dict) else {}
+
+
+def agent_key(token):
+    """Stable counter key. The raw token is not stored."""
+    raw = (token or "").strip()
+    if not raw:
+        return "anon"
+    if len(raw) == 17 and raw.startswith("a") and all(c in "0123456789abcdef" for c in raw[1:]):
+        return raw
+    return "a" + hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def set_agent(token):
+    _AGENT.set(agent_key(token))
+
+
+def gloss_revise_reason():
+    return _REVISE_REASON
+
+
+def remember_fields(search_as, draft_summary, note_event_id):
+    """Fields /remember stores on the event. Empty values are left out."""
+    out = {}
+    if isinstance(search_as, list):
+        text = " | ".join(str(x).strip() for x in search_as if str(x).strip())
+    else:
+        text = str(search_as or "").strip()
+    if text:
+        out["search_as"] = text[:500]
+    if str(draft_summary or "").strip():
+        out["draft_summary"] = str(draft_summary).strip()[:200]
+    if str(note_event_id or "").strip():
+        out["note_event_id"] = str(note_event_id).strip()
+    return out
+
+
+def _age_hours(time_s, now):
+    s = str(time_s or "")
+    m = re.search(r"(20\d{2})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?", s)
+    if not m:
+        return 1e6
+    try:
+        dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                      int(m.group(4) or 0), int(m.group(5) or 0), tzinfo=timezone.utc)
+    except ValueError:
+        return 1e6
+    return max(0.0, (now - dt).total_seconds() / 3600.0)
+
+
+def rerank_recency(hits, query, half_life=36.0, now=None):
+    """Same shape as blend_score. half_life 36 is this path only; the global one stays 168."""
+    try:
+        life = float(half_life)
+    except (TypeError, ValueError):
+        life = 36.0
+    if life <= 0:
+        life = 36.0
+    moment = now or datetime.now(timezone.utc)
+    qwords = content_words(query)
+    ranked = []
+    for h in hits or []:
+        if not isinstance(h, dict):
+            continue
+        try:
+            rel = float(h.get("score") or 0)
+        except (TypeError, ValueError):
+            rel = 0.0
+        if qwords:
+            cov = _overlap_count(qwords, h.get("summary") or "") / float(len(qwords))
+        else:
+            cov = 1.0
+        if cov < 0.0:
+            cov = 0.0
+        if cov > 1.0:
+            cov = 1.0
+        age = _age_hours(h.get("time"), moment)
+        score = rel * (0.15 + 0.85 * cov) * (0.45 + 0.55 * math.exp(-age / life))
+        row = dict(h)
+        row["score"] = score
+        ranked.append(row)
+    ranked.sort(key=lambda x: -float(x.get("score") or 0))
+    return ranked
+
+
+def _slice_hit(eid, ts, text, score):
+    return {
+        "event_id": eid,
+        "time": ts or "",
+        "score": score,
+        "summary": text,
+        "source": "active_slice",
+        "active_slice": True,
+    }
+
+
+def _pick_doing(rows, hint):
+    if not rows:
+        return None
+    words = content_words(hint or "")
+    best, best_n = None, 0
+    if words:
+        for row in rows:
+            n = _overlap_count(words, "%s %s" % (row[1] or "", row[2] or ""))
+            if n > best_n:
+                best, best_n = row, n
+        if best is not None and best_n:
+            return best
+    return rows[0]
+
+
+def _agent_clip(raw, n=500):
+    raw = re.sub(r"\s+", " ", raw or "").strip()
+    i = raw.find(" A:")
+    if i < 0:
+        i = raw.find("A:")
+    if i >= 0:
+        return _clip((raw[:min(i, 80)] + " " + raw[i:]).strip(), n)
+    return _clip(raw, n)
+
+
+def active_slice(conn, hint=""):
+    """Doing item, its latest change, the last answers, and the last L1. Read only."""
+    if conn is None:
+        return []
+    try:
+        tabs = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    except sqlite3.Error:
+        return []
+    board_hit = hist_hit = src_hit = None
+    if "board_items" in tabs:
+        try:
+            rows = conn.execute(
+                "SELECT item_id, title, body, status, updated_at FROM board_items "
+                "WHERE coalesce(removed,0)=0 AND status='doing' ORDER BY updated_at DESC"
+            ).fetchall()
+        except sqlite3.Error:
+            rows = []
+        item = _pick_doing(rows, hint)
+        if item:
+            iid, title, body, _status, updated = item
+            board_hit = _slice_hit("board:" + str(iid), updated, "doing: %s. %s" % (title or iid, _clip(body or "", 400)), 1.0)
+            if "board_history" in tabs:
+                try:
+                    hist = conn.execute(
+                        "SELECT text, ts FROM board_history WHERE item_id=? ORDER BY id DESC LIMIT 1",
+                        (iid,),
+                    ).fetchone()
+                except sqlite3.Error:
+                    hist = None
+                if hist and (hist[0] or "").strip():
+                    hist_hit = _slice_hit("board:%s:hist" % iid, hist[1], "change: " + _clip(hist[0], 300), 0.85)
+            if "source_links" in tabs:
+                try:
+                    link = conn.execute(
+                        "SELECT source_event_ids, status FROM source_links WHERE obj_id=?",
+                        ("board:" + str(iid),),
+                    ).fetchone()
+                except sqlite3.Error:
+                    link = None
+                if link and ((link[0] or "").strip() or (link[1] or "").strip()):
+                    src_hit = _slice_hit(
+                        "board:%s:src" % iid, "",
+                        "source: %s %s" % (link[1] or "", _clip(link[0] or "", 180)),
+                        0.8,
+                    )
+    l1_hits = []
+    if "summary_l1" in tabs:
+        try:
+            l1_rows = conn.execute(
+                "SELECT rowid, topic, summary_text, created_at FROM summary_l1 ORDER BY rowid DESC LIMIT 2"
+            ).fetchall()
+        except sqlite3.Error:
+            l1_rows = []
+        for row in l1_rows:
+            text = _clip(((row[1] or "") + " " + (row[2] or "")).strip(), 400)
+            if text:
+                l1_hits.append(_slice_hit("l1:%s" % row[0], row[3], text, 0.75))
+    events = []
+    if "event_metadata" in tabs:
+        try:
+            ev_rows = conn.execute(
+                "SELECT event_id, time_str, raw_dialogue FROM event_metadata ORDER BY rowid DESC LIMIT 12"
+            ).fetchall()
+        except sqlite3.Error:
+            ev_rows = []
+        for eid, ts, raw in ev_rows:
+            if not eid or (raw or "").startswith("[archived]") or "A:" not in (raw or ""):
+                continue
+            events.append(_slice_hit(eid, ts, _agent_clip(raw, 500), 0.7))
+            if len(events) >= 3:
+                break
+    out = []
+    if board_hit:
+        out.append(board_hit)
+    if events:
+        out.append(events[0])
+    if l1_hits:
+        out.append(l1_hits[0])
+    for extra in (hist_hit, src_hit):
+        if extra:
+            out.append(extra)
+    out.extend(events[1:])
+    out.extend(l1_hits[1:])
+    return out
+
+
+def slice_keeps(plan, hits):
+    """The slice is the whole answer, except a gloss miss with no doing row.
+
+    Status and an empty ack stay on the slice. A deictic miss with no doing
+    item searches the short line itself. The previous lines stay context.
+    """
+    plan = plan if isinstance(plan, dict) else {}
+    has_board = any(str(h.get("event_id") or "").startswith("board:") for h in (hits or []) if isinstance(h, dict))
+    if has_board or not plan.get("context") or not plan.get("revise"):
+        return True
+    return False
+
+
+def _append_line(result, key, line):
+    cur = result.get(key) or ""
+    if not isinstance(cur, str):
+        return
+    if line not in cur:
+        result[key] = (cur + " " + line).strip() if cur else line
+
+
+def attach_gloss(result, plan, agent="", path=None):
+    """Count the gloss once and, when it was required, say so on next."""
+    if not isinstance(result, dict):
+        return result
+    plan = plan if isinstance(plan, dict) else {}
+    stat = plan.get("stat") or ""
+    key = agent_key(agent) if agent else (_AGENT.get() or "anon")
+    if stat in ("filled", "dash_ok", "dash_rejected", "missed") and not plan.get("_bumped"):
+        try:
+            try:
+                from gloss_note import bump, count_of
+            except ImportError:
+                from app.gloss_note import bump, count_of
+            bump(key, stat, path=path)
+            plan["_bumped"] = True
+            result["search_as_stat"] = stat
+        except Exception:
+            result["search_as_stat"] = stat
+    if plan.get("duty"):
+        try:
+            try:
+                from gloss_note import count_of
+            except ImportError:
+                from app.gloss_note import count_of
+            hanging = count_of(key, "missed", path=path)
+        except Exception:
+            hanging = 0
+        line = _DUTY % hanging
+        _append_line(result, "next", line)
+        _append_line(result, "next_step", line)
+        duties = list(result.get("duties") or [])
+        if line not in duties:
+            duties.append(line)
+            result["duties"] = duties
+    if plan.get("summary_missing"):
+        _append_line(result, "next", _SUMMARY_DUTY)
+        _append_line(result, "next_step", _SUMMARY_DUTY)
+        duties = list(result.get("duties") or [])
+        if _SUMMARY_DUTY not in duties:
+            duties.append(_SUMMARY_DUTY)
+            result["duties"] = duties
+    return result
 
 
 def user_q(raw):
@@ -823,7 +1302,8 @@ def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=
         text = re.sub(r"\s+", " ", str(h.get("summary") or "")).strip()
         if not text:
             continue
-        piece = text[:clip]
+        row_clip = 400 if h.get("active_slice") else clip
+        piece = text[:row_clip]
         extra = len(piece) + (1 if parts else 0)
         if parts and used + extra > budget:
             break
@@ -839,7 +1319,9 @@ def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=
             "event_id": h.get("event_id"),
             "score": h.get("score"),
         }
-        if mark:
+        if h.get("active_slice"):
+            row["active_slice"] = True
+        elif mark:
             row["pack2400"] = True
         chosen.append(row)
         used += len(piece) + (1 if len(parts) > 1 else 0)

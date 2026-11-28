@@ -299,11 +299,18 @@ def build_user(tag, fname, threads=None, batch=32, progress=None, max_items=None
     try:
         _ensure_table(conn, table)
         try:
-            rows = conn.execute(
-                f"SELECT e.event_id, e.raw_dialogue FROM event_metadata e LEFT JOIN {table} v ON e.event_id=v.event_id "
+            raw_rows = conn.execute(
+                f"SELECT e.event_id, e.raw_dialogue, coalesce(e.essence,'') FROM event_metadata e LEFT JOIN {table} v ON e.event_id=v.event_id "
                 f"WHERE v.event_id IS NULL AND e.raw_dialogue IS NOT NULL AND e.raw_dialogue != '' AND e.raw_dialogue NOT LIKE '[archived]%'").fetchall()
+            from app.gloss_note import headline as _note_head, vector_text as _vector_text
+            rows = [(eid, _vector_text(ess, raw) if _note_head(ess) else raw) for eid, raw, ess in raw_rows]
         except sqlite3.OperationalError:
-            rows = []
+            try:
+                rows = conn.execute(
+                    f"SELECT e.event_id, e.raw_dialogue FROM event_metadata e LEFT JOIN {table} v ON e.event_id=v.event_id "
+                    f"WHERE v.event_id IS NULL AND e.raw_dialogue IS NOT NULL AND e.raw_dialogue != '' AND e.raw_dialogue NOT LIKE '[archived]%'").fetchall()
+            except sqlite3.OperationalError:
+                rows = []
         try:
             l1 = conn.execute(
                 f"SELECT 'l1:' || s.rowid, coalesce(s.topic,'') || ': ' || coalesce(s.summary_text,'') FROM summary_l1 s "
@@ -384,11 +391,37 @@ def account_files():
     return sorted(out, key=lambda f: os.path.getsize(os.path.join(BASE_DIR, f)))
 
 
-def add_event_now(user_id, event_id, text):
+def reembed_one(user_id, event_id, text):
+    """Replace one event vector. Does not rebuild the index and does not load a second model."""
+    tag = active_tag()
+    if tag == "bge" or os.path.exists(os.path.join(MODELS[tag]["dir"], "REBUILDING")):
+        return False
+    if not event_id or text is None:
+        return False
+    name = account_name(user_id)
+    vec = embed([text], tag)
+    STORE.add(tag, name, [event_id], vec, save=True)
+    conn = sqlite3.connect(os.path.join(BASE_DIR, name + ".db"), timeout=30)
+    try:
+        _ensure_table(conn, MODELS[tag]["table"])
+        conn.execute(
+            f"INSERT OR REPLACE INTO {MODELS[tag]['table']} (event_id, created_at) VALUES (?, datetime('now'))",
+            (event_id,),
+        )
+        from app.search_v2 import flip_active_where_indexed
+        flip_active_where_indexed(conn, MODELS[tag]["table"])
+        conn.commit()
+    finally:
+        conn.close()
+    return True
+
+
+def add_event_now(user_id, event_id, text, embed_text=None):
     """Embed one new turn right away (API process is the only writer once switched).
 
-    Chunks are written even when the event vector waits for the lazy batch.
-    A REBUILDING flag skips both so a chunk rebuild is the only writer of that index.
+    Chunks are written from the full raw text even when the event vector waits.
+    embed_text, when set, is the note plus a trimmed raw start. The raw side is
+    what the token limit drops. A REBUILDING flag skips both.
     """
     tag = active_tag()
     if tag == "bge" or os.path.exists(os.path.join(MODELS[tag]["dir"], "REBUILDING")):
@@ -398,11 +431,12 @@ def add_event_now(user_id, event_id, text):
         append_event_chunks(user_id, event_id, text, tag=tag)
     except Exception as exc:
         print("[chunks] write skipped: %s" % type(exc).__name__, flush=True)
+    vector = text if embed_text is None else embed_text
     if lazy_cfg()["enabled"]:
         _LAST_WRITE[account_name(user_id)] = time.time()
         return False   # lazy: batch vectorizer picks it up (threshold or idle)
     name = account_name(user_id)
-    vec = embed([text], tag)
+    vec = embed([vector], tag)
     STORE.add(tag, name, [event_id], vec, save=True)
     conn = sqlite3.connect(os.path.join(BASE_DIR, name + ".db"), timeout=30)
     try:

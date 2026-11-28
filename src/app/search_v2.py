@@ -128,11 +128,43 @@ def sync(conn):
     conn.execute("CREATE TABLE IF NOT EXISTS events_fts_stem_state (k TEXT PRIMARY KEY, v INTEGER)")
     row = conn.execute("SELECT v FROM events_fts_stem_state WHERE k='rowid'").fetchone()
     last = row[0] if row else 0
-    rows = conn.execute("SELECT rowid, event_id, raw_dialogue FROM event_metadata WHERE rowid > ? ORDER BY rowid", (last,)).fetchall()
-    rows_all, rows = rows, [r for r in rows if not (r[2] or "").startswith("[archived]")]   # archived: not indexed
+    try:
+        rows = conn.execute(
+            "SELECT rowid, event_id, raw_dialogue, coalesce(essence,'') FROM event_metadata WHERE rowid > ? ORDER BY rowid",
+            (last,),
+        ).fetchall()
+        wide = True
+    except sqlite3.OperationalError:
+        rows = conn.execute(
+            "SELECT rowid, event_id, raw_dialogue FROM event_metadata WHERE rowid > ? ORDER BY rowid",
+            (last,),
+        ).fetchall()
+        wide = False
+    rows_all = rows
+    fresh = [r for r in rows if not (r[2] or "").startswith("[archived]")]
+    have = set()
+    eids = [r[1] for r in fresh if r[1]]
+    if eids:
+        try:
+            marks = ",".join("?" * len(eids))
+            have = {r[0] for r in conn.execute(
+                "SELECT event_id FROM events_fts_stem WHERE event_id IN (%s)" % marks, eids
+            )}
+        except sqlite3.Error:
+            have = set()
+    rows = [r for r in fresh if r[1] not in have]
     if rows:
+        def _body(r):
+            raw = r[2] or ""
+            if not wide:
+                return stem_text(raw)
+            try:
+                from app.gloss_note import fts_body
+                return stem_text(fts_body(r[3], raw))
+            except Exception:
+                return stem_text(raw)
         conn.executemany("INSERT INTO events_fts_stem(event_id, body) VALUES (?,?)",
-                         [(eid, stem_text(raw)) for _, eid, raw in rows])
+                         [(r[1], _body(r)) for r in rows])
     if rows_all:
         conn.execute("INSERT OR REPLACE INTO events_fts_stem_state VALUES ('rowid', ?)", (rows_all[-1][0],))
         conn.commit()

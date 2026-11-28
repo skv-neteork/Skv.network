@@ -124,7 +124,9 @@ class Diet(unittest.TestCase):
         facts = tc.compact_facts(hits, "", message="what is the topic status now")
         evs = [f["ev"] for f in facts]
         self.assertIn("remember_9", evs)
-        self.assertLessEqual(len(facts), 3)
+        # GB-29 A3: up to 3 extra "reserve" rows may follow; select_facts caps them.
+        self.assertLessEqual(len([f for f in facts if not f.get("reserve")]), 3)
+        facts = [f for f in facts if not f.get("reserve")]
         # GB-29: a normal row is soft-marked (topic diet may demote it, not drop it).
         self.assertTrue(facts[0].get("pack_soft"))
         self.assertNotIn("summary", facts[0])

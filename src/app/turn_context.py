@@ -1201,6 +1201,9 @@ PACK_NORMAL = 1500
 PACK_NORMAL_N = 3
 PACK_NORMAL_CLIP = 160
 PACK_RAW_SLOTS = 2
+# GB-29: extra rows after the normal 3, marked reserve. The novelty filter runs after packing; a reserve
+# replaces a fact the agent was shown on a recent turn, so a repeat topic does not come back empty.
+PACK_RESERVE = 3
 PACK_CLIP = 400
 PACK_RANK = 12
 _LEGACY_RANK = 5
@@ -1274,8 +1277,8 @@ def _is_summary_hit(h):
     return text.startswith("[l1]") or text.startswith("[l2]")
 
 
-def _order_for_pack(hits, limit_n, reserve_raw):
-    """Of a base of limit_n facts, keep 1-2 slots for raw events."""
+def _order_for_pack(hits, limit_n, reserve_raw, keep_rest=False):
+    """Of a base of limit_n facts, keep 1-2 slots for raw events. keep_rest appends the others in order."""
     rows = [h for h in (hits or []) if isinstance(h, dict)]
     if not limit_n:
         return rows
@@ -1283,13 +1286,17 @@ def _order_for_pack(hits, limit_n, reserve_raw):
     for h in rows:
         (summ if _is_summary_hit(h) else raw).append(h)
     if not reserve_raw or not raw:
-        return (raw + summ)[:limit_n]
-    slots = min(int(reserve_raw), len(raw), int(limit_n))
-    chosen = list(raw[:slots])
-    for h in list(raw[slots:]) + summ:
-        if len(chosen) >= limit_n:
-            break
-        chosen.append(h)
+        chosen = (raw + summ)[:limit_n]
+    else:
+        slots = min(int(reserve_raw), len(raw), int(limit_n))
+        chosen = list(raw[:slots])
+        for h in list(raw[slots:]) + summ:
+            if len(chosen) >= limit_n:
+                break
+            chosen.append(h)
+    if keep_rest:
+        ids = {id(h) for h in chosen}
+        chosen = chosen + [h for h in rows if id(h) not in ids]
     return chosen
 
 
@@ -1314,7 +1321,7 @@ def compact_facts(hits, own="", cfg=None, rel=0.7, n=3, chars=200, message=None,
     return _pack_budget(
         hits, own_sid, PACK_NORMAL, PACK_NORMAL_CLIP,
         mark="soft", limit_n=PACK_NORMAL_N, reserve_raw=PACK_RAW_SLOTS,
-        terms=terms if terms is not None else _plan_terms(message),
+        terms=terms if terms is not None else _plan_terms(message), reserve=PACK_RESERVE,
     )
 
 
@@ -1379,12 +1386,22 @@ def clip_window(text, terms, clip):
     return text[start:start + clip], start
 
 
-def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=0, terms=""):
+def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=0, terms="", reserve=0):
     parts = []
     chosen = []
     used = 0
-    ordered = _order_for_pack(hits, limit_n, reserve_raw)
+    ordered = _order_for_pack(hits, limit_n, reserve_raw, keep_rest=bool(reserve))
+    n_main = 0
+    full = False
     for h in ordered:
+        if reserve and (full or (limit_n and n_main >= limit_n)):
+            if len(chosen) - n_main >= reserve:
+                break
+            row = _pack_row(h, own_sid, clip, mark, terms)
+            if row is not None:
+                row["reserve"] = True
+                chosen.append(row)
+            continue
         if not isinstance(h, dict):
             continue
         ev = _event_sid(h.get("event_id"))
@@ -1401,6 +1418,13 @@ def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=
             piece = text[:row_clip]
         extra = len(piece) + (1 if parts else 0)
         if parts and used + extra > budget:
+            if reserve:
+                full = True
+                row = _pack_row(h, own_sid, clip, mark, terms)
+                if row is not None:
+                    row["reserve"] = True
+                    chosen.append(row)
+                continue
             break
         if not parts and len(piece) > budget:
             piece = piece[:budget]
@@ -1427,10 +1451,43 @@ def _pack_budget(hits, own_sid, budget, clip, mark=True, limit_n=0, reserve_raw=
         if h.get("rare"):
             row["rare"] = True
         chosen.append(row)
+        n_main += 1
         used += len(piece) + (1 if len(parts) > 1 else 0)
         if used >= budget:
+            if reserve:
+                full = True
+                continue
             break
     return chosen
+
+
+def _pack_row(h, own_sid, clip, mark, terms):
+    """One reserve row, clipped like a normal row. Not counted in the budget."""
+    if not isinstance(h, dict):
+        return None
+    ev = _event_sid(h.get("event_id"))
+    if own_sid and ev == own_sid:
+        return None
+    text = re.sub(r"\s+", " ", str(h.get("summary") or "")).strip()
+    if not text:
+        return None
+    start = 0
+    if mark == "soft" and terms and not h.get("active_slice"):
+        piece, start = clip_window(text, terms, clip)
+    else:
+        piece = text[:clip]
+    shown = piece.rstrip() + " [cut]" if len(text) > start + len(piece) else piece
+    if start:
+        shown = "… " + shown
+    row = {"ev": ev, "time": h.get("time") or "", "fact": shown + (" [ev:%s]" % ev if ev else ""),
+           "event_id": h.get("event_id"), "score": h.get("score")}
+    if mark == "soft":
+        row["pack_soft"] = True
+    if h.get("cos") is not None:
+        row["cos"] = h.get("cos")
+    if h.get("rare"):
+        row["rare"] = True
+    return row
 
 
 def _legacy_facts(hits, own_sid, rel, n, chars):

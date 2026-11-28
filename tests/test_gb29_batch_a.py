@@ -138,6 +138,36 @@ class TopicTrigger(unittest.TestCase):
         self.assertEqual(trig, "phrase")
 
 
+class ReserveRows(unittest.TestCase):
+    def _hits(self, n):
+        return [{"event_id": "u::remember_%d" % i, "summary": "память язык поиска база английские термины %d" % i, "score": 0.03 - i * 0.001, "cos": 0.6}
+                for i in range(n)]
+
+    def test_reserve_replaces_seen(self):
+        facts = TC.compact_facts(self._hits(6), "", cfg={}, message="язык памяти и поиск на языке базы")
+        self.assertEqual(sum(1 for f in facts if not f.get("reserve")), 3)
+        self.assertEqual(sum(1 for f in facts if f.get("reserve")), 3)
+        dropped = []
+        out = TP.select_facts(facts, message="язык памяти и поиск на языке базы", recent_ids=[],
+                              seen_fact_ids=["remember_0", "remember_1", "remember_2"], seen_out=dropped)
+        self.assertEqual([f["ev"] for f in out], ["remember_3", "remember_4", "remember_5"])
+        self.assertEqual(dropped, ["remember_0", "remember_1", "remember_2"])
+        self.assertFalse(any("reserve" in f for f in out))
+
+    def test_no_seen_keeps_main_three(self):
+        facts = TC.compact_facts(self._hits(6), "", cfg={}, message="язык памяти и поиск на языке базы")
+        out = TP.select_facts(facts, message="язык памяти и поиск на языке базы", recent_ids=[], seen_fact_ids=[])
+        self.assertEqual([f["ev"] for f in out], ["remember_0", "remember_1", "remember_2"])
+
+    def test_finish_names_seen_when_empty(self):
+        facts = TC.compact_facts(self._hits(3), "", cfg={}, message="язык памяти и поиск на языке базы")
+        resp = TP.finish({"mode": "context", "facts": facts},
+                         {"message": "язык памяти и поиск на языке базы", "user": "", "session": "gb29", "db": "",
+                          "recent_ids": [], "seen_fact_ids": ["remember_0", "remember_1", "remember_2"]})
+        self.assertEqual(resp["facts"], [])
+        self.assertEqual(resp["facts_seen"], ["remember_0", "remember_1", "remember_2"])
+
+
 class ContextMetrics(unittest.TestCase):
     def test_log_context_row(self):
         import sqlite3

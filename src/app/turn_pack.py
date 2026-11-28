@@ -317,7 +317,7 @@ def _is_critical_fact(fact):
     return layer == "critical" or text.lower().startswith("[critical]") or text.startswith("CRITICAL:")
 
 
-def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compressed=False, compressed_at="", today=None, window_cap=_WINDOW_CAP, topic_query="", search_as=""):
+def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compressed=False, compressed_at="", today=None, window_cap=_WINDOW_CAP, topic_query="", search_as="", seen_out=None):
     """Dedupe, drop junk, apply the session cutoff and the novelty filter.
 
     Default (no compressed flag): drop ids in recent_ids (the last ~50 of this session).
@@ -350,7 +350,11 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
     if not compressed and not (compressed_at or "").strip():
         seen = {str(x).split("::")[-1] for x in (seen_fact_ids or []) if x}
         seen |= {str(x) for x in (seen_fact_ids or []) if x}
+        was = kept
         kept = [f for f in kept if str(f.get("ev") or "") not in seen and str(f.get("ev") or "").split("::")[-1] not in seen]
+        if seen_out is not None:
+            ids = {id(f) for f in kept}
+            seen_out.extend(str(f.get("ev") or "") for f in was if id(f) not in ids and not f.get("reserve") and f.get("ev"))
     window = date_window(message, today=today)
     topic_src = message or ""
     extra = ""
@@ -399,6 +403,10 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
         kept = inside[:window_cap] + outside
     elif window:
         kept = [f for f in kept if _keep(f) or f.get("pack_soft")][:window_cap]
+    if any(isinstance(f, dict) and f.get("reserve") for f in list(kept) + soft):
+        # Reserve rows only stand in for facts the novelty or topic filter removed: same count, same budget.
+        kept = _cap_normal(kept)
+        soft = [f for f in soft if not f.get("reserve")] + [f for f in soft if f.get("reserve")]
     if soft and len(kept) < SOFT_FILL:
         for f in soft[:SOFT_FILL - len(kept)]:
             try:
@@ -414,7 +422,24 @@ def select_facts(facts, message="", recent_ids=None, seen_fact_ids=None, compres
             f.pop("active_slice", None)
             f.pop("cos", None)
             f.pop("rare", None)
+            f.pop("reserve", None)
     return kept
+
+
+def _cap_normal(rows, chars_only=False, n=SOFT_FILL, budget=1500):
+    """At most n normal rows within the normal character budget (1500). Wide rows are not touched."""
+    out, used = [], 0
+    for f in rows:
+        if not isinstance(f, dict):
+            continue
+        if not chars_only and len(out) >= n:
+            break
+        size = len(str(f.get("fact") or ""))
+        if out and used + size > budget + 120:
+            break
+        out.append(f)
+        used += size
+    return out
 
 
 def soft_pass(f, cos_floor=None):
@@ -1325,6 +1350,7 @@ def _finish(resp, ctx):
             search_as = (current_plan() or {}).get("search_as") or ""
         except Exception:
             search_as = ""
+    seen_dropped = []
     facts = select_facts(
         resp.get("facts") or [],
         message=message,
@@ -1335,7 +1361,13 @@ def _finish(resp, ctx):
         today=today,
         topic_query=topic_query,
         search_as=search_as,
+        seen_out=seen_dropped,
     )
+    if not facts and seen_dropped:
+        # The packed facts were all shown on recent turns: name them instead of an empty list.
+        resp["facts_seen"] = seen_dropped[:3]
+    else:
+        resp.pop("facts_seen", None)
     records = ctx.get("records")
     criticals = ctx.get("criticals")
     if records and criticals:
